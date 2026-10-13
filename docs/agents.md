@@ -756,4 +756,8 @@ divided the work ("you take slides 1-5"), stick to your share.
 
 Working examples of everything above: this repo's starter library
 (`scripts/build-starter-library.mjs`) — open the built `.beeslides.html`
-and read its JSON block.
+and read its JSON block. For decks that move, read the generators behind
+[docs/examples](examples/README.md): `scripts/lib/bee-deck.mjs` (an
+explainer using morph, a state, builds, count-up, loops, motion paths, an
+equation, a chart, a table and zoom tiles) and `scripts/lib/lake-scene.mjs`
+(a living scene: loops on elements that also morph between slides).

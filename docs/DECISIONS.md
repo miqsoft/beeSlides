@@ -12488,3 +12488,32 @@ Rig: `scripts/test-native-scene-e2e.mjs` (all shapes/text, gradient blend
 mid-morph, the balloon's float waits during its move and resumes from the new
 position, origin/spin/blink/dash-march running; `--save` writes the deck).
 
+## 2026-10-13 — Example decks live in docs/examples, as viewer files made by the app's own export
+
+The app still ships no example deck (2026-09-30: every new file stays small).
+Examples now live in the docs instead, where a reader can see what a file can
+do before installing anything: `docs/examples/` holds three present-only files
+(a bee explainer that tours most of the format, the lake scene and the seasons
+drawing from the two entries above) and a README with what each shows and the
+sources behind the bee deck's facts.
+
+- **Made by the app, not spliced by hand.** `scripts/build-docs-examples.mjs`
+  loads each generated deck into the built editor and runs File ▸ Export
+  (`file.presentOnly`); the viewer shell comes in through the same
+  `getViewerShell` seam the desktop uses, and the browser download path hands
+  back the file. So `requires`, the asset store, the preview, the static
+  layer and `readonly` are whatever the writer produces today — nothing in the
+  script knows about them. Fixed `docId`s keep a rebuild from churning ids.
+- **The validator gates them.** Any warning or error from `validate()`
+  (contrast, cut-off or overflowing text…) fails the build; notes are allowed.
+  Writing the bee deck surfaced only content issues this way (amber text on
+  cream at 2.35:1, labels past the edge, missing title roles) — fixed in the
+  deck, nothing in the app.
+- **Committed, generated files.** They are HTML a reader downloads, so they
+  are checked in (≈0.9 MB each; the seasons deck ≈2.8 MB because the static
+  layer carries its 200 KB drawing once per slide). They do not need
+  rebuilding when the viewer changes — each file carries its own runtime — only
+  when a deck changes.
+- GitHub shows them as source; the README says to download the raw file.
+  Publishing them on a site (e.g. GitHub Pages) is a separate, outward-facing
+  decision for the maintainer.
