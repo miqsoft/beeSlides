@@ -320,12 +320,28 @@ export function startPresentation(
     if (kioskLoops() && railIndices.length) { slideTo(railIndices[0], true); return true } // wrap (plays slide 1's transition forward)
     return false
   }
+  // a first ← on slide 1 arms the wrap to the last slide until then (performance.now())
+  let wrapBackUntil = 0
+  const WRAP_BACK_MS = 1500
   const goPrev = () => {
     const cur = deck.getIndices().h
     if (curStep > 0 && !isAuto(cur)) { undoStep(cur, curStep--); return }
     if (zoomStack.length) { zoomGoPrev(cur); return }
     const p = presentPrev(doc, cur)
-    if (p >= 0) jumpBack(p)
+    if (p >= 0) { jumpBack(p); return }
+    // ← on slide 1 wraps to the last slide (finished, played as a step back). A looping
+    // show wraps at once; otherwise the first press only arms it, so a stray ← never
+    // puts the closing slide in front of the audience.
+    const last = railIndices[railIndices.length - 1]
+    if (last == null || last === cur) return
+    if (!kioskLoops() && performance.now() > wrapBackUntil) {
+      wrapBackUntil = performance.now() + WRAP_BACK_MS
+      flashPresentMsg(t('Press ← again for the last slide'), WRAP_BACK_MS)
+      return
+    }
+    wrapBackUntil = 0
+    hidePresentMsg()
+    arriveAtEnd = true; slideTo(last, false); arriveAtEnd = false
   }
   // X: enter the hidden "extra" slides after this slide, or leave them forward to the next slide. Keyboard only.
   const toggleExtras = () => {
@@ -342,11 +358,13 @@ export function startPresentation(
     if (kioskLoops()) return true
     return presentNext(doc, cur) >= 0
   }
-  const hasPrev = () => {
+  /** `wrap`: count slide 1's wrap to the last slide (a swipe ends the show there instead) */
+  const hasPrev = (wrap = true) => {
     const cur = deck.getIndices().h
     if (curStep > 0 && !isAuto(cur)) return true
     if (zoomStack.length) return true
-    return presentPrev(doc, cur) >= 0 // a state or an extra returns to its parent
+    if (presentPrev(doc, cur) >= 0) return true // a state or an extra returns to its parent
+    return wrap && railIndices.length > 1
   }
   const visibleIndex = (i: number) => doc.slides.slice(0, i + 1).filter((s) => paginates(s, doc)).length
   const visibleTotal = doc.slides.filter((s) => paginates(s, doc)).length
@@ -919,7 +937,7 @@ export function startPresentation(
     })
     const nav = (k: string) => d.querySelector<HTMLButtonElement>(`.sv-btn[data-nav="${k}"]`)
     nav('prev')?.toggleAttribute('disabled', !hasPrev())
-    nav('first')?.toggleAttribute('disabled', !hasPrev())
+    nav('first')?.toggleAttribute('disabled', deck.getIndices().h === railIndices[0] && curStep === 0 && !zoomStack.length)
     nav('next')?.toggleAttribute('disabled', !hasNext())
     nav('last')?.toggleAttribute('disabled', !hasNext())
     nav('black')?.classList.toggle('active', blacked)
@@ -1467,7 +1485,7 @@ export function startPresentation(
       if (hasNext()) goNext()
       else exit()
     } else {
-      if (hasPrev()) goPrev()
+      if (hasPrev(false)) goPrev()
       else exit()
     }
   }, { passive: true })
@@ -1476,6 +1494,7 @@ export function startPresentation(
     const from = event.previousSlide as HTMLElement | undefined
     const to = event.currentSlide as HTMLElement
     if (!to) return
+    wrapBackUntil = 0 // an armed wrap is for slide 1 only
     const fromIdx = from ? [...slidesEl.children].indexOf(from) : -1
     const toIdx = [...slidesEl.children].indexOf(to)
     // the outgoing slide's auto-play and the kiosk countdown end with it

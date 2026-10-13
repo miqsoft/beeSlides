@@ -783,6 +783,7 @@ export const zhHans: Catalog = {
   "Import a .qmd or .md deck — headings become slides, code and math come in as real elements, and every slide is linked to an editable slide type.": "导入 .qmd 或 .md 文件 — 标题成为幻灯片，代码和公式作为真实元素导入，每张幻灯片都链接到可编辑的幻灯片类型。",
   "Format": "格式",
   "Laser pointer: on": "激光笔已开启",
+  "Press ← again for the last slide": "再按一次 ← 跳到最后一张幻灯片",
   "Laser pointer: off": "激光笔已关闭",
   "Laser pointer (L)": "激光笔 (L)",
   "Toggle laser pointer while presenting": "演示时开启或关闭激光笔",

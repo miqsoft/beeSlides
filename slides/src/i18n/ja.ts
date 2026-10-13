@@ -783,6 +783,7 @@ export const ja: Catalog = {
   "Import a .qmd or .md deck — headings become slides, code and math come in as real elements, and every slide is linked to an editable slide type.": ".qmd または .md ファイルをインポートします — 見出しはスライドになり、コードと数式は実際の要素として取り込まれ、各スライドは編集可能なスライドの種類にリンクされます。",
   "Format": "書式",
   "Laser pointer: on": "レーザーポインター：オン",
+  "Press ← again for the last slide": "もう一度 ← を押すと最後のスライドへ",
   "Laser pointer: off": "レーザーポインター：オフ",
   "Laser pointer (L)": "レーザーポインター (L)",
   "Toggle laser pointer while presenting": "プレゼン中にレーザーポインターのオン／オフを切り替え",

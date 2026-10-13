@@ -783,6 +783,7 @@ export const fr: Catalog = {
   "Import a .qmd or .md deck — headings become slides, code and math come in as real elements, and every slide is linked to an editable slide type.": "Importez un fichier .qmd ou .md — les titres deviennent des diapositives, le code et les formules arrivent comme de vrais éléments, et chaque diapositive est liée à un type de diapositive modifiable.",
   "Format": "Format",
   "Laser pointer: on": "Pointeur laser : activé",
+  "Press ← again for the last slide": "Appuyez à nouveau sur ← pour la dernière diapositive",
   "Laser pointer: off": "Pointeur laser : désactivé",
   "Laser pointer (L)": "Pointeur laser (L)",
   "Toggle laser pointer while presenting": "Activer ou désactiver le pointeur laser pendant la présentation",

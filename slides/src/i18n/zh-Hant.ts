@@ -783,6 +783,7 @@ export const zhHant: Catalog = {
   "Import a .qmd or .md deck — headings become slides, code and math come in as real elements, and every slide is linked to an editable slide type.": "匯入 .qmd 或 .md 檔案 — 標題會成為投影片，程式碼與公式會作為真實元素匯入，每張投影片都連結到可編輯的投影片類型。",
   "Format": "格式",
   "Laser pointer: on": "雷射筆已開啟",
+  "Press ← again for the last slide": "再按一次 ← 跳到最後一張投影片",
   "Laser pointer: off": "雷射筆已關閉",
   "Laser pointer (L)": "雷射筆 (L)",
   "Toggle laser pointer while presenting": "簡報時開啟或關閉雷射筆",
