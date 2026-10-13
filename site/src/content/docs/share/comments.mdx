@@ -1,0 +1,39 @@
+---
+title: Comments
+description: Leave feedback on a slide, reply, resolve — or hand it to Claude.
+sidebar: { order: 2 }
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+
+Comments live **inside the deck file**. Send someone the deck, they comment
+and send it back, and the threads are there. They never show while
+presenting or in a PDF.
+
+## Add, reply, resolve
+
+- **Add:** click **Comment** (Home tab), press <kbd>C</kbd>, or choose
+  **Insert ▸ Comment**, then click an element or a spot on the slide. Type in
+  *Add a comment…* and click **Comment**.
+- **Reply:** open the thread and type in *Reply…*.
+- **Resolve:** the **Resolve** button closes a thread; **Reopen** brings it
+  back.
+- **Your name:** the thread's **More options** menu has **Set your name…**,
+  shown on new comments.
+
+## Hand them to Claude
+
+<Tabs syncKey="app">
+  <TabItem label="Desktop app">
+    **Send to Claude** (Home tab, or **Play ▸ Send to Claude**) hands every
+    open comment to Claude Code, which works through them in the deck. A
+    thread it finishes says *Claude marked this done — please check*:
+    **Accept** it or **Reopen** it. A single thread also has its own
+    **Send to Claude** button.
+  </TabItem>
+  <TabItem label="Browser">
+    The browser editor has no Send to Claude. Comments are part of the deck's
+    JSON, so the [chatbot route](../../create/ai/#in-the-browser-any-chatbot)
+    carries them along.
+  </TabItem>
+</Tabs>

@@ -12355,3 +12355,27 @@ parts of Bento's code", never "fork". The MIT notice stays in LICENSING.md,
 THIRD_PARTY_NOTICES.md and every shell's NOTICE (license requirement). The
 pre-release development log was condensed into one CHANGELOG entry; the
 fresh public repo carries no history.
+
+## 2026-10-13 — User docs are a Starlight site with scripted walkthrough clips
+
+User-facing docs live in `site/` (Astro Starlight), not a GitHub wiki: they
+are reviewed in PRs like code, searchable (Pagefind, offline-built), and
+i18n-ready for the same locales as the app. Starlight over VitePress/Docusaurus
+because it is Vite-based like the app, content-first, and ships search,
+dark/light and a11y without a framework commitment. The site also hosts the
+built editor (`/app/`), so "Try it" opens the real thing.
+
+- **Clips are scripts, not recordings.** `site/clips/<id>.clip.mjs` drives the
+  built editor in Chromium; `site/scripts/record-clips.mjs` cuts one MP4 per
+  step from the CDP screencast (exact timestamps, sharper than recordVideo).
+  `<Walkthrough clip>` plays them as click-through steps. A UI change means
+  re-running the script, never re-shooting by hand.
+- **Clips are tests.** `npm run clips -- --check` runs every scenario fast with
+  no recording, and each scenario's `expect` asserts the deck ended in the state
+  the captions promise. The docs workflow runs it on every PR touching the app.
+- MP4 per step, not GIF: ~100 KB per step versus megabytes. `--gif` exists
+  only for places that can't play video (the README).
+- Elements are moved with ⇧+arrow nudges, not drags (synthetic drags don't drive
+  Moveable). Clips present with "Present in this tab" because headless
+  fullscreen ignores the window size.
+- Publishing to Pages is manual (`workflow_dispatch` with `deploy`), per rule 8.

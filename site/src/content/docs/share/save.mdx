@@ -1,0 +1,65 @@
+---
+title: Save and share
+description: Save your deck, hand out a read-only presentation, or export a PDF.
+sidebar: { order: 1 }
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components'
+
+A BeeSlides deck is one `.beeslides.html` file. There are three ways to hand it on:
+
+| You want to | Use | What the other person gets |
+|---|---|---|
+| keep working, or let someone edit | **Save** | the deck **with the editor**: they can open, change and present it |
+| show it, not hand over the editing | **Export** | a **read-only presentation**: it opens on a start card to present, no editor |
+| print it or send it to anyone | **Export PDF** | a PDF, one page per slide |
+
+## Save: the editable deck
+
+<Tabs syncKey="app">
+  <TabItem label="Desktop app">
+    **File ▸ Save** or <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>. The first save
+    asks where to put the file; after that each save updates it. The title bar
+    shows when everything is saved.
+  </TabItem>
+  <TabItem label="Browser">
+    <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd>. Chrome and Edge ask once and then
+    rewrite the file in place. Safari and Firefox can't, so each save puts a
+    fresh copy in your Downloads folder.
+  </TabItem>
+</Tabs>
+
+The **▾** next to Save has the other ways to save:
+
+- **Save a copy…** writes the deck to a second file and keeps working on this one.
+- **Duplicate as new deck…** makes an independent copy with its own identity.
+- **Save as layout…** turns the deck's design into a reusable starter. See
+  [Layouts and PowerPoint](../../create/layouts/).
+- **Encrypt with password…** locks the file (AES-256). Without the password
+  nobody can open it, you included.
+
+<Aside type="tip" title="Your work is backed up">
+  BeeSlides keeps a backup while you work. If the app or browser closes before
+  you save, reopen the deck and click **Restore**. Earlier versions are under
+  **File ▸ Version history…**.
+</Aside>
+
+## Export: a read-only presentation
+
+**File ▸ Export** (browser: **Save ▾ ▸ Export**) saves a sealed hand-out. It is
+still a single `.html` file that opens in any browser, but it opens on a start
+card to present and has no editor. Use it for handing out a talk, putting it on
+a website, or sending it to people who should watch rather than edit. Your own
+deck stays editable.
+
+## Export PDF
+
+<Tabs syncKey="app">
+  <TabItem label="Desktop app">
+    **File ▸ Export to… ▸ Export PDF…** or <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>P</kbd>.
+  </TabItem>
+  <TabItem label="Browser">
+    **File ▸ Export to… ▸ Export PDF…** opens the print dialog; choose
+    *Save as PDF*.
+  </TabItem>
+</Tabs>

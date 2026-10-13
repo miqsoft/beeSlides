@@ -1,0 +1,67 @@
+---
+title: BeeSlides
+description: Slides that fit in a file. A PowerPoint alternative that is a single HTML file — viewer, presenter and editor included.
+template: splash
+hero:
+  tagline: A presentation that is a single HTML file — viewer, presenter and editor included. Open it in any browser, edit it, present it, send it. The person you send it to needs nothing.
+  image:
+    file: ../../logo.svg
+  actions:
+    - text: Install the desktop app
+      link: start/install/
+      icon: right-arrow
+      variant: primary
+    - text: Open in your browser
+      link: app/BeeSlides.beeslides.html
+      icon: external
+      variant: secondary
+      attrs:
+        target: _blank
+    - text: GitHub
+      link: https://github.com/miqsoft/beeslides
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import Walkthrough from '../../components/Walkthrough.astro'
+
+<p style="font-size: var(--sl-text-sm); color: var(--sl-color-gray-3)">The browser editor needs no install and opens any deck, but has no AI features. Those need the <a href="start/install/">desktop app</a>.</p>
+
+## Ask Claude for a slide
+
+The desktop app has Claude Code built in. Say what you want, and it designs it
+in your open deck.
+
+<Walkthrough clip="claude-slide" />
+
+## Why a file?
+
+<CardGrid>
+  <Card title="One file, forever" icon="document">
+    Deck, fonts, images, charts, animations and the editor travel together.
+    A copy from 2026 will open in 2036.
+  </Card>
+  <Card title="It saves itself" icon="pencil">
+    Press ⌘S and the file rewrites its own data block. No app to install,
+    no account, no cloud.
+  </Card>
+  <Card title="View-source honest" icon="open-book">
+    Your deck is plain JSON near the top of the file. No binary format,
+    no lock-in — and any AI that can edit a file can edit your slides.
+  </Card>
+  <Card title="Local-first, provably" icon="approve-check">
+    No server, ever. Offline mode switches every network feature off, and a
+    test fails the build if code reaches the network another way.
+  </Card>
+</CardGrid>
+
+## Start here
+
+<CardGrid>
+  <LinkCard title="Install" href="start/install/" description="The desktop app first, or any browser with no install." />
+  <LinkCard title="Create" href="create/editor/" description="The editor, its views, and editing slides by hand." />
+  <LinkCard title="Edit with AI" href="create/ai/" description="Claude in the desktop app, or any chatbot via the deck's JSON." />
+  <LinkCard title="Present" href="present/present/" description="Start the show, the speaker view, and the keys that matter." />
+  <LinkCard title="Share" href="share/save/" description="An editable deck, a read-only presentation, or a PDF." />
+</CardGrid>

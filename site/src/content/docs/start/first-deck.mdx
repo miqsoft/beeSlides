@@ -1,0 +1,39 @@
+---
+title: Your first deck
+description: Two minutes, six steps — a new deck, a slide, a show and a saved file.
+sidebar: { order: 2 }
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+import Walkthrough from '../../../components/Walkthrough.astro'
+
+A quick tour that touches everything once. Each step links to the page that
+covers it properly.
+
+<Steps>
+1. **Start a deck.**
+   <Tabs syncKey="app">
+     <TabItem label="Desktop app">
+       The app opens on the start page. Under **New deck**, click **Blank**
+       (one empty slide) or one of your layouts.
+     </TabItem>
+     <TabItem label="Browser">
+       Open the [blank editor](/beeslides/app/BeeSlides.beeslides.html). It
+       starts with one empty slide.
+     </TabItem>
+   </Tabs>
+2. **Add a slide.** Click **＋ New slide** below the slide list and pick
+   **Title**. [Edit by hand](../../create/edit/) covers text, pictures,
+   shapes and more.
+3. **Type a title.** Click *Click to add title* and type.
+   [The editor](../../create/editor/) explains the rest of the window.
+4. **Present.** Click **Present** in the title bar (desktop: <kbd>F5</kbd>).
+   <kbd>→</kbd> moves on, <kbd>Esc</kbd> ends the show. See
+   [Present](../../present/present/).
+5. **Save.** Press <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> and choose where
+   to put the file. See [Save and share](../../share/save/).
+6. **Send it.** The `.beeslides.html` file *is* the deck. Whoever gets it
+   opens it in a browser, with nothing to install.
+</Steps>
+
+<Walkthrough clip="first-deck" />

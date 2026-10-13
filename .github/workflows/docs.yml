@@ -1,0 +1,70 @@
+name: Docs site
+
+# Builds the docs site (site/) and dry-runs every walkthrough clip against a
+# fresh editor build, so a UI change that breaks a clip fails the PR.
+# Publishing to GitHub Pages is a separate, manual step (Actions ▸ Docs site ▸
+# Run workflow ▸ deploy) — nothing is published on push (AGENTS.md rule 8).
+
+on:
+  pull_request:
+    paths: ['site/**', 'slides/**', 'kernel/**', '.github/workflows/docs.yml']
+  push:
+    branches: [main]
+    paths: ['site/**', 'slides/**', 'kernel/**', '.github/workflows/docs.yml']
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Publish to GitHub Pages
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            slides/package-lock.json
+            site/package-lock.json
+      - name: Build the editor
+        run: npm ci && npm run build:single
+        working-directory: slides
+      - name: Install the site
+        run: npm ci
+        working-directory: site
+      - name: Chromium for the clip check
+        run: npx playwright-core install --with-deps chromium
+        working-directory: site
+      # The single-file editor shares the desktop's ribbon and menus; the
+      # desktop app itself is not built in CI, so the check runs in Chromium.
+      - name: Walkthrough clips still run
+        run: npm run clips -- --check --app web
+        working-directory: site
+      - name: Build the site
+        run: npm run build
+        working-directory: site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,46 @@
+---
+title: Edit with AI
+description: Claude in the desktop app, or any chatbot via the deck's JSON.
+sidebar: { order: 3 }
+---
+
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components'
+import Walkthrough from '../../../components/Walkthrough.astro'
+
+Your deck is a plain, readable JSON block inside the file, so an assistant
+that can read and write text can edit your slides. No plugin, no API.
+
+<Tabs syncKey="app">
+  <TabItem label="Desktop app">
+    The desktop app has Claude built in.
+
+    - **Claude Code terminal** (<kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>`</kbd>, or
+      the terminal button in the title bar): say what you want in plain words,
+      and Claude edits the open deck while you watch.
+    - **Send to Claude**: leave [comments](../../share/comments/) on your
+      slides, then hand all open ones to Claude at once (Home tab, or
+      **Play ▸ Send to Claude**).
+    - **AI chat**: **Settings ▸ AI chat** connects a chat panel to the
+      provider you choose.
+  </TabItem>
+  <TabItem label="Browser">
+    The browser editor has no AI built in. Round-trip the deck through any
+    chatbot instead, [as below](#in-the-browser-any-chatbot).
+  </TabItem>
+</Tabs>
+
+<Walkthrough clip="claude-slide" />
+
+## In the browser: any chatbot
+
+1. **Save ▾ ▸ Copy document JSON**. Use **…without pictures** to keep it short.
+2. Paste it into the chat and ask for the change.
+3. **Save ▾ ▸ Replace from JSON…** and paste the answer back. This can be undone.
+
+This works in the desktop app too (**File ▸ Export to…** and **File ▸ Import**).
+
+<Aside type="tip" title="Coding agents and local models">
+  Point Claude Code, Cursor, Aider or a local model at the `.beeslides.html`
+  file and give it the [agent guide](https://github.com/miqsoft/beeslides/blob/main/docs/agents.md).
+  With a local model nothing leaves your machine.
+</Aside>

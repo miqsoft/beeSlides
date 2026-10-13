@@ -1,0 +1,21 @@
+{
+  "name": "beeslides-site",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
+    "build": "node scripts/prebuild.mjs && astro build",
+    "preview": "astro preview --host 127.0.0.1",
+    "clips": "node scripts/record-clips.mjs",
+    "shots": "node scripts/shoot.mjs"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.6",
+    "astro": "^7.3.8",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

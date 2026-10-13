@@ -1,0 +1,74 @@
+---
+title: Layouts and PowerPoint
+description: Slide types inside a deck, layouts to start new decks from, and PowerPoint import.
+sidebar: { order: 4 }
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+
+Two words, two levels, the same idea as PowerPoint's slide layouts and
+templates:
+
+| BeeSlides | PowerPoint | What it is |
+|---|---|---|
+| **Slide type** | slide layout / master | a slide design *inside* a deck — "Title", "Two columns", "Section" — with placeholders and fixed decoration |
+| **Layout** | template (`.potx`) | a reusable *starter file*: slide types, theme, fonts. Every deck made from it is new and independent |
+
+## Slide types in a deck
+
+- **New slide** offers the deck's slide types to start from.
+- **Slide ▸ Change slide type…** switches a slide to another type; its
+  content moves into the matching placeholders.
+- **Slide ▸ Layout Manager…** edits the slide types themselves. A change there
+  reaches every slide of that type at once: the logo, the footer, the title
+  position.
+
+Slides stay linked to their type; anything you place on a slide yourself stays
+yours.
+
+## Layouts: start new decks from a design
+
+<Steps>
+1. **Make one.** In a deck whose design you like, choose **Save as layout…**
+   (in the **▾** next to Save). It saves the slide types, theme and fonts,
+   not your content.
+2. **Use it.**
+   <Tabs syncKey="app">
+     <TabItem label="Desktop app">
+       Your layouts are on the start page under **Layouts**: one click starts a
+       new deck from one. To make one the default, open its **⋯** menu and choose
+       **Use as default**; **File ▸ New from Default Layout** then starts from it.
+     </TabItem>
+     <TabItem label="Browser">
+       A layout is a file. Opening it gives you a fresh, independent deck.
+     </TabItem>
+   </Tabs>
+</Steps>
+
+<Aside type="tip" title="Your company template">
+  In the desktop app's start page, **Layouts ▸ From a file…** turns a
+  PowerPoint template (`.pptx` or `.potx`) into a BeeSlides layout, and
+  **PowerPoint with AI…** has Claude rebuild its design. **＋ Create layout…**
+  starts one from scratch.
+</Aside>
+
+## Import PowerPoint
+
+<Tabs syncKey="app">
+  <TabItem label="Desktop app">
+    On the start page, under *New deck*, click **From a file…** or drop the
+    `.pptx` anywhere on the page. In an open deck: **File ▸ Import ▸ Import
+    PowerPoint…**. **PowerPoint with AI…** has Claude Code rebuild it as a
+    native, editable deck instead of converting it shape by shape.
+  </TabItem>
+  <TabItem label="Browser">
+    **File ▸ Import ▸ Import PowerPoint…** and pick the `.pptx`. It is converted
+    right in the browser; nothing is uploaded.
+  </TabItem>
+</Tabs>
+
+The slides come in with their text, pictures, shapes and tables. Masters and
+layouts become **slide types**, still linked, so the Layout Manager changes
+every slide that uses one. Theme colours and fonts come along. Text that would
+overflow is fixed in one step you can undo; anything that can't be fixed
+faithfully is listed for you (desktop: hand the list to Claude).

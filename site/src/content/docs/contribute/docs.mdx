@@ -1,0 +1,98 @@
+---
+title: Write docs and clips
+description: How this site is built, and how a walkthrough clip goes from a script to a video.
+---
+
+import { FileTree, Steps } from '@astrojs/starlight/components'
+
+This site is [Astro Starlight](https://starlight.astro.build) in `site/`. Every
+page is a Markdown (or MDX) file in `site/src/content/docs/`.
+
+```bash
+cd site
+npm install
+npm run dev        # http://127.0.0.1:4321/beeslides/
+```
+
+## Walkthrough clips
+
+The click-through videos aren't screen recordings someone made by hand. They
+are **scripts** that drive the real **desktop app** (or, with `--app web`, the
+single-file editor in Chromium), and a recorder turns each step into a short
+MP4. When the UI changes, re-run the script and the clips update with it.
+
+<FileTree>
+- site/
+  - clips/
+    - first-deck.clip.mjs   one scenario: a start deck, steps, captions
+    - lib/
+      - ui.mjs   cursor, clicks, key badges, nudges
+      - doc.mjs  tiny deck builders
+  - public/clips/first-deck/   01.mp4, 01.jpg … clip.json (generated)
+  - scripts/record-clips.mjs
+</FileTree>
+
+A scenario looks like this:
+
+```js
+// site/clips/first-deck.clip.mjs
+export default {
+  title: 'Your first slide',
+  doc: deck([[]], 'My first deck'),   // one empty slide
+  expect: ({ doc }) => doc.slides.length === 2 ? null : 'no new slide',
+  steps: [
+    { caption: 'Add a slide', hint: 'New slide, then pick a slide type',
+      async run({ ui }) {
+        await ui.click('.ed-sidebar .ed-add-slide')
+        await ui.click({ css: '.ed-layoutpick-item', text: 'Title' })
+      } },
+    { caption: 'Type a title', hint: 'Click the placeholder and type',
+      async run({ ui }) {
+        await ui.dblclick({ css: '.ed-canvas-wrap [data-el-id]', text: 'Click to add title' })
+        await ui.type('Hello, honeybees')
+      } },
+    // …
+  ],
+}
+```
+
+Put it on a page with:
+
+```mdx
+import Walkthrough from '../../../components/Walkthrough.astro'
+
+<Walkthrough clip="first-deck" />
+```
+
+A clip you haven't recorded yet still shows its steps, with a placeholder
+where the video goes. You can write the page first.
+
+<Steps>
+1. Build the editor and the desktop app: `cd slides && npm run build:single`,
+   then `cd desktop && npx electron-vite build`. Recording opens a real
+   BeeSlides window with a throwaway profile.
+2. Dry-run every scenario fast, recording nothing:
+   `npm run clips -- --check`. If a UI change broke a clip, this fails.
+3. Record one: `npm run clips -- --sheet first-deck`.
+4. Look at the contact sheets in `site/.clips-review/`. There's one image per
+   step, sampled twice a second. Check that each step shows what its caption
+   says, then commit `public/clips/<id>/`.
+</Steps>
+
+### Rules of thumb
+
+- **One idea per step, 2–8 seconds.** A step is one caption.
+- **Start from a prepared deck** (`doc:`) so the clip shows only what it teaches.
+- Click with `ui.click`, which glides a visible cursor. Show keys with
+  `ui.press('Mod+D')`, which draws a badge.
+- **Move elements with `ui.nudge`**, not `ui.drag`. Synthetic drags don't
+  drive the editor's selection box.
+- Present in the window: `ui.command('play.inTab', 'Play ▸ Present in tab')`.
+  Native menus can't be recorded, so `ui.command` shows the menu path as a
+  badge instead.
+- **Live clips** (`live: true`) run the real Claude Code in the desktop app's
+  terminal panel: `const term = await ui.terminal()`, `term.type(…)`,
+  `term.waitForClaude()`. They record only when named, never in `--check`,
+  and every take differs, so look at the result before committing it. Mark
+  the waiting step with `speedup: <seconds>` to time-lapse it.
+- Write an `expect` so a clip that "ran" but didn't do the thing fails.

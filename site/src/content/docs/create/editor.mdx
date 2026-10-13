@@ -1,0 +1,62 @@
+---
+title: The editor
+description: Every part of the BeeSlides window, explained once.
+sidebar: { order: 1 }
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+![The BeeSlides desktop app with a deck open. Numbered markers: 1 title bar, 2 ribbon tabs, 3 ribbon, 4 slide list, 5 canvas, 6 slide bar, 7 properties panel, 8 speaker notes.](/beeslides/shots/editor.png)
+
+1. **Title bar**: from left to right, Home (the start page), **Save** with its
+   **▾** menu, undo and redo, then the deck's name and save state. On the
+   right are **Present**, the **Claude Code terminal**, **Settings** and the
+   button that folds the ribbon away.
+2. **Ribbon tabs**: **Home**, **Insert**, **Design**, **Transitions** and
+   **View**. In the desktop app the same commands are also in the menu bar
+   (File, Edit, Insert, Slide, Arrange, View, Play).
+3. **Ribbon**: the tools of the chosen tab. **Insert** adds text, shapes,
+   pictures, media, tables, charts, equations, code and icons.
+4. **Slide list**: click a slide to open it, drag to reorder, **＋ New slide**
+   at the bottom. With the list focused, <kbd>Enter</kbd> adds a slide and
+   <kbd>⌘</kbd>/<kbd>Ctrl</kbd>+<kbd>D</kbd> duplicates one.
+5. **Canvas**: the slide you're editing. Click to select, double-click text to
+   type; <kbd>Esc</kbd> deselects. The zoom control sits at its bottom right.
+6. **Slide bar**: the current slide's background, transition and slide type,
+   and another **New slide**. When something is selected it shows that
+   element's quick formatting instead.
+7. **Properties panel**: everything about what's selected. With nothing
+   selected it shows the **slide**: page size, background, transition,
+   slideshow options and the deck's theme colours.
+8. **Speaker notes**: notes for this slide. Only you see them, in the speaker
+   view while presenting.
+
+## Three views
+
+**View** (menu bar or ribbon tab) switches how you see the deck:
+
+- **Normal**: the window above, for working on one slide at a time.
+- **Slide Sorter**: every slide as a thumbnail. Drag to reorder;
+  <kbd>⌘</kbd>/<kbd>Ctrl</kbd>- or <kbd>⇧</kbd>-click to pick several, then
+  **Duplicate** or **Delete**. Click a slide to open it.
+
+  ![Slide Sorter: the deck's slides as a grid of thumbnails.](/beeslides/shots/view-sorter.png)
+- **Outline View**: the deck as text, one slide title and its text per row.
+  Good for writing the story before the design.
+
+  ![Outline View: slide titles and their text as an editable list.](/beeslides/shots/view-outline.png)
+
+<kbd>Esc</kbd> or **✕** goes back to Normal.
+
+## Show and hide panels
+
+**View ▸ Slides**, **View ▸ Format** and **View ▸ Notes** show or hide the
+slide list, the properties panel and the speaker notes. The same three buttons
+are in the **View** ribbon tab under **Panels**. **View ▸ Ribbon** folds the
+ribbon away.
+
+<Aside type="tip" title="Language">
+  The interface comes in English, 日本語, 简体中文, 繁體中文, Español, Français,
+  Italiano, Deutsch and Português: **View ▸ Language** in the desktop app, the
+  globe button in the browser. It never changes what's in your deck.
+</Aside>

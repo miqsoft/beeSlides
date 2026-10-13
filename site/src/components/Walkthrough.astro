@@ -1,0 +1,199 @@
+---
+// A walkthrough: one short video per step, with the step's caption beside
+// it. It plays straight through (each step hands over to the next when its
+// video ends); the step bar, arrows and ←/→ jump anywhere, and playing on
+// from there. Steps and captions come from the clip scenario
+// (site/clips/<id>.clip.mjs); the videos from `npm run clips` (written to
+// public/clips/<id>/). A clip that has not been recorded yet still renders
+// its steps, with a placeholder where the video goes, so a page can be
+// written before its footage exists.
+//
+//   <Walkthrough clip="first-deck" />
+//   <Walkthrough clip="first-deck" manual />   stop after each step
+interface Props { clip: string; title?: string; manual?: boolean }
+const { clip, manual } = Astro.props
+
+const scenarios = import.meta.glob<{ default: { title: string; steps: { caption: string; hint?: string }[] } }>(
+  '/clips/*.clip.mjs', { eager: true })
+const recorded = import.meta.glob<{ default: { steps: { file: string; poster: string; ms: number; speedup?: number }[]; width: number; height: number } }>(
+  '/public/clips/*/clip.json', { eager: true })
+
+const scenario = scenarios[`/clips/${clip}.clip.mjs`]?.default
+if (!scenario) throw new Error(`Walkthrough: no scenario site/clips/${clip}.clip.mjs`)
+const media = recorded[`/public/clips/${clip}/clip.json`]?.default
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const steps = scenario.steps.map((s, i) => ({
+  ...s,
+  src: media?.steps[i] ? `${base}/clips/${clip}/${media.steps[i].file}` : null,
+  poster: media?.steps[i] ? `${base}/clips/${clip}/${media.steps[i].poster}` : null,
+  speedup: media?.steps[i]?.speedup,
+}))
+const ratio = media ? `${media.width} / ${media.height}` : '16 / 10'
+---
+
+<bee-walkthrough class="not-content" data-clip={clip} data-manual={manual ? '' : undefined}>
+  <div class="wt-stage" style={`aspect-ratio: ${ratio}`}>
+    {steps.map((s, i) => s.src
+      ? <video data-step={i} hidden={i !== 0} src={s.src} poster={s.poster} muted playsinline preload={i === 0 ? 'auto' : 'none'} aria-label={s.caption}></video>
+      : <div data-step={i} hidden={i !== 0} class="wt-placeholder"><span>Clip not recorded yet</span><code>npm run clips -- {clip}</code></div>)}
+    <button class="wt-replay" type="button" aria-label="Replay" hidden>↻ Replay</button>
+  </div>
+  <ol class="wt-segs" aria-label="Steps">
+    {steps.map((s, i) => (
+      <li><button type="button" data-goto={i} aria-current={i === 0 ? 'step' : undefined} title={s.caption}>
+        <span class="wt-fill"></span><span class="wt-sr">Step {i + 1}: {s.caption}</span>
+      </button></li>
+    ))}
+  </ol>
+  <div class="wt-bar">
+    <button class="wt-nav" data-dir="-1" type="button" aria-label="Previous step">←</button>
+    <div class="wt-caps" aria-live="polite">
+      {steps.map((s, i) => (
+        <p data-cap={i} hidden={i !== 0}>
+          <span class="wt-num">{i + 1}</span>
+          <span><strong>{s.caption}{s.speedup && <span class="wt-fast" title={`This step plays ${s.speedup}× faster than it happened`}>⏩ {s.speedup}× faster</span>}</strong>{s.hint && <small>{s.hint}</small>}</span>
+        </p>
+      ))}
+    </div>
+    <span class="wt-count"><span class="wt-at">1</span>/{steps.length}</span>
+    <button class="wt-nav" data-dir="1" type="button" aria-label="Next step">→</button>
+    <button class="wt-nav wt-full" type="button" aria-label="Full screen" title="Full screen">⤢</button>
+  </div>
+</bee-walkthrough>
+
+<script>
+  class BeeWalkthrough extends HTMLElement {
+    at = 0
+    connectedCallback() {
+      this.tabIndex = 0
+      this.querySelectorAll<HTMLButtonElement>('[data-goto]').forEach((b) =>
+        b.addEventListener('click', () => this.go(Number(b.dataset.goto))))
+      this.querySelectorAll<HTMLButtonElement>('[data-dir]').forEach((b) =>
+        b.addEventListener('click', () => this.go(this.at + Number(b.dataset.dir))))
+      // Replay at the end of the walkthrough starts it over.
+      this.querySelector('.wt-replay')!.addEventListener('click', () =>
+        this.at === this.count - 1 && !this.manual ? (this.go(0), this.play()) : this.play())
+      this.querySelector('.wt-full')!.addEventListener('click', () =>
+        document.fullscreenElement ? document.exitFullscreen() : this.requestFullscreen())
+      this.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') { this.go(this.at + 1); e.preventDefault() }
+        if (e.key === 'ArrowLeft') { this.go(this.at - 1); e.preventDefault() }
+      })
+      this.querySelectorAll('video').forEach((v) => {
+        v.addEventListener('ended', () => this.ended())
+        v.addEventListener('timeupdate', () => {
+          const seg = this.querySelector<HTMLElement>(`[data-goto="${v.dataset.step}"]`)
+          if (seg && v.duration) seg.style.setProperty('--p', String(v.currentTime / v.duration))
+        })
+        v.addEventListener('click', () => (v.paused ? v.play() : v.pause()))
+      })
+      // Start playing the first step only once the reader scrolls to it.
+      new IntersectionObserver((es, io) => {
+        if (es.some((e) => e.isIntersecting)) { this.play(); io.disconnect() }
+      }, { threshold: 0.5 }).observe(this)
+    }
+    get manual() { return this.hasAttribute('data-manual') }
+    get count() { return this.querySelectorAll('[data-goto]').length }
+    current() { return this.querySelector<HTMLElement>(`.wt-stage [data-step="${this.at}"]`) }
+    go(i: number) {
+      if (i < 0 || i >= this.count) return
+      if (i === this.at) return this.play()
+      const old = this.current()
+      if (old instanceof HTMLVideoElement) old.pause()
+      old?.setAttribute('hidden', '')
+      this.at = i
+      this.current()?.removeAttribute('hidden')
+      this.querySelectorAll<HTMLElement>('[data-goto]').forEach((b, j) => {
+        j === i ? b.setAttribute('aria-current', 'step') : b.removeAttribute('aria-current')
+        b.classList.toggle('wt-done', j < i)
+        b.style.setProperty('--p', j < i ? '1' : '0')
+      })
+      this.querySelectorAll<HTMLElement>('[data-cap]').forEach((c, j) => (c.hidden = j !== i))
+      this.querySelector('.wt-at')!.textContent = String(i + 1)
+      this.play()
+    }
+    play() {
+      const v = this.current()
+      this.querySelector<HTMLElement>('.wt-replay')!.hidden = true
+      if (!(v instanceof HTMLVideoElement)) return
+      v.preload = 'auto'
+      v.currentTime = 0
+      v.play().catch(() => {})
+      // Warm the next step so clicking through never waits on the network.
+      const next = this.querySelector<HTMLVideoElement>(`video[data-step="${this.at + 1}"]`)
+      if (next) next.preload = 'auto'
+    }
+    ended() {
+      this.querySelector<HTMLElement>(`[data-goto="${this.at}"]`)?.style.setProperty('--p', '1')
+      // Play on: a short beat on the step's result, then the next step.
+      if (!this.manual && this.at < this.count - 1) {
+        const from = this.at
+        setTimeout(() => { if (this.at === from) this.go(from + 1) }, 700)
+        return
+      }
+      this.querySelector<HTMLElement>('.wt-replay')!.hidden = false
+      this.querySelector('[data-dir="1"]')?.classList.add('wt-pulse')
+      setTimeout(() => this.querySelector('[data-dir="1"]')?.classList.remove('wt-pulse'), 1600)
+    }
+  }
+  customElements.define('bee-walkthrough', BeeWalkthrough)
+</script>
+
+<style>
+  bee-walkthrough {
+    display: block; margin-block: 1.5rem; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--sl-color-gray-5); background: var(--sl-color-gray-6);
+    outline-offset: 3px;
+  }
+  .wt-stage { position: relative; background: #0d0b08; }
+  bee-walkthrough:fullscreen { display: flex; flex-direction: column; border: 0; border-radius: 0; }
+  bee-walkthrough:fullscreen .wt-stage { flex: 1; aspect-ratio: auto !important; }
+  .wt-stage > video, .wt-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .wt-stage > [hidden] { display: none; }
+  video { object-fit: contain; cursor: pointer; }
+  .wt-placeholder {
+    display: grid; place-content: center; gap: .5rem; text-align: center;
+    color: var(--sl-color-gray-3);
+    background: repeating-linear-gradient(135deg, #17120a 0 14px, #1d170d 14px 28px);
+  }
+  .wt-replay {
+    position: absolute; right: .75rem; bottom: .75rem; padding: .3rem .7rem;
+    border-radius: 999px; border: 0; background: rgb(23 18 10 / .8); color: #fff6e0; cursor: pointer;
+  }
+  .wt-segs { display: flex; gap: 4px; margin: 0; padding: 8px 12px 0; list-style: none; }
+  .wt-segs li { flex: 1; margin: 0; }
+  .wt-segs button {
+    position: relative; display: block; width: 100%; height: 14px; padding: 5px 0; border: 0;
+    background: none; cursor: pointer;
+  }
+  .wt-segs button::before, .wt-fill {
+    content: ''; position: absolute; left: 0; top: 5px; height: 4px; border-radius: 2px;
+  }
+  .wt-segs button::before { right: 0; background: var(--sl-color-gray-5); }
+  .wt-fill { width: calc(var(--p, 0) * 100%); background: var(--sl-color-accent); transition: width .25s linear; }
+  .wt-segs button:hover::before { background: var(--sl-color-gray-4); }
+  .wt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .wt-bar { display: flex; align-items: center; gap: .5rem; padding: .25rem .5rem .6rem; }
+  .wt-caps { flex: 1; min-width: 0; }
+  .wt-caps p { display: flex; gap: .65rem; align-items: flex-start; margin: 0; }
+  .wt-caps p[hidden] { display: none; }
+  .wt-caps strong { display: block; color: var(--sl-color-white); font-weight: 600; }
+  .wt-fast {
+    display: inline-block; margin-left: .5rem; padding: 0 .45rem; border-radius: 999px; vertical-align: 1px;
+    border: 1px solid var(--sl-color-accent); color: var(--sl-color-accent); font-size: var(--sl-text-xs); font-weight: 600;
+  }
+  .wt-caps small { display: block; color: var(--sl-color-gray-3); font-size: var(--sl-text-sm); }
+  .wt-num {
+    flex: none; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; margin-top: .1rem;
+    border-radius: 50%; background: var(--sl-color-accent); color: var(--sl-color-black);
+    font-size: .8rem; font-weight: 700;
+  }
+  .wt-count { flex: none; font-size: var(--sl-text-xs); color: var(--sl-color-gray-3); font-variant-numeric: tabular-nums; }
+  .wt-nav {
+    flex: none; width: 2.25rem; height: 2.25rem; border: 0; border-radius: 8px; cursor: pointer;
+    background: transparent; color: var(--sl-color-white); font-size: 1.1rem;
+  }
+  .wt-nav:hover { background: var(--sl-color-gray-5); }
+  .wt-pulse { animation: wt-pulse 0.8s ease-in-out 2; }
+  @keyframes wt-pulse { 50% { background: var(--sl-color-accent); color: var(--sl-color-black); } }
+</style>

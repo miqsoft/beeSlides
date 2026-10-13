@@ -1,0 +1,23 @@
+{
+  "id": "first-deck",
+  "app": "desktop",
+  "width": 2560,
+  "height": 1440,
+  "steps": [
+    {
+      "file": "01.mp4",
+      "poster": "01.jpg",
+      "ms": 2833
+    },
+    {
+      "file": "02.mp4",
+      "poster": "02.jpg",
+      "ms": 4225
+    },
+    {
+      "file": "03.mp4",
+      "poster": "03.jpg",
+      "ms": 6327
+    }
+  ]
+}

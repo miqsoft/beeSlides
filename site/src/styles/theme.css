@@ -1,0 +1,27 @@
+/* BeeSlides brand on Starlight. Colours from slides/src/brand.ts (BRAND). */
+:root {
+  --sl-color-accent-low: #3a2a0c;   /* glow */
+  --sl-color-accent: #f5a300;       /* amber */
+  --sl-color-accent-high: #ffd98a;
+  --sl-font: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bee-rainbow: linear-gradient(90deg, #ff4d6d, #ff9f1c, #ffe14d, #4cd97b, #3fa9f5, #8e6cff);
+}
+/* Night backgrounds in the dark theme only: light keeps Starlight's white. */
+:root:not([data-theme='light']) {
+  --sl-color-black: #17120a;        /* night */
+  --sl-color-gray-6: #241c10;
+  --sl-color-gray-5: #3b3020;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #fff1cc;
+  --sl-color-accent: #9a5f00;       /* honeyOnLight, 5.2:1 on white */
+  --sl-color-accent-high: #5c3900;
+  --sl-color-white: #17120a;
+}
+/* A thin rainbow rule under the header — the record's sound rings. */
+header.header { border-bottom: 0; box-shadow: none; }
+header.header::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: 2px;
+  background: var(--bee-rainbow); opacity: .85;
+}
+.hero h1 { letter-spacing: -0.02em; }

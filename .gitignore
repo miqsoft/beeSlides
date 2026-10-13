@@ -49,3 +49,9 @@ working/
 # Personal Claude Code files (docs: add to .gitignore).
 CLAUDE.local.md
 .claude/settings.local.json
+
+# docs site (site/): build output, Astro cache, the editor copied in at build
+# time, and clip contact sheets for review (npm run clips -- --sheet).
+site/.astro/
+site/public/app/
+site/.clips-review/
