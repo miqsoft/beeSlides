@@ -274,6 +274,28 @@ svg and scoped to it at render (hover/focus/animation styles stay contained).
 Prefer composing native `shape`/`text`/`path` elements when they can morph;
 use `svg` for static artwork/geography.
 
+`vars?` — named values the artwork reads as CSS custom properties: `{"leaf":
+"#3a7d2c", "wind": 0.4}` is written as `--leaf` / `--wind` on the element and
+used as `fill: var(--leaf, green)` in the markup's or `css`'s rules. One
+drawing, a different state per slide: give the svg the same `id` (or
+`morphId`) and `asset` on consecutive slides, change only `vars`, and set the
+transition to `morph` — numbers (same unit on both sides) and solid colours
+(`#hex`, `rgb()`) blend between the two slides; a keyword, a unit change or a
+var only one side has switches at once. Names are CSS identifiers (letters,
+digits, `-`; ≤ 40 chars, without the `--`); a value is a number or ONE token —
+a colour, a number with a unit (`px % deg turn s ms em rem`) or a keyword. No
+`url()`, quotes or spaces outside `rgb()`/`hsl()`; anything else is dropped.
+At most 64 per element. Thumbnails and every static output show each slide's
+own values. Put var-driven colours on shapes, not in gradients, masks or
+filters: the same drawing on several slides shares its ids, and `url(#…)`
+paints from the first copy. **No `requires`**: an older reader keeps the field and draws the
+`var()` fallbacks.
+
+Endless CSS animations inside an svg (`animation-iteration-count: infinite`)
+run on one clock for the whole show, so the same drawing on the next slide is
+in the same pose — wind does not restart at a slide change. Finite ones (a
+draw-on) replay on every entry.
+
 ### `chart`
 
 `type: "chart"` — `option` is a **pure-JSON, ECharts-*shaped*** option object
@@ -475,9 +497,11 @@ All `fx` behaviour runs in **present mode only**.
 
 `loop` is one of:
 
-- `{ type: 'pulse' | 'spin' | 'float' | 'blink' | 'wiggle', duration?, amount?, delay? }` — generic
+- `{ type: 'pulse' | 'spin' | 'float' | 'blink' | 'wiggle', duration?, amount?, delay?, origin? }` — generic
   loops (see `agents.md`). `duration` is one full cycle; `amount` sizes the effect; they start
-  after the entrance. spin/wiggle add to the element's own rotation.
+  after the entrance. spin/wiggle add to the element's own rotation. `origin` (`center` default,
+  or `top`, `bottom`, `left`, `right`) is the point of the element's own box that spin,
+  wiggle and pulse turn or grow around — `bottom` sways a stem; float/blink ignore it.
 
 - `{ type: 'dash-march', distance?, duration? }` — marching dashed strokes.
 - `{ type: 'motion-path', path, duration, delay?, ease?, speeds?, trail? }` — the

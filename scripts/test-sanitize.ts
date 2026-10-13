@@ -318,6 +318,26 @@ for (const type of ['image', 'svg', 'chart', 'media']) {
 ok(!checkElementProp('text', 'alt', 'x').ok && !checkElementProp('shape', 'alt', 'x').ok,
   'and of nothing else — text is its own description, a shape is decoration')
 
+console.log('\nsvg vars')
+
+const drawing = (vars: unknown) => sanitizeElement({
+  id: 'v', type: 'svg', x: 0, y: 0, w: 10, h: 10, rotation: 0, opacity: 1, markup: '<svg/>', vars,
+}) as { vars?: Record<string, unknown> } | null
+ok(JSON.stringify(drawing({ leaf: '#3a7d2c', wind: 0.4, tilt: '12deg', sky: 'rgb(10, 20, 30)', mode: 'none' })?.vars)
+  === JSON.stringify({ leaf: '#3a7d2c', wind: 0.4, tilt: '12deg', sky: 'rgb(10, 20, 30)', mode: 'none' }),
+'colours, numbers, a number with a unit and a keyword survive a paste')
+const hostileVars = drawing({
+  a: 'red;}body{display:none', b: 'url(https://evil.example/x.svg)', c: '"x"', d: 'var(--x)',
+  e: 'rgb(1,2,3) url(x)', '--f': 1, 'g h': 1, ok: 2,
+})?.vars
+ok(JSON.stringify(hostileVars) === JSON.stringify({ ok: 2 }),
+  'a breakout, a url(), quotes, a nested var(), a second token and a bad name all drop, alone')
+ok(!!drawing({ x: 'url(a)' }) && !('vars' in drawing({ x: 'url(a)' })!), 'vars with nothing usable drop whole, the drawing stays')
+ok(Object.keys(drawing(Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`v${i}`, i])))?.vars ?? {}).length
+  === LIMITS.svgVars, `at most ${LIMITS.svgVars} vars are kept`)
+ok(checkElementProp('svg', 'vars', { a: 1 }).ok && !checkElementProp('shape', 'vars', { a: 1 }).ok,
+  'vars belong to svg only')
+
 // --- 3b. rich text: the value policies ---------------------------------------
 //
 // Rich text phase 1 (DECISIONS 2026-10-08) lets text keep links, lists and

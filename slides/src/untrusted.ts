@@ -39,7 +39,7 @@
 // untrusted intake — remote CRDT ops off the relay — can adopt the same
 // checks, key by key, through `checkElementProp`.
 
-import { normalizeCrop, type ImageCrop, type Slide, type SlideElement, type TableCell, type TableElement } from './model.ts'
+import { normalizeCrop, svgVarValue, SVG_VAR_NAME, type ImageCrop, type Slide, type SlideElement, type TableCell, type TableElement } from './model.ts'
 import { normalizeTableSpans, TABLE_MAX } from './tablespans.ts'
 import { parseThemeRef } from './palette.ts'
 import { MODEL_KEYS } from './modelkeys.generated.ts'
@@ -96,6 +96,8 @@ export const LIMITS = {
   markup: 4 * 1024 * 1024,
   /** css injected inside one svg element */
   css: 128 * 1024,
+  /** named values on one svg element (`vars`) — a handful in any real drawing */
+  svgVars: 64,
   /** one asset: a data: URI (image, font, embedded clip) or raw svg markup */
   asset: 32 * 1024 * 1024,
   assets: 2_000,
@@ -334,6 +336,7 @@ const fx = shape(MODEL_KEYS.fx, {
     ease: cssValue(64),
     speeds: list(LIMITS.speeds, num(0.001, 1000)),
     trail: bool,
+    origin: oneOf('center', 'top', 'bottom', 'left', 'right'),
   }, ['type']), // anim.ts dispatches on it; a loop with no type animates nothing
 })
 
@@ -456,6 +459,25 @@ const themeRefs: Check = (v) => {
 // A slide type's default styles (model.ts StyleDefaults). Every field is
 // optional at every level, so a record that loses all its fields is simply
 // absent — never a half-object the resolver has to guard against.
+/**
+ * svg `vars`: name → value, both judged by model.ts's one rule (SVG_VAR_NAME,
+ * svgVarValue), the same one render.ts applies when it writes them. A bad
+ * entry drops alone; an object left with none drops whole.
+ */
+const svgVars: Check = (v) => {
+  if (!isPlainObject(v)) return DROP
+  const out: Record<string, string | number> = {}
+  let n = 0
+  for (const [k, raw] of Object.entries(v)) {
+    if (n >= LIMITS.svgVars) break
+    const val = svgVarValue(raw)
+    if (!SVG_VAR_NAME.test(k) || val === undefined) continue
+    out[k] = val
+    n++
+  }
+  return n ? out : DROP
+}
+
 const nonEmpty = (check: Check): Check => (v) => {
   const out = check(v)
   return out && typeof out === 'object' && Object.keys(out).length ? out : DROP
@@ -529,7 +551,7 @@ const ELEMENT_CHECKS: Record<string, Check> = {
   // image / svg / media
   src: mediaRef, poster: mediaRef, asset: cssValue(),
   fit: oneOf('contain', 'cover', 'fill'), crop: cropRect,
-  markup: str(LIMITS.markup), css: str(LIMITS.css),
+  markup: str(LIMITS.markup), css: str(LIMITS.css), vars: svgVars,
   kind: oneOf('video', 'audio'),
   // text alternative: reaches the DOM only as an attribute VALUE set through
   // the DOM (img.alt / setAttribute('aria-label')), never string-built markup

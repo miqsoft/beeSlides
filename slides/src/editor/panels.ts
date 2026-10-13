@@ -20,7 +20,7 @@ import { panelSectionId } from './customize/catalog'
 import { alignUnits, applyMoves, distributeMin, effectiveRef, planAlign, planCenterOnSlide, planDistribute, type AlignEdge, type AlignRef } from '../alignment'
 import { guardLayout, snapshotSlide, staticBaseline, type Baseline } from '../layoutguard'
 import { isLineLike } from './lineedit'
-import { LOOP_DEFAULTS, FIGURE_PRESETS, figureSizePx, pxToUnit, FOOTER_ROLES, SHADOW_PRESETS, REFLECTION_PRESETS, applyChartPalette, resolveAgentSlide, resyncOwner, defaultChart, defaultShape, morphKey, tableStyleFor, uid, type ReflectionSpec, type ChartElement, type EmbedElement, type ImageElement, type LineEnding, type MediaElement, type ShapeElement, type SvgElement, type Slide, type SlideElement, type TableElement, type TextElement, type TransitionKind, type TransitionDir, TRANSITION_DIRS, transitionDir, setSlideTransition, type CodeElement, type FooterRole, type FigureUnit } from '../model'
+import { LOOP_DEFAULTS, FIGURE_PRESETS, figureSizePx, pxToUnit, FOOTER_ROLES, SHADOW_PRESETS, REFLECTION_PRESETS, applyChartPalette, resolveAgentSlide, resyncOwner, defaultChart, defaultShape, morphKey, tableStyleFor, uid, type ReflectionSpec, type ChartElement, type EmbedElement, type ImageElement, type LineEnding, type MediaElement, type ShapeElement, type SvgElement, type LoopOrigin, type Slide, type SlideElement, type TableElement, type TextElement, type TransitionKind, type TransitionDir, TRANSITION_DIRS, transitionDir, setSlideTransition, type CodeElement, type FooterRole, type FigureUnit } from '../model'
 import { TRANSITION_KINDS, TRANSITION_LABELS, TRANSITION_DIR_LABELS } from './menumodel'
 import { summarizeChange, type ElementChange } from '../actionlog'
 import { askText, relTime } from './comments'
@@ -34,7 +34,7 @@ import { catAxisKey, chartCategories, chartIsHorizontal, chartIsStacked, ensureC
 import { injectFonts, populateFontSelect } from '../fonts'
 import { onSystemFontsReady, requestSystemFonts } from '../localfonts'
 import { ICONS } from '../icons'
-import { locale, t } from '../i18n'
+import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
 import { loadGridPref, saveGridPref, FIGURE_GRID_STEPS_MM } from './gridpref'
 import { lsJson, lsSet } from '../../../kernel/src/storage.ts'
@@ -117,6 +117,7 @@ const ROW_TIPS: Record<string, string> = {
   'Loop animation': 'A repeating animation: marching dashes along strokes, motion along a drawn path, or a pulse / spin / float / blink / wiggle',
   'Loop secs': 'Seconds for one full cycle of the loop (a lap, a revolution…)',
   'Loop delay': 'Seconds to wait before the first cycle starts (it also waits for the entrance to finish)',
+  'Pivot': 'The point it spins, wiggles or grows around — Bottom makes a wiggle sway like a plant in the wind',
   'Path': 'The motion path — edit it as draggable points on the canvas',
   'Lap easing': 'Tempo across one lap — ease-in-out dwells at the ends, linear is constant',
   'Show on hover': 'Puts this element in a hover set — visible only while that set is active',
@@ -1686,6 +1687,16 @@ export class PropsPanel {
           wiggle: t('Degrees it swings to each side'),
           spin: t('Degrees per turn — negative spins the other way'),
         }[generic.type]
+        if (generic.type === 'spin' || generic.type === 'wiggle' || generic.type === 'pulse') {
+          this.row('Pivot', this.labeledSelect(
+            [['center', tc('Center', 'pivot')], ['bottom', t('Bottom')], ['top', t('Top')], ['left', t('Left')], ['right', t('Right')]],
+            generic.origin ?? 'center',
+            (v) => this.mutate(el.id, (e) => {
+              const lp = e.fx?.loop
+              if (!lp || lp.type === 'dash-march' || lp.type === 'motion-path') return
+              if (v === 'center') delete lp.origin; else lp.origin = v as LoopOrigin
+            }, true)))
+        }
         this.row('Loop delay', this.number(generic.delay ?? 0, 0.1, (v, fin) =>
           this.mutate(el.id, (e) => {
             const lp = e.fx?.loop

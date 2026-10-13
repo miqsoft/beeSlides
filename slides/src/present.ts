@@ -9,9 +9,9 @@ import Reveal from 'reveal.js'
 import 'reveal.js/dist/reveal.css'
 import { anim, resetXform } from './anim'
 import { chartSnapshotSvg, mountChart } from './charts'
-import type { SlidomingoDoc, GradientFill, ShapeElement, Slide, SlideElement } from './model'
+import type { SlidomingoDoc, GradientFill, ShapeElement, Slide, SlideElement, SvgElement } from './model'
 import {
-  morphKey, paginates, inLinearFlow, LOOP_DEFAULTS, extraParent, presentNext, presentPrev, presentToggleExtras,
+  morphKey, paginates, inLinearFlow, LOOP_DEFAULTS, LOOP_ORIGINS, extraParent, presentNext, presentPrev, presentToggleExtras,
   presentJumpTarget, presentNumberKey, transitionDir,
 } from './model'
 import { isDrawnTransition, playDrawnTransition } from './transitions'
@@ -21,7 +21,7 @@ import type { ZoomElement, ZoomFrame } from './model'
 import { createPresentInk } from './presentink'
 import { buildPlan, isParagraphBuilt, slideAtStep, tagParagraphs, targetKey, visibleAt } from './builds'
 import type { BuildPlan, BuildTarget } from './builds'
-import { applyElementFrame, fieldContext, gradientLineCoords, renderSlide, sanitizeLinkHref } from './render'
+import { applyElementFrame, fieldContext, gradientLineCoords, renderSlide, sanitizeLinkHref, svgVarDecls } from './render'
 import { paintSpeaker, setSpeakerWindow, speakerIdleBody, speakerWindow } from './screens'
 import { t } from './i18n'
 import { lsGet, lsSet } from '../../kernel/src/storage.ts'
@@ -2184,7 +2184,23 @@ function restartSvgAnimations(section: HTMLElement) {
   for (const host of section.querySelectorAll<HTMLElement>('.slidomingo-el-svg')) {
     if (host.querySelector('animate, [style*="animation"], style')) {
       host.replaceChildren(...Array.from(host.childNodes, (n) => n.cloneNode(true)))
+      alignEndlessAnimations(host)
     }
+  }
+}
+
+/**
+ * Endless CSS animations (wind, a turning wheel, falling snow) run on ONE
+ * clock for the whole show — the document timeline's origin — instead of
+ * restarting with each slide. The same drawing on the next slide is then in
+ * the same pose, so a morph or a crossfade between two states of it has no
+ * jump. Finite animations (a draw-on, an entrance) still replay on entry:
+ * that is what the clone above is for.
+ */
+function alignEndlessAnimations(host: HTMLElement) {
+  if (typeof host.getAnimations !== 'function') return
+  for (const a of host.getAnimations({ subtree: true })) {
+    if (a.effect?.getTiming().iterations === Infinity) a.startTime = 0
   }
 }
 
@@ -2256,11 +2272,41 @@ type GenericLoop = Extract<NonNullable<NonNullable<SlideElement['fx']>['loop']>,
  * `loopGen` lets a slide exit (or a re-settle) cancel a start still pending.
  */
 const loopGen = new WeakMap<Element, number>()
+/**
+ * Nodes whose frame a morph is moving right now. That tween runs on a plain
+ * state object and writes `transform` itself, so the engine cannot see it on
+ * the node — and a loop started beside it wrote the same property every frame
+ * (a floating balloon that also travels between slides flickered between the
+ * two). A loop waits for these exactly as it waits for an entrance.
+ */
+const frameMorphing = new WeakSet<Element>()
 const bumpLoopGen = (n: Element) => { const g = (loopGen.get(n) ?? 0) + 1; loopGen.set(n, g); return g }
 /** Cancel any loop on `node`: running tweens die, a start still waiting never fires. */
 function stopLoops(node: HTMLElement) {
   bumpLoopGen(node)
   anim.killTweensOf(node)
+  frameMorphing.delete(node) // an interrupted morph must not leave a later loop waiting
+  // a pivot (fx.loop.origin) must not outlive its loop: the model's own
+  // rotate() turns about the centre, and a frame restore only resets transform
+  node.style.transformOrigin = ''
+}
+
+/**
+ * Move the transform pivot to (fx, fy) of the element's box WITHOUT moving the
+ * element. The node's transform also carries the model's own rotate(), and
+ * that would now turn about the new pivot — a rotated element would jump. The
+ * difference between turning about the pivot P and about the centre C is a
+ * pure translation, (R − I)(C − P); undo it with the engine's x/y channel, so
+ * only the loop's own rotate/scale uses the new pivot.
+ */
+function pivotAt(node: HTMLElement, el: SlideElement, fx: number, fy: number) {
+  const px = (fx - 0.5) * el.w
+  const py = (fy - 0.5) * el.h
+  const r = ((el.rotation ?? 0) * Math.PI) / 180
+  if (!r || (!px && !py)) return
+  const x = px * Math.cos(r) - py * Math.sin(r) - px
+  const y = px * Math.sin(r) + py * Math.cos(r) - py
+  anim.fromTo(node, { x, y }, { x, y, duration: 0.0001 })
 }
 
 function startGenericLoop(node: HTMLElement, el: SlideElement, loop: GenericLoop) {
@@ -2269,10 +2315,13 @@ function startGenericLoop(node: HTMLElement, el: SlideElement, loop: GenericLoop
   const amount = loop.amount ?? d.amount
   const half = cycle / 2
   const base = el.opacity ?? 1
+  const [ox, oy] = LOOP_ORIGINS[loop.origin ?? 'center'] ?? LOOP_ORIGINS.center
+  const origin = `${ox * 100}% ${oy * 100}%`
   const go = () => {
+    if (loop.type === 'pulse' || loop.type === 'spin' || loop.type === 'wiggle') pivotAt(node, el, ox, oy)
     switch (loop.type) {
       case 'pulse':
-        anim.to(node, { scale: 1 + amount, duration: half, ease: 'sine.inOut', repeat: -1, yoyo: true, transformOrigin: '50% 50%' })
+        anim.to(node, { scale: 1 + amount, duration: half, ease: 'sine.inOut', repeat: -1, yoyo: true, transformOrigin: origin })
         break
       case 'float':
         anim.to(node, { y: -amount, duration: half, ease: 'sine.inOut', repeat: -1, yoyo: true })
@@ -2281,12 +2330,12 @@ function startGenericLoop(node: HTMLElement, el: SlideElement, loop: GenericLoop
         anim.to(node, { opacity: Math.max(0, base * (1 - amount)), duration: half, ease: 'sine.inOut', repeat: -1, yoyo: true })
         break
       case 'spin':
-        anim.fromTo(node, { rotate: 0 }, { rotate: amount, duration: cycle, ease: 'none', repeat: -1, transformOrigin: '50% 50%' })
+        anim.fromTo(node, { rotate: 0 }, { rotate: amount, duration: cycle, ease: 'none', repeat: -1, transformOrigin: origin })
         break
       case 'wiggle':
         // swing out to one side first, so it starts moving without a jump
         anim.to(node, {
-          rotate: amount, duration: cycle / 4, ease: 'sine.out', transformOrigin: '50% 50%',
+          rotate: amount, duration: cycle / 4, ease: 'sine.out', transformOrigin: origin,
           onComplete() {
             anim.fromTo(node, { rotate: amount }, { rotate: -amount, duration: half, ease: 'sine.inOut', repeat: -1, yoyo: true })
           },
@@ -2302,7 +2351,7 @@ function startGenericLoop(node: HTMLElement, el: SlideElement, loop: GenericLoop
       anim.to(o, { p: 1, duration: loop.delay!, ease: 'none', onComplete: () => { if (loopGen.get(node) === gen && node.isConnected) go() } })
     } else go()
   }
-  const busy = () => anim.getTweensOf(node).some((tw) => !tw.infinite && tw.progress() < 1)
+  const busy = () => frameMorphing.has(node) || anim.getTweensOf(node).some((tw) => !tw.infinite && tw.progress() < 1)
   if (!busy()) return launch()
   const probe = { p: 0 }
   anim.to(probe, {
@@ -2932,6 +2981,7 @@ function runMorph(
     const state = { p: 0 }
     node.style.transformOrigin = '0 0'
     if (ghost) ghost.style.transformOrigin = '0 0'
+    frameMorphing.add(node)
     anim.to(state, {
       p: 1,
       duration: MORPH_DURATION,
@@ -2941,6 +2991,7 @@ function runMorph(
         if (ghost) ghost.style.transform = morphFrameTransform(a, a, b, state.p)
       },
       onComplete() {
+        frameMorphing.delete(node)
         node.style.transformOrigin = ''
         node.style.transform = b.rotation ? `rotate(${b.rotation}deg)` : ''
         resetXform(node)
@@ -2983,7 +3034,54 @@ function runMorph(
       const inner = to.querySelector<HTMLElement>('.slidomingo-math-inner')
       if (inner) anim.fromTo(inner, { color: a.color }, { color: b.color, duration: MORPH_DURATION, ease: MORPH_EASE })
     }
+    // same drawing, another state: blend its vars (content changes crossfaded above)
+    if (a.type === 'svg' && b.type === 'svg' && !crossfading.has(to)) morphSvgVars(to, a, b)
   }
+}
+
+/**
+ * Blend an svg's `vars` from slide a's values to slide b's on the incoming
+ * node. Numbers (with the same unit on both sides) and solid colours blend;
+ * anything else — a keyword, a unit change, a var only one side has — is
+ * already at b's value from render and simply stays there.
+ */
+function morphSvgVars(node: HTMLElement, a: SvgElement, b: SvgElement) {
+  const from = new Map(svgVarDecls(a))
+  const blends: Array<(p: number) => void> = []
+  for (const [k, vb] of svgVarDecls(b)) {
+    const va = from.get(k)
+    if (va === undefined || va === vb) continue
+    const blend = varLerp(va, vb)
+    if (blend) blends.push((p) => node.style.setProperty(k, blend(p)))
+  }
+  if (!blends.length) return
+  for (const f of blends) f(0) // a's state on the very first frame, not b's
+  const state = { p: 0 }
+  anim.to(state, {
+    p: 1, duration: MORPH_DURATION, ease: MORPH_EASE,
+    onUpdate() { for (const f of blends) f(state.p) },
+  })
+}
+
+const NUM_UNIT = /^(-?(?:\d+\.?\d*|\.\d+))([a-z%]*)$/
+const SOLID = /^(?:#|rgba?\()/
+
+/** value-pair → interpolator, or null when the pair has no in-between */
+function varLerp(a: string, b: string): ((p: number) => string) | null {
+  const na = a.match(NUM_UNIT)
+  const nb = b.match(NUM_UNIT)
+  if (na && nb) {
+    if (na[2] !== nb[2]) return null
+    const x = Number(na[1])
+    const y = Number(nb[1])
+    return (p) => `${Math.round((x + (y - x) * p) * 1e4) / 1e4}${nb[2]}`
+  }
+  if (SOLID.test(a) && SOLID.test(b)) {
+    const ca = colorParts(a)
+    const cb = colorParts(b)
+    return (p) => rgbaStr([0, 1, 2, 3].map((k) => ca[k] + (cb[k] - ca[k]) * p) as [number, number, number, number])
+  }
+  return null
 }
 
 // --- fill morphing (solid ⇄ solid, solid ⇄ gradient, gradient ⇄ gradient) ----

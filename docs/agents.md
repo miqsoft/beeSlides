@@ -527,6 +527,15 @@ without them — and elements should carry the full field set shown.
   spin/wiggle ADD to the element's own `rotation`, and a loop on a click-built
   element starts when it arrives. One `fx.loop` per element; pulse + Ken Burns
   both drive scale (validate warns). Reduced motion turns loops off.
+  `origin: "bottom"` (or `top`/`left`/`right`, default `center`) moves the point
+  spin/wiggle/pulse turn or grow around: a wiggle with `origin: "bottom"` sways
+  like a plant in the wind.
+- **States of one drawing**: an existing `svg` may carry `vars` (`{"leaf":
+  "#c8641e", "snow": 0}`) that its artwork reads as `var(--leaf)`. To show the
+  same drawing in another state on the next slide, keep its `id` and `asset`,
+  change only `vars`, and use the `morph` transition — numbers and colours
+  blend. You may set `vars` on artwork already in the deck; you still never
+  author svg markup.
 - **"GIF" slides**: `slide.autoBuild: { every: 1.5, hold: 2, loop: true }` plays the
   slide's click builds by themselves (one every `every` s, `hold` on the last, then
   start over if `loop`); a slide with no builds just replays its entrance. → / ←

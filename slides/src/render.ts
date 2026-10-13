@@ -6,7 +6,7 @@
 import { offlineEnabled, isRemoteUrl, remoteSrcBlocked } from '../../kernel/src/net.ts'
 import type { ImageElement, ReflectionSpec, SlidomingoDoc, ShapeElement, Slide, SlideElement, SvgElement, TableElement } from './model'
 import { tableLayout } from './tablespans'
-import { ancestorChain, footerHidden, morphKey, normalizeCrop, paginates, docLanguage, termText } from './model'
+import { ancestorChain, footerHidden, morphKey, normalizeCrop, paginates, docLanguage, termText, svgVarValue, SVG_VAR_NAME } from './model'
 import { chartSnapshotSvg } from './charts'
 import { blobUrlFor } from './bloburls'
 import { renderMath, renderTex } from './math'
@@ -289,6 +289,16 @@ export function scopeCss(css: string, scope: string): string {
       out += ' ' + css.slice(open, close + 1) + '\n'
     }
     i = close + 1
+  }
+  return out
+}
+
+/** An svg's `vars` as custom-property declarations (`--leaf`, `#3a7d2c`), each re-judged. */
+export function svgVarDecls(el: SvgElement): Array<[string, string]> {
+  const out: Array<[string, string]> = []
+  for (const [k, raw] of Object.entries(el.vars ?? {})) {
+    const v = svgVarValue(raw)
+    if (SVG_VAR_NAME.test(k) && v !== undefined) out.push([`--${k}`, String(v)])
   }
   return out
 }
@@ -1678,9 +1688,18 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       break
     }
     case 'svg': {
-      const markup = svgMarkup(el, doc)
+      let markup = svgMarkup(el, doc)
+      const vars = svgVarDecls(el)
       if (opts.svgAsImage) {
-        // thumbnails: one <img> instead of thousands of svg nodes
+        // thumbnails: one <img> instead of thousands of svg nodes. An <img>
+        // is its own document, so the vars cannot inherit from the frame —
+        // they go in as the svg's own root rule (tokens only, see svgVarValue).
+        // And it holds still: every thumbnail of an animated drawing kept
+        // its CSS animations running, a full extra copy of the work per
+        // slide in the sidebar. Paused, it shows a pose from mid-animation.
+        const root = vars.length ? `:root{${vars.map(([k, v]) => `${k}:${v}`).join(';')}}` : ''
+        const rule = `<style>${root}*{animation-play-state:paused!important}</style>`
+        markup = markup.replace(/<svg\b[^>]*>/i, (open) => (open.endsWith('/>') ? open : open + rule))
         const img = document.createElement('img')
         img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(markup)
         img.draggable = false
@@ -1695,6 +1714,8 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       // The <img> branch above is inert already (an image is script-disabled),
       // which is why only this path changes.
       node.appendChild(sanitizeSvg(markup, `[data-el-id="${CSS.escape(el.id)}"]`))
+      // on the frame, so they inherit into the artwork and its scoped css
+      for (const [k, v] of vars) node.style.setProperty(k, v)
       labelAsImage(node, el.alt)
       const svg = node.querySelector('svg')
       if (svg) {

@@ -350,6 +350,10 @@ export interface ElementBase {
           duration?: number
           amount?: number
           delay?: number
+          /** the point a spin / wiggle / pulse turns or grows around, on the
+           *  element's own (unrotated) box. Default centre; `bottom` makes a
+           *  wiggle sway like a stem in the wind. float/blink ignore it. */
+          origin?: LoopOrigin
         }
       | {
           type: 'motion-path'
@@ -719,6 +723,31 @@ export interface SvgElement extends ElementBase, Flippable, Describable, Sourced
    * live here and stay self-contained (svg <style> scopes to its svg).
    */
   css?: string
+  /**
+   * Named values the artwork reads as CSS custom properties (`vars.leaf` →
+   * `var(--leaf)`): one drawing, a different state per slide. Paired svgs on a
+   * morph blend numbers and colours between the two slides' values.
+   * Validated by `svgVarValue` — a number or one plain token, never a url().
+   */
+  vars?: Record<string, string | number>
+}
+
+/** svg `vars` key: a bare CSS ident, written as `--<name>`. */
+export const SVG_VAR_NAME = /^[a-zA-Z][a-zA-Z0-9-]{0,39}$/
+/** one value token: a colour, a number with an optional unit, or a keyword */
+const SVG_VAR_TOKEN =
+  /^(?:#[0-9a-fA-F]{3,8}|-?(?:\d+\.?\d*|\.\d+)(?:px|%|deg|turn|s|ms|em|rem)?|(?:rgba?|hsla?)\([\d.,%\s/-]+\)|[a-zA-Z-]{1,32})$/
+/**
+ * The one gate for an svg var value — untrusted.ts (load/paste) and render.ts
+ * (output) both use it. A token grammar, not a blacklist: no url(), no
+ * quotes, no `;` or braces, so a value can neither fetch nor end its
+ * declaration wherever the style is later serialized. undefined = drop.
+ */
+export function svgVarValue(v: unknown): string | number | undefined {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : undefined
+  if (typeof v !== 'string') return undefined
+  const s = v.trim()
+  return s.length <= 64 && SVG_VAR_TOKEN.test(s) ? s : undefined
 }
 
 /**
@@ -3030,6 +3059,11 @@ export const paginates = (s: Slide, doc: SlidomingoDoc): boolean =>
  * `cycle` = seconds for one full cycle, `amount` as documented on the type.
  * One table so the runtime and the panel show the same numbers.
  */
+export type LoopOrigin = 'center' | 'top' | 'bottom' | 'left' | 'right'
+/** `fx.loop.origin` → fractions of the element's box (x, y) */
+export const LOOP_ORIGINS: Record<LoopOrigin, [number, number]> = {
+  center: [0.5, 0.5], top: [0.5, 0], bottom: [0.5, 1], left: [0, 0.5], right: [1, 0.5],
+}
 export const LOOP_DEFAULTS = {
   pulse: { cycle: 1.6, amount: 0.08 },
   spin: { cycle: 8, amount: 360 },

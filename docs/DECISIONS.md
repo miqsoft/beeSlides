@@ -12387,3 +12387,104 @@ place to watch for a small project. This supersedes the earlier note that
 Discussions are on with Q&A / Ideas / Show and tell categories. The README
 keeps only the pitch, the `claude-slide` clip, install, contributing and
 license; everything else lives on the docs site.
+
+## 2026-10-13 — One drawing, many states: svg `vars`, a show-wide clock for svg loops, loop pivots
+
+Asked for: a tree that sways in the wind and changes season with each slide,
+done generically. Three gaps stood in the way, each closed separately.
+Particles (snow, rain, leaves as a native element) and Lottie/Rive were
+weighed and deferred: particles are a later, separate element; a third-party
+runtime would ride in every saved file, and doc data may never carry code
+outside the `embed` sandbox.
+
+- **`SvgElement.vars`** (`Record<string, string | number>`): written as CSS
+  custom properties (`--name`) on the element frame, so the artwork and its
+  scoped `css` read them through `var()`. On a morph between paired svgs whose
+  content (markup/asset/css) is unchanged, numbers with the same unit and
+  solid colours blend over the morph (`present.ts morphSvgVars`); a keyword,
+  a unit change or a one-sided var switches. A content change still
+  crossfades as before (`morphContentChanged` ignores `vars` on purpose).
+- **One value rule, applied twice.** `model.svgVarValue` + `SVG_VAR_NAME` is a
+  TOKEN GRAMMAR (number, number+unit, `#hex`, `rgb/hsl(…)`, a keyword), not a
+  blacklist: no `url(`, quotes, `;`, braces or second token, so a value can
+  neither fetch nor end its declaration. untrusted.ts uses it for paste and
+  agent writes; render.ts (`svgVarDecls`) uses it again on output, because an
+  opened FILE is not run through untrusted.ts. ≤ 64 per element. Thumbnails
+  (`svgAsImage`, an `<img>` where nothing inherits) get the vars as the svg's
+  own `:root` rule. Additive, no `requires`: an older reader keeps the field
+  and draws the `var()` fallbacks.
+- **Endless svg CSS animations run on the document timeline**
+  (`alignEndlessAnimations`: `startTime = 0` for every animation with
+  `iterations === Infinity`, after `restartSvgAnimations` clones). The same
+  drawing on the next slide is in the same pose, so the wind does not jump at
+  a slide change. Finite animations (a draw-on) still replay on entry — that
+  split is why it keys off the iteration count rather than all animations.
+  The engine's manual test clock does not drive CSS animations; the rig
+  measures `startTime` instead.
+- **`fx.loop.origin`** (`center` default | `top` | `bottom` | `left` |
+  `right`) for spin / wiggle / pulse. Moving `transform-origin` would also
+  move the pivot of the model's own `rotate()` — a rotated element would jump
+  — so `pivotAt` cancels that with the engine's x/y channel:
+  translation = (R − I)(P − C). No kernel change. `stopLoops` clears the
+  origin, since a frame restore only resets `transform`.
+- **Agents** may set `vars` on artwork already in the deck (restyling, like
+  `css`); the "agents do not author SVG" rule (2026-10-11) is unchanged.
+- **Only the slide on screen animates its svgs** (styles.css): sections Reveal
+  keeps mounted next to it, and the editor canvas under the show overlay
+  (`body:has(> .slidomingo-present-overlay) > :not(…)`), get
+  `animation-play-state: paused`; thumbnails (`svgAsImage`) carry
+  `*{animation-play-state:paused!important}` and hold a still pose. Measured
+  on the seasons deck (headless Chromium, software GPU): 1035–1380 running
+  animations with 345 on screen → 345; show steady state 26–33 → 80+ fps,
+  main thread ~30% busy. A var morph still restyles and repaints the whole
+  drawing every frame (~35 fps there); a drawing's node count is its budget.
+- **Known limit: vars do not reach paint servers of a repeated drawing.**
+  Inline svgs keep their own ids, so the same artwork on four slides puts four
+  copies of every id in the document and `url(#g)` paints from the FIRST one
+  — a gradient, mask or filter whose stops read a var shows slide 1's values
+  everywhere. Seasonal colours therefore go on shapes (`fill: var(--x)`);
+  paint servers stay constant. The fix is per-instance id rewriting at render
+  (refs in attributes and in the scoped css alike) — its own change.
+- Not done yet: a panel to edit vars (colour/number rows) — today they are
+  set via JSON or an agent; per-click var changes; the particle element.
+- Demo: `scripts/lib/seasons-scene.mjs` generates the drawing (seeded, ~200 KB:
+  a branching tree with hierarchical sway, ~1200 reused leaves, mountains,
+  cabin, sun that travels between seasons, clouds, birds, stars, petals,
+  falling leaves, snow) and the four-slide deck.
+
+Rigs: `scripts/test-svg-vars-e2e.mjs` (the seasons deck: blend mid-morph, no
+ghost, shared clock on every slide, a rotated wiggle's foot fixed on its
+model frame, hostile vars never rendered; `--save` writes the demo deck),
+`scripts/test-sanitize.ts` ("svg vars").
+
+## 2026-10-13 — A living scene from ordinary elements; loops wait for a morph's frame tween
+
+The svg-vars demo (entry above) is one opaque drawing: nothing in it can be
+selected. Asked for "complex but fewer parts, editable, with colour
+transitions", the same idea was rebuilt from ordinary elements only
+(`scripts/lib/lake-scene.mjs`, "Ein Tag am See": 54 shapes and texts, four
+slides sharing every id). Morph already blends solid and gradient fills,
+opacity and text colour, and moves frames; the generic loops carry the life
+(wiggle with `origin: 'bottom'`, spin, float, blink, pulse, dash-march,
+motion paths). No new format for it.
+
+- **Fix: a loop no longer fights a morph that moves the same element.** The
+  morph's frame tween runs on a state object and writes `transform` itself,
+  invisible to the engine's per-node registry, so a float started on arrival
+  wrote the same property every frame and the travelling balloon flickered
+  between the two. `present.ts frameMorphing` marks the node for the length of
+  that tween; `startGenericLoop`'s `busy()` waits on it like on an entrance;
+  `stopLoops` clears it so an interrupted morph cannot strand a later loop.
+- **Measured** (same rig as the svg demo, headless Chromium, software GPU):
+  120 fps (the cap) in the show and during morphs, main thread 7–11% busy,
+  ≤ 27% at 4× CPU throttle — against ~35 fps during a var morph of the
+  ~2900-node drawing. Ordinary elements animate their own boxes, which the
+  compositor can move without repainting the slide.
+- Choosing between them: ordinary elements when people will edit the parts
+  and the motion is per-object; an svg with `vars` when the artwork is dense
+  (hundreds of parts, nested motion) and only its parameters change.
+
+Rig: `scripts/test-native-scene-e2e.mjs` (all shapes/text, gradient blend
+mid-morph, the balloon's float waits during its move and resumes from the new
+position, origin/spin/blink/dash-march running; `--save` writes the deck).
+

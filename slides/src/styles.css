@@ -2452,6 +2452,15 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    slide transitions cut instantly and svg keyframe animations don't play. */
 .slidomingo-present-overlay.reduce-motion .reveal .slides section { transition: none !important; }
 .slidomingo-present-overlay.reduce-motion .slidomingo-el-svg * { animation: none !important; }
+/* Only the slide on screen animates its svgs. Reveal keeps neighbours mounted
+   (viewDistance), and an animated drawing on every one of them multiplied the
+   work 3-4x for nothing visible (seasons demo: 1380 running animations, 345
+   on screen). Paused, not removed: arrival re-clones and re-aligns them to the
+   show clock (present.ts restartSvgAnimations / alignEndlessAnimations). */
+.slidomingo-present-overlay .reveal .slides section:not(.present) .slidomingo-el-svg * { animation-play-state: paused !important; }
+/* …and nothing under the show does: the editor canvas behind the overlay
+   kept a full copy of the drawing running for the whole presentation. */
+body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .slidomingo-el-svg * { animation-play-state: paused !important; }
 /* Drawn transitions (push/wipe/cover/split, src/transitions.ts): the
    incoming section clips to the slide while a snapshot of the other slide
    (the ghost) moves under or over it. */

@@ -79,6 +79,9 @@ name entries there).
 - `parseDoc` migrates old `doc.master`/`doc.masters[]`; don't break
   `scripts/test-slide-type-migration.mjs`.
 - New `fx` keys and new untrusted string fields must be bounded in `untrusted.ts`.
+- svg `vars` values pass `model.svgVarValue` at load AND at render (`svgVarDecls`) — opened
+  files skip untrusted.ts. Endless svg CSS animations run on the document timeline
+  (`alignEndlessAnimations`); finite ones replay on entry.
 
 ## Rich text, tables, math
 
@@ -128,6 +131,8 @@ name entries there).
 - Ghost clones carry NO `data-flip-id`/`data-el-id`.
 - Call `resetXform` after `applyElementFrame`, or stale y/scale re-emerge.
 - Never put entrance tweens on motion-path elements (transform conflict).
+- A morph's frame tween writes `transform` outside the engine: anything that starts a
+  transform tween on arrival must wait on `frameMorphing` (as `startGenericLoop` does).
 - Slide exit kills tweens AND restores model frames.
 - Reveal `viewDistance` must stay ≥ 2 (Reveal uses `distance < viewDistance`).
 - Reveal's `.reveal-viewport` paints white; overlay CSS overrides it black.
@@ -170,7 +175,7 @@ name entries there).
 - `test-sanitize.ts`, `test-rich-text.ts`, `test-table-merge.ts`, `test-layoutguard.ts`,
   `test-alignment.ts`, `test-import-repair.ts`, `test-import-layout.ts`, `test-zoom.ts`,
   `test-zoom-e2e.mjs`, `test-math-palette.ts`, `test-svg-path.ts`, `test-svg-convert-e2e.mjs`,
-  `test-anim-inline.ts`.
+  `test-anim-inline.ts`, `test-svg-vars-e2e.mjs`, `test-native-scene-e2e.mjs`.
 
 ## Testing traps
 
