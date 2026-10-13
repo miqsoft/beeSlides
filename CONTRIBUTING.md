@@ -5,7 +5,7 @@ Thanks for wanting to help. A few things to know before you start.
 ## Before you build
 
 - **Say what you're planning first.** For anything bigger than a small fix,
-  check the open issues and PRs, then open an issue or a Discussion
+  check the open issues and PRs, then open an issue
   describing the change before you write it.
 - **Read the contracts.** `docs/PLATFORM.md` lists the invariants every
   BeeSlides app must honor (breaking them can make shipped documents

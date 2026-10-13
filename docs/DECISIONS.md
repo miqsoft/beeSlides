@@ -12379,3 +12379,11 @@ built editor (`/app/`), so "Try it" opens the real thing.
   Moveable). Clips present with "Present in this tab" because headless
   fullscreen ignores the window size.
 - Publishing to Pages is manual (`workflow_dispatch` with `deploy`), per rule 8.
+
+## 2026-10-13 — Issues only, no Discussions; a short README
+
+GitHub Discussions stay off: questions, ideas and bugs all go to issues, one
+place to watch for a small project. This supersedes the earlier note that
+Discussions are on with Q&A / Ideas / Show and tell categories. The README
+keeps only the pitch, the `claude-slide` clip, install, contributing and
+license; everything else lives on the docs site.
