@@ -1,0 +1,26 @@
+{
+ "format": "slidomingo/slides",
+ "version": 1,
+ "docId": "be0c0000-0000-4000-8000-621521f9a878",
+ "title": "Untitled",
+ "size": {
+  "width": 1280,
+  "height": 720
+ },
+ "theme": {
+  "background": "#FFFFFF",
+  "color": "#2B2B2B",
+  "accent": "#1F6FB2",
+  "fontFamily": "Arial, Helvetica, sans-serif"
+ },
+ "slides": [
+  {
+   "id": "s-1",
+   "background": "#FFFFFF",
+   "transition": "fade",
+   "elements": [],
+   "notes": ""
+  }
+ ],
+ "modified": "2026-10-11T10:00:00.000Z"
+}

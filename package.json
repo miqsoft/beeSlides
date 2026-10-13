@@ -1,0 +1,11 @@
+{
+  "name": "slidomingo",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node scripts/dev-all.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "test:e2e": "node scripts/run-tests.mjs --e2e"
+  }
+}

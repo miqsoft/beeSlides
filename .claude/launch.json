@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "slides-dev",
+      "comment": "LOOPBACK ONLY.",
+      "cwd": "slides",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
+      "port": 5199
+    },
+    {
+      "name": "serve-built",
+      "comment": "LOOPBACK ONLY. Serves the shippable single-file build.",
+      "cwd": "slides",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5198",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "dist-single"
+      ],
+      "port": 5198
+    }
+  ]
+}

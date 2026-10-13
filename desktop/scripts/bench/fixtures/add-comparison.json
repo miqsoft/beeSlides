@@ -1,0 +1,160 @@
+{
+ "format": "slidomingo/slides",
+ "version": 1,
+ "docId": "be0c0000-0000-4000-8000-8f50de48e4c5",
+ "title": "Build-Server Migration",
+ "size": {
+  "width": 1280,
+  "height": 720
+ },
+ "theme": {
+  "background": "#FFFFFF",
+  "color": "#2B2B2B",
+  "accent": "#1F6FB2",
+  "fontFamily": "Arial, Helvetica, sans-serif"
+ },
+ "slides": [
+  {
+   "id": "s-title",
+   "name": "Titel",
+   "background": "#FFFFFF",
+   "transition": "fade",
+   "elements": [
+    {
+     "id": "t-title",
+     "x": 96,
+     "y": 250,
+     "w": 1088,
+     "h": 90,
+     "rotation": 0,
+     "opacity": 1,
+     "type": "text",
+     "html": "Build-Server Migration",
+     "fontSize": 52,
+     "fontFamily": "Arial, Helvetica, sans-serif",
+     "fontWeight": 700,
+     "color": "#2B2B2B",
+     "align": "center",
+     "valign": "middle",
+     "lineHeight": 1.25,
+     "role": "title"
+    },
+    {
+     "id": "t-sub",
+     "x": 96,
+     "y": 350,
+     "w": 1088,
+     "h": 40,
+     "rotation": 0,
+     "opacity": 1,
+     "type": "text",
+     "html": "Entscheidungsvorlage · Team Platform · Oktober 2026",
+     "fontSize": 22,
+     "fontFamily": "Arial, Helvetica, sans-serif",
+     "fontWeight": 400,
+     "color": "#5A5A5A",
+     "align": "center",
+     "valign": "top",
+     "lineHeight": 1.25,
+     "role": "subtitle"
+    }
+   ],
+   "notes": ""
+  },
+  {
+   "id": "s-situation",
+   "name": "Ausgangslage",
+   "background": "#FFFFFF",
+   "transition": "fade",
+   "elements": [
+    {
+     "id": "sit-title",
+     "x": 64,
+     "y": 32,
+     "w": 1152,
+     "h": 56,
+     "rotation": 0,
+     "opacity": 1,
+     "type": "text",
+     "html": "Ausgangslage",
+     "fontSize": 32,
+     "fontFamily": "Arial, Helvetica, sans-serif",
+     "fontWeight": 700,
+     "color": "#2B2B2B",
+     "align": "left",
+     "valign": "middle",
+     "lineHeight": 1.25,
+     "role": "title"
+    },
+    {
+     "id": "sit-body",
+     "x": 64,
+     "y": 120,
+     "w": 1152,
+     "h": 420,
+     "rotation": 0,
+     "opacity": 1,
+     "type": "text",
+     "html": "<ul><li>Jenkins 2.3 auf eigener Hardware, Wartung durch 1 Person</li><li>Build times grew to ~40 min per merge request</li><li>Hardware-Garantie läuft 06/2027 aus</li></ul>",
+     "fontSize": 24,
+     "fontFamily": "Arial, Helvetica, sans-serif",
+     "fontWeight": 400,
+     "color": "#2B2B2B",
+     "align": "left",
+     "valign": "top",
+     "lineHeight": 1.5,
+     "role": "body"
+    }
+   ],
+   "notes": ""
+  },
+  {
+   "id": "s-requirements",
+   "name": "Anforderungen",
+   "background": "#FFFFFF",
+   "transition": "fade",
+   "elements": [
+    {
+     "id": "req-title",
+     "x": 64,
+     "y": 32,
+     "w": 1152,
+     "h": 56,
+     "rotation": 0,
+     "opacity": 1,
+     "type": "text",
+     "html": "Anforderungen",
+     "fontSize": 32,
+     "fontFamily": "Arial, Helvetica, sans-serif",
+     "fontWeight": 700,
+     "color": "#2B2B2B",
+     "align": "left",
+     "valign": "middle",
+     "lineHeight": 1.25,
+     "role": "title"
+    },
+    {
+     "id": "req-body",
+     "x": 64,
+     "y": 120,
+     "w": 1152,
+     "h": 420,
+     "rotation": 0,
+     "opacity": 1,
+     "type": "text",
+     "html": "<ul><li>Builds unter 15 Minuten</li><li>Secrets stay on-premise for customer projects</li><li>Kosten max. 2.000 € / Monat</li><li>Self-service für alle Teams</li></ul>",
+     "fontSize": 24,
+     "fontFamily": "Arial, Helvetica, sans-serif",
+     "fontWeight": 400,
+     "color": "#2B2B2B",
+     "align": "left",
+     "valign": "top",
+     "lineHeight": 1.5,
+     "role": "body"
+    }
+   ],
+   "notes": ""
+  }
+ ],
+ "modified": "2026-10-11T10:00:00.000Z"
+}

@@ -1,0 +1,69 @@
+{
+  "name": "slidomingo-desktop",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "version": "1.0.0",
+  "description": "BeeSlides desktop app",
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "pack": "electron-builder --dir",
+    "postinstall": "node scripts/rebuild-pty.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@gfx/zopfli": "^1.0.15",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0",
+    "openai": "^7.30.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@types/node": "^24.13.2",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "typescript": "~5.8.3"
+  },
+  "build": {
+    "appId": "io.github.miqsoft.beeslides",
+    "productName": "BeeSlides",
+    "directories": { "output": "release", "buildResources": "build" },
+    "npmRebuild": false,
+    "files": ["out/**/*"],
+    "extraResources": [
+      { "from": "../slides/dist-single", "to": "slides-dist-single" },
+      { "from": "../slides/dist-viewer", "to": "slides-dist-viewer" }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "fileAssociations": [
+        {
+          "ext": ["html"],
+          "name": "BeeSlides Deck",
+          "role": "Editor",
+          "rank": "Alternate"
+        }
+      ]
+    },
+    "win": {
+      "target": "nsis",
+      "fileAssociations": [
+        { "ext": "html", "name": "BeeSlides Deck", "role": "Editor" }
+      ]
+    },
+    "nsis": { "oneClick": true, "perMachine": false },
+    "linux": {
+      "executableName": "beeslides",
+      "fileAssociations": [
+        { "ext": "html", "name": "BeeSlides Deck", "role": "Editor" }
+      ],
+      "category": "Office"
+    }
+  }
+}

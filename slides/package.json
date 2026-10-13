@@ -1,0 +1,29 @@
+{
+  "name": "slidomingo-slides",
+  "private": true,
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:viewer": "tsc -b && VIEWER=1 SINGLEFILE=1 vite build --outDir dist-viewer && mv dist-viewer/index.html dist-viewer/BeeSlides_Viewer.beeslides.html && node ../scripts/postbuild-compress.mjs dist-viewer/BeeSlides_Viewer.beeslides.html && node ../scripts/check-viewer.mjs dist-viewer/BeeSlides_Viewer.beeslides.html",
+    "build:single": "tsc -b && SINGLEFILE=1 vite build --outDir dist-single && mv dist-single/index.html dist-single/BeeSlides.beeslides.html && node ../scripts/postbuild-compress.mjs dist-single/BeeSlides.beeslides.html && npm run build:viewer",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "moveable": "^0.53.0",
+    "reveal.js": "^5.2.1",
+    "selecto": "^1.26.3",
+    "temml": "^0.13.3"
+  },
+  "devDependencies": {
+    "@gfx/zopfli": "^1.0.15",
+    "@types/node": "^24.13.2",
+    "@types/reveal.js": "^5.2.1",
+    "fake-indexeddb": "^6.2.5",
+    "typescript": "~5.8.3",
+    "vite": "^7.1.1",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}

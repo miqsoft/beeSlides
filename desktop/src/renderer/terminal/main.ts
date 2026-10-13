@@ -1,0 +1,539 @@
+// The Claude Code terminal panel's own bespoke UI: xterm.js renders each
+// parallel session's pty stream delivered over the slidomingoTerminal
+// contextBridge (src/preload/terminal.ts), plus a small header bar (tab strip
+// + popout/dock/close/new-tab buttons) whose controls call the matching
+// slidomingoTerminal methods.
+//
+// Multi-session (parallel-claude-sessions): one panel can host several
+// independent `claude` sessions as tabs — one xterm.js Terminal + one pane
+// per session, all created here, shown/hidden by toggling `.active` (xterm
+// keeps writing to a hidden terminal's buffer fine; only the FIT needs
+// redoing once a pane becomes visible again, since `fit()` against a
+// `display:none` container measures zero). main (not this renderer) is the
+// source of truth for which sessions exist — a tab's own ✕ only REQUESTS a
+// close; the tab is actually removed from the UI on the terminal:tab-closed
+// push that confirms it, so this renderer can never show a tab whose pty
+// main has already torn down.
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
+import { createChatView, type ChatEvent, type ChatView, type DisplayItem, type UsageReadout } from './chatView.ts'
+
+/** Mirrors src/preload/terminal.ts's InitSession. */
+type InitSession = {
+  id: string; chatId: string; createdAt: number; scrollback: string; exitCode?: number | null
+  kind: 'terminal' | 'chat'; label: string; model?: string; display?: DisplayItem[]; busy?: boolean; usage?: UsageReadout | null
+}
+/** Mirrors src/preload/terminal.ts's ChatSummary. */
+type ChatSummary = { id: string; title: string; startedAt: number; updatedAt: number; openIn: string | null; openElsewhere: boolean; kind?: 'claude' | 'api'; profileName?: string }
+type ProfileEntry = { id: string; name: string; kind: 'claude-code' | 'api' }
+/** Mirrors src/preload/terminal.ts's FolderState. */
+type FolderState = { folders: Array<{ path: string; name: string; exists: boolean }>; deckFolder: string | null; canAttach: boolean; stale: number; error?: string }
+
+declare global {
+  interface Window {
+    slidomingoTerminal: {
+      onInit(cb: (state: { sessions: InitSession[]; activeId: string | null }) => void): void
+      onData(cb: (sessionId: string, data: string) => void): void
+      onExit(cb: (sessionId: string, code: number | null) => void): void
+      onTabClosed(cb: (sessionId: string) => void): void
+      write(sessionId: string, data: string): void
+      resize(sessionId: string, cols: number, rows: number): void
+      reportActive(sessionId: string): void
+      newTab(profileId?: string): Promise<InitSession | null>
+      listProfiles(): Promise<{ defaultId: string; profiles: ProfileEntry[] }>
+      chatSend(sessionId: string, text: string): void
+      chatStop(sessionId: string): void
+      chatRetry(sessionId: string, effort: string): void
+      onChatEvent(cb: (sessionId: string, ev: ChatEvent) => void): void
+      onChatSync(cb: (sessionId: string, state: { display: DisplayItem[]; busy: boolean; usage?: UsageReadout | null }) => void): void
+      onShowProfiles(cb: () => void): void
+      listChats(): Promise<ChatSummary[]>
+      resumeChat(chatId: string): Promise<InitSession | null>
+      listFolders(): Promise<FolderState | null>
+      addFolder(): Promise<FolderState | null>
+      removeFolder(path: string): Promise<FolderState | null>
+      restartStale(): Promise<InitSession[]>
+      ready(): void
+      closeTab(sessionId: string): void
+      popOut(): void
+      dock(): void
+      close(): void
+      resizePanel(width: number): void
+      resizePanelCommit(): void
+      onShowHistory(cb: () => void): void
+      onTheme(cb: (theme: 'light' | 'dark') => void): void
+    }
+  }
+}
+
+// Chrome (header/buttons/resizer) follows the app's own Auto/Light/Dark
+// theme — pushed from the document renderer, since this view has no access
+// to that window's localStorage (see terminal.css's two token blocks). The
+// html tag's own default (dark) holds until the first push arrives.
+window.slidomingoTerminal.onTheme((theme) => { document.documentElement.dataset.theme = theme })
+
+// Keep these values byte-identical to slides/src/editor/sessioncolor.ts's
+// copy — see that file's header comment for why the color is independently
+// re-derived here instead of pushed from the main process.
+const SESSION_COLORS = ['#7A5CFF', '#2FB6B2', '#E8442E', '#F4B400', '#3D8BFD', '#22A559', '#D6558C', '#8A6D3B']
+function colorForSession(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return SESSION_COLORS[hash % SESSION_COLORS.length]
+}
+
+interface SessionUI {
+  id: string
+  /** Terminal tabs (a Claude Code pty) have `term`/`fit`; API chat tabs `chat`. */
+  term: Terminal | null
+  fit: FitAddon | null
+  chat: ChatView | null
+  pane: HTMLDivElement
+  tabEl: HTMLDivElement
+  /** main may deliver an exit twice (in the init payload, and again on the
+   *  ready flush) — print the exit line only once. */
+  exited: boolean
+}
+
+const sessions = new Map<string, SessionUI>()
+let activeId: string | null = null
+let tabCounter = 0 // renderer-local, cosmetic only ("Session 1", "Session 2", …) — never reused, never sent anywhere
+
+const tabsEl = document.getElementById('term-tabs')!
+const tabsWrapEl = document.getElementById('term-tabs-wrap')!
+
+/** Shows/hides the trailing fade cue (terminal.css) so an overflowing tab strip
+ *  doesn't clip tabs silently. Run on scroll, resize, and tab add/remove. */
+function updateTabsOverflow(): void {
+  tabsWrapEl.classList.toggle('has-overflow', tabsEl.scrollWidth > tabsEl.clientWidth + 1)
+  tabsWrapEl.classList.toggle('at-end', tabsEl.scrollLeft + tabsEl.clientWidth >= tabsEl.scrollWidth - 1)
+}
+tabsEl.addEventListener('scroll', updateTabsOverflow)
+new ResizeObserver(updateTabsOverflow).observe(tabsEl)
+const container = document.getElementById('term-container')!
+
+function createSessionUI(s: InitSession): SessionUI {
+  const id = s.id
+  tabCounter += 1
+
+  const pane = document.createElement('div')
+  pane.className = 'term-pane'
+  pane.dataset.sessionId = id
+  container.appendChild(pane)
+
+  let term: Terminal | null = null
+  let fit: FitAddon | null = null
+  let chat: ChatView | null = null
+  if (s.kind === 'chat') {
+    chat = createChatView({
+      label: s.label, model: s.model,
+      onSend: (text) => window.slidomingoTerminal.chatSend(id, text),
+      onStop: () => window.slidomingoTerminal.chatStop(id),
+      onRetry: (effort) => window.slidomingoTerminal.chatRetry(id, effort),
+    })
+    pane.classList.add('chat-pane')
+    pane.append(chat.el)
+  } else {
+    term = new Terminal({
+      fontSize: 13,
+      fontFamily: 'Menlo, Monaco, monospace',
+      // A slim, translucent scrollbar that only reads as a thumb (no track,
+      // no arrows) — xterm's default is a wide opaque grey bar.
+      theme: {
+        background: '#1e1e1e',
+        scrollbarSliderBackground: 'rgba(255, 255, 255, 0.14)',
+        scrollbarSliderHoverBackground: 'rgba(255, 255, 255, 0.28)',
+        scrollbarSliderActiveBackground: 'rgba(255, 255, 255, 0.4)',
+      },
+      overviewRuler: { width: 8 },
+      cursorBlink: true,
+    })
+    fit = new FitAddon()
+    term.loadAddon(fit)
+    term.open(pane)
+    term.onData((data) => window.slidomingoTerminal.write(id, data))
+  }
+
+  const tabEl = document.createElement('div')
+  tabEl.className = 'term-tab'
+  tabEl.dataset.sessionId = id
+  tabEl.title = s.model ? `${s.label} · ${s.model}` : s.label
+  const dot = document.createElement('span')
+  dot.className = 'term-tab-dot'
+  dot.style.background = colorForSession(id)
+  const label = document.createElement('span')
+  label.className = 'term-tab-label'
+  label.textContent = s.label
+  const closeBtn = document.createElement('button')
+  closeBtn.className = 'term-tab-close'
+  closeBtn.title = 'Close this session'
+  closeBtn.textContent = '×'
+  closeBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation() // don't also activate the tab we're closing
+    window.slidomingoTerminal.closeTab(id)
+  })
+  tabEl.append(dot, label, closeBtn)
+  tabEl.addEventListener('click', () => activate(id))
+  tabsEl.appendChild(tabEl)
+  updateTabsOverflow() // adding a tab grows scrollWidth, not the strip's own box
+
+  return { id, term, fit, chat, pane, tabEl, exited: false }
+}
+
+/** Builds a tab from main's handover: xterm first, then the scrollback
+ *  replay, so claude's first Ink screen (drawn before this renderer even
+ *  loaded) is there before live output resumes on ready(). */
+function createSessionFromInit(s: InitSession): SessionUI {
+  const ui = createSessionUI(s)
+  sessions.set(s.id, ui)
+  if (ui.chat) ui.chat.sync({ display: s.display ?? [], busy: !!s.busy, usage: s.usage })
+  else {
+    if (s.scrollback) ui.term!.write(s.scrollback)
+    if (s.exitCode !== undefined) writeExit(ui, s.exitCode)
+  }
+  return ui
+}
+
+function writeExit(ui: SessionUI, code: number | null): void {
+  if (ui.exited || !ui.term) return
+  ui.exited = true
+  ui.term.write(`\r\n[process exited${code !== null ? ` (${code})` : ''}]\r\n`)
+}
+
+function activate(id: string): void {
+  const ui = sessions.get(id)
+  if (!ui) return
+  activeId = id
+  window.slidomingoTerminal.reportActive(id)
+  for (const s of sessions.values()) {
+    const isActive = s.id === id
+    s.pane.classList.toggle('active', isActive)
+    s.tabEl.classList.toggle('active', isActive)
+  }
+  fitActive()
+  if (ui.chat) ui.chat.focus()
+  else ui.term?.focus()
+}
+
+function fitActive(): void {
+  const ui = activeId ? sessions.get(activeId) : undefined
+  if (!ui?.term || !ui.fit) return
+  ui.fit.fit()
+  window.slidomingoTerminal.resize(ui.id, ui.term.cols, ui.term.rows)
+}
+
+/** Removes a session's tab + pane + xterm instance from the UI — called only
+ *  from the terminal:tab-closed push (main is authoritative; see header
+ *  comment), never directly from a close-button click. */
+function removeSessionUI(id: string): void {
+  const ui = sessions.get(id)
+  if (!ui) return
+  sessions.delete(id)
+  ui.pane.remove()
+  ui.tabEl.remove()
+  updateTabsOverflow()
+  ui.term?.dispose()
+  if (activeId === id) {
+    const next = sessions.keys().next().value ?? null
+    activeId = null
+    if (next) activate(next)
+  }
+}
+
+window.slidomingoTerminal.onInit(({ sessions: initial, activeId: initialActive }) => {
+  for (const s of initial) createSessionFromInit(s)
+  if (initialActive) activate(initialActive)
+  window.slidomingoTerminal.ready()
+})
+window.slidomingoTerminal.onData((sessionId, data) => sessions.get(sessionId)?.term?.write(data))
+window.slidomingoTerminal.onChatEvent((sessionId, ev) => sessions.get(sessionId)?.chat?.apply(ev))
+window.slidomingoTerminal.onChatSync((sessionId, state) => sessions.get(sessionId)?.chat?.sync(state))
+window.slidomingoTerminal.onExit((sessionId, code) => {
+  const ui = sessions.get(sessionId)
+  if (ui) writeExit(ui, code)
+})
+window.slidomingoTerminal.onTabClosed((sessionId) => removeSessionUI(sessionId))
+
+/** A tab main just spawned ("+" or a resumed conversation): build it, show
+ *  it, and ack so its live output starts flowing. */
+function addSpawnedTab(result: InitSession | null): void {
+  if (!result) return
+  createSessionFromInit(result)
+  activate(result.id)
+  window.slidomingoTerminal.ready()
+}
+
+// --- new chat: split button ---------------------------------------------------
+// The "+" opens a chat with the default profile; the caret lists every profile
+// (Settings ▸ AI). View ▸ New Chat With… opens the same list.
+document.getElementById('term-new-tab')!.addEventListener('click', () => {
+  void window.slidomingoTerminal.newTab().then(addSpawnedTab)
+})
+const profileBtn = document.getElementById('term-new-menu')!
+const profileMenu = document.getElementById('term-profile-menu')!
+
+function closeProfiles(): void {
+  profileMenu.hidden = true
+  profileBtn.setAttribute('aria-expanded', 'false')
+}
+function openProfiles(): void {
+  void window.slidomingoTerminal.listProfiles().then(({ defaultId, profiles }) => {
+    profileMenu.replaceChildren()
+    for (const p of profiles) {
+      const item = document.createElement('button')
+      item.className = 'term-history-item'
+      item.setAttribute('role', 'menuitem')
+      const title = document.createElement('span')
+      title.className = 'term-history-title'
+      title.textContent = p.name
+      const meta = document.createElement('span')
+      meta.className = 'term-history-meta'
+      meta.textContent = (p.kind === 'api' ? 'Chat via API' : 'Claude Code') + (p.id === defaultId ? ' · default' : '')
+      item.append(title, meta)
+      item.addEventListener('click', () => {
+        closeProfiles()
+        void window.slidomingoTerminal.newTab(p.id).then(addSpawnedTab)
+      })
+      profileMenu.append(item)
+    }
+    profileMenu.hidden = false
+    profileBtn.setAttribute('aria-expanded', 'true')
+    ;(profileMenu.querySelector('button') as HTMLButtonElement | null)?.focus()
+  })
+}
+profileBtn.addEventListener('click', (ev) => {
+  ev.stopPropagation()
+  if (!profileMenu.hidden) { closeProfiles(); return }
+  closeHistory()
+  closeFolders()
+  openProfiles()
+})
+window.slidomingoTerminal.onShowProfiles(() => { if (profileMenu.hidden) openProfiles() })
+
+// --- history menu ----------------------------------------------------------
+// This deck's earlier conversations (main's chathistory.ts). Picking one that
+// a tab here already runs just shows that tab; any other is continued with
+// `claude --resume` in a new tab.
+const historyBtn = document.getElementById('term-history')!
+const historyMenu = document.getElementById('term-history-menu')!
+
+function whenLabel(ms: number): string {
+  const d = new Date(ms)
+  const now = new Date()
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Today, ${time}`
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday, ${time}`
+  const sameYear = d.getFullYear() === now.getFullYear()
+  return `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) })}, ${time}`
+}
+
+function closeHistory(): void {
+  historyMenu.hidden = true
+  historyBtn.setAttribute('aria-expanded', 'false')
+}
+
+function renderHistory(chats: ChatSummary[]): void {
+  historyMenu.replaceChildren()
+  if (chats.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'term-history-empty'
+    empty.textContent = 'No earlier conversations about this deck yet.'
+    historyMenu.append(empty)
+    return
+  }
+  for (const chat of chats) {
+    const item = document.createElement('button')
+    item.className = 'term-history-item'
+    item.setAttribute('role', 'menuitem')
+    item.title = chat.title
+    const title = document.createElement('span')
+    title.className = 'term-history-title'
+    title.textContent = chat.title
+    const meta = document.createElement('span')
+    meta.className = 'term-history-meta'
+    const state = chat.openIn ? ' · open' : chat.openElsewhere ? ' · open in another window' : ''
+    meta.textContent = whenLabel(chat.updatedAt) + (chat.profileName ? ` · ${chat.profileName}` : '') + state
+    item.append(title, meta)
+    item.disabled = chat.openElsewhere
+    item.addEventListener('click', () => {
+      closeHistory()
+      if (chat.openIn) activate(chat.openIn)
+      else void window.slidomingoTerminal.resumeChat(chat.id).then(addSpawnedTab)
+    })
+    historyMenu.append(item)
+  }
+}
+
+function openHistory(): void {
+  void window.slidomingoTerminal.listChats().then((chats) => {
+    renderHistory(chats)
+    historyMenu.hidden = false
+    historyBtn.setAttribute('aria-expanded', 'true')
+    ;(historyMenu.querySelector('button:not(:disabled)') as HTMLButtonElement | null)?.focus()
+  })
+}
+historyBtn.addEventListener('click', (ev) => {
+  ev.stopPropagation()
+  if (!historyMenu.hidden) { closeHistory(); return }
+  closeFolders()
+  openHistory()
+})
+window.slidomingoTerminal.onShowHistory(() => { if (historyMenu.hidden) openHistory() })
+document.addEventListener('mousedown', (ev) => {
+  if (!profileMenu.hidden && !profileMenu.contains(ev.target as Node) && !profileBtn.contains(ev.target as Node)) closeProfiles()
+  if (!historyMenu.hidden && !historyMenu.contains(ev.target as Node) && ev.target !== historyBtn && !historyBtn.contains(ev.target as Node)) closeHistory()
+  if (!foldersMenu.hidden && !foldersMenu.contains(ev.target as Node) && !foldersBtn.contains(ev.target as Node)) closeFolders()
+})
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && !historyMenu.hidden) { closeHistory(); historyBtn.focus() }
+  if (ev.key === 'Escape' && !profileMenu.hidden) { closeProfiles(); profileBtn.focus() }
+  if (ev.key === 'Escape' && !foldersMenu.hidden) { closeFolders(); foldersBtn.focus() }
+})
+
+// --- folders menu ------------------------------------------------------------
+// Folders the user attached to this deck's AI chats (main's attachedfolders.ts;
+// local metadata, never saved in the deck). A Claude Code tab can only gain a
+// folder by being relaunched, so tabs that predate a change get a Restart.
+const foldersBtn = document.getElementById('term-folders')!
+const foldersMenu = document.getElementById('term-folders-menu')!
+const foldersCount = document.getElementById('term-folders-count')!
+
+function closeFolders(): void {
+  foldersMenu.hidden = true
+  foldersBtn.setAttribute('aria-expanded', 'false')
+}
+
+function renderFolders(state: FolderState): void {
+  foldersCount.hidden = state.folders.length === 0
+  foldersCount.textContent = String(state.folders.length)
+  foldersMenu.replaceChildren()
+  const row = (title: string, meta: string, tip: string): HTMLButtonElement => {
+    const item = document.createElement('button')
+    item.className = 'term-history-item'
+    item.setAttribute('role', 'menuitem')
+    item.title = tip
+    const t = document.createElement('span')
+    t.className = 'term-history-title'
+    t.textContent = title
+    const m = document.createElement('span')
+    m.className = 'term-history-meta term-folder-path'
+    m.textContent = meta
+    item.append(t, m)
+    return item
+  }
+  if (state.deckFolder) {
+    const own = row("This deck's folder", state.deckFolder, state.deckFolder)
+    own.disabled = true
+    foldersMenu.append(own)
+  }
+  for (const f of state.folders) {
+    const wrap = document.createElement('div')
+    wrap.className = 'term-folder-row'
+    const item = row(f.name, f.exists ? f.path : `${f.path} — not found`, f.path)
+    item.disabled = true
+    const remove = document.createElement('button')
+    remove.className = 'term-folder-remove'
+    remove.title = 'Detach this folder'
+    remove.setAttribute('aria-label', `Detach ${f.name}`)
+    remove.textContent = '×'
+    remove.addEventListener('click', () => { void window.slidomingoTerminal.removeFolder(f.path).then((s) => { if (s) renderFolders(s) }) })
+    wrap.append(item, remove)
+    foldersMenu.append(wrap)
+  }
+  const add = row('Attach folders…', state.canAttach ? 'Let this deck\u2019s AI chats read the files in one or more folders.' : 'Save the deck first.', 'Attach folders')
+  add.disabled = !state.canAttach
+  add.addEventListener('click', () => { void window.slidomingoTerminal.addFolder().then((s) => { if (s) renderFolders(s) }) })
+  foldersMenu.append(add)
+  if (state.error) {
+    const err = document.createElement('div')
+    err.className = 'term-folder-error'
+    err.textContent = state.error
+    foldersMenu.append(err)
+  }
+  if (state.stale > 0) {
+    const note = document.createElement('div')
+    note.className = 'term-folder-note'
+    note.textContent = state.stale === 1 ? 'A Claude Code tab was started before this change.' : `${state.stale} Claude Code tabs were started before this change.`
+    const restart = document.createElement('button')
+    restart.className = 'term-folder-restart'
+    restart.textContent = 'Restart them (conversations continue)'
+    restart.addEventListener('click', () => {
+      restart.disabled = true
+      void window.slidomingoTerminal.restartStale().then((tabs) => {
+        for (const t of tabs) addSpawnedTab(t)
+        void window.slidomingoTerminal.listFolders().then((s) => { if (s) renderFolders(s) })
+      })
+    })
+    foldersMenu.append(note, restart)
+  }
+}
+
+function openFolders(): void {
+  void window.slidomingoTerminal.listFolders().then((state) => {
+    if (!state) return
+    renderFolders(state)
+    foldersMenu.hidden = false
+    foldersBtn.setAttribute('aria-expanded', 'true')
+  })
+}
+foldersBtn.addEventListener('click', (ev) => {
+  ev.stopPropagation()
+  if (!foldersMenu.hidden) { closeFolders(); return }
+  closeHistory()
+  closeProfiles()
+  openFolders()
+})
+// The count on the button is there from the start, not only once the menu was opened.
+void window.slidomingoTerminal.listFolders().then((state) => { if (state) renderFolders(state) })
+
+// A raw ResizeObserver/mousemove can fire dozens of times per second during a
+// drag, and each firing here used to mean a synchronous fitAddon.fit() + a PTY
+// resize — i.e. a SIGWINCH-equivalent storm hitting the shell/`claude`
+// mid-redraw, which is exactly the kind of thing that corrupts (or blanks) a
+// TUI that repaints on resize. The throttle that actually rate-limits this
+// lives in the MAIN process now (terminalPanel.ts's requestPanelWidth) — not
+// here — because a renderer's own rAF/setTimeout are subject to Chromium's
+// page-visibility/background throttling and were measured to go completely
+// silent (rAF: 0 callbacks in 2s; setTimeout: clamped to ~1/s) for this
+// secondary WebContentsView under some focus states, which would have made a
+// renderer-side coalesce silently swallow every resize instead of just
+// smoothing it. Node's timers in the main process have no such throttling.
+// With the upstream setBounds calls already rate-limited there, what reaches
+// this ResizeObserver is already at a safe cadence — no coalescing needed.
+// Only the ACTIVE session is re-fit; a hidden pane's `fit()` would measure a
+// zero-size container and corrupt its dimensions — it gets fit on activate()
+// instead, once it's actually visible again.
+const resizeObserver = new ResizeObserver(() => fitActive())
+resizeObserver.observe(container)
+
+document.getElementById('term-popout')!.addEventListener('click', () => window.slidomingoTerminal.popOut())
+document.getElementById('term-dock')!.addEventListener('click', () => window.slidomingoTerminal.dock())
+document.getElementById('term-close')!.addEventListener('click', () => window.slidomingoTerminal.close())
+
+// Left-edge drag handle for the panel's own pixel WIDTH (mirrors editor.ts's
+// makeResizer for the sidebar/props panels) — this view always fills its
+// host's bounds, so window.innerWidth IS the current panel width; dragging
+// the left edge left (screenX decreasing) grows the panel. Sent unthrottled:
+// a single number over IPC is cheap, and the main process is what actually
+// rate-limits the expensive relayout (see the comment above).
+const resizer = document.getElementById('term-resizer')!
+resizer.addEventListener('mousedown', (down) => {
+  down.preventDefault()
+  const startScreenX = down.screenX
+  const startWidth = window.innerWidth
+  document.body.classList.add('term-resizing')
+  const move = (ev: MouseEvent) => {
+    window.slidomingoTerminal.resizePanel(startWidth - (ev.screenX - startScreenX))
+  }
+  const up = () => {
+    window.removeEventListener('mousemove', move)
+    window.removeEventListener('mouseup', up)
+    document.body.classList.remove('term-resizing')
+    window.slidomingoTerminal.resizePanelCommit()
+  }
+  window.addEventListener('mousemove', move)
+  window.addEventListener('mouseup', up)
+})

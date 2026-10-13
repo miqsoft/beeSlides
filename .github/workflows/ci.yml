@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            slides/package-lock.json
+            desktop/package-lock.json
+      - name: Install slides
+        run: npm ci
+        working-directory: slides
+      # Rigs import desktop main-process modules (AI SDKs, icon tokens).
+      # --ignore-scripts skips the Electron download and the node-pty rebuild,
+      # which no rig needs.
+      - name: Install desktop
+        run: npm ci --ignore-scripts
+        working-directory: desktop
+      - name: Typecheck and build the shell
+        run: npm run build:single
+        working-directory: slides
+      - name: Typecheck desktop
+        run: node_modules/.bin/tsc --noEmit -p .
+        working-directory: desktop
+      - name: Translations are packed and complete
+        run: |
+          node scripts/build-i18n.mjs --check
+          node scripts/test-i18n-coverage.mjs --quiet
+      - name: Test rigs
+        run: npm test
