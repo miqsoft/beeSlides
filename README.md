@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://miqsoft.github.io/beeslides/" title="BeeSlides docs">
+  <a href="https://miqsoft.github.io/beeSlides/" title="BeeSlides docs">
     <img src="docs/assets/beeslides-logo.svg" alt="BeeSlides: a bee whose stinger is the needle on a rainbow record" width="96" height="96">
   </a>
 </p>
@@ -13,8 +13,8 @@
 
 <p align="center">
   <a href="#install"><b>Install</b></a> ·
-  <a href="https://miqsoft.github.io/beeslides/"><b>Documentation</b></a> ·
-  <a href="https://miqsoft.github.io/beeslides/app/BeeSlides.beeslides.html">Open in your browser</a> ·
+  <a href="https://miqsoft.github.io/beeSlides/"><b>Documentation</b></a> ·
+  <a href="https://miqsoft.github.io/beeSlides/app/BeeSlides.beeslides.html">Open in your browser</a> ·
   <a href="https://github.com/miqsoft/beeslides/discussions">Discussions</a>
 </p>
 
@@ -45,10 +45,10 @@ keeps its servers on. BeeSlides takes the other path.
 |---|---|
 | **Charts** | Bar, line, pie and scatter, drawn by our own engine and live while presenting. |
 | **Interactive slides** | Click-through states, hover reveals and motion paths, so you can explore a diagram live. |
-| **[Presenting](https://miqsoft.github.io/beeslides/present/present/)** | Speaker view, pen and laser, kiosk mode — and [export](https://miqsoft.github.io/beeslides/share/save/) as an editable deck, a read-only presentation or a PDF. |
-| **[AI-ready](https://miqsoft.github.io/beeslides/create/ai/)** | The desktop app has Claude built in. Any agent, chatbot or local model can also edit the deck's JSON. |
+| **[Presenting](https://miqsoft.github.io/beeSlides/present/present/)** | Speaker view, pen and laser, kiosk mode — and [export](https://miqsoft.github.io/beeSlides/share/save/) as an editable deck, a read-only presentation or a PDF. |
+| **[AI-ready](https://miqsoft.github.io/beeSlides/create/ai/)** | The desktop app has Claude built in. Any agent, chatbot or local model can also edit the deck's JSON. |
 | **Private** | Password encryption (AES-GCM-256), an offline mode, and no accounts. |
-| **[PowerPoint in, layouts out](https://miqsoft.github.io/beeslides/create/layouts/#import-powerpoint)** | Import a `.pptx` with its masters as [slide types](https://miqsoft.github.io/beeslides/create/layouts/); save any design as a reusable layout. |
+| **[PowerPoint in, layouts out](https://miqsoft.github.io/beeSlides/create/layouts/#import-powerpoint)** | Import a `.pptx` with its masters as [slide types](https://miqsoft.github.io/beeSlides/create/layouts/); save any design as a reusable layout. |
 
 The interface comes in 9 languages and works without a network connection. Editing is
 desktop-first; phones view and present well.
@@ -68,11 +68,11 @@ npm run setup          # macOS, Windows, Linux · needs Node.js 22.12+
 It installs into Applications, the Start menu, or `~/.local`. Nothing is
 downloaded pre-built or signed, so the app opens without a security warning.
 Update with `git pull && npm run setup`; remove it with `npm run setup -- --uninstall`.
-Details: [Install](https://miqsoft.github.io/beeslides/start/install/).
+Details: [Install](https://miqsoft.github.io/beeSlides/start/install/).
 
 **In a browser, no install:** every deck carries its own editor, so whoever you send
 it to can open, edit and present it. To start one, open the blank
-`BeeSlides.beeslides.html` ([hosted copy](https://miqsoft.github.io/beeslides/app/BeeSlides.beeslides.html)).
+`BeeSlides.beeslides.html` ([hosted copy](https://miqsoft.github.io/beeSlides/app/BeeSlides.beeslides.html)).
 The browser editor has no AI features.
 
 ## Use it with AI
@@ -99,7 +99,7 @@ cd .. && npm test      # all test rigs
 | [docs/architecture.md](docs/architecture.md) | How a `.beeslides.html` file is built, the runtime layout |
 | [docs/format.md](docs/format.md) | The normative document-model spec |
 | [docs/security.md](docs/security.md) | Security model: the file as the boundary, encryption, offline |
-| [site/](https://miqsoft.github.io/beeslides/contribute/docs/) | The docs site and its scripted walkthrough clips |
+| [site/](https://miqsoft.github.io/beeSlides/contribute/docs/) | The docs site and its scripted walkthrough clips |
 | [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) · [RELEASING](docs/RELEASING.md) | |
 
 ## Community

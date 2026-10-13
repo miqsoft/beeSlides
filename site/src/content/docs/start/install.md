@@ -39,7 +39,7 @@ own machine opens without a security warning.
 
 Open any `.beeslides.html` file in a modern browser (Chrome, Edge, Safari,
 Firefox) to view, edit and present it. To start a new deck without installing
-anything, open the blank editor — [this site hosts one](/beeslides/app/BeeSlides.beeslides.html) —
+anything, open the blank editor — [this site hosts one](/beeSlides/app/BeeSlides.beeslides.html) —
 and save it under a new name.
 
 Chrome and Edge save in place; other browsers download a fresh copy each time.

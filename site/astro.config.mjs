@@ -3,9 +3,10 @@
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
 
-// GitHub Pages serves the project site under /beeslides/. Override with
-// SITE_BASE=/ for a custom domain or a local preview at the root.
-const base = process.env.SITE_BASE ?? '/beeslides'
+// GitHub Pages serves the project site under /beeSlides/: the repo's name,
+// and Pages paths are case-sensitive. Override with SITE_BASE=/ for a custom
+// domain or a local preview at the root.
+const base = process.env.SITE_BASE ?? '/beeSlides'
 
 export default defineConfig({
   site: 'https://miqsoft.github.io',

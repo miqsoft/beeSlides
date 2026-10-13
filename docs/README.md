@@ -3,7 +3,7 @@
 Engineering and format documentation for BeeSlides. Start here.
 
 User-facing how-to docs (with click-through clips) live in the docs site,
-[`site/`](../site/) — published at <https://miqsoft.github.io/beeslides/>.
+[`site/`](../site/) — published at <https://miqsoft.github.io/beeSlides/>.
 
 | Document | What it covers |
 |---|---|
