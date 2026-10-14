@@ -11,7 +11,7 @@ import { anim, resetXform } from './anim'
 import { chartSnapshotSvg, mountChart } from './charts'
 import type { SlidomingoDoc, GradientFill, ShapeElement, Slide, SlideElement, SvgElement } from './model'
 import {
-  morphKey, paginates, inLinearFlow, LOOP_DEFAULTS, LOOP_ORIGINS, extraParent, presentNext, presentPrev, presentToggleExtras,
+  morphKey, paginates, inLinearFlow, LOOP_DEFAULTS, LOOP_ORIGINS, extraParent, extrasOf, presentNext, presentPrev, presentToggleExtras,
   presentJumpTarget, presentNumberKey, transitionDir,
 } from './model'
 import { isDrawnTransition, playDrawnTransition } from './transitions'
@@ -25,6 +25,12 @@ import { applyElementFrame, fieldContext, gradientLineCoords, renderSlide, sanit
 import { paintSpeaker, setSpeakerWindow, speakerIdleBody, speakerWindow } from './screens'
 import { t } from './i18n'
 import { lsGet, lsSet } from '../../kernel/src/storage.ts'
+
+// the speaker view's laser button: a drawn dot with rays (an emoji glyph is missing from many fonts)
+const LASER_ICON = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">' +
+  '<circle cx="8" cy="8" r="2.6" fill="currentColor"/>' +
+  '<path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" ' +
+  'stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
 
 const MORPH_DURATION_DEFAULT = 0.65
 /** Set per-deck by doc.present.morphSeconds; clamped to something sane. */
@@ -124,11 +130,23 @@ export function startPresentation(
   const isState = (i: number) => { const sl = doc.slides[i]; return !!sl && !inLinearFlow(sl) }
   // The slide a state/extra hangs off (itself for a normal slide) — the speaker rail's highlight.
   const anchorOf = (i: number) => {
-    const pid = doc.slides[i]?.stateOf
-    const p = doc.slides.findIndex((s) => s.id === pid)
-    const a = p >= 0 ? p : i
+    const a = stateBase(i)
     const ep = extraParent(doc, a)
     return ep >= 0 ? ep : a
+  }
+  // The slide a state belongs to (itself otherwise) — extras are judged from it, as X does.
+  const stateBase = (i: number) => {
+    const pid = doc.slides[i]?.stateOf
+    const p = doc.slides.findIndex((s) => s.id === pid)
+    return p >= 0 ? p : i
+  }
+  /** the extras run `cur` sits in or opens with X: `parent` ≥ 0 while inside it, `xTo` = where X goes */
+  const extrasAt = (cur: number) => {
+    const base = stateBase(cur)
+    const parent = extraParent(doc, base)
+    const run = extrasOf(doc, parent >= 0 ? parent : cur)
+    const xTo = presentToggleExtras(doc, cur)
+    return { base, parent, run, xTo, shown: run.length > 0 && xTo >= 0 }
   }
   const stepsOn = (i: number) => plans[i]?.steps.length ?? 0
   const sectionOf = (i: number) => slidesEl.children[i] as HTMLElement | undefined
@@ -930,6 +948,30 @@ export function startPresentation(
       count.textContent = `${visibleIndex(cur)} / ${visibleTotal}` +
         (clicks ? ` · ${t('click {n}/{total}', { n: curStep, total: clicks })}` : '')
     }
+    // extra slides: a side track off the deck — the chip says where you are and
+    // where X leads; the current-slide frame turns the extras accent
+    const { base, parent, run, xTo, shown } = extrasAt(cur)
+    const chip = d.querySelector<HTMLElement>('.sv-extra')
+    if (chip) {
+      chip.hidden = !shown
+      chip.classList.toggle('in', parent >= 0)
+      if (parent >= 0) {
+        const where = t('Extra slide {n} of {total}', { n: run.indexOf(base) + 1, total: run.length })
+        const back = xTo === parent ? t('X: back to slide {n}', { n: visibleIndex(xTo) }) : t('X: on to slide {n}', { n: visibleIndex(xTo) })
+        chip.textContent = `${where} · ${back}`
+      } else {
+        chip.textContent = t('X: extra slides ({n})', { n: run.length })
+      }
+    }
+    d.body.classList.toggle('sv-in-extra', parent >= 0)
+    d.body.classList.toggle('sv-has-extra', shown && parent < 0)
+    const curBox = d.querySelector('.sv-current')
+    if (curBox && parent >= 0 && !curBox.querySelector('.sv-current-tag')) {
+      const tag = d.createElement('span')
+      tag.className = 'sv-current-tag'
+      tag.textContent = t('Extra slide')
+      curBox.appendChild(tag)
+    }
     d.querySelectorAll<HTMLElement>('.sv-thumb').forEach((th) => {
       const on = Number(th.dataset.idx) === anchor
       th.classList.toggle('current', on)
@@ -999,7 +1041,33 @@ export function startPresentation(
     nxtBox.innerHTML = ''
     nxtBox.appendChild(d.importNode(clicksLeft ? svSlide(cur, 300, curStep + 1) : svSlide(nxt, 300, zn?.step ?? 0), true))
     const nxtLabel = d.querySelector('.sv-next-wrap .sv-label')
-    if (nxtLabel) nxtLabel.textContent = clicksLeft ? t('Next click') : zn?.back ? t('Back to zoom') : t('Next')
+    const inExtras = extraParent(doc, stateBase(cur)) >= 0
+    if (nxtLabel) {
+      nxtLabel.textContent = clicksLeft ? t('Next click') : zn?.back ? t('Back to zoom')
+        : inExtras && !zn ? (extraParent(doc, nxt) >= 0 ? t('Next extra slide') : t('Back to the deck')) : t('Next')
+    }
+    // the extras behind X as real thumbnails — before X so they are hard to miss,
+    // inside the run as the whole side track with the current one marked
+    const ex = extrasAt(cur)
+    const exWrap = d.querySelector<HTMLElement>('.sv-extras-wrap')
+    const exBox = d.querySelector('.sv-extras')
+    if (exWrap && exBox) {
+      exWrap.hidden = !ex.shown
+      exBox.innerHTML = ''
+      const exLabel = exWrap.querySelector('.sv-label')
+      if (exLabel) exLabel.textContent = ex.parent >= 0 ? t('Extra slides — X leaves them') : t('Extra slides — press X')
+      if (ex.shown) {
+        for (const idx of ex.run) {
+          const b = d.createElement('button')
+          b.className = 'sv-xthumb'
+          b.classList.toggle('current', idx === ex.base)
+          b.title = t('Extra slide {n} of {total}', { n: ex.run.indexOf(idx) + 1, total: ex.run.length })
+          b.appendChild(d.importNode(svSlide(idx, 132), true))
+          b.addEventListener('click', () => slideTo(idx))
+          exBox.appendChild(b)
+        }
+      }
+    }
     const notes = d.querySelector('.sv-notes')
     if (notes) notes.textContent = doc.slides[cur]?.notes || t('— no notes for this slide —')
     updateSpeakerControls()
@@ -1046,16 +1114,18 @@ export function startPresentation(
     d.body.innerHTML =
       `<div class="sv-top">` +
         `<div class="sv-timer" title="${t('Click to reset')}">00:00</div>` +
+        `<button class="sv-btn sv-reset" title="${t('Reset timer')}" aria-label="${t('Reset timer')}">↺</button>` +
         `<div class="sv-clock"></div>` +
         `<div class="sv-kiosk" hidden title="${t('Seconds until the show advances by itself')}"></div>` +
         `<div class="sv-count"></div>` +
+        `<div class="sv-extra" hidden></div>` +
         `<div class="sv-ctrls">` +
           navBtn('first', '⇤', t('First slide')) +
           navBtn('prev', '‹', t('Previous')) +
           navBtn('next', '›', t('Next')) +
           navBtn('last', '⇥', t('Last slide')) +
           navBtn('black', '■', t('Black screen (B)')) +
-          navBtn('laser', '🟒', t('Laser pointer (L)'), true) +
+          navBtn('laser', LASER_ICON, t('Laser pointer (L)'), true) +
           navBtn('grid', '▦', t('All slides (G)')) +
           navBtn('reduce', '⏸', t('Reduce motion (M)')) +
         `</div>` +
@@ -1064,6 +1134,7 @@ export function startPresentation(
         `<div class="sv-current"></div>` +
         `<div class="sv-side">` +
           `<div class="sv-next-wrap"><div class="sv-label">${t('Next')}</div><div class="sv-nextbox"></div></div>` +
+          `<div class="sv-extras-wrap" hidden><div class="sv-label"></div><div class="sv-extras"></div></div>` +
           `<div class="sv-notes-wrap"><div class="sv-label">${t('Notes')}</div><div class="sv-notes"></div></div>` +
         `</div>` +
       `</div>` +
@@ -1071,7 +1142,13 @@ export function startPresentation(
       `<div class="sv-grid" hidden><div class="sv-grid-inner"></div></div>`
 
     speakerStart = performance.now()
-    d.querySelector('.sv-timer')?.addEventListener('click', () => { speakerStart = performance.now() })
+    const resetTimer = () => {
+      speakerStart = performance.now()
+      const el = d.querySelector('.sv-timer')
+      if (el) el.textContent = '00:00'
+    }
+    d.querySelector('.sv-timer')?.addEventListener('click', resetTimer)
+    d.querySelector('.sv-reset')?.addEventListener('click', resetTimer)
     clearInterval(speakerTimer)
     speakerTimer = window.setInterval(() => {
       if (!speaker || speaker.closed) { clearInterval(speakerTimer); return }
@@ -1102,6 +1179,14 @@ export function startPresentation(
       num.className = 'sv-thumb-n'
       num.textContent = String(visibleIndex(idx))
       b.appendChild(num)
+      const extras = extrasOf(doc, idx).length
+      if (extras) {
+        const x = d.createElement('span')
+        x.className = 'sv-thumb-x'
+        x.textContent = `+${extras}`
+        x.title = t('X: extra slides ({n})', { n: extras })
+        b.appendChild(x)
+      }
       b.addEventListener('click', () => { slideTo(idx); toggleGrid(false) })
       return b
     }

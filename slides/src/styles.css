@@ -4190,8 +4190,58 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
   cursor: pointer;
 }
 .sv-timer:hover { color: #FFC233; }
+.sv-reset { align-self: center; margin-left: -14px; font-size: 16px; }
 .sv-clock { font-size: 15px; color: #B79FAC; }
 .sv-count { font-size: 15px; color: #B79FAC; font-variant-numeric: tabular-nums; }
+/* extra slides (X): a wing-cream side track, apart from the honey "current" */
+.sv-extra {
+  align-self: center;
+  padding: 3px 10px;
+  border: 1px dashed #6B6250;
+  border-radius: 999px;
+  color: #E8DCC0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.sv-extra[hidden] { display: none; }
+.sv-extra.in { border: 1px solid #FFF6E0; background: #FFF6E0; color: #17120A; font-weight: 700; }
+.sv-current { position: relative; }
+.sv-in-extra .sv-current .sv-frame { outline: 3px solid #FFF6E0; outline-offset: 3px; }
+.sv-current-tag {
+  position: absolute;
+  top: -12px;
+  left: 16px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px #130F08;
+  background: #FFF6E0;
+  color: #17120A;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.slidomingo-speaker:not(.sv-in-extra) .sv-current-tag { display: none; }
+/* a slide with extras: cream cards peek out behind it — there is a layer under this one */
+.sv-has-extra .sv-current .sv-frame {
+  box-shadow: 9px 9px 0 -1px #130F08, 10px 10px 0 0 #FFF6E0, 19px 19px 0 -1px #130F08, 20px 20px 0 0 #8C826C;
+}
+.sv-current { padding: 0 20px 20px 0; }
+.sv-extras-wrap[hidden] { display: none; }
+.sv-extras-wrap .sv-label { color: #FFF6E0; }
+.sv-extras { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv-xthumb {
+  padding: 0;
+  border: 2px dashed #6B6250;
+  border-radius: 7px;
+  background: #000;
+  cursor: pointer;
+  line-height: 0;
+  overflow: hidden;
+}
+.sv-xthumb:hover { border-color: #FFF6E0; }
+.sv-xthumb.current { border: 2px solid #FFF6E0; }
+.sv-xthumb .sv-frame { box-shadow: none; border-radius: 0; }
 .sv-ctrls { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .sv-btn {
   width: 34px;
@@ -4287,6 +4337,18 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
   text-align: center;
 }
 .sv-thumb.current .sv-thumb-n { background: #FFC233; color: #17120A; }
+.sv-thumb-x {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: #FFF6E0;
+  color: #17120A;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 1.4;
+}
 .sv-grid {
   position: fixed;
   inset: 0;
