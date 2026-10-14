@@ -363,6 +363,10 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   /** The viewer-only shell saves are spliced into (null = not built). */
   getViewerShell: (): Promise<string | null> => ipcRenderer.invoke('slidomingo:get-viewer-shell'),
 
+  /** Start page ▸ Example deck: the bundled example's doc JSON, without a
+   *  docId (a fresh copy on every open); null = not bundled. */
+  getExampleDeck: (): Promise<string | null> => ipcRenderer.invoke('slidomingo:get-example-deck'),
+
   /** Write the full file to this window's bound path. `force` overwrites a
    *  file changed on disk (the conflict banner's "Keep mine"). */
   writeDocument: (html: string, opts?: { force?: boolean }): Promise<{ ok: true; mtimeMs: number } | { conflict: true; mtimeMs: number } | { missing: true } | { error: string }> =>

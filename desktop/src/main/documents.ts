@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync,
 import { basename, dirname, join, resolve } from 'node:path'
 import {
   bindingFor, createDocumentWindow, draftsDir, dropPartition, goHome, hashPath, noteDocState, openBoundPaths, openPathsFrom,
-  openSeededInWindow, readAppShell, readViewerShell, rebind, setWriting, launchTextFor, dropSeed, takeAnnounce, takeStartIntent, windowForDocWebContents,
+  openSeededInWindow, readAppShell, readExampleDeck, readViewerShell, rebind, setWriting, launchTextFor, dropSeed, takeAnnounce, takeStartIntent, windowForDocWebContents,
 } from './windows.ts'
 import { backupsToPrune, decideWrite, extractDocBlockText, isFigureDocText, isInside, isTemplateHtml, looksLikeShell, rawDocBlockText, readTitle } from './docfile.ts'
 import { writeFileAtomic } from './fsutil.ts'
@@ -242,6 +242,20 @@ export function registerDocumentIpc(): void {
   /** The viewer-only shell every saved deck is spliced into (null = not built:
    *  the renderer falls back to the app shell). */
   handle('slidomingo:get-viewer-shell', () => readViewerShell(), null)
+
+  /** Start page ▸ Example deck: the bundled example's doc text as a fresh,
+   *  editable copy — no docId (the renderer's parseDoc mints one, so every
+   *  open is a new deck with its own drafts) and not read-only (the file is a
+   *  present-only export). null = not bundled or unreadable. */
+  handle('slidomingo:get-example-deck', () => {
+    const html = readExampleDeck()
+    const text = html ? extractDocBlockText(html) : null
+    if (!text) return null
+    const doc = JSON.parse(text) as Record<string, unknown>
+    delete doc.docId
+    delete doc.readonly
+    return JSON.stringify(doc)
+  }, null)
 
   handle('slidomingo:write-document', (ev, html: string, opts?: { force?: boolean }) => writeDocument(ev, html, opts),
     { error: 'internal' } as WriteResult)

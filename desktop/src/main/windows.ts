@@ -117,6 +117,14 @@ export function readViewerShell(): string | null {
   try { return readFileSync(path, 'utf8') } catch { return null }
 }
 
+/** The start page's "Example deck": the bee explainer from docs/examples.
+ *  Packaged, extraResources copies it to Resources/examples (desktop/package.json). */
+const EXAMPLE_DECK = 'how-bees-fly.beeslides.html'
+export function readExampleDeck(): string | null {
+  const path = app.isPackaged ? join(process.resourcesPath, 'examples', EXAMPLE_DECK) : resolve(__dirname, '../../../docs/examples', EXAMPLE_DECK)
+  try { return readFileSync(path, 'utf8') } catch { return null }
+}
+
 /** Stable, non-reversible id for a file path — same path always gets the same
  *  partition (and backup folder), without exposing the real path in the name. */
 export function hashPath(path: string): string {

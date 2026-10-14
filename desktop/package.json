@@ -37,7 +37,8 @@
     "files": ["out/**/*"],
     "extraResources": [
       { "from": "../slides/dist-single", "to": "slides-dist-single" },
-      { "from": "../slides/dist-viewer", "to": "slides-dist-viewer" }
+      { "from": "../slides/dist-viewer", "to": "slides-dist-viewer" },
+      { "from": "../docs/examples/how-bees-fly.beeslides.html", "to": "examples/how-bees-fly.beeslides.html" }
     ],
     "mac": {
       "category": "public.app-category.productivity",

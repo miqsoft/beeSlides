@@ -12462,7 +12462,7 @@ model frame, hostile vars never rendered; `--save` writes the demo deck),
 The svg-vars demo (entry above) is one opaque drawing: nothing in it can be
 selected. Asked for "complex but fewer parts, editable, with colour
 transitions", the same idea was rebuilt from ordinary elements only
-(`scripts/lib/lake-scene.mjs`, "Ein Tag am See": 54 shapes and texts, four
+(`scripts/lib/lake-scene.mjs`, "A Day at the Lake": 54 shapes and texts, four
 slides sharing every id). Morph already blends solid and gradient fills,
 opacity and text colour, and moves frames; the generic loops carry the life
 (wiggle with `origin: 'bottom'`, spin, float, blink, pulse, dash-march,
@@ -12517,3 +12517,30 @@ sources behind the bee deck's facts.
 - GitHub shows them as source; the README says to download the raw file.
   Publishing them on a site (e.g. GitHub Pages) is a separate, outward-facing
   decision for the maintainer.
+
+## 2026-10-14 — The examples are English, hosted on the docs site, and the bee deck is the desktop's "Example deck"
+
+Supersedes the "No example deck" bullet of 2026-09-30 for the desktop app
+only, and the last bullet of the entry above (the decks are now on the site).
+
+- **English.** All three example decks are in English (`how-bees-fly`,
+  `a-day-at-the-lake`, `seasons`); same fixed `docId`s as before. The bee
+  deck is about the honeybee; its myth slide now says that the 1934 sentence
+  was about the bumblebee (same physics, same mistake) and that its exact
+  wording was never traced. The "this deck as JSON" code slide is gone — the
+  deck explains bees, the README explains the format.
+- **Hosted with the site.** `site/scripts/prebuild.mjs` copies
+  `docs/examples/*.beeslides.html` into `site/public/examples/` (gitignored,
+  like `public/app/`); "Example decks" under Get started links them, and the
+  README's link opens the bee deck in the viewer there, not GitHub's source
+  view. The docs workflow also runs on `docs/examples/**`.
+- **Desktop: Start page ▸ Example ▸ Example deck.** The bee deck ships as an
+  electron-builder `extraResources` FILE (`Resources/examples/`), read by
+  main (`slidomingo:get-example-deck`), which drops `docId` and `readonly`
+  (the file is a present-only export); the renderer's `parseDoc` mints a new
+  id. So every open is a fresh, untitled, editable deck — never a fixed id,
+  which would share drafts and autosave-recovery state between opens.
+- **Why a resource file and not the bundle.** In the JS it would ride in every
+  saved file (~15 KB compressed); as a resource it costs saved decks nothing.
+  The browser build stays blank-only (2026-09-30 holds there); browser users
+  reach the examples through the site. Blank stays the default for new decks.

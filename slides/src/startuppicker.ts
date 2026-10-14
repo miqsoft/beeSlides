@@ -413,7 +413,22 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
     createLink.title = t('Empty, from a built-in slide type, or from a description')
     layoutsItems.appendChild(createLink)
     if (api?.openTemplatesFolder) layoutsItems.appendChild(linkButton(t('Layouts folder'), () => api.openTemplatesFolder()))
+    // A finished deck to look at and take apart, bundled with the desktop app
+    // (DECISIONS 2026-10-14). Every click opens a new, untitled copy.
+    const { line: exampleLine, items: exampleItems } = actionLine(t('Example'))
+    if (api?.getExampleDeck) {
+      const exampleBtn = spButton(ICONS.slideshow, t('Example deck'), () => void openExample(), t('A finished deck to explore — opens as a new, untitled copy'))
+      exampleItems.appendChild(exampleBtn)
+      newCol.append(exampleLine)
+    }
     newCol.append(importLine, layoutsLine)
+    async function openExample() {
+      if (busy) return
+      const text = await api?.getExampleDeck?.()
+      const doc = text ? parseDoc(text) : null
+      if (!doc) { spToast(overlay, t('Couldn’t open the example deck')); return }
+      finish({ doc, isFresh: true })
+    }
 
     let busy = false
     /** Converting: the button says so and ignores clicks; a failure is a

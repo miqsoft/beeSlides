@@ -116,6 +116,8 @@ declare global {
       readLaunchDocument?: () => Promise<DesktopLaunchDocument | null>
       getAppShell?: () => Promise<string | null>
       getViewerShell?: () => Promise<string | null>
+      /** The bundled example deck's doc JSON, without a docId (start page). */
+      getExampleDeck?: () => Promise<string | null>
       writeDocument?: (html: string, opts?: { force?: boolean }) => Promise<DesktopWriteResult>
       saveDocumentAs?: (req: { html: string; suggestedName: string; mode: 'move' | 'copy'; strings?: Record<string, string> }) =>
         Promise<{ ok: true; path: string; name: string } | { cancelled: true } | { error: string }>
