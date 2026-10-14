@@ -595,9 +595,8 @@ export class Editor {
     history.append(undoB, redoB)
     const saveGroup = div('ed-split')
     saveGroup.append(this.saveIndicator.root, this.saveDropdown())
-    const langD = tagTool(this.languageDropdown(), 'language')
     const viewD = tagTool(this.viewDropdown(), 'view')
-    actions.append(pdfB, notesB, layoutMgrB, viewD, saveGroup, langD, settingsB, helpB)
+    actions.append(pdfB, notesB, layoutMgrB, viewD, saveGroup, settingsB, helpB)
     // a UI profile's own buttons (editor/customize/apply.ts fills it)
     this.myToolsSlot = div('ed-dropdown ed-mytools')
     this.myToolsSlot.hidden = true
@@ -632,7 +631,7 @@ export class Editor {
     this.phoneChrome = {
       insertD, insertMenu, moreD, moreMenu, slidesB, formatB, insert, actions, history,
       // order matters: this is the order they appear in the ⋯ menu
-      demote: [redoB, commentB, pdfB, notesB, layoutMgrB, viewD, langD, helpB],
+      demote: [redoB, commentB, pdfB, notesB, layoutMgrB, viewD, helpB],
       // filled in once the bar is fully assembled (formatB lands last)
       authored: new Map(), homeOf: new Map(),
     }
@@ -2074,32 +2073,6 @@ export class Editor {
     this.toast(t('Renamed to “{name}”', { name: fileBase(moved.split(/[\\/]/).pop() ?? moved) }))
   }
 
-  /** Globe → locale picker. UI language follows the VIEWER, never the file. */
-  private languageDropdown(): HTMLElement {
-    const wrap = div('ed-dropdown')
-    const menu = div('ed-menu ed-lang-menu')
-    const trigger = btn(ICONS.globe, '', () => {
-      wrap.classList.toggle('open')
-      if (wrap.classList.contains('open')) flipMenuIfNeeded(wrap, menu)
-    }, t('Language'))
-    for (const c of localeChoices()) {
-      const b = btn('', c.label, () => {
-        wrap.classList.remove('open')
-        this.changeLocale(c.code)
-      })
-      if (c.code === locale()) b.classList.add('ed-lang-on')
-      menu.appendChild(b)
-    }
-    // end-anchored so the menu never overflows the window edge — as a class,
-    // not inline left/right, so it follows the chrome's direction (.ed-lang-menu
-    // in styles.css, alongside the Save menu's identical rule)
-    wrap.append(trigger, menu)
-    document.addEventListener('pointerdown', (ev) => {
-      if (!wrap.contains(ev.target as Node)) wrap.classList.remove('open')
-    })
-    return wrap
-  }
-
   /**
    * View menu — Slide Sorter (#4) and Outline View (#5), both fully
    * implemented below (`openSlideSorter()`/`openOutlineView()`), not stubs.
@@ -2107,7 +2080,7 @@ export class Editor {
    * slide's title and its FIRST body text element — a slide carrying a
    * table/chart/media/code element, or more than one body text element,
    * shows as a read-only placeholder there instead (see the doc comment on
-   * `openOutlineView()`). Modeled on `languageDropdown()` above.
+   * `openOutlineView()`).
    *
    * Also carries the "Margin guides" checkbox-style toggle for the
    * persistent canvas margin overlay, and "Check slides" — validateDoc()'s
@@ -6999,7 +6972,7 @@ export class Editor {
   /** Ordered so the sidebar reads by how often a person opens each one;
    *  Keyboard shortcuts sits high because people look for it first. */
   private static readonly SETTINGS_CATEGORIES: Array<{ id: SettingsCategoryId; icon: string; label: () => string; title: () => string; keywords: () => string }> = [
-    { id: 'general', icon: ICONS.settings, label: () => t('General'), title: () => t('General app preferences'), keywords: () => `appearance theme dark light offline network quick-format toolbar ${t('Appearance')} ${t('Offline mode — block all network features')}` },
+    { id: 'general', icon: ICONS.settings, label: () => t('General'), title: () => t('General app preferences'), keywords: () => `language locale translation appearance theme dark light offline network quick-format toolbar ${t('Language')} ${t('Appearance')} ${t('Offline mode — block all network features')}` },
     { id: 'shortcuts', icon: ICONS.keyboard, label: () => t('Keyboard shortcuts'), title: () => t('Every command and its keys — search, change, reset'), keywords: () => `keys keymap hotkeys accelerator ${t('Shortcut')}` },
     { id: 'customize', icon: ICONS.paintbrush, label: () => t('Customize'), title: () => t('Your own tabs, buttons, menus, styles and look for this editor'), keywords: () => 'customise ui profile' },
     { id: 'ai', icon: ICONS.terminal, label: () => t('AI chat'), title: () => t('Profiles for the chat panel: Claude Code commands and API chats'), keywords: () => 'claude api key model provider openai anthropic profile' },
@@ -7232,6 +7205,22 @@ export class Editor {
   /** General / Appearance + the offline switch — viewer-scoped display and
    *  privacy preferences. */
   private renderGeneralCategory(host: HTMLElement) {
+    // the interface language — the VIEWER's, never the file's (View ▸ Language on desktop too)
+    const langRow = document.createElement('label')
+    langRow.className = 'ed-about-auto'
+    const langSel = document.createElement('select')
+    for (const c of localeChoices()) {
+      const o = document.createElement('option')
+      o.value = c.code
+      o.textContent = c.label
+      if (c.code === locale()) o.selected = true
+      langSel.appendChild(o)
+    }
+    // reopen on General so this dialog, too, speaks the new language
+    langSel.addEventListener('change', () => { this.changeLocale(langSel.value); this.openSettings('general') })
+    langRow.append(document.createTextNode(t('Language') + ' '), langSel)
+    host.appendChild(langRow)
+
     const themeRow = document.createElement('label')
     themeRow.className = 'ed-about-auto'
     const themeSel = document.createElement('select')

@@ -19,7 +19,7 @@ import { checkElementProp, isSafeColor, sanitizeElement, sanitizeStyleDefaults }
 import {
   CONTEXT_ITEMS, CONTEXT_SCOPES, CONTRAST_PAIRS, ICON_NAMES, MINIBAR_ITEMS, MINIBAR_SCOPES, OVERRIDABLE_CHORDS, PATCH_KEYS,
   PRESET_TYPES, RIBBON_LAYOUT, RIBBON_TABS, TOKENS, TOOLBAR_ITEMS, isBuiltinChord, isCatalogCommand, isLockedChord,
-  PANEL_SECTIONS, RETIRED_PANEL_SECTIONS, ribbonGroupIds, typesWithKey, type CatalogItem,
+  PANEL_SECTIONS, RETIRED_PANEL_SECTIONS, RETIRED_TOOLBAR_ITEMS, ribbonGroupIds, typesWithKey, type CatalogItem,
 } from './catalog.ts'
 import { HEX_COLOR, cleanText, contrastRatio, mergePatch, normalizeChord, stableJson, tokenValue } from './logic.ts'
 import {
@@ -391,6 +391,7 @@ function validToolbar(c: Ctx, raw: unknown): UiToolbar | undefined {
     const list: string[] = []
     for (const [i, id] of v.entries()) {
       if (typeof id === 'string' && known.includes(id) && !list.includes(id)) list.push(id)
+      else if (typeof id === 'string' && RETIRED_TOOLBAR_ITEMS.includes(id)) continue
       else c.err(`toolbar.${key}.${i}`, 'unknown-item', `"${String(id)}" is not a toolbar button (or is listed twice; see the catalog's toolbar)`)
     }
     if (list.length) out[key] = list

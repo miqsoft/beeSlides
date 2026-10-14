@@ -12544,3 +12544,15 @@ only, and the last bullet of the entry above (the decks are now on the site).
   saved file (~15 KB compressed); as a resource it costs saved decks nothing.
   The browser build stays blank-only (2026-09-30 holds there); browser users
   reach the examples through the site. Blank stays the default for new decks.
+
+## 2026-10-14 — The interface language lives in Settings, not the top bar
+
+The language picker is a row in **Settings ▸ General** (a `<select>` over
+`localeChoices()`, through the same `changeLocale` as before). The top-bar
+globe is gone: language is set once and rarely touched, so it doesn't earn a
+toolbar slot, and Settings is where people look for it (and where its search
+finds it). This supersedes the 2026-09-02 note that the globe "stays as the one
+remaining language-switching UI". View ▸ Language stays in the desktop app's
+native menu. The `language` toolbar id is retired (`RETIRED_TOOLBAR_ITEMS`), so a
+saved UI profile that hid or ordered it still loads without an error. The
+language remains the viewer's, never the file's.

@@ -302,6 +302,9 @@ export const TOOLBAR_ITEMS: readonly CatalogItem[] = [
   { id: 'format-painter', label: 'Format Painter' }, { id: 'reapply-change', label: 'Reapply Change' },
   { id: 'comment', label: 'Comment' }, { id: 'send-to-claude', label: 'Send to Claude' },
   { id: 'pdf', label: 'Export PDF…' }, { id: 'notes', label: 'Notes' }, { id: 'layout-manager', label: 'Layout Manager…' },
-  { id: 'view', label: 'View' }, { id: 'language', label: 'Language' }, { id: 'help', label: 'Help' },
+  { id: 'view', label: 'View' }, { id: 'help', label: 'Help' },
   { id: 'present', label: 'Slideshow' }, { id: 'terminal', label: 'Claude Code Terminal' },
 ]
+/** Toolbar ids that no longer exist, still accepted (and dropped) in a saved
+ *  profile: the globe became Settings ▸ General ▸ Language (2026-10-14). */
+export const RETIRED_TOOLBAR_ITEMS: readonly string[] = ['language']

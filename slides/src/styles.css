@@ -317,7 +317,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    flipMenuIfNeeded, called from each dropdown's own open-toggle). Only ever
    toggles this class — no z-index, no position — so it can't reopen hard-won
    gotcha #9 (a flex item's z-index capping every descendant). Horizontal
-   anchoring (.ed-save-menu/.ed-lang-menu's inset-inline-end, .ed-file-menu's
+   anchoring (.ed-save-menu's inset-inline-end, .ed-file-menu's
    inset-inline-start, .ed-present-pill's own permanent upward flip) is
    untouched — this only ever swaps which vertical edge the menu grows from. */
 .ed-dropdown.ed-menu-flip-up > .ed-menu { top: auto; bottom: calc(100% + 4px); }
@@ -4365,11 +4365,9 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 
 /* divider usable in any dropdown menu */
 .ed-menu-sep { height: 1px; background: var(--line); margin: 3px 2px; }
-.ed-lang-on { font-weight: 700; }
-.ed-lang-on::after { content: ' ✓'; color: var(--accent-ink); }
 
-/* checkbox-style menu item (e.g. View ▸ Safe zone guides) — same checkmark
-   idiom as .ed-lang-on, generalized for any on/off menu toggle. */
+/* checkbox-style menu item (e.g. View ▸ Safe zone guides) — a trailing ✓ for
+   any on/off menu toggle. */
 .ed-menu-on::after { content: ' ✓'; color: var(--accent-ink); }
 
 /* Save is a split button: [ Save |▾] one visual unit. The caret button is
@@ -4750,8 +4748,8 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 .ed-panel-toggle:hover { color: var(--ink); border-color: color-mix(in srgb, var(--muted) 45%, var(--line)); }
 /* menus that hang off a topbar control at the END of the bar open toward the
    bar's start, so they can never overflow the window edge — in either
-   direction (the language menu sets the same anchoring from JS). */
-.ed-save-menu, .ed-lang-menu {
+   direction. */
+.ed-save-menu {
   inset-inline-end: 0;
   inset-inline-start: auto;
 }

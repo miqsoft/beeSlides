@@ -336,6 +336,8 @@ ok(Math.round(contrastRatio('#000', '#ffffff')!) === 21 && contrastRatio('#77777
   ok(!strict({ ...base, menus: { context: { hide: ['self-destruct'] } } }).profile, 'an unknown built-in menu item is refused')
   ok(!strict({ ...base, menus: { minibar: { add: { '*': ['nope'] } } } }).profile, 'a pin to a missing action is refused')
   ok(!strict({ ...base, toolbar: { hide: ['settings'] } }).profile && !strict({ ...base, toolbar: { hide: ['save'] } }).profile, 'Save and Settings can\'t be hidden (not toolbar items)')
+  const retired = strict({ ...base, toolbar: { hide: ['language', 'embed'], order: ['language'] } })
+  ok(!!retired.profile && stableJson(retired.profile.toolbar) === stableJson({ hide: ['embed'] }), 'a retired toolbar id (the globe, now Settings ▸ Language) is accepted and dropped')
   ok(!strict({ ...base, menus: { context: { add: { '*': Array.from({ length: 9 }, () => 'insert.text') } } } }).profile, 'pins are capped per scope')
   const lenient = validateProfile({ ...base, styles, actions, menus: { context: { add: { '*': ['callout', 'ghost'] }, hide: ['lock', 'nope'] } } }, 'lenient').profile!
   ok(stableJson(lenient.menus?.context) === stableJson({ add: { '*': ['callout'] }, hide: ['lock'] }), 'lenient load drops only the bad pin and hide entries')
