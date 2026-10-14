@@ -1,19 +1,20 @@
 # Example decks
 
-Three decks that show what a BeeSlides file can do. Each one is a single,
-self-contained `.beeslides.html` in **present-only** form (the viewer, no
-editor): download it, open it in any browser, press **Start**. Nothing is
-fetched; it works offline. The BeeSlides desktop app opens the same files for
-editing.
+Three decks that show what a BeeSlides file can do, all in English. Each one
+is a single, self-contained `.beeslides.html` in **present-only** form (the
+viewer, no editor): open it, press **Start**. Nothing is fetched; it works
+offline. The BeeSlides desktop app opens the same files for editing, and its
+start page has the bee deck as **Example deck**.
 
-> GitHub shows an `.html` file as source. Use the file page's **Download raw
-> file** button, then open the downloaded file.
+**See them in your browser:** the docs site hosts them —
+[Example decks](https://miqsoft.github.io/beeSlides/start/examples/).
+(GitHub shows the files here as source; download one to open it locally.)
 
 | Deck | What it is | What it shows |
 |---|---|---|
-| [**Wie fliegt eine Biene?**](wie-fliegt-eine-biene.beeslides.html) (12 slides, German) | An explainer on how honeybees fly, researched from the sources below. Motion only where it explains something. | Morph (the cover bee becomes the anatomy bee), hover focus (point at a body part), an interactive state (click the thorax), an extra slide (press **X** on the myth slide), click builds (one paragraph per click, things that appear and leave again), count-up numbers, loops (wings about their root, alternating muscles, a slowed-down wingbeat), motion paths (a vortex, the waggle dance), an equation with inline maths, a table with a **chart linked to it**, a second table, sections, page-number fields, push/wipe/cover/zoom transitions, zoom tiles, linked sources and a code block showing the deck as data. |
-| [**Ein Tag am See**](ein-tag-am-see.beeslides.html) (4 slides, German) | Morning to night at a lake, from 54 ordinary shapes and texts. | Morph blending gradient and solid fills and text colours while the sun and a balloon travel; loops on the same elements (a crown swaying about its foot, a windmill, clouds, stars, ripples, birds, fireflies). Every part can be selected and edited. |
-| [**Jahreszeiten**](jahreszeiten.beeslides.html) (4 slides, German) | A tree through the seasons: one SVG drawing whose state is set per slide. | svg `vars`: the same artwork on every slide, only its named values change, and Morph blends them; its wind runs on one clock for the whole show. One drawing, not editable part by part — see [format.md](../format.md) on when to use which. |
+| [**How Does a Honeybee Fly?**](https://miqsoft.github.io/beeSlides/examples/how-bees-fly.beeslides.html) ([file](how-bees-fly.beeslides.html), 11 slides) | An explainer on how honeybees fly, researched from the sources below. Motion only where it explains something. | Morph (the cover bee becomes the anatomy bee), hover focus (point at a body part), an interactive state (click the thorax), an extra slide (press **X** on the myth slide), click builds (one paragraph per click, things that appear and leave again), count-up numbers, loops (wings about their root, alternating muscles, a slowed-down wingbeat), motion paths (a vortex, the waggle dance), an equation with inline maths, a table with a **chart linked to it**, a second table, sections, page-number fields, push/wipe/cover/zoom transitions, zoom tiles and linked sources. |
+| [**A Day at the Lake**](https://miqsoft.github.io/beeSlides/examples/a-day-at-the-lake.beeslides.html) ([file](a-day-at-the-lake.beeslides.html), 4 slides) | Morning to night at a lake, from 54 ordinary shapes and texts. | Morph blending gradient and solid fills and text colours while the sun and a balloon travel; loops on the same elements (a crown swaying about its foot, a windmill, clouds, stars, ripples, birds, fireflies). Every part can be selected and edited. |
+| [**Seasons**](https://miqsoft.github.io/beeSlides/examples/seasons.beeslides.html) ([file](seasons.beeslides.html), 4 slides) | A tree through the seasons: one SVG drawing whose state is set per slide. | svg `vars`: the same artwork on every slide, only its named values change, and Morph blends them; its wind runs on one clock for the whole show. One drawing, not editable part by part — see [format.md](../format.md) on when to use which. |
 
 ## How they are made
 
@@ -47,4 +48,9 @@ Rebuild after changing a deck (`npm run build:single` in `slides/` first).
   maximum range: [Frontiers in Ecology and Evolution (2015)](https://www.frontiersin.org/journals/ecology-and-evolution/articles/10.3389/fevo.2015.00031/full)
 - UC ANR Bug Squad: *How fast can a honey bee fly?* (speed, Altshuler's
   fruit-fly comparison) — [ucanr.edu](https://ucanr.edu/blog/bug-squad/article/how-fast-can-honey-bee-fly)
-- Antoine Magnan and the 1934 calculation — [Wikipedia](https://en.wikipedia.org/wiki/Antoine_Magnan)
+- University of Delaware, MAAREC: *The Colony and Its Organization* (drones:
+  several hundred in late spring and summer) —
+  [canr.udel.edu](https://canr.udel.edu/maarec/honey-bee-biology/the-colony-and-its-organization/)
+- Antoine Magnan and the 1934 calculation (about the bumblebee; the famous
+  sentence is widely quoted, its exact wording not traced) —
+  [Wikipedia](https://en.wikipedia.org/wiki/Antoine_Magnan)

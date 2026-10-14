@@ -390,7 +390,7 @@ ${grass}
 
 export const SEASONS = [
   {
-    id: 'spring', name: 'Frühling', line: 'Die Knospen öffnen sich', ink: '#14324f',
+    id: 'spring', name: 'Spring', line: 'The buds are opening', ink: '#14324f',
     vars: {
       'sky-top': '#5b9fe6', 'sky-bottom': '#e9f5ff', sun: '#fff4c2', 'sun-glow': 0.75, 'sun-x': 1070, 'sun-y': 165,
       rays: 0.35, stars: 0, cloud: '#ffffff', 'cloud-shade': '#d9e7f4', clouds: 0.95, birds: 0.6,
@@ -404,7 +404,7 @@ export const SEASONS = [
     },
   },
   {
-    id: 'summer', name: 'Sommer', line: 'Volles Grün, warmer Wind', ink: '#0d2741',
+    id: 'summer', name: 'Summer', line: 'Full green, a warm wind', ink: '#0d2741',
     vars: {
       'sky-top': '#2f86de', 'sky-bottom': '#cfeaff', sun: '#fff7d6', 'sun-glow': 1, 'sun-x': 975, 'sun-y': 90,
       rays: 0.6, stars: 0, cloud: '#ffffff', 'cloud-shade': '#e1edf8', clouds: 0.7, birds: 1,
@@ -418,7 +418,7 @@ export const SEASONS = [
     },
   },
   {
-    id: 'autumn', name: 'Herbst', line: 'Die Blätter fallen', ink: '#3a1d0a',
+    id: 'autumn', name: 'Autumn', line: 'The leaves are falling', ink: '#3a1d0a',
     vars: {
       'sky-top': '#6d97c6', 'sky-bottom': '#f7d6a4', sun: '#ffd086', 'sun-glow': 0.9, 'sun-x': 1150, 'sun-y': 238,
       rays: 0.3, stars: 0, cloud: '#fff1e0', 'cloud-shade': '#e3c4a2', clouds: 0.9, birds: 0.7,
@@ -432,7 +432,7 @@ export const SEASONS = [
     },
   },
   {
-    id: 'winter', name: 'Winter', line: 'Stille und Schnee', ink: '#ffffff',
+    id: 'winter', name: 'Winter', line: 'Quiet and snow', ink: '#ffffff',
     vars: {
       'sky-top': '#1c2a52', 'sky-bottom': '#f3a678', sun: '#ff8a4a', 'sun-glow': 0.95, 'sun-x': 1090, 'sun-y': 440,
       rays: 0, stars: 0.95, cloud: '#8d90b4', 'cloud-shade': '#5c6389', clouds: 0.55, birds: 0,

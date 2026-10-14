@@ -54,9 +54,9 @@ if (!chromium) { console.error('playwright-core not found (set PLAYWRIGHT_CORE)'
 
 // Stable ids, so a rebuild changes a file only where its deck changed.
 const EXAMPLES = [
-  { file: 'wie-fliegt-eine-biene.beeslides.html', docId: '6b1f2c1e-0d55-4c8a-9b0e-bee5f1000001', build: (base) => ({ ...beeDeck({ fontFamily: base.theme?.fontFamily }) }) },
-  { file: 'ein-tag-am-see.beeslides.html', docId: '6b1f2c1e-0d55-4c8a-9b0e-bee5f1000002', build: lakeDeck },
-  { file: 'jahreszeiten.beeslides.html', docId: '6b1f2c1e-0d55-4c8a-9b0e-bee5f1000003', build: seasonsDeck },
+  { file: 'how-bees-fly.beeslides.html', docId: '6b1f2c1e-0d55-4c8a-9b0e-bee5f1000001', build: (base) => ({ ...beeDeck({ fontFamily: base.theme?.fontFamily }) }) },
+  { file: 'a-day-at-the-lake.beeslides.html', docId: '6b1f2c1e-0d55-4c8a-9b0e-bee5f1000002', build: lakeDeck },
+  { file: 'seasons.beeslides.html', docId: '6b1f2c1e-0d55-4c8a-9b0e-bee5f1000003', build: seasonsDeck },
 ]
 
 mkdirSync(outDir, { recursive: true })

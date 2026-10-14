@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// A living scene from ordinary, editable elements only ("Ein Tag am See",
+// A living scene from ordinary, editable elements only ("A Day at the Lake",
 // scripts/lib/lake-scene.mjs): Morph blends gradient and solid fills and text
 // colours across four slides while generic loops run on the same elements —
 // including ones that ALSO travel between slides (the balloon), where the loop

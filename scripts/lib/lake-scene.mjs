@@ -32,7 +32,7 @@ const SAILS = 'M76 80L70 4L90 4L84 80Z M80 76L156 70L156 90L80 84Z M84 80L90 156
 
 export const TIMES = [
   {
-    id: 'morning', name: 'Morgen', line: 'Die Sonne geht auf', ink: '#1b2440',
+    id: 'morning', name: 'Morning', line: 'The sun comes up', ink: '#1b2440',
     sky: ['#7f9be0', '#ffd0b0'], sun: '#ffcf73', sunAt: [480, 330], sunSize: 110, glow: '#ffb067', glowOp: 0.45,
     cloud: '#fff0e6', cloudOp: 0.95, mtn: ['#a3a9d1', '#8288b8'], lake: ['#f2c3b0', '#6f86c4'],
     meadow: ['#7bb661', '#6aa957'], trunk: '#6b4a35', crown: ['#6fb35a', '#5ea24d', '#84c46c'],
@@ -41,7 +41,7 @@ export const TIMES = [
     ripple: 0.5, refl: 0.5,
   },
   {
-    id: 'noon', name: 'Mittag', line: 'Wind über dem See', ink: '#0d2741',
+    id: 'noon', name: 'Noon', line: 'Wind across the lake', ink: '#0d2741',
     sky: ['#2a7de1', '#bfe6ff'], sun: '#fff1a8', sunAt: [640, 110], sunSize: 110, glow: '#fff3a0', glowOp: 0.5,
     cloud: '#ffffff', cloudOp: 1, mtn: ['#93b3d3', '#6f94b8'], lake: ['#8fd0ff', '#1f6fb2'],
     meadow: ['#5fae45', '#4f9e3a'], trunk: '#5a3d2b', crown: ['#3f8f3a', '#2f7d32', '#5cae47'],
@@ -50,7 +50,7 @@ export const TIMES = [
     ripple: 0.65, refl: 0.35,
   },
   {
-    id: 'evening', name: 'Abend', line: 'Goldene Stunde', ink: '#ffffff',
+    id: 'evening', name: 'Evening', line: 'Golden hour', ink: '#ffffff',
     sky: ['#2d2a6b', '#ff8a4f'], sun: '#ff6a3a', sunAt: [1010, 410], sunSize: 110, glow: '#ff4f3a', glowOp: 0.55,
     cloud: '#ff9f80', cloudOp: 0.95, mtn: ['#6c4e86', '#4b3a6e'], lake: ['#ff9a62', '#3f2f6e'],
     meadow: ['#4a6e3a', '#3f5f33'], trunk: '#4a3427', crown: ['#4f7a3a', '#3e6630', '#64904a'],
@@ -59,7 +59,7 @@ export const TIMES = [
     ripple: 0.5, refl: 0.75,
   },
   {
-    id: 'night', name: 'Nacht', line: 'Glühwürmchen und Sterne', ink: '#ffffff',
+    id: 'night', name: 'Night', line: 'Fireflies and stars', ink: '#ffffff',
     sky: ['#070b1f', '#1d2b5c'], sun: '#f3f0dd', sunAt: [1000, 120], sunSize: 84, glow: '#b9c8ff', glowOp: 0.22,
     cloud: '#2a3560', cloudOp: 0.8, mtn: ['#1e2648', '#141a35'], lake: ['#1f2d5c', '#070b1f'],
     meadow: ['#17301f', '#132a1b'], trunk: '#241c1a', crown: ['#1c3a2a', '#163022', '#24483a'],
@@ -135,7 +135,7 @@ function elements(t, i, font) {
 /** The demo deck on top of an editor's base doc. */
 export function lakeDeck(base) {
   const d = JSON.parse(JSON.stringify(base))
-  d.title = 'Ein Tag am See'
+  d.title = 'A Day at the Lake'
   d.present = { ...(d.present ?? {}), morphSeconds: 2.4 }
   const font = d.theme?.fontFamily ?? 'system-ui, sans-serif'
   d.slides = TIMES.map((t, i) => ({
