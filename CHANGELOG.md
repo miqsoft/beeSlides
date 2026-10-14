@@ -9,6 +9,12 @@ preserved.
 
 ## [Unreleased]
 
+- **Smoother shows:** slide changes no longer stall on animated drawings (an
+  all-endless SVG is re-aligned instead of rebuilt), motion paths are measured
+  once ahead of time, and an animation always starts from its first frame.
+  Drawings on slides that are not on screen hold no animations, so a busy
+  drawing such as the seasons demo stays at full frame rate.
+
 ## [1.0.0] — first public release
 
 BeeSlides is a presentation app where one HTML file is the deck, the viewer

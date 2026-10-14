@@ -2458,9 +2458,15 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    on screen). Paused, not removed: arrival re-clones and re-aligns them to the
    show clock (present.ts restartSvgAnimations / alignEndlessAnimations). */
 .slidomingo-present-overlay .reveal .slides section:not(.present) .slidomingo-el-svg * { animation-play-state: paused !important; }
-/* …and nothing under the show does: the editor canvas behind the overlay
+/* Paused is still expensive: Chrome keeps a compositor layer per paused
+   animation (seasons: 1149 layers, 7 ms of Layerize every frame, 2026-10-14).
+   So once a slide can no longer be on screen (its transition is over,
+   present.ts parkSvgAnimations) its drawings hold no animations at all; the
+   arrival creates them fresh and aligns them to the show clock. */
+.slidomingo-present-overlay .reveal .slides section.slidomingo-svg-parked:not(.present) .slidomingo-el-svg * { animation: none !important; }
+/* …and nothing under the show animates: the editor canvas behind the overlay
    kept a full copy of the drawing running for the whole presentation. */
-body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .slidomingo-el-svg * { animation-play-state: paused !important; }
+body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .slidomingo-el-svg * { animation: none !important; }
 /* Drawn transitions (push/wipe/cover/split, src/transitions.ts): the
    incoming section clips to the slide while a snapshot of the other slide
    (the ghost) moves under or over it. */

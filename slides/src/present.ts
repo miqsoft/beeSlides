@@ -268,6 +268,7 @@ export function startPresentation(
   let txOverride: number[] = []
   let txPending: { from: number; to: number; forward: boolean } | null = null
   let cancelTx: (() => void) | null = null
+  let cancelPark = () => {} // the pending parkSvgAnimations
   // ——— zoom (Slide / Section / Summary Zoom: model.ts ZoomFrame, src/zoom.ts) ———
   // A tile click pushes a frame and dives into its range; → / ← walk the
   // range and zoom back out past either end, restoring the overview's click.
@@ -1405,6 +1406,7 @@ export function startPresentation(
   const exit = () => {
     if (exited) return
     exited = true
+    cancelPark()
     // measurements are keyed by slide INDEX, so they'd be wrong for the next
     // show if the deck was edited in between — never carry them across
     symCache.clear()
@@ -1580,6 +1582,8 @@ export function startPresentation(
     const to = event.currentSlide as HTMLElement
     if (!to) return
     wrapBackUntil = 0 // an armed wrap is for slide 1 only
+    cancelPark()
+    const svgFresh = unparkSvgAnimations(to)
     const fromIdx = from ? [...slidesEl.children].indexOf(from) : -1
     const toIdx = [...slidesEl.children].indexOf(to)
     // the outgoing slide's auto-play and the kiosk countdown end with it
@@ -1668,8 +1672,9 @@ export function startPresentation(
     else if (!reduceMotion && zp?.dir !== 'out') runEnterFx(toSlide, to, toVis) // back on an overview: no re-entrance
     if (!reduceMotion) {
       runAmbientFx(toSlide, to, toVis)
-      restartSvgAnimations(to)
+      restartSvgAnimations(to, svgFresh)
     }
+    cancelPark = parkSvgAnimations(slidesEl, to)
     wireHoverFocus(doc.slides[toIdx], to)
     if (from) disposeLiveCharts(doc.slides[fromIdx], from)
     mountLiveCharts(doc.slides[toIdx], to, morphing ? doc.slides[fromIdx] : undefined)
@@ -1734,6 +1739,7 @@ export function startPresentation(
     setTimeout(onResize, 600)
     const first = slidesEl.children[startIndex] as HTMLElement | undefined
     if (first) {
+      parkSvgAnimations(slidesEl, first, 0) // nothing is fading yet
       if (!reduceMotion) {
         const plan = plans[startIndex]
         const vis = plan?.steps.length ? visibleAt(doc.slides[startIndex], curStep, plan) : undefined
@@ -1750,6 +1756,7 @@ export function startPresentation(
       startAuto(startIndex)
       armKiosk()
     }
+    if (!reduceMotion) warmMotionPaths(doc)
   })
 
   return { exit }
@@ -2284,12 +2291,24 @@ function runCountUp(node: HTMLElement) {
  * holding `</style` came back as live markup after the <style> — measured
  * running an onerror on every slide entry (2026-10-08 review).
  */
-function restartSvgAnimations(section: HTMLElement) {
+function restartSvgAnimations(section: HTMLElement, fresh = false) {
   for (const host of section.querySelectorAll<HTMLElement>('.slidomingo-el-svg')) {
-    if (host.querySelector('animate, [style*="animation"], style')) {
-      host.replaceChildren(...Array.from(host.childNodes, (n) => n.cloneNode(true)))
-      alignEndlessAnimations(host)
+    if (!host.querySelector('animate, animateTransform, animateMotion, set, [style*="animation"], style')) continue
+    // Only a drawing with something to REPLAY (SMIL, a finite CSS animation)
+    // needs the clone. One that only loops forever keeps its nodes and is just
+    // re-aligned: cloning the seasons tree (2900 nodes, 345 endless
+    // animations) and restyling it from scratch blocked every slide change for
+    // ~100 ms (2026-10-14 probe), 3 ms without. A `fresh` section was parked
+    // (parkSvgAnimations): its CSS animations were just created, so finite
+    // ones already play from their start.
+    const smil = !!host.querySelector('animate, animateTransform, animateMotion, set')
+    const anims = smil || typeof host.getAnimations !== 'function' ? null : host.getAnimations({ subtree: true })
+    if (anims && (fresh || anims.every((a) => a.effect?.getTiming().iterations === Infinity))) {
+      alignEndlessAnimations(anims)
+      continue
     }
+    host.replaceChildren(...Array.from(host.childNodes, (n) => n.cloneNode(true)))
+    if (typeof host.getAnimations === 'function') alignEndlessAnimations(host.getAnimations({ subtree: true }))
   }
 }
 
@@ -2300,12 +2319,63 @@ function restartSvgAnimations(section: HTMLElement) {
  * the same pose, so a morph or a crossfade between two states of it has no
  * jump. Finite animations (a draw-on, an entrance) still replay on entry:
  * that is what the clone above is for.
+ *
+ * All reads before any write: getTiming() on a CSS animation flushes style
+ * and each startTime write dirties it again, so interleaving them restyled
+ * the drawing once per animation.
  */
-function alignEndlessAnimations(host: HTMLElement) {
-  if (typeof host.getAnimations !== 'function') return
-  for (const a of host.getAnimations({ subtree: true })) {
-    if (a.effect?.getTiming().iterations === Infinity) a.startTime = 0
+const SVG_PARKED = 'slidomingo-svg-parked'
+/** longer than Reveal's slowest section transition (1.2 s), so a slide is never parked while it fades out */
+const PARK_AFTER_MS = 1600
+
+/**
+ * Take the svg animations off every slide but `current` once none of them can
+ * still be on screen (styles.css `.slidomingo-svg-parked`). Paused animations
+ * keep a compositor layer each — the seasons show carried 730 such layers and
+ * dropped to 97 fps standing still. Returns a cancel for the pending park.
+ */
+function parkSvgAnimations(slidesEl: HTMLElement, current: HTMLElement, delayMs = PARK_AFTER_MS): () => void {
+  const park = () => {
+    for (const s of slidesEl.children) {
+      if (s !== current && !s.classList.contains('present')) s.classList.add(SVG_PARKED)
+    }
   }
+  if (delayMs <= 0) { park(); return () => {} }
+  const timer = setTimeout(park, delayMs)
+  return () => clearTimeout(timer)
+}
+
+/** Bring a slide's svg animations back; true when they had been parked (so they start fresh). */
+function unparkSvgAnimations(section: HTMLElement): boolean {
+  const was = section.classList.contains(SVG_PARKED)
+  section.classList.remove(SVG_PARKED)
+  return was
+}
+
+function alignEndlessAnimations(anims: Animation[]) {
+  const endless = anims.filter((a) => a.effect?.getTiming().iterations === Infinity)
+  for (const a of endless) if (a.startTime !== 0) a.startTime = 0
+}
+
+/**
+ * Sample every motion path of the deck while the show is idle, one per slice,
+ * so no slide entry measures a path inside its first frame (anim.ts caches).
+ */
+function warmMotionPaths(doc: SlidomingoDoc) {
+  const todo: Array<{ path: string; speeds?: number[] }> = []
+  for (const s of doc.slides) {
+    for (const el of s.elements) if (el.fx?.loop?.type === 'motion-path') todo.push(el.fx.loop)
+  }
+  const idle: (cb: () => void) => void = typeof requestIdleCallback === 'function'
+    ? (cb) => requestIdleCallback(cb, { timeout: 2000 })
+    : (cb) => setTimeout(cb, 50)
+  const next = () => {
+    const loop = todo.shift()
+    if (!loop) return
+    anim.prepareMotionPath(loop.path, loop.speeds)
+    idle(next)
+  }
+  idle(next)
 }
 
 /**

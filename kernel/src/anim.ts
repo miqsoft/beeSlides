@@ -199,7 +199,26 @@ function makeWarp(us: number[], speeds: number[]): (t: number) => number {
   }
 }
 
+/**
+ * Sampled paths by `d` + speeds. getPointAtLength costs ~0.06 ms a call in
+ * Chrome, so sampling one path is 5–30 ms — paid by every motion-path loop on
+ * every slide entry, inside the first frame of the transition. A deck reuses
+ * the same few paths (the lake demo: 28 loops, 7 paths), and
+ * `anim.prepareMotionPath` warms them before the show needs them.
+ */
+const sampled = new Map<string, ((t: number) => { x: number; y: number }) | null>()
+const SAMPLED_MAX = 128
+
 function samplePath(d: string, speeds?: number[]): ((t: number) => { x: number; y: number }) | null {
+  const key = speeds?.length ? `${d}|${speeds.join(',')}` : d
+  if (sampled.has(key)) return sampled.get(key)!
+  const fn = measurePath(d, speeds)
+  if (sampled.size >= SAMPLED_MAX) sampled.delete(sampled.keys().next().value!)
+  sampled.set(key, fn)
+  return fn
+}
+
+function measurePath(d: string, speeds?: number[]): ((t: number) => { x: number; y: number }) | null {
   const svg = document.createElementNS(SVG_NS, 'svg')
   svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden'
   const path = document.createElementNS(SVG_NS, 'path')
@@ -275,6 +294,7 @@ export class Tween {
   private vars: TweenVars
   private from: Record<string, unknown> | null
   private started = false
+  private ticked = false
   private dead = false
   target: unknown
 
@@ -400,9 +420,14 @@ export class Tween {
     return Math.min(this.elapsed / total, 1)
   }
 
-  /** advance by dt seconds; returns false when finished */
-  tick(dt: number): boolean {
+  /** advance by dt seconds; returns false when finished. `capFirst` (the rAF
+   *  clock only): a tween's first frame advances at most one frame, so a slide
+   *  change that blocked for 150 ms still shows its motion from the start
+   *  instead of opening a fifth of the way in. */
+  tick(dt: number, capFirst = false): boolean {
     if (this.dead) return false
+    if (capFirst && !this.ticked) dt = Math.min(dt, FIRST_FRAME)
+    this.ticked = true
     if (this.delay > 0) {
       this.delay -= dt
       if (this.delay > 0) return true
@@ -464,6 +489,7 @@ function tweensOf(target: unknown): Tween[] {
   return [...(byTarget.get(target) ?? [])]
 }
 
+const FIRST_FRAME = 1 / 60
 let running = false
 let last = 0
 let timeScale = 1
@@ -481,7 +507,7 @@ function loop(now: number) {
   // clamp long gaps (throttled tabs) so loops don't leap wildly
   const dt = Math.min((now - last) / 1000, 0.25) * timeScale
   last = now
-  for (const tw of [...live]) tw.tick(dt)
+  for (const tw of [...live]) tw.tick(dt, true)
   if (live.size) requestAnimationFrame(loop)
   else running = false
 }
@@ -505,6 +531,11 @@ export const anim = {
   },
   killAll() {
     for (const tw of [...live]) tw.kill()
+  },
+  /** Sample a motion path ahead of time (same args as the `motionPath`
+   *  channel), so the tween that uses it starts without measuring. */
+  prepareMotionPath(path: string, speeds?: number[]) {
+    samplePath(path, speeds)
   },
   /** global playback rate (diagnostics/tests) */
   setTimeScale(n: number) {

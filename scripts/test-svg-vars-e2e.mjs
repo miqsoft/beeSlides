@@ -23,7 +23,11 @@
 //   blends the leaf colour (mid-morph between the two, at the end summer's)
 //   without a crossfade ghost; autumn and winter reach their states; a wiggle
 //   with origin:bottom on a ROTATED element keeps its bottom-centre fixed
-//   while the top swings, and sits exactly on its model frame.
+//   while the top swings, and sits exactly on its model frame. Arrival: an
+//   all-endless drawing keeps its nodes (re-aligned, never re-cloned); one
+//   with a finite animation is cloned so it replays on every visit. Slides
+//   off screen hold no svg animations (parked); the one just left stays
+//   paused until its transition is surely over.
 import { existsSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -75,7 +79,7 @@ const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16))
 const rgb = (h) => `rgb(${hex(h).join(', ')})`
 const [SPRING, SUMMER] = SEASONS
 
-/** the demo deck plus a fifth slide: a rotated stem that wiggles about its foot */
+/** the demo deck plus a rotated stem that wiggles about its foot, and a drawing that fades in once */
 function testDeck(base) {
   const d = seasonsDeck(base)
   d.slides.push({
@@ -84,6 +88,12 @@ function testDeck(base) {
       id: 'stem', type: 'shape', shape: 'rect', fill: '#7cc957', x: 600, y: 160, w: 80, h: 400,
       rotation: 30, opacity: 1, fx: { loop: { type: 'wiggle', amount: 12, duration: 2, origin: 'bottom' } },
     }],
+  })
+  d.assets.once = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><style>.once{animation:once-in 30s linear forwards}'
+    + '@keyframes once-in{from{opacity:0}to{opacity:1}}</style><rect class="once" width="100" height="100" fill="#e0a030"/></svg>'
+  d.slides.push({
+    id: 'once', background: '#101418', transition: 'none', name: 'Once',
+    elements: [{ id: 'drawon', type: 'svg', asset: 'once', alt: 'A square', x: 440, y: 160, w: 400, h: 400, rotation: 0, opacity: 1 }],
   })
   return d
 }
@@ -189,7 +199,7 @@ try {
       return out
     })
     check(states.here > 100 && states.hereRunning === states.here, 'the slide on screen animates its drawing', states)
-    check(states.away > 0 && states.awayRunning === 0, 'the slides Reveal keeps mounted next to it are paused', states)
+    check(states.away === 0, 'the slides Reveal keeps mounted next to it hold no animations at all (parked: no layer each)', states)
     await p.waitForTimeout(700)
     const later = await sway()
     check(s && later && s.transform !== later.transform && /matrix/.test(later.transform),
@@ -199,16 +209,33 @@ try {
 
   console.log('— show: spring → summer blends, no crossfade')
   {
+    // summer is mounted (paused) next to spring: mark its drawing's nodes
+    await inShow(() => {
+      const g = document.querySelector('.slidomingo-present-overlay section:not(.present) [data-slide-id="summer"] [data-el-id="scene"] .sw')
+      if (g) g.__kept = true
+    })
     await key('ArrowRight')
+    check(await inShow((sel) => document.querySelector(`${sel} .sw`)?.__kept === true, scene),
+      'an all-endless drawing keeps its nodes on arrival (re-aligned, not re-cloned)')
+    const leaving = () => inShow(() => {
+      const sec = document.querySelector('.slidomingo-present-overlay [data-slide-id="spring"]')?.closest('section')
+      const all = sec ? sec.getAnimations({ subtree: true }) : []
+      return { n: all.length, running: all.filter((a) => a.playState === 'running').length }
+    })
+    const justLeft = await leaving()
+    check(justLeft.n > 100 && justLeft.running === 0, 'the slide just left is only paused while it could still be fading (frozen pose)', justLeft)
     await tick(1.1) // half of morphSeconds 2.2
     const mid = await inShow((sel) => {
       const node = document.querySelector(sel)
       const sec = document.querySelector('.slidomingo-present-overlay section.present')
+      // what the drawing PAINTS with, not what was written
+      const seen = (k) => (node ? getComputedStyle(node).getPropertyValue(k).trim() : null)
+      const leaf = node?.querySelector('path.s1')
       return {
         slide: sec?.querySelector('.slidomingo-slide')?.getAttribute('data-slide-id'),
-        leaf: node?.style.getPropertyValue('--leaf1'),
-        blossom: node?.style.getPropertyValue('--blossom'),
-        sunX: node?.style.getPropertyValue('--sun-x'),
+        leaf: leaf ? getComputedStyle(leaf).fill : null,
+        blossom: seen('--blossom'),
+        sunX: seen('--sun-x'),
         ghosts: sec ? sec.querySelectorAll('.slidomingo-el-svg:not([data-el-id])').length : -1,
       }
     }, scene)
@@ -228,6 +255,9 @@ try {
       return leaf ? getComputedStyle(leaf).fill : null
     }, scene)
     check(end === rgb(SUMMER.vars.leaf1), 'after the morph the leaves are summer green', end)
+    await p.waitForTimeout(1700) // present.ts PARK_AFTER_MS (a real timer, not the engine clock)
+    const later = await leaving()
+    check(later.n === 0, 'once its transition is surely over it is parked: no animations left', later)
     const s = await sway()
     check(s && s.start === 0, 'summer: the sway is still on the show clock (same pose as the slide before)', s)
     if (shots) { await p.waitForTimeout(400); await p.screenshot({ path: join(shots, 'show-summer.png') }) }
@@ -287,6 +317,23 @@ try {
     const near = (u, v) => u && Math.hypot(u[0] - v[0], u[1] - v[1]) < 0.5
     check(a && near(a.foot, want) && near(b.foot, want) && near(c.foot, want), 'the foot stays exactly on the model frame', { a, b, c, want })
     check(a && b && Math.hypot(a.top[0] - b.top[0], a.top[1] - b.top[1]) > 20, 'the top swings', { a, b })
+  }
+
+  console.log('— show: a finite svg animation replays on every visit')
+  {
+    const once = () => inShow(() => {
+      const r = document.querySelector('.slidomingo-present-overlay section.present [data-el-id="drawon"] .once')
+      const a = r?.getAnimations()[0]
+      return r ? { current: a?.currentTime ?? null } : null
+    })
+    await key('ArrowRight')
+    const first = await once()
+    await p.waitForTimeout(900)
+    await key('ArrowLeft')
+    await key('ArrowRight')
+    const again = await once()
+    check(first && typeof first.current === 'number' && first.current < 800, 'it plays from its start on arrival', first?.current)
+    check(again && typeof again.current === 'number' && again.current < 800, 'and from its start again on the next visit', again?.current)
   }
 
   check(errors.length === 0, 'no page errors', errors)
