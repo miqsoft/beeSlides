@@ -1,0 +1,36 @@
+---
+title: Example decks
+description: Three finished decks to open and present — a honeybee explainer, a lake from morning to night, and a tree through the seasons.
+sidebar: { order: 3 }
+---
+
+import { LinkCard } from '@astrojs/starlight/components'
+
+Each example is a single `.beeslides.html` file in present-only form: it opens
+in your browser, you press **Start**, and it presents. Nothing is fetched; a
+downloaded copy works offline. To edit one, open it in the
+[desktop app](../install/), whose start page also offers the bee deck as
+**Example deck**.
+
+<LinkCard
+  title="How Does a Honeybee Fly?"
+  href="../../examples/how-bees-fly.beeslides.html"
+  description="Eleven slides on short strokes, fast beats and vortices. A tour of the format: morph, hover focus, a clickable thorax, an extra slide (press X on the myth slide), click builds, count-ups, loops, motion paths, an equation, a chart linked to its table, zoom tiles."
+  target="_blank"
+/>
+<LinkCard
+  title="A Day at the Lake"
+  href="../../examples/a-day-at-the-lake.beeslides.html"
+  description="Morning to night in four slides, built from 54 ordinary shapes and texts. Morph blends the colours and moves the sun and a balloon; loops keep it alive. Every part can be selected and edited."
+  target="_blank"
+/>
+<LinkCard
+  title="Seasons"
+  href="../../examples/seasons.beeslides.html"
+  description="A tree through the year: one SVG drawing on every slide, with only its named values (svg vars) changing. Morph blends them, and the wind keeps one rhythm for the whole show."
+  target="_blank"
+/>
+
+How they are made, and the sources behind the bee deck:
+[docs/examples](https://github.com/miqsoft/beeslides/tree/main/docs/examples)
+on GitHub.

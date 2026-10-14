@@ -12,7 +12,7 @@ User-facing how-to docs (with click-through clips) live in the docs site,
 | [agents.md](agents.md) | The AI-agent guide: how to author a *great* deck (mapping content to the right feature), the schema, and copy-paste recipes. |
 | [security.md](security.md) | The security posture: the file as the security boundary, password encryption, offline mode. |
 | [RELEASING.md](RELEASING.md) | How a release is cut: tag, build, attach the shell to a GitHub release. |
-| [examples/](examples/README.md) | **Example decks** to download and present: a bee explainer that tours most features, a living scene from ordinary shapes, and an SVG drawing that changes with each slide. |
+| [examples/](examples/README.md) | **Example decks** (English) to open and present — hosted on the docs site under [Example decks](https://miqsoft.github.io/beeSlides/start/examples/): a honeybee explainer that tours most features, a living scene from ordinary shapes, and an SVG drawing that changes with each slide. |
 
 Related, outside `docs/`:
 

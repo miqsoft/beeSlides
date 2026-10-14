@@ -15,6 +15,7 @@
 <p align="center">
   <a href="https://miqsoft.github.io/beeSlides/"><b>Documentation</b></a> ·
   <a href="https://miqsoft.github.io/beeSlides/app/BeeSlides.beeslides.html">Open in your browser</a> ·
+  <a href="https://miqsoft.github.io/beeSlides/examples/how-bees-fly.beeslides.html">Example deck</a> ·
   <a href="https://github.com/miqsoft/beeSlides/issues">Issues</a>
 </p>
 
