@@ -19,7 +19,6 @@ import { SHORTCUT_NONE, type UiProfile } from './schema.ts'
  *  whose menu entry shows no accelerator. */
 const EXTRA_BUILTIN: Record<string, string[]> = {
   'view.sorter': ['Mod+1'],
-  'view.outline': ['Mod+2'],
   'play.slideshow': ['Shift+F5'],
 }
 

@@ -906,9 +906,8 @@ export class Editor {
     this.notesToggleBtn = notesB2
     notesB2.classList.add('ed-slides-only')
     const sorterB = btn(ICONS.grid, t('Slide Sorter'), () => this.openSlideSorter(), t('Switch to a grid view of all slides'))
-    const outlineB = btn(ICONS.outline, t('Outline View'), () => this.openOutlineView(), t('Switch to a text outline of the deck'))
     const viewRow = ribbonRow([
-      slidesOnly(ribbonGroup(t('Presentation Views'), [sorterB, outlineB])),
+      slidesOnly(ribbonGroup(t('Presentation Views'), [sorterB])),
       slidesOnly(ribbonGroup(t('Show'), [
         btn(ICONS.slideshow, window.slidomingoDesktop?.presentBegin ? t('Present') : t('Slideshow'), () => this.present(false, true),
           window.slidomingoDesktop?.presentBegin
@@ -2074,13 +2073,9 @@ export class Editor {
   }
 
   /**
-   * View menu — Slide Sorter (#4) and Outline View (#5), both fully
-   * implemented below (`openSlideSorter()`/`openOutlineView()`), not stubs.
-   * Outline View's one remaining v1 scope limit: it only reflects/edits a
-   * slide's title and its FIRST body text element — a slide carrying a
-   * table/chart/media/code element, or more than one body text element,
-   * shows as a read-only placeholder there instead (see the doc comment on
-   * `openOutlineView()`).
+   * View menu — Slide Sorter (`openSlideSorter()`). Outline View
+   * (`openOutlineView()`) is still implemented but has no entry point: its
+   * ribbon button, View-menu item, command and ⌘2 are removed for now.
    *
    * Also carries the "Margin guides" checkbox-style toggle for the
    * persistent canvas margin overlay, and "Check slides" — validateDoc()'s
@@ -2102,10 +2097,8 @@ export class Editor {
     }, t('View'))
     const safeZoneB = this.safeZoneButton(btn(ICONS.ruler, t('Margin guides'), () => this.toggleSafeZone(), t('Show the deck’s side margins. Keep text between the dashed lines so it lines up with your other slides. “Check slides” points out text that crosses them.')), 'ed-menu-on')
     const sorterB = btn(ICONS.grid, t('Slide Sorter'), () => { wrap.classList.remove('open'); this.openSlideSorter() }, t('Switch to a grid view of all slides'))
-    const outlineB = btn(ICONS.outline, t('Outline View'), () => { wrap.classList.remove('open'); this.openOutlineView() }, t('Switch to a text outline of the deck'))
     menu.append(
       sorterB,
-      outlineB,
       div('ed-menu-sep'),
       safeZoneB,
       this.buildBadgeButton('ed-menu-on'),
@@ -2424,8 +2417,12 @@ export class Editor {
    * `role:'title'` text, else the topmost, is the heading); a picture, table,
    * chart… is only named under the row. Bullet lines reuse markdown.ts's "- "
    * convention both ways.
+   *
+   * DORMANT: nothing opens it (ribbon, View menu, command and ⌘2 removed).
+   * Public only so the unused-member check stays quiet; restore the entry
+   * points from git history if it comes back.
    */
-  private openOutlineView() {
+  openOutlineView() {
     if (this.layoutManagerOpen) { this.toast(t('Close the Layout Manager to open Outline View')); return }
     this.outlineViewOpen = true
     document.querySelector('.ed-outline-overlay')?.remove()
@@ -3947,7 +3944,6 @@ export class Editor {
     reg('arrange.ungroup', () => this.groupSelection(false), { enabled: hasSel })
 
     reg('view.sorter', () => this.openSlideSorter(), { visible: slidesOnly, enabled: noLM })
-    reg('view.outline', () => this.openOutlineView(), { visible: slidesOnly, enabled: noLM })
     reg('view.panelSlides', () => this.togglePanel('left'), { visible: slidesOnly, checked: () => !this.sidebar.classList.contains('ed-collapsed') })
     reg('view.panelFormat', () => this.togglePanel('right'), { checked: () => !this.props.classList.contains('ed-collapsed') })
     reg('view.panelNotes', () => this.toggleNotes(), { visible: slidesOnly, checked: () => !this.notesPane.el.classList.contains('ed-collapsed') })
@@ -6682,11 +6678,6 @@ export class Editor {
       if (mod && ev.key === '1') {
         ev.preventDefault()
         this.openSlideSorter()
-        return
-      }
-      if (mod && ev.key === '2') {
-        ev.preventDefault()
-        this.openOutlineView()
         return
       }
       // ⌘C / ⌘X / ⌘V are the browser's (or the desktop Edit menu's) own

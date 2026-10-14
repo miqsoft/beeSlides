@@ -107,7 +107,6 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'arrange.ungroup': { label: 'Ungroup', accel: 'Shift+G' },
 
   'view.sorter': { label: 'Slide Sorter' },
-  'view.outline': { label: 'Outline View' },
   'view.panelSlides': { label: 'Slides', kind: 'check' },
   'view.panelFormat': { label: 'Format', kind: 'check' },
   'view.panelNotes': { label: 'Notes', kind: 'check' },
@@ -222,7 +221,7 @@ export const MENU_MODEL: MenuSection[] = [
   },
   {
     key: 'view', label: 'View', items: [
-      'view.sorter', 'view.outline', '-', 'view.panelSlides', 'view.panelFormat', 'view.panelNotes', '-',
+      'view.sorter', '-', 'view.panelSlides', 'view.panelFormat', 'view.panelNotes', '-',
       'view.safeZone', 'view.buildBadges', 'view.grid', 'view.layoutGrid', 'view.guides', 'view.gridSnap', 'view.checkDeck', '-', 'view.ribbon', { label: 'Language', dynamic: 'languages' },
       '-', 'view.customize', { label: 'My commands', dynamic: 'custom' },
       '-', { slot: 'view-zoom' }, '-', { slot: 'view-terminal' }, { slot: 'view-developer' },
