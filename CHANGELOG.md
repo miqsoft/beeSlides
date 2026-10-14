@@ -9,6 +9,11 @@ preserved.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-14
+
+- **Speaker view:** extra slides are marked clearly, the laser pointer has its
+  own icon, and the timer has a visible reset button.
+- **Outline View** is no longer offered in the interface.
 - **Smoother shows:** slide changes no longer stall on animated drawings (an
   all-endless SVG is re-aligned instead of rebuilt), motion paths are measured
   once ahead of time, and an animation always starts from its first frame.
