@@ -42,9 +42,6 @@ export interface StartupChoice {
    *  the editor, which shows it once the deck is up (and writes the draft at
    *  once, like any other import). */
   report?: ImportReport
-  /** A new icon set's "what icons do you need" (desktop): the editor sends it
-   *  to Claude as "Plan with AI" once it is up. */
-  planRequest?: string
 }
 
 /** = editor/importfix.ts ImportContext: a PowerPoint also carries its kind
@@ -284,9 +281,9 @@ export async function showStartupPicker(opts: StartupOpts = {}): Promise<Startup
     const doc = await deckFromDefaultTemplate()
     if (doc) return { doc, isFresh: true }
   }
-  const choice = startPage({
-    openCreate: opts.startIntent === 'new-template', openFigure: opts.startIntent === 'new-figure', openIconset: opts.startIntent === 'new-iconset',
-  })
+  // File ▸ New Icon Set…: straight into the editor; name, brief and the plan are set there
+  if (opts.startIntent === 'new-iconset') return { doc: newIconsetDoc(), isFresh: true }
+  const choice = startPage({ openCreate: opts.startIntent === 'new-template', openFigure: opts.startIntent === 'new-figure' })
   if (opts.startIntent === 'default-template') {
     queueMicrotask(() => {
       const ov = document.querySelector<HTMLElement>('.ed-startpick')
@@ -296,7 +293,7 @@ export async function showStartupPicker(opts: StartupOpts = {}): Promise<Startup
   return choice
 }
 
-function startPage(o: { openCreate?: boolean; openFigure?: boolean; openIconset?: boolean } = {}): Promise<StartupChoice> {
+function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Promise<StartupChoice> {
   return new Promise((resolve) => {
     const api = window.slidomingoDesktop
     const overlay = div('ed-startpick')
@@ -832,10 +829,7 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean; openIconset?
     }
     iconRow.appendChild(startTile(
       iconThumb('<svg viewBox="0 0 80 50" width="70%" height="70%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="7"/><path d="M23 23l5 5"/><rect x="38" y="11" width="14" height="14" rx="3"/><path d="M62 12v12M56 18h12"/><path d="M12 34h14v9H12zM45 32l7 11h-14zM62 33a5 5 0 1 0 0 10a5 5 0 1 0 0-10"/></svg>'),
-      t('Icon set…'), t('Many icons, one style — drawn with AI'), () => openIconsetFlow(overlay, card, finish)))
-    iconRow.appendChild(startTile(
-      iconThumb('<svg viewBox="0 0 80 50" width="70%" height="70%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="27" y="12" width="26" height="26" rx="4" stroke-dasharray="2 3"/><circle cx="40" cy="25" r="7"/></svg>'),
-      t('Single icon'), t('One 24 × 24 icon, exported as SVG'), () => finish({ doc: titled(newIconsetDoc(), t('Untitled icon')), isFresh: true })))
+      t('Icon set'), t('One icon or many, one style — planned and drawn with AI'), () => finish({ doc: newIconsetDoc(), isFresh: true })))
     // --- Continue: the latest deck, Pinned, Recent & drafts -------------------
     // The latest unpinned deck or draft is the big tile; pinned decks get
     // their own row under it (they never age out of Recent); the rest follow
@@ -1066,7 +1060,6 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean; openIconset?
 
     if (o.openCreate) openCreateFlow(overlay, card, finish)
     if (o.openFigure) openFigureFlow(overlay, card, finish)
-    if (o.openIconset) openIconsetFlow(overlay, card, finish)
   })
 }
 
@@ -1326,45 +1319,6 @@ function openFigureFlow(overlay: HTMLElement, card: HTMLElement, finish: (choice
   custom.append(Object.assign(document.createElement('span'), { textContent: t('Custom width (mm)') }), cw, go)
   wrap.append(h1, sub, hRow, grid, custom, backButton(closeFlow))
   showStep(wrap)
-}
-
-const titled = (doc: SlidomingoDoc, title: string): SlidomingoDoc => { doc.title = title; return doc }
-
-/** New icon set: a name, what the set is for (the brief Claude draws from)
- *  and the icons to start with. Ends in an icon-set doc (model.ts newIconsetDoc). */
-function openIconsetFlow(overlay: HTMLElement, card: HTMLElement, finish: (choice: StartupChoice) => void): void {
-  const { showStep, closeFlow } = openFlowCard(overlay, card)
-  const h1 = document.createElement('h1')
-  h1.textContent = t('New icon set')
-  const sub = document.createElement('p')
-  sub.textContent = t('One icon per slide, all in one style. Say what you need in your own words: Claude plans the icons, you check the plan, then Claude draws them — or draw them yourself.')
-  const wrap = div('ed-startpick-flow-inner')
-  const field = (label: string, input: HTMLInputElement | HTMLTextAreaElement) => {
-    const l = document.createElement('label')
-    l.style.cssText = 'display:flex;flex-direction:column;gap:6px;font-size:13px'
-    input.className = 'ed-startpick-textarea'
-    input.style.cssText = 'min-height:0;margin-bottom:14px'
-    l.append(Object.assign(document.createElement('span'), { textContent: label }), input)
-    return l
-  }
-  const name = document.createElement('input')
-  name.placeholder = t('e.g. Forensics')
-  const brief = document.createElement('textarea')
-  brief.rows = 2
-  brief.placeholder = t('e.g. Digital forensics for a training course: clean outline icons, friendly, not scary')
-  const ai = !!window.slidomingoDesktop?.sendAgentPrompt
-  const request = document.createElement('textarea')
-  request.rows = 4
-  request.placeholder = t('e.g. think about 12 icons for a digital forensics course: evidence handling, analysis tools, reporting')
-  const go = spButton(ICONS.plus, t('Create icon set'), () => {
-    const doc = titled(newIconsetDoc({ brief: brief.value.trim() || undefined }), name.value.trim() || t('Untitled icon set'))
-    const ask = request.value.trim()
-    finish({ doc, isFresh: true, ...(ai && ask ? { planRequest: ask } : {}) })
-  })
-  wrap.append(h1, sub, field(t('Name'), name), field(t('What is the set for, and how should it look?'), brief),
-    ...(ai ? [field(t('Which icons do you need? (Claude plans them; optional)'), request)] : []), go, backButton(closeFlow))
-  showStep(wrap)
-  name.focus()
 }
 
 /** A flow card in place of the start page (hidden, not removed, so leaving

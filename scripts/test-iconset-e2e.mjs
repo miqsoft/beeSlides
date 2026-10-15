@@ -11,8 +11,8 @@
 // Needs playwright-core (same lookup as test-icons-e2e.mjs); SKIPS with exit
 // 0 without it or a build.
 //
-// Checks: the start page makes an empty icon set and sends its free-text
-// request to Claude as Plan with AI; Claude's plan (icons op "plan") arrives
+// Checks: the Icon set tile opens an empty set; name and brief are set in
+// the panel; its Plan with AI box sends a free-text request to Claude; Claude's plan (icons op "plan") arrives
 // as empty, named icons;
 // the editor keeps the slide list but drops notes, Design and Transitions; the
 // keyline overlay is drawn; doc_info hands an agent the set style and a ready
@@ -83,22 +83,31 @@ await page.addInitScript(() => {
 })
 await page.goto(url)
 
-// --- the start page: Icon set… → name, brief, icons → Create ------------------------
-await page.locator('button.ed-sp-tile:has-text("Icon set…")').first().click({ timeout: 15000 })
-await page.locator('.ed-startpick-flowcard input').first().fill('Forensics')
-const areas = page.locator('.ed-startpick-flowcard textarea')
-await areas.nth(0).fill('Digital forensics for a course: clean outline icons')
-await areas.nth(1).fill('think about 3 icons for evidence handling')
-await page.locator('.ed-startpick-flowcard button:has-text("Create icon set")').click()
+// --- the start page: Icon set → straight into the editor, an empty set ----------------
+await page.locator('button.ed-sp-tile:has-text("Icon set")').first().click({ timeout: 15000 })
 await page.waitForFunction(() => !!window.__agent && window.slidomingo?.doc?.kind === 'iconset', null, { timeout: 15000 })
 await page.waitForTimeout(400)
 
 const doc = () => page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
 let d = await doc()
-ok(d.title === 'Forensics' && d.slides.length === 1 && !d.slides[0].elements.length, 'a new, empty icon set')
-ok(d.iconset?.brief?.startsWith('Digital forensics') && d.size.width === 384, 'brief kept, 24-unit canvas at 384 px')
+ok(d.slides.length === 1 && !d.slides[0].elements.length && d.size.width === 384, 'the tile opens the editor on a new, empty icon set (24 units at 384 px)')
+
+// name and brief are set in the panel, later — no intro step
+const rowInput = (label) => page.locator('.ed-row', { has: page.locator(`span:text-is("${label}")`) }).locator('input, textarea').first()
+await rowInput('Set name').fill('Forensics')
+await rowInput('Set name').press('Tab')
+await rowInput('Brief').fill('Digital forensics for a course: clean outline icons')
+await rowInput('Brief').press('Tab')
+await page.waitForTimeout(200)
+d = await doc()
+ok(d.title === 'Forensics' && d.iconset?.brief?.startsWith('Digital forensics'), `name and brief set from the panel (${d.title})`)
+
+// Plan with AI: free text in the panel → Claude
+await page.locator('textarea.ed-iconset-ask').fill('think about 3 icons for evidence handling')
+await page.locator('.ed-btn-block:has-text("Plan with AI")').click()
+await page.waitForTimeout(200)
 const planAsk = await page.evaluate(() => window.__prompts.find((p) => p.kind === 'plan-icons'))
-ok(planAsk?.payload?.request === 'think about 3 icons for evidence handling' && planAsk.payload.brief.startsWith('Digital'), 'the request from the start page goes to Claude as Plan with AI')
+ok(planAsk?.payload?.request === 'think about 3 icons for evidence handling' && planAsk.payload.brief.startsWith('Digital'), 'Plan with AI sends the request in the user\'s words, with the brief')
 
 // Claude answers with a plan (the agent `icons` op "plan"): empty, named icons
 let n = 0

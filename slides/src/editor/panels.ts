@@ -955,6 +955,8 @@ export class PropsPanel {
     this.host.appendChild(strip)
 
     this.section('Icon set')
+    this.row('Set name', field(doc.title === 'Untitled icon set' ? '' : doc.title, false, t('e.g. Forensics'), (v) =>
+      this.edit(() => { this.store.doc.title = v.trim() || 'Untitled icon set' }, true)))
     this.row('Brief', field(info.brief ?? '', true, t('What the set is for and how it should look'), (v) => {
       const next = { ...info }
       if (v.trim()) next.brief = v.trim(); else delete next.brief

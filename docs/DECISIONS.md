@@ -12621,7 +12621,9 @@ no way to draw icons it was allowed to (2026-10-11: agents do not author SVG).
 
 - **Plan, then draw** (same day, after trying it). Listing icon names up
   front was the wrong first step: people know what the set is FOR, not its
-  list. A new set starts empty; "Plan with AI" (start page, ribbon, panel)
+  list. A new set starts empty, with no intro step: the start page's Icon
+  set tile and File ▸ New Icon Set… open the editor at once, and the set's
+  name and brief are panel fields like everything else. "Plan with AI" (ribbon, panel)
   takes a free-text request ("think about 12 icons for …") as the
   `plan-icons` prompt, and Claude writes its plan with the new `icons` op
   `plan` — empty, named icons with a "what it shows" line and keywords

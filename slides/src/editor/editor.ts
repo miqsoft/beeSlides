@@ -254,13 +254,6 @@ export class Editor {
       })
     }
     this.wireAutosave()
-    // a new icon set made with a request (start page, main.ts): Claude plans
-    // it once we are up. Taken off the doc first, so it never reaches a file.
-    const planRequest = (store.doc as { __planRequest?: string }).__planRequest
-    if (planRequest) {
-      delete (store.doc as { __planRequest?: unknown }).__planRequest
-      queueMicrotask(() => void this.planIconsWithAi(planRequest))
-    }
     if (desktopBound()) this.wireDesktopDoc()
     this.wirePaste()
     this.wireCopy()

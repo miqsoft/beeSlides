@@ -154,12 +154,10 @@ if (envelope) {
   // each option writes a layout file and main turns this window into its
   // template window, so the picker never resolves for those.
   void (async () => {
-    const { doc, isFresh, report, planRequest } = await showStartupPicker({ startIntent })
+    const { doc, isFresh, report } = await showStartupPicker({ startIntent })
     // an imported deck: the editor shows its report once it is up
     // (editor.ts wireDesktopDoc, the same hand-off as a seeded import)
     if (report) Object.assign(doc, { __importReport: report })
-    // a new icon set with a request: Claude plans it once the editor is up
-    if (planRequest) Object.assign(doc, { __planRequest: planRequest })
     bootWith(doc, isFresh)
   })()
 } else {
@@ -171,7 +169,7 @@ if (envelope) {
   // only here — downstream the two are indistinguishable, and the difference
   // is what stops the return gate appearing over real work.
   if (!parsed && !isDesktopShell() && (location.hash === '#new-figure' || location.hash === '#new-iconset')) {
-    // web entry to Figure mode / icon sets: the start page's chooser, then the editor
+    // web entry to Figure mode (the start page's size chooser) or a new icon set (straight in)
     const intent = location.hash === '#new-figure' ? 'new-figure' : 'new-iconset'
     void showStartupPicker({ startIntent: intent }).then(({ doc, isFresh }) => bootWith(doc, isFresh))
   } else {

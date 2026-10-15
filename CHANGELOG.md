@@ -10,8 +10,8 @@ preserved.
 ## [Unreleased]
 
 - **Icon sets:** a new kind of document for drawing your own icons, all in one
-  style — a whole set or a single icon (start page ▸ Icons, desktop File ▸ New
-  Icon Set…). Say what you need in your own words ("think about 12 icons for
+  style — a whole set or a single icon (start page ▸ Icons ▸ Icon set, desktop
+  File ▸ New Icon Set… — it opens straight in the editor). Say what you need in your own words ("think about 12 icons for
   …"): Claude plans the icons, you check and edit the plan, then Claude draws
   them from editable shapes, several at once; comment on one icon or several to have them redrawn. Apply
   set style keeps stroke width, ends, corners and colour consistent. Export
