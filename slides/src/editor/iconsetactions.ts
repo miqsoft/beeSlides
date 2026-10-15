@@ -69,6 +69,16 @@ export function addOneIcon(store: Store, at: number): void {
   store.goTo(at)
 }
 
+/** "Plan with AI": the user's request, in their words, to Claude — it writes
+ *  the plan as empty, named icons (agent `icons` op "plan") and draws nothing. */
+export function planIconsWithAi(store: Store, request: string): boolean {
+  const send = window.slidomingoDesktop?.sendAgentPrompt
+  const info = iconsetInfo(store.doc)
+  if (!send || !info || !request.trim()) return false
+  send('plan-icons', { request: request.trim(), brief: info.brief ?? '' })
+  return true
+}
+
 /** "Draw with AI": the selected icons (several), else every empty one, to Claude. */
 export function drawIconsWithAi(store: Store, selectedIds: readonly string[]): number {
   const send = window.slidomingoDesktop?.sendAgentPrompt

@@ -892,6 +892,35 @@ export class PropsPanel {
       return el
     }
     const setInfo = (next: IconsetInfo) => this.edit(() => writeIconsetInfo(this.store.doc, next), true)
+    const ai = !!window.slidomingoDesktop?.sendAgentPrompt
+    const empty = doc.slides.filter((s) => !s.elements.length).length
+
+    // the AI workflow: say what you need → Claude plans empty icons → you check → Draw
+    if (ai) {
+      this.section('Plan with AI')
+      const ask = document.createElement('textarea')
+      ask.className = 'ed-iconset-text ed-iconset-ask'
+      ask.rows = 4
+      ask.maxLength = LIMITS.prose
+      ask.placeholder = t('e.g. think about 12 icons for a digital forensics course: evidence handling, analysis tools, reporting')
+      this.host.appendChild(ask)
+      const go = document.createElement('button')
+      go.className = 'ed-btn ed-btn-block ed-primary'
+      go.textContent = t('Plan with AI')
+      go.title = t('Say which icons you need in your own words — Claude plans them as empty icons for you to check')
+      go.addEventListener('click', () => {
+        if (!ask.value.trim()) { ask.focus(); return }
+        document.dispatchEvent(new CustomEvent('slidomingo:iconset', { detail: { action: 'plan', request: ask.value } }))
+        ask.value = ''
+      })
+      this.host.appendChild(go)
+      const draw = document.createElement('button')
+      draw.className = 'ed-btn ed-btn-block'
+      draw.textContent = empty ? t('Draw {n} empty icons', { n: empty }) : t('Draw with AI')
+      draw.title = t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style')
+      draw.addEventListener('click', act('draw'))
+      this.host.appendChild(draw)
+    }
 
     this.section('Icon')
     this.row('Name', field(slide.name ?? '', false, t('e.g. fingerprint'), (v) =>
@@ -959,9 +988,6 @@ export class PropsPanel {
       b.title = title
       b.addEventListener('click', act(action))
       this.host.appendChild(b)
-    }
-    if (window.slidomingoDesktop?.sendAgentPrompt) {
-      button(t('Draw with AI'), t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style'), 'draw')
     }
     button(t('Apply set style'), t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)'), 'style')
     button(t('Export icon set…'), t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries'), 'export')

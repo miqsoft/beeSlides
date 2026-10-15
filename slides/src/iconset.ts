@@ -20,7 +20,7 @@
 // Pure — no DOM, no i18n — so scripts/test-iconset.ts runs it in node.
 
 import type { IconsetInfo, ShapeElement, Slide, SlideElement, SlidomingoDoc } from './model.ts'
-import { ICONSET_STYLE_DEFAULTS } from './model.ts'
+import { ICONSET_STYLE_DEFAULTS, newIconSlide } from './model.ts'
 import { IDENTITY, mul, parsePath, pointsSegs, rectSegs, ellipseSegs, rotateAbout, segsToD, transformSegs, translate, type Mat, type Seg } from './svgpath.ts'
 
 /** The doc's icon-set settings with every field present, or null for any other doc. */
@@ -298,4 +298,76 @@ export function iconsToDraw(doc: SlidomingoDoc, selectedIds: readonly string[]):
   const empty = doc.slides.filter((s) => !s.elements.length)
   if (empty.length) return empty
   return doc.slides.filter((s) => selectedIds.includes(s.id))
+}
+
+// ---- the plan ("Plan with AI") ------------------------------------------------------------
+
+/** One planned icon, as an agent sends it (`icons` tool, op "plan"). */
+export interface PlannedIcon { name: string; prompt?: string; keywords?: string[] }
+
+/** The most icons one plan may hold. */
+export const MAX_PLANNED_ICONS = 60
+
+/** Agent input → clean planned icons, or a message saying what is wrong. */
+export function readIconPlan(raw: unknown): PlannedIcon[] | string {
+  if (!Array.isArray(raw) || !raw.length) return 'icons must be a non-empty list of {name, prompt, keywords}.'
+  if (raw.length > MAX_PLANNED_ICONS) return `At most ${MAX_PLANNED_ICONS} icons per plan.`
+  const out: PlannedIcon[] = []
+  const seen = new Set<string>()
+  for (const [i, it] of raw.entries()) {
+    if (!it || typeof it !== 'object') return `icons[${i}] is not an object.`
+    const r = it as Record<string, unknown>
+    const name = typeof r.name === 'string' ? r.name.replace(/\s+/g, ' ').trim().slice(0, 60) : ''
+    if (!name) return `icons[${i}] has no name.`
+    if (seen.has(name.toLowerCase())) return `"${name}" is planned twice.`
+    seen.add(name.toLowerCase())
+    const entry: PlannedIcon = { name }
+    if (typeof r.prompt === 'string' && r.prompt.trim()) entry.prompt = r.prompt.replace(/\s+/g, ' ').trim().slice(0, 300)
+    if (Array.isArray(r.keywords)) {
+      const kw = r.keywords.filter((k): k is string => typeof k === 'string').map((k) => k.trim().slice(0, 40)).filter(Boolean).slice(0, 8)
+      if (kw.length) entry.keywords = kw
+    }
+    out.push(entry)
+  }
+  return out
+}
+
+/** An icon nobody has drawn, named or commented on yet (what a new set starts with). */
+const isBlankIcon = (s: Slide): boolean => !s.elements.length && !s.comments?.length && (!s.name || s.name === 'icon') && !s.icon?.prompt
+
+/**
+ * Write a plan into the set: an icon already there BY NAME gets the new
+ * prompt/keywords (its drawing stays), blank starter icons are filled first,
+ * the rest are added at the end. With `replace`, still-empty icons the plan
+ * does not name are removed (drawn or commented ones never are; the set keeps
+ * at least one slide). Mutates `doc`; call inside a commit.
+ */
+export function applyIconPlan(doc: SlidomingoDoc, plan: readonly PlannedIcon[], replace = false): { slideIds: string[]; added: number; updated: number; removed: number } {
+  const byName = new Map(doc.slides.filter((s) => s.name).map((s) => [s.name!.toLowerCase(), s]))
+  const blanks = doc.slides.filter(isBlankIcon)
+  let added = 0, updated = 0
+  const ids: string[] = []
+  for (const p of plan) {
+    let slide = byName.get(p.name.toLowerCase())
+    if (slide) updated++
+    else {
+      slide = blanks.shift()
+      if (!slide) { slide = newIconSlide(p.name); doc.slides.push(slide) }
+      slide.name = p.name
+      added++
+    }
+    const icon: NonNullable<Slide['icon']> = { ...slide.icon }
+    if (p.prompt) icon.prompt = p.prompt
+    if (p.keywords) icon.keywords = [...p.keywords]
+    if (Object.keys(icon).length) slide.icon = icon
+    ids.push(slide.id)
+  }
+  let removed = 0
+  if (replace) {
+    const keep = new Set(ids)
+    const before = doc.slides.length
+    const rest = doc.slides.filter((s) => keep.has(s.id) || s.elements.length || s.comments?.length)
+    if (rest.length) { doc.slides = rest; removed = before - rest.length }
+  }
+  return { slideIds: ids, added, updated, removed }
 }

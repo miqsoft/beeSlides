@@ -11,8 +11,9 @@ preserved.
 
 - **Icon sets:** a new kind of document for drawing your own icons, all in one
   style — a whole set or a single icon (start page ▸ Icons, desktop File ▸ New
-  Icon Set…). Describe the set, list the icons, and Claude drafts them from
-  editable shapes; comment on one icon or several to have them redrawn. Apply
+  Icon Set…). Say what you need in your own words ("think about 12 icons for
+  …"): Claude plans the icons, you check and edit the plan, then Claude draws
+  them from editable shapes, several at once; comment on one icon or several to have them redrawn. Apply
   set style keeps stroke width, ends, corners and colour consistent. Export
   set writes 24 × 24 SVGs (colour follows the text, `currentColor`) with an
   `icons.json`; add that folder as an icon library and the icons are

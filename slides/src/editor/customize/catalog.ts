@@ -307,7 +307,7 @@ export const TOOLBAR_ITEMS: readonly CatalogItem[] = [
   { id: 'view', label: 'View' }, { id: 'help', label: 'Help' },
   { id: 'present', label: 'Slideshow' }, { id: 'terminal', label: 'Claude Code Terminal' },
   // an icon set's Home ▸ Icons group
-  { id: 'icon-add', label: 'Add icons' }, { id: 'icon-draw', label: 'Draw with AI' },
+  { id: 'icon-plan', label: 'Plan with AI' }, { id: 'icon-add', label: 'Add icons' }, { id: 'icon-draw', label: 'Draw with AI' },
   { id: 'icon-style', label: 'Apply set style' }, { id: 'icon-comment', label: 'Comment on icons' },
 ]
 /** Toolbar ids that no longer exist, still accepted (and dropped) in a saved

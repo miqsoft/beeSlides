@@ -124,7 +124,7 @@ const iconLeaves: string[] = []
 for (const m of iconset.menus) walk(m.items, (it) => { if ('id' in it) iconLeaves.push(it.id) })
 const slideMenu: string[] = []
 walk(iconset.menus.find((m) => m.key === 'slide')!.items, (it) => { if ('id' in it) slideMenu.push(it.id) })
-ok(slideMenu.join() === 'icon.add,icon.draw,icon.applyStyle,icon.comment', `icon set: the Slide menu is the icon commands (${slideMenu.join()})`)
+ok(slideMenu.join() === 'icon.plan,icon.add,icon.draw,icon.applyStyle,icon.comment', `icon set: the Slide menu is the icon commands (${slideMenu.join()})`)
 ok(iconLeaves.includes('file.exportIconSet') && iconLeaves.includes('file.exportIconSvg') && !iconLeaves.includes('file.exportPdf'), 'icon set: Export lists the set and one icon')
 ok(iconLeaves.includes('play.sendComments'), 'icon set: comments still go to Claude')
 ok(iconset.menus.every((m) => noSepBugs(m.items)), 'icon set has no separator bugs')

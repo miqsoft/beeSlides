@@ -12619,6 +12619,20 @@ no way to draw icons it was allowed to (2026-10-11: agents do not author SVG).
   documents inside the library and a second trust path, for no gain over the
   exported folder.
 
+- **Plan, then draw** (same day, after trying it). Listing icon names up
+  front was the wrong first step: people know what the set is FOR, not its
+  list. A new set starts empty; "Plan with AI" (start page, ribbon, panel)
+  takes a free-text request ("think about 12 icons for …") as the
+  `plan-icons` prompt, and Claude writes its plan with the new `icons` op
+  `plan` — empty, named icons with a "what it shows" line and keywords
+  (`iconset.ts applyIconPlan`: same name = update, blank starters filled
+  first, `replace` drops still-empty icons it leaves out, never drawn or
+  commented ones). It draws nothing; the user edits the plan in the slide
+  list/panel and presses "Draw N empty icons", which hands them to subagents
+  (3–4 icons each, in parallel; the draw prompt and skill say so for more
+  than 3). The plan op lives in the `icons` area rather than `deck`: it is
+  about icons, and the area already holds the icon verbs.
+
 Not done: re-exporting into the same folder leaves files of deleted icons in
 place; Grid & Snap's spacing chips do not apply to icon sets (the grid is one
 unit); recolouring an inserted icon (still 2026-10-11's gap — `currentColor`

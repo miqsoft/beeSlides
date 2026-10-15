@@ -154,10 +154,12 @@ if (envelope) {
   // each option writes a layout file and main turns this window into its
   // template window, so the picker never resolves for those.
   void (async () => {
-    const { doc, isFresh, report } = await showStartupPicker({ startIntent })
+    const { doc, isFresh, report, planRequest } = await showStartupPicker({ startIntent })
     // an imported deck: the editor shows its report once it is up
     // (editor.ts wireDesktopDoc, the same hand-off as a seeded import)
     if (report) Object.assign(doc, { __importReport: report })
+    // a new icon set with a request: Claude plans it once the editor is up
+    if (planRequest) Object.assign(doc, { __planRequest: planRequest })
     bootWith(doc, isFresh)
   })()
 } else {

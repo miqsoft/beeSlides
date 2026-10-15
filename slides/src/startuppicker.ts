@@ -42,6 +42,9 @@ export interface StartupChoice {
    *  the editor, which shows it once the deck is up (and writes the draft at
    *  once, like any other import). */
   report?: ImportReport
+  /** A new icon set's "what icons do you need" (desktop): the editor sends it
+   *  to Claude as "Plan with AI" once it is up. */
+  planRequest?: string
 }
 
 /** = editor/importfix.ts ImportContext: a PowerPoint also carries its kind
@@ -1334,7 +1337,7 @@ function openIconsetFlow(overlay: HTMLElement, card: HTMLElement, finish: (choic
   const h1 = document.createElement('h1')
   h1.textContent = t('New icon set')
   const sub = document.createElement('p')
-  sub.textContent = t('One icon per slide, all in one style. Describe the set, list the icons, then let Claude draft them — or draw them yourself.')
+  sub.textContent = t('One icon per slide, all in one style. Say what you need in your own words: Claude plans the icons, you check the plan, then Claude draws them — or draw them yourself.')
   const wrap = div('ed-startpick-flow-inner')
   const field = (label: string, input: HTMLInputElement | HTMLTextAreaElement) => {
     const l = document.createElement('label')
@@ -1349,15 +1352,17 @@ function openIconsetFlow(overlay: HTMLElement, card: HTMLElement, finish: (choic
   const brief = document.createElement('textarea')
   brief.rows = 2
   brief.placeholder = t('e.g. Digital forensics for a training course: clean outline icons, friendly, not scary')
-  const names = document.createElement('textarea')
-  names.rows = 5
-  names.placeholder = t('One name per line, e.g.\nfingerprint\nevidence bag\nhash')
+  const ai = !!window.slidomingoDesktop?.sendAgentPrompt
+  const request = document.createElement('textarea')
+  request.rows = 4
+  request.placeholder = t('e.g. think about 12 icons for a digital forensics course: evidence handling, analysis tools, reporting')
   const go = spButton(ICONS.plus, t('Create icon set'), () => {
-    const list = names.value.split(/\n|,/).map((s) => s.trim()).filter(Boolean).slice(0, 200)
-    const doc = newIconsetDoc({ names: list, brief: brief.value.trim() || undefined })
-    finish({ doc: titled(doc, name.value.trim() || t('Untitled icon set')), isFresh: true })
+    const doc = titled(newIconsetDoc({ brief: brief.value.trim() || undefined }), name.value.trim() || t('Untitled icon set'))
+    const ask = request.value.trim()
+    finish({ doc, isFresh: true, ...(ai && ask ? { planRequest: ask } : {}) })
   })
-  wrap.append(h1, sub, field(t('Name'), name), field(t('What is the set for, and how should it look?'), brief), field(t('Icons'), names), go, backButton(closeFlow))
+  wrap.append(h1, sub, field(t('Name'), name), field(t('What is the set for, and how should it look?'), brief),
+    ...(ai ? [field(t('Which icons do you need? (Claude plans them; optional)'), request)] : []), go, backButton(closeFlow))
   showStep(wrap)
   name.focus()
 }

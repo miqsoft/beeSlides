@@ -27,7 +27,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AGENT_AREAS, DECK_AREA, areaHelp, areaToolDef, checkArgs, type AreaSpec } from '../slides/src/agentops/spec.ts'
 import { runAreaOp, type AgentIcon, type IconLibraryAccess, type OpContext } from '../slides/src/editor/agentops.ts'
-import { defaultShape, defaultText, deriveChartPalette, emptySlide, newDoc, sectionsInOrder, type SlidomingoDoc } from '../slides/src/model.ts'
+import { defaultShape, defaultText, deriveChartPalette, emptySlide, newDoc, newIconsetDoc, sectionsInOrder, type SlidomingoDoc } from '../slides/src/model.ts'
 import { Store } from '../slides/src/store.ts'
 import { agentSvgPatchViolation, agentSvgViolation } from '../slides/src/editor/agentsvg.ts'
 import { agentAreaTools, serverWithAgentAreas } from '../desktop/src/main/agenttools.ts'
@@ -303,6 +303,22 @@ console.log('-- icons --')
   ok(!failed.ok && failed.error.includes("can't reach") && failed.error.includes('Settings ▸ Icon library') && failed.error.includes('not hand-drawn SVG'), 'an unreachable library: the reason, where the user fixes it, and the fallback')
   const bare = await Promise.resolve(runAreaOp('icons', { op: 'search', query: 'x' }, { store, created: new Set() })) as any
   ok(!bare.ok && bare.error.includes('No icon library'), 'no library (headless): refused, never thrown')
+
+  // plan: icon sets only — the plan becomes empty, named icons, nothing is drawn
+  const notSet = runAreaOp('icons', { op: 'plan', icons: [{ name: 'x' }] }, ctx) as any
+  ok(!notSet.ok && notSet.error.includes('icon set only'), 'plan in a deck is refused')
+  const set = new Store(newIconsetDoc())
+  const sctx: OpContext = { store: set, created: new Set() }
+  const plan = runAreaOp('icons', { op: 'plan', icons: [
+    { name: 'fingerprint', prompt: 'a fingerprint in a magnifier', keywords: ['print', 'finger'] },
+    { name: 'evidence bag', prompt: 'a sealed bag with a tag' },
+  ] }, sctx) as any
+  ok(plan.ok && set.doc.slides.map((s) => s.name).join() === 'fingerprint,evidence bag' && plan.summary.includes('Do not draw'), `the plan fills the blank starter icon, then adds (${set.doc.slides.map((s) => s.name)})`)
+  ok(set.doc.slides[0].icon?.prompt === 'a fingerprint in a magnifier' && set.doc.slides.every((s) => !s.elements.length), 'prompts and keywords written, nothing drawn')
+  set.doc.slides[0].elements.push({ id: 'drawn', type: 'shape', shape: 'rect', x: 0, y: 0, w: 1, h: 1, rotation: 0, opacity: 1, fill: '#000', stroke: '#000', strokeWidth: 0, radius: 0 } as never)
+  const again = runAreaOp('icons', { op: 'plan', replace: true, icons: [{ name: 'Hash', prompt: '# on a page' }] }, sctx) as any
+  ok(again.ok && set.doc.slides.map((s) => s.name).join() === 'fingerprint,Hash', `replace drops the still-empty icons the plan leaves out, keeps the drawn one (${set.doc.slides.map((s) => s.name)})`)
+  ok(!(runAreaOp('icons', { op: 'plan', icons: [{ name: 'a' }, { name: 'A' }] }, sctx) as any).ok, 'a name planned twice is refused')
 }
 
 // ---- 3e. elements ------------------------------------------------------------------

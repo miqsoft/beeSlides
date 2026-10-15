@@ -100,8 +100,8 @@ import { buildSaveIndicator, type SaveIndicator } from './saveindicator'
 import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
-import { commentStats, sendCommentsToClaude } from './comments'
-import { addIcons, addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon } from './iconsetactions'
+import { askText, commentStats, sendCommentsToClaude } from './comments'
+import { addIcons, addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, planIconsWithAi } from './iconsetactions'
 import { iconsetInfo } from '../iconset'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
@@ -254,6 +254,13 @@ export class Editor {
       })
     }
     this.wireAutosave()
+    // a new icon set made with a request (start page, main.ts): Claude plans
+    // it once we are up. Taken off the doc first, so it never reaches a file.
+    const planRequest = (store.doc as { __planRequest?: string }).__planRequest
+    if (planRequest) {
+      delete (store.doc as { __planRequest?: unknown }).__planRequest
+      queueMicrotask(() => void this.planIconsWithAi(planRequest))
+    }
     if (desktopBound()) this.wireDesktopDoc()
     this.wirePaste()
     this.wireCopy()
@@ -299,6 +306,7 @@ export class Editor {
     document.addEventListener('slidomingo:iconset', ((ev: CustomEvent<{ action: string }>) => {
       const a = ev.detail?.action
       if (a === 'draw') this.drawIconsWithAi()
+      else if (a === 'plan') void this.planIconsWithAi((ev.detail as { request?: string }).request)
       else if (a === 'style') this.applyIconStyle()
       else if (a === 'export') this.exportIconSet()
     }) as EventListener)
@@ -2702,6 +2710,10 @@ export class Editor {
       num.title = parent >= 0
         ? t('Extra slide of slide {n} — press X on slide {n} while presenting', { n: this.linearNumber(parent) })
         : t('Hidden — skipped while presenting and left out of PDF export')
+    } else if (this.isIconset && slide.name) {
+      // an icon set's list is its plan: number + name, the empty icons too
+      num.textContent = `${i + 1} · ${slide.name}`
+      if (slide.icon?.prompt) num.title = slide.icon.prompt
     } else {
       num.textContent = String(this.linearNumber(i))
     }
@@ -3552,6 +3564,22 @@ export class Editor {
     })
   }
 
+  /** "Plan with AI": a free-text request (asked for when not given) → Claude plans the icons. */
+  async planIconsWithAi(request?: string) {
+    if (!window.slidomingoDesktop?.sendAgentPrompt) {
+      this.toast(t('Drawing with AI needs the BeeSlides desktop app with Claude set up'))
+      return
+    }
+    const ask = request ?? await askText({
+      title: t('Plan icons with AI'),
+      placeholder: t('e.g. think about 12 icons for a digital forensics course: evidence handling, analysis tools, reporting'),
+      okLabel: t('Plan with AI'),
+    })
+    if (!ask?.trim()) return
+    this.canvas.commitTextEdit()
+    if (planIconsWithAi(this.store, ask)) this.toast(t('Claude is planning the icons — check the list, then press Draw with AI'))
+  }
+
   drawIconsWithAi() {
     if (!window.slidomingoDesktop?.sendAgentPrompt) {
       this.toast(t('Drawing with AI needs the BeeSlides desktop app with Claude set up'))
@@ -3588,13 +3616,16 @@ export class Editor {
 
   /** The Home ribbon's Icons group (in place of Slides). */
   private iconsetRibbonGroup(): HTMLElement {
+    const ai = !!window.slidomingoDesktop?.sendAgentPrompt
     const items = [
+      ...(ai ? [tagTool(btn(ICONS.sparkle, t('Plan with AI'), () => void this.planIconsWithAi(),
+        t('Say which icons you need in your own words — Claude plans them as empty icons for you to check')), 'icon-plan')] : []),
       tagTool(btn(ICONS.plus, t('Add icons'), () => this.addIcons(), t('Add icons by name, one per line')), 'icon-add'),
-      ...(window.slidomingoDesktop?.sendAgentPrompt
-        ? [tagTool(btn(ICONS.sparkle, t('Draw with AI'), () => this.drawIconsWithAi(),
+      ...(ai
+        ? [tagTool(btn(ICONS.paintbrush, t('Draw with AI'), () => this.drawIconsWithAi(),
           t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style')), 'icon-draw')]
         : []),
-      tagTool(btn(ICONS.paintbrush, t('Apply set style'), () => this.applyIconStyle(),
+      tagTool(btn(ICONS.checkCircle, t('Apply set style'), () => this.applyIconStyle(),
         t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)')), 'icon-style'),
       tagTool(btn(ICONS.comment, t('Comment on icons'), () => this.commentOnIcons(),
         t('One comment on each icon selected in the slide list — sent to Claude to redraw them')), 'icon-comment'),
@@ -4043,6 +4074,7 @@ export class Editor {
       enabled: noLM,
       checked: () => !!this.store.slide?.hidden,
     })
+    reg('icon.plan', () => void this.planIconsWithAi(), { visible: () => iconset() && !!window.slidomingoDesktop?.sendAgentPrompt })
     reg('icon.add', () => this.addIcons(), { visible: iconset })
     reg('icon.draw', () => this.drawIconsWithAi(), { visible: () => iconset() && !!window.slidomingoDesktop?.sendAgentPrompt })
     reg('icon.applyStyle', () => this.applyIconStyle(), { visible: iconset })
@@ -4642,7 +4674,7 @@ export class Editor {
     // boots a blank draft (no text) but is just as much work to redo.
     // A figure picked on the start page is the same: its size choice is the
     // work, and it must show up under Figure even if nothing is drawn yet.
-    const freshFigure = doc.kind === 'figure'
+    const freshFigure = doc.kind === 'figure' || doc.kind === 'iconset'
     const seededDraft = launch?.kind === 'draft' && launch.mtimeMs == null && (!!launch.text || !!pending || freshFigure)
     this.lastWrittenBody = seededDraft ? null : this.initialBody
     this.touched = !(launch?.kind === 'draft' && !launch.text && !pending && !freshFigure)

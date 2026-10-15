@@ -13,7 +13,7 @@
 // breaking the shell quoting, an ESC ending the paste early, a newline
 // splitting a line, a bogus id or an unbounded list.
 
-import { asPaste, cleanLine, drawIconsPrompt, fixCommentsPrompt, fixImportPrompt, MAX_LISTED_COMMENTS, MAX_LISTED_ICONS, MAX_LISTED_IMPORT_ITEMS } from '../desktop/src/main/agentprompts.ts'
+import { asPaste, cleanLine, drawIconsPrompt, planIconsPrompt, fixCommentsPrompt, fixImportPrompt, MAX_LISTED_COMMENTS, MAX_LISTED_ICONS, MAX_LISTED_IMPORT_ITEMS } from '../desktop/src/main/agentprompts.ts'
 import { convertArgs, findSoffice } from '../desktop/src/main/sourcerender.ts'
 
 let failures = 0
@@ -102,6 +102,13 @@ ok(!SHELL_UNSAFE.test(icons) && !icons.includes('\x1b') && !icons.includes('\x00
 ok(drawIconsPrompt({ icons: [{ slide: 1, slideId: 'bad id' }, { slide: 0, slideId: 'x' }] }) === null && drawIconsPrompt(null) === null, 'bad ids and slide numbers are dropped')
 const manyIcons = drawIconsPrompt({ icons: Array.from({ length: MAX_LISTED_ICONS + 2 }, (_, i) => ({ slide: i + 1, slideId: `s${i}` })) })!
 ok(manyIcons.includes('…and 2 more'), 'a long icon list is capped and names the rest')
+
+// --- "Plan with AI" (planIconsPrompt) --------------------------------------------
+const planned = planIconsPrompt({ request: `think about 12 icons for forensics ${nasty}`, brief: 'outline, friendly' })!
+ok(planned.startsWith('Please plan icons') && planned.includes('think about 12 icons for forensics'), 'the request is passed on in the user\'s words')
+ok(planned.includes('icons op plan') && planned.includes('Do NOT draw'), 'it says to write a plan and not draw')
+ok(!SHELL_UNSAFE.test(planned) && !planned.includes('\x1b'), 'the request cannot break the shell quoting or the paste')
+ok(planIconsPrompt({ request: '  ' }) === null && planIconsPrompt(null) === null, 'an empty request gives no message')
 
 // --- LibreOffice render (sourcerender.ts) ------------------------------------
 ok(findSoffice({ PATH: '/nope' }, () => false) === null, 'no LibreOffice anywhere → null (the fix goes ahead without a picture)')

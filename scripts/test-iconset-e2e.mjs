@@ -11,7 +11,9 @@
 // Needs playwright-core (same lookup as test-icons-e2e.mjs); SKIPS with exit
 // 0 without it or a build.
 //
-// Checks: the start page makes an icon set from a name, brief and icon list;
+// Checks: the start page makes an empty icon set and sends its free-text
+// request to Claude as Plan with AI; Claude's plan (icons op "plan") arrives
+// as empty, named icons;
 // the editor keeps the slide list but drops notes, Design and Transitions; the
 // keyline overlay is drawn; doc_info hands an agent the set style and a ready
 // path element; that path is accepted by write_slide, svg is refused; Apply
@@ -86,15 +88,36 @@ await page.locator('button.ed-sp-tile:has-text("Icon set…")').first().click({ 
 await page.locator('.ed-startpick-flowcard input').first().fill('Forensics')
 const areas = page.locator('.ed-startpick-flowcard textarea')
 await areas.nth(0).fill('Digital forensics for a course: clean outline icons')
-await areas.nth(1).fill('fingerprint\nevidence bag\nhash')
+await areas.nth(1).fill('think about 3 icons for evidence handling')
 await page.locator('.ed-startpick-flowcard button:has-text("Create icon set")').click()
 await page.waitForFunction(() => !!window.__agent && window.slidomingo?.doc?.kind === 'iconset', null, { timeout: 15000 })
 await page.waitForTimeout(400)
 
 const doc = () => page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
 let d = await doc()
-ok(d.title === 'Forensics' && d.slides.map((s) => s.name).join() === 'fingerprint,evidence bag,hash', `an icon set with three named icons (${d.slides.map((s) => s.name)})`)
+ok(d.title === 'Forensics' && d.slides.length === 1 && !d.slides[0].elements.length, 'a new, empty icon set')
 ok(d.iconset?.brief?.startsWith('Digital forensics') && d.size.width === 384, 'brief kept, 24-unit canvas at 384 px')
+const planAsk = await page.evaluate(() => window.__prompts.find((p) => p.kind === 'plan-icons'))
+ok(planAsk?.payload?.request === 'think about 3 icons for evidence handling' && planAsk.payload.brief.startsWith('Digital'), 'the request from the start page goes to Claude as Plan with AI')
+
+// Claude answers with a plan (the agent `icons` op "plan"): empty, named icons
+let n = 0
+async function act(verb, args) {
+  const id = `a${++n}`
+  await page.evaluate(([id, verb, args]) => window.__agent({ requestId: id, verb, args }), [id, verb, args])
+  await page.waitForFunction((id) => !!window.__results[id], id, { timeout: 15000 })
+  return page.evaluate((id) => window.__results[id], id)
+}
+const planned = await act('icons', { op: 'plan', icons: [
+  { name: 'fingerprint', prompt: 'a fingerprint inside a magnifier', keywords: ['print'] },
+  { name: 'evidence bag', prompt: 'a sealed bag with a tag' },
+  { name: 'hash', prompt: 'a # on a document' },
+] })
+d = await doc()
+ok(planned.ok && d.slides.map((s) => s.name).join() === 'fingerprint,evidence bag,hash' && d.slides.every((s) => !s.elements.length), `the plan arrives as three empty, named icons (${d.slides.map((s) => s.name)})`)
+await page.waitForTimeout(300)
+const drawLabel = await page.evaluate(() => [...document.querySelectorAll('.ed-btn-block')].map((b) => b.textContent).find((x) => /^Draw/.test(x ?? '')))
+ok(drawLabel === 'Draw 3 empty icons', `the panel offers to draw what was planned (${drawLabel})`)
 
 // --- the editor: a slide list, no deck-only chrome ------------------------------------
 const ui = await page.evaluate(() => {
@@ -111,11 +134,10 @@ const ui = await page.evaluate(() => {
 ok(ui.root && ui.sidebar && !ui.notes, `slide list shown, notes hidden (${JSON.stringify({ sidebar: ui.sidebar, notes: ui.notes })})`)
 ok(!ui.tabs.some((x) => /Design|Transitions/.test(x ?? '')), `no Design or Transitions tab (${ui.tabs.join(', ')})`)
 ok(ui.keyline, 'the keyline square/circle is drawn over the canvas')
-ok(ui.panel.includes('Icon') && ui.panel.includes('Icon set'), `the Format panel shows the icon and the set (${ui.panel.join(', ')})`)
+ok(ui.panel.includes('Plan with AI') && ui.panel.includes('Icon') && ui.panel.includes('Icon set'), `the Format panel: plan, this icon, the set (${ui.panel.join(', ')})`)
 if (shots) await page.screenshot({ path: join(shots, 'iconset-editor.png') })
 
 // --- agent: doc_info → pathElement → write_slide ---------------------------------------
-let n = 0
 async function query(verb, args = {}) {
   const id = `q${++n}`
   await page.evaluate(([id, verb, args]) => window.__query({ requestId: id, verb, args }), [id, verb, args])
@@ -158,7 +180,7 @@ ok(d.slides[0].elements.every((e) => e.strokeWidth === 32 && e.stroke === '#0000
 await page.locator('[data-ui-tool="icon-draw"]').first().click()
 await page.waitForTimeout(200)
 const drawn = await page.evaluate(() => window.__prompts.find((p) => p.kind === 'draw-icons'))
-ok(drawn?.payload?.icons?.map((i) => i.name).join() === 'evidence bag,hash' && drawn.payload.brief.startsWith('Digital'), `Draw with AI sends the two empty icons and the brief (${JSON.stringify(drawn?.payload?.icons?.map((i) => i.name))})`)
+ok(drawn?.payload?.icons?.map((i) => i.name).join() === 'evidence bag,hash' && drawn.payload.icons[0].prompt === 'a sealed bag with a tag' && drawn.payload.brief.startsWith('Digital'), `Draw with AI sends the two empty icons with their plan and the brief (${JSON.stringify(drawn?.payload?.icons?.map((i) => i.name))})`)
 
 // --- one comment on two selected icons → Claude -------------------------------------------
 const thumbs = page.locator('.ed-sidebar .ed-thumb')

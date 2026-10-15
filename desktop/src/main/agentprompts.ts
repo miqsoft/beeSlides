@@ -72,6 +72,26 @@ export function fixCommentsPrompt(raw: unknown): string | null {
   return `${head}\n\n${items.join('\n')}${more}\n\n${FIX_COMMENTS_HOW}`
 }
 
+// --- "Plan with AI" in an icon set ----------------------------------------------
+
+const PLAN_ICONS_HOW =
+  'How to plan: call doc_info (its iconset entry has the set brief and style) and outline (the icons already there). ' +
+  'Decide the icon list the request asks for: the number it names, else what it needs (at most 40). For each icon: a short name (a noun phrase), one line of what it shows (concrete objects, one idea, readable at 24 px) and 2 to 5 search keywords. ' +
+  'Keep the metaphors consistent across the set (one way to show a file, a person, a computer) and avoid two icons that would look alike. ' +
+  'Write the plan with ONE call: icons op plan with the whole list (replace true when the request starts over). Do NOT draw anything and do not call write_slide: the user reviews the planned icons and presses Draw with AI. ' +
+  'End with the numbered list and one line saying they can edit names and descriptions, delete or add icons, then press Draw with AI.'
+
+/** The `plan-icons` message: what the user asked for, in their words, then
+ *  how to plan. Document text, cleaned like a comment. `null` when empty. */
+export function planIconsPrompt(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  const { request, brief } = raw as Record<string, unknown>
+  const ask = cleanLine(request, 1200)
+  if (!ask) return null
+  const set = cleanLine(brief, 600)
+  return `Please plan icons for the icon set in this document. The request: ${ask}\n\n${set ? `The set: ${set}\n\n` : ''}${PLAN_ICONS_HOW}`
+}
+
 // --- "Draw with AI" in an icon set ----------------------------------------------
 
 /** At most this many icons are written out; the rest are counted. */
@@ -83,7 +103,7 @@ const DRAW_ICONS_HOW =
   'keep every point inside the padding square, use the set stroke width, caps, joins and ink, whole or half units where you can, and as few, simple shapes as say the idea. ' +
   'No text, no pictures, no svg elements. A filled detail (a dot) is a path with fill = the ink and no stroke. ' +
   'Write each icon with write_slide (or insert_elements), look at it with review_slide and correct it until it reads clearly at 24 px and matches the other icons. ' +
-  'For more than about 6 icons, start subagents with a few icons each and run them in parallel: give each its slide ids, names and these instructions, and tell it to change nothing outside its slides. ' +
+  'For more than 3 icons, do not draw them yourself: start subagents with 3 or 4 icons each, all in one turn so they run in parallel; give each its slide ids, names, what each shows, the set brief, the pathElement and these instructions, and tell it to change nothing outside its slides. When they are back, compare the icons with review_slide and fix any that stand out. ' +
   'End with a short list: each icon and what it shows.'
 
 /** The `draw-icons` message: the set brief and the icons to draw, each with

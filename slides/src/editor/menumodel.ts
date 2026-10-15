@@ -95,6 +95,7 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'slide.settings': { label: 'Slide settings…' },
   'slide.hide': { label: 'Hide slide', kind: 'check' },
   // icon sets (one icon per slide)
+  'icon.plan': { label: 'Plan with AI…' },
   'icon.add': { label: 'Add icons…' },
   'icon.draw': { label: 'Draw with AI' },
   'icon.applyStyle': { label: 'Apply set style' },
@@ -218,7 +219,7 @@ export const MENU_MODEL: MenuSection[] = [
     key: 'slide', label: 'Slide', items: [
       'slide.new', 'slide.changeType', 'slide.saveType', 'slide.layoutManager', '-',
       { label: 'Transition', dynamic: 'transitions' }, 'slide.settings', 'slide.hide',
-      'icon.add', 'icon.draw', 'icon.applyStyle', 'icon.comment',
+      'icon.plan', 'icon.add', 'icon.draw', 'icon.applyStyle', 'icon.comment',
     ],
   },
   {

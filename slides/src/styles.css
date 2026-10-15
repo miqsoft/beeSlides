@@ -4066,6 +4066,12 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
   font: inherit; font-size: 12.5px; padding: 4px 6px;
   border: 1px solid var(--line); border-radius: 6px; color: var(--ink);
 }
+.ed-iconset .ed-thumb-num { max-width: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-iconset-ask {
+  display: block; width: 100%; box-sizing: border-box; resize: vertical; margin: 4px 0 8px;
+  font: inherit; font-size: 12.5px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--ink);
+}
 .ed-iconset-preview { display: flex; align-items: flex-end; gap: 12px; padding: 10px 12px; margin: 4px 0 8px; border-radius: 6px; background: var(--chrome-2, #f3f3f3); }
 .ed-iconset-preview img { display: block; border-radius: 2px; }
 .ed-keyline { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 28; }

@@ -22,6 +22,7 @@ import {
 import { checkLayout, guardLayout, snapshotSlide, type GuardResult, type LayoutFinding } from '../layoutguard'
 import { checkElementProp, isWholePictureCrop, REQUIRED_KEYS } from '../untrusted'
 import { agentSvgPatchViolation } from './agentsvg'
+import { applyIconPlan, readIconPlan } from '../iconset'
 import { defaultLayoutGrid, layoutTracks, normalizeLayoutGrid, parseSpan, spanRect } from '../layoutgrid'
 import { paletteOf, resolveThemeRefs } from '../palette'
 import { cssColor, sanitizeHtml } from '../render'
@@ -608,6 +609,22 @@ const ICONS: AreaHandlers['icons'] = {
       ok: true, refs,
       summary: `${shown.length}${found.length > shown.length ? ` of ${found.length}+` : ''} icon(s) for "${query}":\n${lines.join('\n')}\nInsert one with op "insert" {slideId, ref, x, y, size}.${unreachable}`,
       toast: '',
+    }
+  },
+
+  plan(ctx, a) {
+    if (ctx.store.doc.kind !== 'iconset') return fail('plan works in an icon set only (doc_info kind "iconset"); in a deck, search and insert icons.')
+    const plan = readIconPlan(a.icons)
+    if (typeof plan === 'string') return fail(plan)
+    let r: ReturnType<typeof applyIconPlan> = { slideIds: [], added: 0, updated: 0, removed: 0 }
+    ctx.store.commit(() => { r = applyIconPlan(ctx.store.doc, plan, a.replace === true) })
+    for (const id of r.slideIds) ctx.created.add(id)
+    const parts = [r.added && `${r.added} added`, r.updated && `${r.updated} updated`, r.removed && `${r.removed} empty removed`].filter(Boolean).join(', ')
+    return {
+      ok: true, slideIds: r.slideIds,
+      summary: `Planned ${plural(plan.length, 'icon')} (${parts}): ${plan.map((p, k) => `${r.slideIds[k]} "${p.name}"`).join(', ')}. ` +
+        'They are empty on purpose: tell the user to review them (rename, edit "What it shows", delete, add) and press Draw with AI. Do not draw them now.',
+      toast: t('AI planned {n} icons', { n: String(plan.length) }),
     }
   },
 

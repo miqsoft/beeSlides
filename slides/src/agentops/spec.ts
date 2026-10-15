@@ -291,7 +291,7 @@ export const MAX_ICON_RESULTS = 30
 
 export const ICONS_AREA = {
   tool: 'icons',
-  summary: 'The icon library the user set up in Settings ▸ Icon library (an icon server or a folder of SVG/PNG files). Search it and insert real icons instead of drawing your own SVG.',
+  summary: 'The icon library the user set up in Settings ▸ Icon library (an icon server or a folder of SVG/PNG files). Search it and insert real icons instead of drawing your own SVG. In an icon set, plan writes the icons to draw.',
   ops: {
     search: {
       summary: 'find icons by keyword; returns refs to insert',
@@ -312,6 +312,14 @@ export const ICONS_AREA = {
         alt: { type: 'string', description: 'Alt text ("" = decorative, the default).' },
       },
       details: 'The icon becomes an ordinary svg (or image) element, square at size; move or resize it later with set_frame. Icons keep their own colours: check they read on the slide background (look_at_slide / review_slide). The icon\'s source and license are recorded on the element. One icon per call.',
+    },
+    plan: {
+      summary: 'icon sets only: write a plan of icons as empty, named icons for the user to review',
+      params: {
+        icons: { type: 'object[]', description: 'The planned icons: [{name, prompt, keywords}] — name a short noun phrase ("evidence bag"), prompt one line of what it shows, keywords 2-5 search words.', required: true },
+        replace: { type: 'boolean', description: 'true: remove still-empty icons this plan does not name (drawn or commented ones stay).' },
+      },
+      details: 'Only in an icon set (doc_info kind "iconset"). An icon already there by name gets the new prompt and keywords; blank starter icons are filled first; the rest are added. Draws nothing: the user reviews the plan and presses Draw with AI. Call it again to revise the plan.',
     },
   },
   notYet: [

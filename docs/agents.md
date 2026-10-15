@@ -664,6 +664,9 @@ for the whole session. The details behind them:
   gives the grid (24 units), the one style every icon shares and
   `pathElement`, a complete path element in that style drawn on the whole
   canvas with the grid as its `pathBox` — so `d` is written in grid units.
+  Asked for icons in the user's own words, PLAN first: one `icons` call, op
+  `plan`, with `[{name, prompt, keywords}]` — it creates empty, named icons
+  and draws nothing; the user reviews them and presses Draw with AI.
   Draw icons only from copies of it (new `id` and `d`): every point inside
   `paddingBox`, whole or half units, few simple shapes; a solid detail is a
   path with the ink as `fill` and a transparent stroke. No text, pictures or
