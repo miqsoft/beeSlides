@@ -228,7 +228,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
    *  window's Claude Code session — "Polish with Claude". `fix-comments`
    *  carries the comments to list, `draw-icons` the icons to draw (main
    *  validates + formats both). */
-  sendAgentPrompt: (kind: 'polish' | 'fix-comments' | 'draw-icons' | 'plan-icons', payload?: unknown): void => ipcRenderer.send('slidomingo:agent-prompt', kind, payload),
+  sendAgentPrompt: (kind: 'polish' | 'fix-comments' | 'draw-icons' | 'plan-icons' | 'style-icons', payload?: unknown): void => ipcRenderer.send('slidomingo:agent-prompt', kind, payload),
   sendAgentActionResult: (result: { requestId: string; ok: boolean; [key: string]: unknown }): void =>
     ipcRenderer.send('slidomingo:agent-action-result', result),
   /** "Fix with Claude" on a PowerPoint import's report: the work list

@@ -46,7 +46,7 @@ import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, w
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { AGENT_PROMPTS, asPaste, drawIconsPrompt, fixCommentsPrompt, fixImportPrompt, planIconsPrompt } from './agentprompts.ts'
+import { AGENT_PROMPTS, asPaste, drawIconsPrompt, fixCommentsPrompt, fixImportPrompt, planIconsPrompt, styleIconsPrompt } from './agentprompts.ts'
 import { renderToPdf } from './sourcerender.ts'
 import { createPty, loginShellEnv, type ClaudeChat, type PtyHandle } from './pty.ts'
 import { apiKeyFor, apiSkillsDir, getProfile, getProfiles, resolveRoles } from './aiprofilesStore.ts'
@@ -1724,6 +1724,7 @@ export function registerTerminalIpc(): void {
     const text = kind === 'fix-comments' ? fixCommentsPrompt(comments)
       : kind === 'draw-icons' ? drawIconsPrompt(comments)
       : kind === 'plan-icons' ? planIconsPrompt(comments)
+      : kind === 'style-icons' ? styleIconsPrompt(comments)
       : typeof kind === 'string' && Object.hasOwn(AGENT_PROMPTS, kind) ? AGENT_PROMPTS[kind] : undefined
     const win = windowForDocWebContents(ev.sender.id)
     if (text && win) deliverPrompt(win, text)

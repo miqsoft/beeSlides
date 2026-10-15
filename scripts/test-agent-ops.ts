@@ -319,6 +319,17 @@ console.log('-- icons --')
   const again = runAreaOp('icons', { op: 'plan', replace: true, icons: [{ name: 'Hash', prompt: '# on a page' }] }, sctx) as any
   ok(again.ok && set.doc.slides.map((s) => s.name).join() === 'fingerprint,Hash', `replace drops the still-empty icons the plan leaves out, keeps the drawn one (${set.doc.slides.map((s) => s.name)})`)
   ok(!(runAreaOp('icons', { op: 'plan', icons: [{ name: 'a' }, { name: 'A' }] }, sctx) as any).ok, 'a name planned twice is refused')
+
+  // style: icon sets only — a look the set is painted in, nothing redrawn
+  ok(!(runAreaOp('icons', { op: 'style', name: 'Comic' }, ctx) as any).ok, 'style in a deck is refused')
+  const drawnBefore = JSON.stringify(set.doc.slides.map((s) => s.elements))
+  const st = runAreaOp('icons', { op: 'style', name: 'Comic', weight: 1.4, color: '#111111', body: '#ffd23f', accent: '#ff4f6d', shadowX: 0.9, shadowY: 0.9, tile: 'none' }, sctx) as any
+  const v = set.doc.iconset?.variants ?? []
+  ok(st.ok && v.length === 1 && v[0].name === 'Comic' && v[0].fill?.body?.color === '#ffd23f' && v[0].shadow?.dx === 0.9 && !v[0].tile, `the style is added (${JSON.stringify(v[0])})`)
+  ok(JSON.stringify(set.doc.slides.map((s) => s.elements)) === drawnBefore, 'no icon was touched')
+  const st2 = runAreaOp('icons', { op: 'style', name: 'comic', weight: 2, color: 'url(evil)' }, sctx) as any
+  ok(st2.ok && set.doc.iconset!.variants!.length === 1 && set.doc.iconset!.variants![0].stroke.weight === 2 && set.doc.iconset!.variants![0].id === v[0].id, 'the same name replaces it, keeping its id')
+  ok(set.doc.iconset!.variants![0].stroke.color === '#000000', 'a bad colour falls back, never reaches markup')
 }
 
 // ---- 3e. elements ------------------------------------------------------------------

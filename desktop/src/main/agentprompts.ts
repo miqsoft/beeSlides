@@ -92,6 +92,24 @@ export function planIconsPrompt(raw: unknown): string | null {
   return `Please plan icons for the icon set in this document. The request: ${ask}\n\n${set ? `The set: ${set}\n\n` : ''}${PLAN_ICONS_HOW}`
 }
 
+// --- "Describe a style" in an icon set ------------------------------------------
+
+const STYLE_ICONS_HOW =
+  'How: call doc_info (its iconset entry has the set style, the brief and the styles already there) and look at two or three icons with review_slide. ' +
+  'Turn the description into ONE icons op style call: a name (two or three words), the outline weight (× the set stroke, 0.25-4) and colour, line ends and corners, fills for the body, detail and accent parts (a colour, optionally an opacity), and only the extras it asks for: knockout (details cut out of a solid body), a hard shadow, a sticker border (halo), a hand-drawn wobble (sketch 0-1) or a badge (tile). ' +
+  'Pick colours that work together and keep the icons readable at 24 px. Do not draw or change any icon. ' +
+  'End with one line naming the style and what it looks like, and say it can be adjusted in the Styles section of the panel.'
+
+/** The `style-icons` message: the look the user described, then how to write it. `null` when empty. */
+export function styleIconsPrompt(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  const { request, brief } = raw as Record<string, unknown>
+  const ask = cleanLine(request, 1200)
+  if (!ask) return null
+  const set = cleanLine(brief, 600)
+  return `Please add a style to the icon set in this document. The look: ${ask}\n\n${set ? `The set: ${set}\n\n` : ''}${STYLE_ICONS_HOW}`
+}
+
 // --- "Draw with AI" in an icon set ----------------------------------------------
 
 /** At most this many icons are written out; the rest are counted. */
@@ -102,6 +120,7 @@ const DRAW_ICONS_HOW =
   'Each icon is the slide with that id. Build it ONLY from path elements like pathElement (shape path, the frame = the whole canvas, pathBox = the grid), so d is written in grid units: ' +
   'keep every point inside the padding square, use the set stroke width, caps, joins and ink, whole or half units where you can, and as few, simple shapes as say the idea. ' +
   'No text, no pictures, no svg elements. A filled detail (a dot) is a path with fill = the ink and no stroke. ' +
+  'Give every path an iconPart, so the set can be shown in other styles (solid, colour, comic): body for the main closed silhouette(s), detail for inner lines and dots, accent for at most one small closed highlight. ' +
   'Write each icon with write_slide (or insert_elements), look at it with review_slide and correct it until it reads clearly at 24 px and matches the other icons. ' +
   'For more than 3 icons, do not draw them yourself: start subagents with 3 or 4 icons each, all in one turn so they run in parallel; give each its slide ids, names, what each shows, the set brief, the pathElement and these instructions, and tell it to change nothing outside its slides. When they are back, compare the icons with review_slide and fix any that stand out. ' +
   'End with a short list: each icon and what it shows.'

@@ -543,7 +543,7 @@ const ELEMENT_CHECKS: Record<string, Check> = {
   fill: paint, fillGradient: gradient, stroke: paint,
   strokeWidth: num(0, 1e4), strokeDash: num(0, 1e4),
   strokeStyle: oneOf('solid', 'dashed', 'dotted'), strokeCap: oneOf('round', 'square', 'butt'),
-  strokeJoin: oneOf('round', 'bevel', 'miter'), fillRule: oneOf('evenodd'),
+  strokeJoin: oneOf('round', 'bevel', 'miter'), fillRule: oneOf('evenodd'), iconPart: oneOf('body', 'detail', 'accent'),
   lineStart: oneOf('none', 'arrow', 'dot', 'bar'), lineEnd: oneOf('none', 'arrow', 'dot', 'bar'),
   radius: num(0, 1e5), d: pathData,
   pathBox: (v) => (Array.isArray(v) && v.length === 4 ? list(4, num(-1e6, 1e6))(v) : DROP),

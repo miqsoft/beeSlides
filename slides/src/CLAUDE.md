@@ -179,6 +179,10 @@ name entries there).
   non-scaling on the canvas, so stroke px ÷ `scale` = grid units.
 - Agents draw icons only as path shapes (copies of `doc_info.iconset.pathElement`); svg stays
   refused. Rigs: `test-iconset.ts`, `test-iconset-e2e.mjs`.
+- Icon styles (`doc.iconset.variants`, DECISIONS "Icon styles") are recipes rendered by
+  `iconstyles.ts iconLookSvg` from `iconset.iconShapes` — never redraw for a style. Every
+  untrusted look goes through `readLook`; colours pass `safeColor` again at render.
+  `pathElement` must not carry an `iconPart` (copies would all be body). Rig `test-iconstyles.ts`.
 
 ## Rigs worth knowing (all in `scripts/`)
 

@@ -37,8 +37,13 @@ import { ICONS } from '../icons'
 import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
 import { iconsetInfo } from '../iconset'
-import { iconPreviewUrl, withStyle, writeIconsetInfo } from './iconsetactions'
-import type { IconsetInfo, IconsetStyle } from '../model'
+import {
+  addLook, describeStyleWithAi, findLook, iconPreviewUrl, learnFromIcon, learnFromSvgFiles, lookPreviewUrl, moveLook, removeLook, restoreIconToSet,
+  withStyle, writeIconsetInfo,
+} from './iconsetactions'
+import { ICON_PARTS, LOOK_PRESETS, lookFromPreset } from '../iconstyles'
+import { loadMyLooks, lookFromClipText, lookToClipText, removeMyLook, saveMyLook } from './iconlooklibrary'
+import type { IconLook, IconPaint, IconsetInfo, IconsetStyle } from '../model'
 import { loadGridPref, saveGridPref, FIGURE_GRID_STEPS_MM } from './gridpref'
 import { lsJson, lsSet } from '../../../kernel/src/storage.ts'
 import { LIMITS } from '../untrusted'
@@ -954,6 +959,8 @@ export class PropsPanel {
     }
     this.host.appendChild(strip)
 
+    this.buildIconStyles(info)
+
     this.section('Icon set')
     this.row('Set name', field(doc.title === 'Untitled icon set' ? '' : doc.title, false, t('e.g. Forensics'), (v) =>
       this.edit(() => { this.store.doc.title = v.trim() || 'Untitled icon set' }, true)))
@@ -993,6 +1000,368 @@ export class PropsPanel {
     }
     button(t('Apply set style'), t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)'), 'style')
     button(t('Export icon set…'), t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries'), 'export')
+  }
+
+  // ---- icon styles (iconstyles.ts, DECISIONS "Icon styles") ----------------------------
+
+  /** The style picked in the Styles gallery ('' = the set's own style). */
+  private lookSel = ''
+  /** The "add a style" drawer is open. */
+  private lookDrawer = false
+
+  /** The icon the style previews show: this one, else the first that has a drawing. */
+  private lookPreviewSlideId(): string {
+    const cur = this.store.slide
+    if (cur.elements.length) return cur.id
+    return this.store.doc.slides.find((s) => s.elements.length)?.id ?? cur.id
+  }
+
+  /** One gallery card: a real-size preview of the icon in a style, and its name. */
+  private lookCard(name: string, url: string, opts: { active?: boolean; title?: string; onClick: () => void; onRemove?: () => void }): HTMLElement {
+    const card = document.createElement('button')
+    card.type = 'button'
+    card.className = 'ed-look-card' + (opts.active ? ' is-active' : '')
+    card.setAttribute('aria-pressed', String(!!opts.active))
+    if (opts.title) card.title = opts.title
+    const img = document.createElement('img')
+    img.src = url
+    img.alt = ''
+    img.width = img.height = 40
+    const label = document.createElement('span')
+    label.textContent = name
+    card.append(img, label)
+    card.addEventListener('click', opts.onClick)
+    if (opts.onRemove) {
+      const x = document.createElement('span')
+      x.className = 'ed-look-remove'
+      x.textContent = '×'
+      x.title = t('Remove from My styles')
+      x.setAttribute('role', 'button')
+      x.addEventListener('click', (ev) => { ev.stopPropagation(); opts.onRemove!() })
+      card.appendChild(x)
+    }
+    return card
+  }
+
+  /** The Styles section: the set's looks as a gallery of the current icon, the
+   *  drawer to add one (presets, My styles, learn, describe with AI) and the
+   *  picked look's settings. */
+  private buildIconStyles(info: IconsetInfo) {
+    const looks = info.variants ?? []
+    if (this.lookSel && !looks.some((l) => l.id === this.lookSel)) this.lookSel = ''
+    const sid = this.lookPreviewSlideId()
+    this.section('Styles')
+    const grid = document.createElement('div')
+    grid.className = 'ed-looks'
+    // previews sit on the icons' own canvas colour, like the size strip above
+    this.host.style.setProperty('--look-paper', this.store.slide.background || '#ffffff')
+    const pick = (id: string) => () => { this.lookSel = id; this.lookDrawer = false; this.rebuild(true) }
+    grid.appendChild(this.lookCard(t('Set style'), lookPreviewUrl(this.store, sid, null), {
+      active: !this.lookSel, title: t('The style the icons are drawn in — edit it under Icon set'), onClick: pick(''),
+    }))
+    for (const l of looks) grid.appendChild(this.lookCard(l.name, lookPreviewUrl(this.store, sid, l), { active: this.lookSel === l.id, onClick: pick(l.id) }))
+    const add = document.createElement('button')
+    add.type = 'button'
+    add.className = 'ed-look-card ed-look-add' + (this.lookDrawer ? ' is-active' : '')
+    add.innerHTML = `${ICONS.plus}<span></span>`
+    add.querySelector('span')!.textContent = t('Add style')
+    add.title = t('Show the same icons in another style: presets, your saved styles, or learn one')
+    add.setAttribute('aria-expanded', String(this.lookDrawer))
+    add.addEventListener('click', () => { this.lookDrawer = !this.lookDrawer; this.rebuild(true) })
+    grid.appendChild(add)
+    this.host.appendChild(grid)
+
+    if (this.lookDrawer) this.buildLookDrawer(info, sid)
+    const sel = this.lookSel ? looks.find((l) => l.id === this.lookSel) : undefined
+    if (sel) this.buildLookEditor(sel, looks)
+    else if (!this.lookDrawer) {
+      const hint = document.createElement('p')
+      hint.className = 'ed-hint'
+      hint.textContent = looks.length
+        ? t('Every style paints the same drawings, so a fix to an icon shows in all of them. Export writes one folder per style.')
+        : t('Add styles to get the same icons as solid, color, comic, sticker … — nothing is redrawn, and export writes one folder per style.')
+      this.host.appendChild(hint)
+    }
+    if (looks.length) {
+      const sheet = document.createElement('button')
+      sheet.className = 'ed-btn ed-btn-block'
+      sheet.textContent = t('Compare all styles…')
+      sheet.title = t('Every icon in every style side by side')
+      sheet.addEventListener('click', () => this.openLookSheet())
+      this.host.appendChild(sheet)
+    }
+  }
+
+  /** "Add style": presets, My styles, and the ways to learn a style. */
+  private buildLookDrawer(info: IconsetInfo, sid: string) {
+    const drawer = document.createElement('div')
+    drawer.className = 'ed-look-drawer'
+    const head = (label: string) => {
+      const h = document.createElement('div')
+      h.className = 'ed-subhead'
+      h.textContent = label
+      drawer.appendChild(h)
+    }
+    const added = (id: string, name: string) => {
+      this.lookSel = id
+      this.lookDrawer = false
+      this.toast(t('Added the style “{name}”', { name }))
+      this.rebuild(true)
+    }
+    head(t('Presets'))
+    const presets = document.createElement('div')
+    presets.className = 'ed-looks ed-looks-small'
+    for (const p of LOOK_PRESETS) {
+      const look = lookFromPreset(p, info.style.color, t(p.name))
+      presets.appendChild(this.lookCard(t(p.name), lookPreviewUrl(this.store, sid, look), {
+        title: t(p.hint),
+        onClick: () => added(addLook(this.store, look), look.name),
+      }))
+    }
+    drawer.appendChild(presets)
+
+    const mine = loadMyLooks()
+    head(t('My styles'))
+    if (mine.length) {
+      const row = document.createElement('div')
+      row.className = 'ed-looks ed-looks-small'
+      for (const l of mine) {
+        row.appendChild(this.lookCard(l.name, lookPreviewUrl(this.store, sid, l), {
+          title: t('Saved in this app — use it in any icon set'),
+          onClick: () => added(addLook(this.store, l), l.name),
+          onRemove: () => { removeMyLook(l.id); this.rebuild(true) },
+        }))
+      }
+      drawer.appendChild(row)
+    } else {
+      const none = document.createElement('p')
+      none.className = 'ed-hint'
+      none.textContent = t('Styles you save (or learn) appear here, ready for every icon set.')
+      drawer.appendChild(none)
+    }
+
+    head(t('Learn a style'))
+    const action = (label: string, title: string, run: () => void) => {
+      const b = document.createElement('button')
+      b.className = 'ed-btn ed-btn-block'
+      b.textContent = label
+      b.title = title
+      b.addEventListener('click', run)
+      drawer.appendChild(b)
+    }
+    action(t('From this icon'), t('Paint one icon by hand (fills, line color and width), then take its look as a style — the icon goes back to the set style'), () => {
+      const l = learnFromIcon(this.store)
+      if (!l) { this.toast(t('This icon has nothing drawn yet')); return }
+      const lookId = addLook(this.store, l)
+      restoreIconToSet(this.store, this.store.slide.id)
+      added(lookId, l.name)
+      this.toast(t('Learned a style from this icon, and put the icon back in the set style (⌘Z brings your paint back)'), 5000)
+    })
+    action(t('From SVG files…'), t('Pick icons you like (from any library) — their line weight, colors and fills become a style'), () => {
+      void learnFromSvgFiles(this.store).then((l) => {
+        if (l === 'unreadable') { this.toast(t('No painted shapes found in those files')); return }
+        if (l) added(addLook(this.store, l), l.name)
+      })
+    })
+    action(t('Paste style'), t('Add a style someone shared with Copy style'), () => {
+      const apply = (text: string | null) => {
+        if (!text) return
+        const l = lookFromClipText(text)
+        if (typeof l === 'string') { this.toast(t('That is not an icon style')); return }
+        added(addLook(this.store, l), l.name)
+      }
+      // the clipboard when it holds a style, else a box to paste into
+      const askPaste = () => void askText({ title: t('Paste style'), placeholder: '{ "format": "slidomingo-icon-style", … }', okLabel: t('Add') }).then(apply)
+      const clip = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'))
+      void clip.then((text) => (typeof lookFromClipText(text) === 'string' ? askPaste() : apply(text))).catch(askPaste)
+    })
+    if (window.slidomingoDesktop?.sendAgentPrompt) {
+      action(t('Describe with AI…'), t('Say how the icons should look — Claude makes it a style'), () => {
+        void askText({
+          title: t('Describe a style'),
+          placeholder: t('e.g. playful comic look, yellow fills, thick black lines and a hard shadow'),
+          okLabel: t('Send to Claude'),
+        }).then((text) => {
+          if (text && describeStyleWithAi(this.store, text)) this.toast(t('Claude is making the style — it appears in Styles when done'))
+        })
+      })
+    }
+    this.host.appendChild(drawer)
+  }
+
+  /** The picked style's settings, and what can be done with it. */
+  private buildLookEditor(look: IconLook, looks: readonly IconLook[]) {
+    const id = look.id
+    const row = (label: string, input: HTMLElement) => this.row(label, input).classList.add('ed-look-row')
+    const set = (fn: (l: IconLook) => void, final = true) => this.edit(() => {
+      const l = findLook(this.store.doc, id)
+      if (l) fn(l)
+    }, final)
+    const nameField = document.createElement('input')
+    nameField.type = 'text'
+    nameField.value = look.name
+    nameField.maxLength = 60
+    nameField.addEventListener('change', () => { const v = nameField.value.trim(); if (v) set((l) => { l.name = v }) })
+    row('Name', nameField)
+    row('Line weight (×)', this.number(look.stroke.weight, 0.1, (v) => v >= 0.25 && v <= 4 && set((l) => { l.stroke.weight = Math.round(v * 100) / 100 })))
+    row('Line color', this.color(look.stroke.color, (v, fin) => set((l) => { l.stroke.color = v }, fin)))
+    const ENDS: Record<string, IconsetStyle['cap'] | undefined> = { 'As the set': undefined, Round: 'round', Square: 'square', Flat: 'butt' }
+    const CORNERS: Record<string, IconsetStyle['join'] | undefined> = { 'As the set': undefined, Round: 'round', Bevel: 'bevel', Miter: 'miter' }
+    const keyOf = <V,>(m: Record<string, V>, v: V) => Object.keys(m).find((k) => m[k] === v) ?? Object.keys(m)[0]
+    row('Line ends', this.select(Object.keys(ENDS), keyOf(ENDS, look.stroke.cap), (v) => set((l) => { if (ENDS[v]) l.stroke.cap = ENDS[v]; else delete l.stroke.cap })))
+    row('Corners', this.select(Object.keys(CORNERS), keyOf(CORNERS, look.stroke.join), (v) => set((l) => { if (CORNERS[v]) l.stroke.join = CORNERS[v]; else delete l.stroke.join })))
+
+    // a fill per part: on/off, colour, opacity
+    const PART_LABEL: Record<string, string> = { body: 'Body fill', detail: 'Detail fill', accent: 'Accent fill' }
+    for (const part of ICON_PARTS) {
+      const paint = look.fill?.[part]
+      const wrap = document.createElement('div')
+      wrap.className = 'ed-look-paint'
+      wrap.appendChild(this.toggle(!!paint, (on) => set((l) => {
+        const f = { ...l.fill }
+        if (on) f[part] = { color: part === 'accent' ? '#fb923c' : part === 'body' ? '#7dd3fc' : l.stroke.color }
+        else delete f[part]
+        if (Object.keys(f).length) l.fill = f; else delete l.fill
+      })))
+      if (paint) {
+        wrap.appendChild(this.color(paint.color, (v, fin) => set((l) => { if (l.fill?.[part]) l.fill[part]!.color = v }, fin)))
+        const op = this.number(Math.round((paint.opacity ?? 1) * 100), 5, (v) => v >= 5 && v <= 100 && set((l) => {
+          const p: IconPaint | undefined = l.fill?.[part]
+          if (!p) return
+          if (v >= 100) delete p.opacity; else p.opacity = v / 100
+        }))
+        op.title = t('Opacity (%)')
+        op.classList.add('ed-look-pct')
+        wrap.appendChild(op)
+      }
+      row(PART_LABEL[part], wrap)
+    }
+    row('Cut details out', this.toggle(!!look.knockout, (on) => set((l) => { if (on) l.knockout = true; else delete l.knockout })))
+
+    row('Hard shadow', this.toggle(!!look.shadow, (on) => set((l) => { if (on) l.shadow = { dx: 0.9, dy: 0.9, color: '#111111' }; else delete l.shadow })))
+    if (look.shadow) {
+      row('Shadow color', this.color(look.shadow.color, (v, fin) => set((l) => { if (l.shadow) l.shadow.color = v }, fin)))
+      row('Shadow offset (units)', this.offsetPair(look.shadow.dx, look.shadow.dy, (dx, dy) => set((l) => { if (l.shadow) { l.shadow.dx = dx; l.shadow.dy = dy } })))
+    }
+    row('Sticker border', this.toggle(!!look.halo, (on) => set((l) => { if (on) l.halo = { width: 1.5, color: '#ffffff' }; else delete l.halo })))
+    if (look.halo) {
+      row('Border width (units)', this.number(look.halo.width, 0.25, (v) => v > 0 && v <= 4 && set((l) => { if (l.halo) l.halo.width = v })))
+      row('Border color', this.color(look.halo.color, (v, fin) => set((l) => { if (l.halo) l.halo.color = v }, fin)))
+    }
+    row('Hand-drawn', this.number(look.sketch ?? 0, 0.1, (v) => v >= 0 && v <= 1 && set((l) => { if (v > 0) l.sketch = Math.round(v * 100) / 100; else delete l.sketch })))
+    const BADGE: Record<string, 'circle' | 'rounded' | 'square' | undefined> = { None: undefined, Circle: 'circle', Rounded: 'rounded', Square: 'square' }
+    row('Badge', this.select(Object.keys(BADGE), keyOf(BADGE, look.tile?.shape), (v) => set((l) => {
+      const shape = BADGE[v]
+      if (shape) l.tile = { color: '#4f46e5', scale: 0.62, ...l.tile, shape }; else delete l.tile
+    })))
+    if (look.tile) row('Badge color', this.color(look.tile.color, (v, fin) => set((l) => { if (l.tile) l.tile.color = v }, fin)))
+
+    const bar = document.createElement('div')
+    bar.className = 'ed-look-actions'
+    const act = (label: string, title: string, run: () => void, cls = '') => {
+      const b = document.createElement('button')
+      b.className = `ed-btn ${cls}`.trim()
+      b.textContent = label
+      b.title = title
+      b.addEventListener('click', run)
+      bar.appendChild(b)
+    }
+    act(t('Save to My styles'), t('Keep this style in the app, to use it in any icon set'), () => {
+      const cur = findLook(this.store.doc, id)
+      if (!cur) return
+      this.toast(saveMyLook(cur) ? t('Saved “{name}” to My styles', { name: cur.name }) : t('Could not save — storage is not available here'))
+    }, 'ed-primary')
+    act(t('Copy style'), t('Copy the style as text to share it — paste it with Add style ▸ Paste style'), () => {
+      const cur = findLook(this.store.doc, id)
+      if (!cur) return
+      void navigator.clipboard?.writeText(lookToClipText(cur)).then(() => this.toast(t('Style copied')), () => this.toast(t('Could not copy')))
+    })
+    act(t('Duplicate'), t('A copy of this style to vary'), () => {
+      const cur = findLook(this.store.doc, id)
+      if (!cur) return
+      this.lookSel = addLook(this.store, cur)
+      this.rebuild(true)
+    })
+    const at = looks.findIndex((l) => l.id === id)
+    if (at > 0) act('↑', t('Move earlier'), () => moveLook(this.store, id, -1))
+    if (at < looks.length - 1) act('↓', t('Move later'), () => moveLook(this.store, id, 1))
+    act(t('Delete'), t('Remove this style from the set (the icons stay)'), () => { removeLook(this.store, id); this.lookSel = '' }, 'ed-danger')
+    this.host.appendChild(bar)
+  }
+
+  /** Two small numbers (x, y) that commit together. */
+  private offsetPair(x: number, y: number, onEdit: (x: number, y: number) => void): HTMLElement {
+    const wrap = document.createElement('div')
+    wrap.className = 'ed-look-pair'
+    const ix = this.number(x, 0.1, (v) => Number.isFinite(v) && Math.abs(v) <= 4 && onEdit(v, y))
+    const iy = this.number(y, 0.1, (v) => Number.isFinite(v) && Math.abs(v) <= 4 && onEdit(x, v))
+    ix.title = 'x'
+    iy.title = 'y'
+    wrap.append(ix, iy)
+    return wrap
+  }
+
+  /** "Compare all styles…": every icon in every style, on light or dark. */
+  private openLookSheet() {
+    const doc = this.store.doc
+    const info = iconsetInfo(doc)
+    if (!info) return
+    const looks: Array<IconLook | null> = [null, ...(info.variants ?? [])]
+    const dlg = document.createElement('dialog')
+    dlg.className = 'ed-dialog ed-look-sheet'
+    dlg.style.setProperty('--look-paper', this.store.slide.background || '#ffffff')
+    const top = document.createElement('div')
+    top.className = 'ed-look-sheet-top'
+    const h = document.createElement('h2')
+    h.textContent = t('All styles')
+    const bg = this.segButtons([['light', t('Light')], ['dark', t('Dark')]], 'light', (v) => {
+      dlg.classList.toggle('is-dark', v === 'dark')
+      // one-colour icons follow the text colour (currentColor): light on dark
+      dlg.querySelectorAll<HTMLImageElement>('img[data-light]').forEach((img) => { img.src = (v === 'dark' ? img.dataset.dark : img.dataset.light) ?? '' })
+      bg.querySelectorAll('button').forEach((b, i) => {
+        const on = (i === 1) === (v === 'dark')
+        b.classList.toggle('ed-btn-armed', on)
+        b.setAttribute('aria-pressed', String(on))
+      })
+    })
+    const close = document.createElement('button')
+    close.className = 'ed-btn'
+    close.textContent = t('Close')
+    close.addEventListener('click', () => dlg.close())
+    top.append(h, bg, close)
+    const scroll = document.createElement('div')
+    scroll.className = 'ed-look-sheet-scroll'
+    const table = document.createElement('table')
+    const head = table.createTHead().insertRow()
+    head.insertCell().textContent = ''
+    for (const s of doc.slides) {
+      const th = document.createElement('th')
+      th.textContent = s.name ?? ''
+      head.appendChild(th)
+    }
+    const body = table.createTBody()
+    for (const look of looks) {
+      const tr = body.insertRow()
+      const name = document.createElement('th')
+      name.scope = 'row'
+      name.textContent = look ? look.name : t('Set style')
+      tr.appendChild(name)
+      for (const s of doc.slides) {
+        const img = document.createElement('img')
+        img.src = img.dataset.light = lookPreviewUrl(this.store, s.id, look)
+        img.dataset.dark = lookPreviewUrl(this.store, s.id, look, '#f3f4f6')
+        img.width = img.height = 40
+        img.alt = s.name ?? ''
+        img.title = `${s.name ?? ''} · ${look ? look.name : t('Set style')}`
+        tr.insertCell().appendChild(img)
+      }
+    }
+    scroll.appendChild(table)
+    dlg.append(top, scroll)
+    dlg.addEventListener('close', () => dlg.remove())
+    dlg.addEventListener('click', (ev) => { if (ev.target === dlg) dlg.close() })
+    document.body.appendChild(dlg)
+    dlg.showModal()
   }
 
   private buildMultiPanel(els: SlideElement[]) {

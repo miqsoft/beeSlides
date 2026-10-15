@@ -13,7 +13,7 @@
 // breaking the shell quoting, an ESC ending the paste early, a newline
 // splitting a line, a bogus id or an unbounded list.
 
-import { asPaste, cleanLine, drawIconsPrompt, planIconsPrompt, fixCommentsPrompt, fixImportPrompt, MAX_LISTED_COMMENTS, MAX_LISTED_ICONS, MAX_LISTED_IMPORT_ITEMS } from '../desktop/src/main/agentprompts.ts'
+import { asPaste, cleanLine, drawIconsPrompt, planIconsPrompt, styleIconsPrompt, fixCommentsPrompt, fixImportPrompt, MAX_LISTED_COMMENTS, MAX_LISTED_ICONS, MAX_LISTED_IMPORT_ITEMS } from '../desktop/src/main/agentprompts.ts'
 import { convertArgs, findSoffice } from '../desktop/src/main/sourcerender.ts'
 
 let failures = 0
@@ -109,6 +109,14 @@ ok(planned.startsWith('Please plan icons') && planned.includes('think about 12 i
 ok(planned.includes('icons op plan') && planned.includes('Do NOT draw'), 'it says to write a plan and not draw')
 ok(!SHELL_UNSAFE.test(planned) && !planned.includes('\x1b'), 'the request cannot break the shell quoting or the paste')
 ok(planIconsPrompt({ request: '  ' }) === null && planIconsPrompt(null) === null, 'an empty request gives no message')
+ok(icons.includes('iconPart'), 'drawing asks for a part on every path (for the other styles)')
+
+// --- "Describe a style" (styleIconsPrompt) ----------------------------------------
+const styled = styleIconsPrompt({ request: `comic, yellow, thick lines ${nasty}`, brief: 'forensics' })!
+ok(styled.startsWith('Please add a style') && styled.includes('comic, yellow, thick lines'), 'the look is passed on in the user\'s words')
+ok(styled.includes('icons op style') && styled.includes('Do not draw'), 'one style call, nothing redrawn')
+ok(!SHELL_UNSAFE.test(styled) && !styled.includes('\x1b'), 'the description cannot break the shell quoting or the paste')
+ok(styleIconsPrompt({ request: '' }) === null && styleIconsPrompt(7) === null, 'an empty description gives no message')
 
 // --- LibreOffice render (sourcerender.ts) ------------------------------------
 ok(findSoffice({ PATH: '/nope' }, () => false) === null, 'no LibreOffice anywhere → null (the fix goes ahead without a picture)')

@@ -602,6 +602,11 @@ export interface ShapeElement extends ElementBase, Flippable, Sourced {
    *  Additive, no `requires`: an older reader keeps the field and fills the
    *  hole in. */
   fillRule?: 'evenodd'
+  /** icon sets only: what this shape is in the icon — the main silhouette
+   *  (`body`), linework inside or beside it (`detail`) or the one highlight
+   *  (`accent`). Icon styles (iconstyles.ts) paint each part their own way;
+   *  absent = guessed from the geometry. Additive, no `requires`. */
+  iconPart?: 'body' | 'detail' | 'accent'
   /** line shape only: tip decorations */
   lineStart?: LineEnding
   lineEnd?: LineEnding
@@ -3755,8 +3760,45 @@ export interface IconsetInfo {
   /** what the whole set is for and how it should look, in words */
   brief?: string
   style: IconsetStyle
+  /** more looks of the same drawings (outline, comic, colour …), each exported
+   *  into its own folder. See iconstyles.ts. */
+  variants?: IconLook[]
   license?: string
   author?: string
+}
+
+/** One paint of an icon style: a colour and how much of it. */
+export interface IconPaint { color: string; opacity?: number }
+
+/**
+ * An icon style ("look"): how the set's drawings are painted, with nothing
+ * redrawn. Stroke weight is relative to the set's stroke width so a style
+ * carries over to another set; offsets are grid units. Rendered by
+ * iconstyles.ts `iconLookSvg`, saved per person in "My styles".
+ */
+export interface IconLook {
+  id: string
+  name: string
+  /** the built-in preset it started from */
+  preset?: string
+  stroke: {
+    /** × the set's stroke width; 0 = no outlines */
+    weight: number
+    color: string
+    cap?: IconsetStyle['cap']
+    join?: IconsetStyle['join']
+  }
+  fill?: { body?: IconPaint; detail?: IconPaint; accent?: IconPaint }
+  /** a filled body has the details inside it cut out (a solid icon) */
+  knockout?: boolean
+  /** a hard offset shadow behind the icon (grid units) */
+  shadow?: { dx: number; dy: number; color: string; opacity?: number }
+  /** a sticker border around the whole icon (grid units) */
+  halo?: { width: number; color: string }
+  /** hand-drawn wobble, 0–1 */
+  sketch?: number
+  /** the icon sits on a badge */
+  tile?: { shape: 'circle' | 'square' | 'rounded'; color: string; scale?: number }
 }
 
 export const ICONSET_STYLE_DEFAULTS: IconsetStyle = {

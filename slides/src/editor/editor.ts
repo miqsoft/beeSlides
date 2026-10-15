@@ -5304,7 +5304,9 @@ export class Editor {
         pathBox: [0, 0, info.grid, info.grid], d: `M${st.padding} ${info.grid / 2} H${info.grid - st.padding}`,
         fill: 'transparent', stroke: st.color, strokeWidth: st.strokeWidth * info.scale, strokeCap: st.cap, strokeJoin: st.join,
       },
-      note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent.',
+      note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent. ' +
+        'Add iconPart to every path (pathElement has none, so a copy is guessed): body = the main closed silhouette(s), detail = inner lines and dots, accent = at most one small closed highlight. ' +
+        'variants are the set\'s extra styles (icons op style adds one): they repaint the same drawings, so never redraw an icon for a style.',
     }
   }
 

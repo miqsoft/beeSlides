@@ -1,6 +1,6 @@
 ---
 name: draw-icons
-description: Draw or redraw icons of an icon set (doc kind "iconset") from native path shapes, all in the set's one style — many icons are split across parallel subagents.
+description: Draw or redraw icons of an icon set (doc kind "iconset") from native path shapes, all in the set's one style — many icons are split across parallel subagents. Also adds a style to the set (icons op style) when the user describes a look.
 ---
 
 **Planning first.** When the user asks for icons in their own words ("think about 12 icons for …") and the set has no plan for them yet, plan before drawing: decide the list (names, one line each of what it shows, 2-5 keywords, consistent metaphors) and write it with ONE `icons` call, op `plan`. Then stop and let the user review; draw only when they say so or press Draw with AI.
@@ -12,9 +12,12 @@ The open document is an **icon set**: one icon per slide, the slide name is the 
    - every point inside the `paddingBox`; the important shape fills it, centred;
    - whole or half units for points, radii and lengths where you can, so strokes sit on pixels at 24 px;
    - as few, simple shapes as say the idea: a recognisable silhouette first, one or two details, nothing that disappears at 24 px;
+   - give every path an `iconPart`: `body` for the main closed silhouette(s), `detail` for inner lines and dots, `accent` for at most one small closed highlight — the set's other styles (solid, colour, comic …) paint each part their own way;
    - outline sets: `fill: "transparent"`; a small solid detail (a dot) is its own path with `fill` = the ink and `stroke: "transparent"`; solid sets fill the main shape; duotone: strokes plus a second path with the ink at `opacity` 0.3;
    - one icon per slide: write it with `write_slide` (or `insert_elements` on an empty slide); leave the slide's name and `icon` fields as they are.
 3. Look at every icon with `review_slide` and correct it until it reads clearly and matches the others in weight, size and corner style (at most 3 rounds per icon).
 4. **Split the work.** With 3 or fewer icons draw them yourself. With more, give batches of 3 or 4 icons to subagents with `task`, issuing the calls together in one turn so they run in parallel (at most 4 at once; start the rest when those return). Each prompt must be self-contained: the slide ids and names, each icon's prompt, the set brief, the `pathElement` JSON and the rules above, and "change nothing outside these slides".
 5. When all are back, compare them yourself with `review_slide` on a few: same stroke weight, same visual size, same corner and end style. Fix outliers.
 6. Answer with a short list: each icon and what it shows. If the user left comments (`comments`), close each with `resolve_comment` and a one-line reply.
+
+**Styles.** When the user describes a look for the set ("comic, yellow with a hard shadow"), do not redraw: write it with ONE `icons` op `style` call (name, weight, colour, part fills, and only the extras asked for). The set's drawings are painted in every style automatically.

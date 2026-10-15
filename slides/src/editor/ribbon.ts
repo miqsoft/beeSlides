@@ -69,7 +69,7 @@ declare global {
       sendAgentActionResult: (result: { requestId: string; ok: boolean; [key: string]: unknown }) => void
       /** "Polish with Claude" / "Send comments to Claude": type a prompt into
        *  the panel's session (`comments` = editor/comments.ts SentComment[]). */
-      sendAgentPrompt?: (kind: 'polish' | 'fix-comments' | 'draw-icons' | 'plan-icons', payload?: unknown) => void
+      sendAgentPrompt?: (kind: 'polish' | 'fix-comments' | 'draw-icons' | 'plan-icons' | 'style-icons', payload?: unknown) => void
       /** "Fix with Claude" on a PowerPoint import's report (editor/importfix.ts). */
       fixImportWithAi?: (request: { name: string; sourcePath?: string; items: unknown[] }) => Promise<{ ok: boolean; source?: boolean; pdf?: boolean; error?: string }>
       sendTerminalTheme: (theme: 'light' | 'dark') => void

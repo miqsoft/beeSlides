@@ -23,6 +23,7 @@ import { checkLayout, guardLayout, snapshotSlide, type GuardResult, type LayoutF
 import { checkElementProp, isWholePictureCrop, REQUIRED_KEYS } from '../untrusted'
 import { agentSvgPatchViolation } from './agentsvg'
 import { applyIconPlan, readIconPlan } from '../iconset'
+import { readLook } from '../iconstyles'
 import { defaultLayoutGrid, layoutTracks, normalizeLayoutGrid, parseSpan, spanRect } from '../layoutgrid'
 import { paletteOf, resolveThemeRefs } from '../palette'
 import { cssColor, sanitizeHtml } from '../render'
@@ -625,6 +626,39 @@ const ICONS: AreaHandlers['icons'] = {
       summary: `Planned ${plural(plan.length, 'icon')} (${parts}): ${plan.map((p, k) => `${r.slideIds[k]} "${p.name}"`).join(', ')}. ` +
         'They are empty on purpose: tell the user to review them (rename, edit "What it shows", delete, add) and press Draw with AI. Do not draw them now.',
       toast: t('AI planned {n} icons', { n: String(plan.length) }),
+    }
+  },
+
+  style(ctx, a) {
+    const info = ctx.store.doc.kind === 'iconset' ? ctx.store.doc.iconset : undefined
+    if (!info) return fail('style works in an icon set only (doc_info kind "iconset").')
+    const paint = (c: unknown, opacity?: unknown) => (typeof c === 'string' && c.trim() && c.trim() !== 'none' ? { color: c, opacity } : undefined)
+    const raw = {
+      name: a.name,
+      stroke: { weight: a.weight ?? 1, color: a.color ?? info.style.color, cap: a.cap, join: a.join },
+      fill: { body: paint(a.body, a.bodyOpacity), detail: paint(a.detail), accent: paint(a.accent) },
+      knockout: a.knockout,
+      shadow: a.shadowX !== undefined || a.shadowY !== undefined ? { dx: a.shadowX ?? 0, dy: a.shadowY ?? 0, color: a.shadowColor } : undefined,
+      halo: a.halo ? { width: a.halo, color: a.haloColor } : undefined,
+      sketch: a.sketch,
+      tile: a.tile && a.tile !== 'none' ? { shape: a.tile, color: a.tileColor } : undefined,
+    }
+    const look = readLook(raw)
+    if (typeof look === 'string') return fail(look)
+    const key = look.name.toLowerCase()
+    const was = info.variants?.find((l) => l.name.toLowerCase() === key)
+    ctx.store.commit(() => {
+      const set = ctx.store.doc.iconset!
+      const list = set.variants ?? []
+      const at = list.findIndex((l) => l.name.toLowerCase() === key)
+      if (at >= 0) list[at] = { ...look, id: list[at].id }
+      else list.push(look)
+      set.variants = list
+    })
+    return {
+      ok: true,
+      summary: `${was ? 'Updated' : 'Added'} the style "${look.name}" (${ctx.store.doc.iconset!.variants!.length} extra styles in the set). Every icon is shown in it in the Styles section of the panel and exported into its own folder; nothing was redrawn.`,
+      toast: t('AI added the style “{name}”', { name: look.name }),
     }
   },
 

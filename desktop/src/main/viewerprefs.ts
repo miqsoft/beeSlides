@@ -30,11 +30,13 @@ export const VIEWER_PREF_KEYS: readonly string[] = [
   'slidomingo-ed-notes',
   'slidomingo-settings-cat',
   'slidomingo-panel-open-v2',
+  // icon sets' "My styles" (slides/src/editor/iconlooklibrary.ts)
+  'slidomingo-icon-styles-v1',
 ]
 
 /** Keys added after viewerPrefs first existed: a window that has a value
  *  main lacks hands it over instead of having it wiped (preload). */
-const ADOPT_IF_MISSING: readonly string[] = [ICON_SOURCES_KEY]
+const ADOPT_IF_MISSING: readonly string[] = [ICON_SOURCES_KEY, 'slidomingo-icon-styles-v1']
 
 /** What may be stored for a key — the icon-source list never keeps a token
  *  (icontokens.ts moves it into the encrypted store). */

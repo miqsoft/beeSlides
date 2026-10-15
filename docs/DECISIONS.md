@@ -12644,3 +12644,62 @@ manifest), `scripts/test-iconset-e2e.mjs` (real editor: start page, gating,
 doc_info → write_slide, Apply set style, Draw with AI, multi-icon comment,
 export), `scripts/test-desktop-agentprompts.ts` (draw-icons prompt),
 `scripts/test-menu-model.ts` (icon-set menus), `scripts/test-desktop-docfile.ts`.
+
+## 2026-10-15 — Icon styles: one drawing, many looks, rendered from the model
+
+People asked for the same icons in other styles (colour, outline, comic …).
+Redrawing a set per style with AI would multiply the cost, and the copies
+would drift apart: a fix to one icon would have to be repeated in every
+style. Most looks are not new shapes at all — they are new paint on the same
+shapes.
+
+- **A style is a recipe, not a drawing.** `doc.iconset.variants:
+  IconLook[]` (model.ts): outline weight (× the set's stroke width, so a
+  style carries over to another set) and colour, caps/joins, a fill per
+  PART of the icon, `knockout` (details inside a filled body cut out — a
+  solid icon), a hard `shadow`, a sticker `halo`, a seeded hand-drawn
+  `sketch`, a badge `tile`. `iconstyles.ts iconLookSvg` renders one icon in
+  one look from the MODEL, like the plain export. Additive, no `requires`:
+  an older build keeps the field and ignores it.
+- **Parts.** `ShapeElement.iconPart: body | detail | accent` says what a path
+  is; absent, it is guessed (open lines and shapes under 30 % of the biggest
+  closed one are detail, the rest body). The agent is asked to set it
+  (`doc_info.iconset.note`, draw-icons prompt and skill). `pathElement`
+  deliberately has NO `iconPart`: an agent copies it verbatim, and a default
+  of `body` made every tick and line a body (seen in testing).
+- **Closed means "ends where it starts".** A circle drawn as two arcs without
+  `Z` (the agent's usual way) still has an inside: `iconShapes` treats a
+  subpath that returns to its start as closed.
+- **One colour → `currentColor`.** A look painted in a single colour exports
+  as `currentColor` like the plain set; a colourful one keeps its colours.
+  Colours from a stored look pass `safeColor` at render time (opened files
+  skip untrusted.ts); every untrusted look (agent op, pasted style, My
+  styles) goes through `readLook`.
+- **Learning.** "From this icon" reads the look off an icon someone painted
+  by hand (`learnLookFromIcon`: modal stroke colour, median weight, a fill
+  per part) and then puts the icon back in the set style in a second undo
+  step (`restoreIconToSet`) — otherwise the base export carries the paint.
+  "From SVG files…" reads only paint attributes of other icons
+  (`svgPaintStats`, DOMParser, never inserted into the page; not a second
+  SVG→objects converter) and ranks fills by frequency (`learnLookFromSvgStats`).
+  "Describe with AI" sends the `style-icons` prompt; Claude writes the look
+  with the `icons` op `style` (flat params: the area spec has no object type).
+- **My styles** are per person, not per document: the
+  `slidomingo-icon-styles-v1` viewer pref (on desktop app-wide through
+  viewerprefs.ts, since localStorage is per deck there). A set that uses one
+  keeps its own copy, so a file never depends on someone's library. Sharing
+  between people is Copy style / Paste style (JSON, `format:
+  slidomingo-icon-style`) — no style file format.
+- **Export.** The plain icons stay at the top of the folder (unchanged for
+  existing users); each style is `<style-slug>/<icon>.svg`, and `icons.json`
+  gains `styles` plus one entry per copy with the style name as a keyword,
+  so a folder icon source finds "comic" too. Desktop main accepts exactly
+  one folder level (`ICONSET_FILE_RE`).
+
+Not done: styles that need NEW shapes (isometric, 3D, filled-in realistic
+icons) — those need redrawing per style (AI variants per icon), left for
+later; per-icon overrides of a style; dashed strokes in styles.
+Rigs: `scripts/test-iconstyles.ts` (parts, looks, presets, readLook,
+learning, sketch), `scripts/test-iconset-e2e.mjs` (gallery, presets, editing,
+My styles, learn + restore + undo, paste, AI style op, compare, export),
+`scripts/test-agent-ops.ts` (op style), `scripts/test-desktop-agentprompts.ts`.

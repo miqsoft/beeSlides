@@ -18,6 +18,17 @@ preserved.
   set writes 24 × 24 SVGs (colour follows the text, `currentColor`) with an
   `icons.json`; add that folder as an icon library and the icons are
   searchable by name and keyword, with their licence.
+- **Icon styles:** show the same icon set in more styles — Bold, Light,
+  Solid, Duotone, Color, Comic, Sticker, Sketch and Badge — without redrawing
+  anything: every style paints the same drawings, so fixing an icon fixes it
+  in all of them. Make your own: adjust any style (line weight and color,
+  fills for the icon's body, details and accent, cut-out details, a hard
+  shadow, a sticker border, a hand-drawn look, a badge behind), learn one
+  from an icon you painted by hand or from SVG icons you like, or describe
+  it and let Claude make it. Save styles to My styles to use them in every
+  icon set, and share one with Copy style / Paste style. Compare all styles
+  shows every icon in every style, on light or dark. Export writes one folder
+  per style, listed in `icons.json`.
 
 ## [1.1.0] — 2026-10-14
 

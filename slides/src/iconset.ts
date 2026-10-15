@@ -34,13 +34,13 @@ export function iconsetInfo(doc: SlidomingoDoc): IconsetInfo | null {
 
 /** Everything written into an attribute or text goes through this: an opened
  *  file skips untrusted.ts, so a colour string is whatever the file says. */
-const escXml = (s: string): string =>
+export const escXml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 
 // ---- colours -------------------------------------------------------------------------
 
 /** `#abc` / `#AABBCC` → `#aabbcc`; anything else lower-cased as is. */
-function normColor(c: string): string {
+export function normColor(c: string): string {
   const v = c.trim().toLowerCase()
   const m = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(v)
   return m ? `#${m[1]}${m[1]}${m[2]}${m[2]}${m[3]}${m[3]}` : v
@@ -92,7 +92,7 @@ export function iconStylePatch(el: SlideElement, info: IconsetInfo): Partial<Sha
 
 // ---- one icon → SVG ---------------------------------------------------------------------
 
-const n3 = (v: number): string => {
+export const n3 = (v: number): string => {
   const s = (Math.round(v * 1000) / 1000).toString()
   return s === '-0' ? '0' : s
 }
@@ -156,23 +156,70 @@ export interface IconSvg {
   skipped: string[]
 }
 
-/** One icon slide → a standalone SVG, `grid` units square, ink as currentColor. */
-export function iconSlideSvg(doc: SlidomingoDoc, slide: Slide, opts: { title?: boolean } = {}): IconSvg {
+/** One shape of an icon in grid units: what the plain export and every icon style draw. */
+export interface IconShape {
+  el: ShapeElement
+  /** the outline, grid units */
+  segs: Seg[]
+  /** what to write: the path's own `d` when it is already drawn on the grid (arcs intact) */
+  d: string
+  /** a line, or a path without Z: only a stroke, never a fill */
+  open: boolean
+  /** stroke width in grid units, 0 = not stroked */
+  strokeW: number
+  /** the colour the stroke is drawn in (a line: its fill — render.ts) */
+  strokeColor: string
+  /** painted inside (a dot, a solid glyph) */
+  filled: boolean
+}
+
+/** Every subpath ends with Z or back where it started (a circle drawn as two
+ *  arcs without Z still has an inside to fill). */
+function isClosedOutline(segs: readonly Seg[]): boolean {
+  let sx = 0, sy = 0, cx = 0, cy = 0, open = false, any = false
+  const done = () => { if (open && Math.hypot(cx - sx, cy - sy) > 0.01) return false; open = false; return true }
+  for (const g of segs) {
+    if (g[0] === 'M') { if (!done()) return false; sx = cx = g[1]; sy = cy = g[2]; open = true; any = true }
+    else if (g[0] === 'Z') { open = false; cx = sx; cy = sy }
+    else { cx = g[0] === 'C' ? g[5] : g[1]; cy = g[0] === 'C' ? g[6] : g[2] }
+  }
+  return any && done()
+}
+
+/** Every visible shape of the icon, in grid units; anything else is named in `skipped`. */
+export function iconShapes(doc: SlidomingoDoc, slide: Slide): { shapes: IconShape[]; skipped: Set<string> } {
   const info = iconsetInfo(doc) ?? { grid: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
-  const ink = info.style.color
   const toGrid: Mat = [1 / info.scale, 0, 0, 1 / info.scale, 0, 0]
   const skipped = new Set<string>()
-  const body: string[] = []
+  const shapes: IconShape[] = []
   for (const el of slide.elements) {
     if (el.hidden) continue
     if (el.type !== 'shape') { skipped.add(el.type); continue }
     const geo = localGeometry(el)
     if (!geo.segs?.length) continue
-    const toCanvas = mul(toGrid, frameMatrix(el))
-    const full = mul(toCanvas, geo.boxToLocal)
+    const full = mul(mul(toGrid, frameMatrix(el)), geo.boxToLocal)
+    const segs = transformSegs(geo.segs, full)
     // a path already drawn in grid units (the agent's way: pathBox = the grid,
     // frame = the canvas) keeps its own `d`, arcs and all
-    const d = el.shape === 'path' && isIdentity(full) && el.d ? el.d.trim() : segsToD(transformSegs(geo.segs, full))
+    const d = el.shape === 'path' && isIdentity(full) && el.d ? el.d.trim() : segsToD(segs)
+    if (el.shape === 'line') {
+      shapes.push({ el, segs, d, open: true, strokeW: Math.max(el.strokeWidth, 2) / info.scale, strokeColor: el.fill, filled: false })
+      continue
+    }
+    const stroked = !isNoPaint(el.stroke) && el.strokeWidth > 0
+    const open = el.shape === 'path' && !isClosedOutline(segs)
+    shapes.push({ el, segs, d, open, strokeW: stroked ? el.strokeWidth / info.scale : 0, strokeColor: el.stroke, filled: !isNoPaint(el.fill) })
+  }
+  return { shapes, skipped }
+}
+
+/** One icon slide → a standalone SVG, `grid` units square, ink as currentColor. */
+export function iconSlideSvg(doc: SlidomingoDoc, slide: Slide, opts: { title?: boolean } = {}): IconSvg {
+  const info = iconsetInfo(doc) ?? { grid: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
+  const ink = info.style.color
+  const { shapes, skipped } = iconShapes(doc, slide)
+  const body: string[] = []
+  for (const { el, d } of shapes) {
     const attrs: string[] = [`d="${escXml(d)}"`]
     if (el.shape === 'line') {
       // render.ts paints a line with its fill, at least 2px wide, round-capped by default
@@ -236,12 +283,27 @@ export interface IconManifest {
   license?: string
   author?: string
   grid: number
-  icons: Array<{ file: string; name: string; keywords?: string[] }>
+  /** the set's extra styles, one folder each (iconstyles.ts); the plain icons stay at the top */
+  styles?: Array<{ name: string; folder: string }>
+  /** a style's file is `<folder>/<file>` and carries `style` */
+  icons: Array<{ file: string; name: string; keywords?: string[]; style?: string }>
 }
 
 export const ICON_MANIFEST_FILE = 'icons.json'
 
-export function iconManifest(doc: SlidomingoDoc, files: readonly string[]): IconManifest {
+/** One folder name per style (`<slug>`), unique, never clashing with each other. */
+export function styleFolderNames(names: readonly string[]): string[] {
+  const used = new Set<string>()
+  return names.map((n) => {
+    const base = iconSlug(n)
+    let name = base
+    for (let k = 2; used.has(name); k++) name = `${base}-${k}`
+    used.add(name)
+    return name
+  })
+}
+
+export function iconManifest(doc: SlidomingoDoc, files: readonly string[], styles: ReadonlyArray<{ name: string; folder: string }> = []): IconManifest {
   const info = iconsetInfo(doc)
   const out: IconManifest = { format: 'slidomingo-icons', version: 1, name: doc.title, grid: info?.grid ?? 24, icons: [] }
   if (info?.license) out.license = info.license
@@ -252,6 +314,15 @@ export function iconManifest(doc: SlidomingoDoc, files: readonly string[]): Icon
     if (kw.length) entry.keywords = kw
     out.icons.push(entry)
   })
+  if (styles.length) {
+    out.styles = styles.map((st) => ({ name: st.name, folder: st.folder }))
+    // every style's copy is searchable by the icon's words plus the style's name
+    for (const st of styles) {
+      out.icons.slice(0, doc.slides.length).forEach((base) => {
+        out.icons.push({ ...base, file: `${st.folder}/${base.file}`, keywords: [...(base.keywords ?? []), st.name], style: st.name })
+      })
+    }
+  }
   return out
 }
 

@@ -234,6 +234,117 @@ const rendered = await page.evaluate(async (svg) => {
 ok(rendered > 40 && rendered < 300, `the exported icon draws a thin ring at 24 px (${rendered} inked px of 576)`)
 if (shots) await page.screenshot({ path: join(shots, 'iconset-after.png') })
 
+// --- icon styles (DECISIONS "Icon styles") ---------------------------------------------------
+// draw the other two icons with parts, so every style has something to paint
+const pe = info.iconset.pathElement
+const part = (id, d, iconPart, over = {}) => ({ ...pe, id, d, iconPart, ...over })
+d = await doc()
+await writeSlide(d.slides[1].id, { ...d.slides[1], elements: [
+  part('bag', 'M5 8H19V20H5Z', 'body'), part('flap', 'M5 8L8 4H16L19 8', 'detail'), part('tag', 'M14 12H17V15H14Z', 'accent'),
+] })
+await writeSlide(d.slides[2].id, { ...d.slides[2], elements: [
+  part('page', 'M6 3H14L18 7V21H6Z', 'body'), part('h1', 'M10 10V17', 'detail'), part('h2', 'M14 10V17', 'detail'), part('h3', 'M8.5 12H15.5', 'detail'), part('h4', 'M8.5 15H15.5', 'detail'),
+] })
+await thumbs.nth(0).click()
+await page.waitForTimeout(300)
+const sections = await page.evaluate(() => [...document.querySelectorAll('.ed-section')].map((h) => h.textContent))
+ok(sections.includes('Styles'), `the panel has a Styles section (${sections.join(', ')})`)
+await page.locator('.ed-section[data-key="Styles"]').evaluate((h) => h.scrollIntoView())
+const cards = () => page.evaluate(() => [...document.querySelectorAll('.ed-looks:not(.ed-looks-small) .ed-look-card:not(.ed-look-add) span')].map((s) => s.textContent))
+ok((await cards()).join() === 'Set style', 'one card at first: the set style')
+await page.locator('.ed-look-add').click()
+await page.waitForTimeout(150)
+const presetNames = await page.evaluate(() => [...document.querySelectorAll('.ed-look-drawer .ed-looks-small .ed-look-card span')].map((s) => s.textContent))
+ok(presetNames.length >= 10 && presetNames.includes('Comic') && presetNames.includes('Badge'), `the drawer offers the presets, each previewing this icon (${presetNames.slice(0, 10).join(', ')})`)
+if (shots) await page.screenshot({ path: join(shots, 'iconstyles-drawer.png') })
+await page.locator('.ed-look-drawer .ed-look-card:has(span:text-is("Comic"))').click()
+await page.waitForTimeout(200)
+d = await doc()
+ok(d.iconset.variants?.length === 1 && d.iconset.variants[0].name === 'Comic' && d.iconset.variants[0].shadow, 'a preset click adds the Comic style to the set')
+ok((await cards()).join() === 'Set style,Comic', 'the gallery shows it, picked')
+await rowInput('Line weight (×)').fill('2')
+await rowInput('Line weight (×)').press('Tab')
+await page.waitForTimeout(150)
+d = await doc()
+ok(d.iconset.variants[0].stroke.weight === 2, 'its settings edit the style')
+if (shots) await page.screenshot({ path: join(shots, 'iconstyles-editor.png') })
+
+// My styles: saved app-wide, offered in the drawer
+await page.locator('.ed-look-actions button:has-text("Save to My styles")').click()
+const mine = await page.evaluate(() => JSON.parse(localStorage.getItem('slidomingo-icon-styles-v1') ?? '[]'))
+ok(mine.length === 1 && mine[0].name === 'Comic' && mine[0].stroke.weight === 2, 'Save to My styles keeps it in the app')
+await page.locator('.ed-look-add').click()
+await page.waitForTimeout(150)
+const mineCards = await page.evaluate(() => [...document.querySelectorAll('.ed-look-drawer .ed-looks-small')].at(-1)?.textContent ?? '')
+ok(mineCards.includes('Comic'), 'and the drawer offers it under My styles')
+
+// learn from a hand-painted icon
+await page.evaluate(() => {
+  const s = window.slidomingo.doc.slides[0]
+  s.elements[0].fill = '#22c55e'
+  s.elements.forEach((e) => { e.stroke = '#14532d'; e.strokeWidth = 40 })
+})
+await page.locator('.ed-look-drawer button:has-text("From this icon")').click()
+await page.waitForTimeout(200)
+d = await doc()
+const learned = d.iconset.variants.at(-1)
+ok(learned?.name.startsWith('Learned from') && learned.stroke.color === '#14532d' && learned.stroke.weight === 1.25 && learned.fill?.body?.color === '#22c55e', `From this icon learns colour, weight and fill (${JSON.stringify(learned?.stroke)})`)
+ok(d.slides[0].elements.every((e) => e.stroke === '#000000' && e.strokeWidth === 32 && e.fill === 'transparent'), 'and the painted icon is back in the set style')
+await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+await page.waitForTimeout(150)
+d = await doc()
+ok(d.slides[0].elements[0].fill === '#22c55e' && d.iconset.variants.length === 2, 'one undo brings the paint back, the learned style stays')
+await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+y')
+await page.waitForTimeout(150)
+
+// paste a shared style
+await page.locator('.ed-look-add').click()
+await page.waitForTimeout(150)
+await page.locator('.ed-look-drawer button:has-text("Paste style")').click()
+await page.locator('dialog.ed-askdialog textarea').fill(JSON.stringify({ format: 'slidomingo-icon-style', version: 1, style: { name: 'Shared badge', stroke: { weight: 1.2, color: '#ffffff' }, tile: { shape: 'rounded', color: '#0f766e' } } }))
+await page.locator('dialog.ed-askdialog button.ed-primary').click()
+await page.waitForTimeout(200)
+d = await doc()
+ok(d.iconset.variants.at(-1)?.name === 'Shared badge' && d.iconset.variants.at(-1).tile?.shape === 'rounded', 'Paste style adds a shared style')
+
+// Describe with AI → Claude; its icons op "style" adds the look
+await page.locator('.ed-look-add').click()
+await page.waitForTimeout(150)
+await page.locator('.ed-look-drawer button:has-text("Describe with AI")').click()
+await page.locator('dialog.ed-askdialog textarea').fill('soft pastel, rounded, no outlines feel')
+await page.locator('dialog.ed-askdialog button.ed-primary').click()
+await page.waitForTimeout(150)
+const styleAsk = await page.evaluate(() => window.__prompts.find((p) => p.kind === 'style-icons'))
+ok(styleAsk?.payload?.request === 'soft pastel, rounded, no outlines feel', 'Describe with AI sends the look in the user\'s words')
+const viaAi = await act('icons', { op: 'style', name: 'Pastel', weight: 0.8, color: '#64748b', body: '#fbcfe8', accent: '#a5f3fc', cap: 'round' })
+d = await doc()
+ok(viaAi.ok && d.iconset.variants.at(-1)?.name === 'Pastel', 'Claude\'s style op adds it')
+await page.waitForTimeout(200)
+if (shots) await page.screenshot({ path: join(shots, 'iconstyles-gallery.png') })
+
+// compare every icon in every style
+await page.locator('button:has-text("Compare all styles…")').click()
+await page.waitForTimeout(250)
+const sheet = await page.evaluate(() => ({ rows: document.querySelectorAll('dialog.ed-look-sheet tbody tr').length, imgs: document.querySelectorAll('dialog.ed-look-sheet tbody img').length }))
+ok(sheet.rows === 5 && sheet.imgs === 15, `Compare shows 3 icons × 5 styles (${JSON.stringify(sheet)})`)
+if (shots) await page.locator('dialog.ed-look-sheet').screenshot({ path: join(shots, 'iconstyles-sheet.png') })
+await page.locator('dialog.ed-look-sheet .ed-seg button').nth(1).click()
+await page.waitForTimeout(150)
+if (shots) await page.locator('dialog.ed-look-sheet').screenshot({ path: join(shots, 'iconstyles-sheet-dark.png') })
+await page.locator('dialog.ed-look-sheet button:has-text("Close")').click()
+
+// the export: a folder per style, listed in icons.json
+await page.locator('[data-ui-tool="pdf"]:visible > button').first().click()
+await page.locator('.ed-menu:visible button:has-text("Export icon set…")').first().click()
+await page.waitForFunction(() => window.__exports.length > 1, null, { timeout: 10000 })
+const exp2 = await page.evaluate(() => window.__exports[1])
+const names2 = exp2.files.map((f) => f.name)
+ok(names2.includes('comic/fingerprint.svg') && names2.includes('pastel/hash.svg') && names2.includes('shared-badge/evidence-bag.svg') && names2.length === 3 + 4 * 3 + 1, `one folder per style (${names2.length} files)`)
+const man2 = JSON.parse(exp2.files.at(-1).text)
+ok(man2.styles?.map((x) => x.folder).join() === 'comic,learned-from-fingerprint,shared-badge,pastel' && man2.icons.some((i) => i.file === 'comic/hash.svg' && i.keywords?.includes('Comic')), 'icons.json lists the styles; each copy is searchable by its style')
+const comicSvg = exp2.files.find((f) => f.name === 'comic/fingerprint.svg').text
+ok(comicSvg.includes('<g transform="translate(0.9 0.9)">') && comicSvg.includes('#ffd23f'), 'the comic file carries its shadow and colours')
+
 // --- no presenting --------------------------------------------------------------------------
 const hidden = await page.evaluate(() => [...document.querySelectorAll('[data-ui-tool="present"], [data-ui-tool="notes"]')].every((b) => getComputedStyle(b).display === 'none'))
 ok(hidden, 'present and notes buttons are hidden')

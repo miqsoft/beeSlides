@@ -291,7 +291,7 @@ export const MAX_ICON_RESULTS = 30
 
 export const ICONS_AREA = {
   tool: 'icons',
-  summary: 'The icon library the user set up in Settings ▸ Icon library (an icon server or a folder of SVG/PNG files). Search it and insert real icons instead of drawing your own SVG. In an icon set, plan writes the icons to draw.',
+  summary: 'The icon library the user set up in Settings ▸ Icon library (an icon server or a folder of SVG/PNG files). Search it and insert real icons instead of drawing your own SVG. In an icon set, plan writes the icons to draw and style adds a look the whole set is painted in.',
   ops: {
     search: {
       summary: 'find icons by keyword; returns refs to insert',
@@ -320,6 +320,30 @@ export const ICONS_AREA = {
         replace: { type: 'boolean', description: 'true: remove still-empty icons this plan does not name (drawn or commented ones stay).' },
       },
       details: 'Only in an icon set (doc_info kind "iconset"). An icon already there by name gets the new prompt and keywords; blank starter icons are filled first; the rest are added. Draws nothing: the user reviews the plan and presses Draw with AI. Call it again to revise the plan.',
+    },
+    style: {
+      summary: 'icon sets only: add (or update, by name) a style the whole set is also shown and exported in — nothing is redrawn',
+      params: {
+        name: { type: 'string', description: 'The style\'s name, two or three words ("Comic yellow").', required: true },
+        weight: { type: 'number', description: 'Outline weight × the set stroke width (1 = the same, 1.5 = bold).', min: 0.25, max: 4 },
+        color: { type: 'string', description: 'Outline colour, CSS hex (default: the set ink).' },
+        cap: { type: 'string', description: 'Line ends.', enum: ['round', 'square', 'butt'] },
+        join: { type: 'string', description: 'Corners.', enum: ['round', 'bevel', 'miter'] },
+        body: { type: 'string', description: 'Fill of the body parts (the main silhouette), CSS hex; omit for none.' },
+        bodyOpacity: { type: 'number', description: 'Opacity of the body fill (0.05-1, default 1).', min: 0.05, max: 1 },
+        detail: { type: 'string', description: 'Fill of closed detail parts, CSS hex; omit for none.' },
+        accent: { type: 'string', description: 'Fill of the accent part (one highlight per icon), CSS hex; omit for none.' },
+        knockout: { type: 'boolean', description: 'Details inside a filled body are cut out of it (a solid icon).' },
+        shadowX: { type: 'number', description: 'Hard shadow offset right, grid units (e.g. 0.9); with shadowY.', min: -4, max: 4 },
+        shadowY: { type: 'number', description: 'Hard shadow offset down, grid units.', min: -4, max: 4 },
+        shadowColor: { type: 'string', description: 'Shadow colour, CSS hex (default black).' },
+        halo: { type: 'number', description: 'Sticker border width around the whole icon, grid units (e.g. 1.5).', min: 0, max: 4 },
+        haloColor: { type: 'string', description: 'Sticker border colour (default white).' },
+        sketch: { type: 'number', description: 'Hand-drawn wobble, 0-1.', min: 0, max: 1 },
+        tile: { type: 'string', description: 'A badge behind the icon.', enum: ['none', 'circle', 'square', 'rounded'] },
+        tileColor: { type: 'string', description: 'Badge colour, CSS hex.' },
+      },
+      details: 'Only in an icon set. Every icon is painted in the style from its own drawing: each path is a body, detail or accent part (its iconPart, else guessed: big closed shapes are body, lines and small shapes detail). The user sees the styles in the panel and the export writes one folder per style. A style with the same name is replaced.',
     },
   },
   notYet: [

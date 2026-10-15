@@ -672,7 +672,13 @@ for the whole session. The details behind them:
   path with the ink as `fill` and a transparent stroke. No text, pictures or
   svg. Check each with `review_slide`. The user exports the set as SVGs with
   the ink as `currentColor`; "Apply set style" corrects stroke drift, so keep
-  to the style rather than fighting it.
+  to the style rather than fighting it. Give every path an `iconPart`
+  (`body` = the main closed silhouette, `detail` = inner lines and dots,
+  `accent` = at most one small closed highlight): the set's extra styles
+  (`doc_info.iconset.variants` — solid, colour, comic, sticker, badge …)
+  repaint the same drawings part by part. When the user describes a look,
+  add it with ONE `icons` call, op `style` (name, weight, colour, part fills,
+  only the extras asked for); never redraw icons for a style.
 - **`update_element`** — shallow-merges `props` into one element. Each key is
   checked against that element type's known keys and value rules (the same
   checks a paste goes through); one bad key refuses the whole call. `null`

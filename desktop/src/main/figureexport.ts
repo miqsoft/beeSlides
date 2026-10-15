@@ -12,7 +12,7 @@ import { handleFrom } from './ipcguard.ts'
 import type { IpcMainInvokeEvent } from 'electron'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { writeFileAtomic } from './fsutil.ts'
 import { windowForDocWebContents } from './windows.ts'
 
@@ -70,13 +70,15 @@ async function exportFigure(ev: IpcMainInvokeEvent, req: FigureExportReq): Promi
 // ---- icon sets ----------------------------------------------------------------
 //
 // "Export set…" (slides/src/editor/iconsetexport.ts): the renderer builds every
-// file (one SVG per icon, icons.json, LICENSE.txt); main asks for a folder and
-// writes them into a subfolder named after the set. Names are checked here, so
-// a page can only ever write those three kinds of file, inside that subfolder.
+// file (one SVG per icon, icons.json, LICENSE.txt, and one SVG per icon in a
+// `<style>/` folder per extra icon style); main asks for a folder and writes
+// them into a subfolder named after the set. Names are checked here, so a page
+// can only ever write those kinds of file, inside that subfolder, at most one
+// folder deep (no dots or separators of its own: no way out).
 
 export interface IconsetExportReq { folderName: string; files: Array<{ name: string; text: string }> }
 
-const ICONSET_FILE_RE = /^(?:[a-z0-9][a-z0-9-]{0,80}\.svg|icons\.json|LICENSE\.txt)$/
+const ICONSET_FILE_RE = /^(?:(?:[a-z0-9][a-z0-9-]{0,80}\/)?[a-z0-9][a-z0-9-]{0,80}\.svg|icons\.json|LICENSE\.txt)$/
 const MAX_ICONSET_FILES = 5000
 const MAX_ICONSET_BYTES = 64 * 1024 * 1024
 
@@ -119,7 +121,11 @@ async function exportIconset(ev: IpcMainInvokeEvent, req: IconsetExportReq): Pro
   const target = join(filePaths[0], iconsetFolderName(req.folderName))
   try {
     mkdirSync(target, { recursive: true })
-    for (const f of files) writeFileAtomic(join(target, f.name), f.text)
+    for (const f of files) {
+      const to = join(target, f.name)
+      mkdirSync(dirname(to), { recursive: true })
+      writeFileAtomic(to, f.text)
+    }
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) }
   }
