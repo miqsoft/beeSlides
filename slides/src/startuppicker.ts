@@ -21,7 +21,7 @@
 // file can't be trusted to have set it.
 import { stripDocExt } from '../../kernel/src/docext.ts'
 import {
-  FIGURE_PRESETS, FORMAT_VERSION, newFigureDoc, ancestorChain, builtinLayouts, defaultSlideType, deriveChartPalette, effectiveLayout, instantiateLayout, instantiateTemplate, newDoc, newDocId, parseDoc,
+  FIGURE_PRESETS, FORMAT_VERSION, newFigureDoc, newIconsetDoc, ancestorChain, builtinLayouts, defaultSlideType, deriveChartPalette, effectiveLayout, instantiateLayout, instantiateTemplate, newDoc, newDocId, parseDoc,
   pickableSlideTypes, slideTypeRows, stampAsTemplate, starterSlide, templateNameFromPath, type SlidomingoDoc, type Slide,
 } from './model'
 import { refuseNewerDoc } from './formatgate'
@@ -270,7 +270,7 @@ export interface StartupOpts {
    *  (the page, with a note, when there is no default layout).
    *  File ▸ New Layout…: the page, with the Create layout chooser open over
    *  it (its Back lands on the page). */
-  startIntent?: 'default-template' | 'new-template' | 'new-figure' | null
+  startIntent?: 'default-template' | 'new-template' | 'new-figure' | 'new-iconset' | null
 }
 
 /** Resolves once the user starts a deck here. Picking a recent deck or a
@@ -281,7 +281,9 @@ export async function showStartupPicker(opts: StartupOpts = {}): Promise<Startup
     const doc = await deckFromDefaultTemplate()
     if (doc) return { doc, isFresh: true }
   }
-  const choice = startPage({ openCreate: opts.startIntent === 'new-template', openFigure: opts.startIntent === 'new-figure' })
+  const choice = startPage({
+    openCreate: opts.startIntent === 'new-template', openFigure: opts.startIntent === 'new-figure', openIconset: opts.startIntent === 'new-iconset',
+  })
   if (opts.startIntent === 'default-template') {
     queueMicrotask(() => {
       const ov = document.querySelector<HTMLElement>('.ed-startpick')
@@ -291,7 +293,7 @@ export async function showStartupPicker(opts: StartupOpts = {}): Promise<Startup
   return choice
 }
 
-function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Promise<StartupChoice> {
+function startPage(o: { openCreate?: boolean; openFigure?: boolean; openIconset?: boolean } = {}): Promise<StartupChoice> {
   return new Promise((resolve) => {
     const api = window.slidomingoDesktop
     const overlay = div('ed-startpick')
@@ -369,7 +371,11 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
     figEmpty.textContent = t('No figures yet — saved and unsaved figures show up here.')
     figEmpty.hidden = true
     const figNoMatch = noMatchNote()
-    figCol.append(figRow, figContSlot, figRecentSection, figEmpty, figNoMatch)
+    // Icons: an icon set (one icon per slide, one style) or a single icon
+    const iconSection = section(t('Icons'))
+    const iconRow = div('ed-sp-row is-figure-sizes')
+    iconSection.appendChild(iconRow)
+    figCol.append(figRow, iconSection, figContSlot, figRecentSection, figEmpty, figNoMatch)
     const cols = div('ed-sp-cols')
     cols.append(newCol, contCol, figCol)
     card.append(cols)
@@ -814,6 +820,19 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
       figRow.appendChild(startTile(box, t(p.label), p.hint, () => finish({ doc: newFigureDoc(p.width, p.height, 'mm'), isFresh: true })))
     }
     figRow.appendChild(startTile(figBox, t('Custom size…'), t('Vector PDF/SVG for papers'), () => openFigureFlow(overlay, card, finish)))
+    const iconThumb = (markup: string) => {
+      const box = thumbBox()
+      box.classList.add('is-blank')
+      box.innerHTML = markup
+      box.style.color = 'var(--muted, #888)'
+      return box
+    }
+    iconRow.appendChild(startTile(
+      iconThumb('<svg viewBox="0 0 80 50" width="70%" height="70%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="7"/><path d="M23 23l5 5"/><rect x="38" y="11" width="14" height="14" rx="3"/><path d="M62 12v12M56 18h12"/><path d="M12 34h14v9H12zM45 32l7 11h-14zM62 33a5 5 0 1 0 0 10a5 5 0 1 0 0-10"/></svg>'),
+      t('Icon set…'), t('Many icons, one style — drawn with AI'), () => openIconsetFlow(overlay, card, finish)))
+    iconRow.appendChild(startTile(
+      iconThumb('<svg viewBox="0 0 80 50" width="70%" height="70%" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="27" y="12" width="26" height="26" rx="4" stroke-dasharray="2 3"/><circle cx="40" cy="25" r="7"/></svg>'),
+      t('Single icon'), t('One 24 × 24 icon, exported as SVG'), () => finish({ doc: titled(newIconsetDoc(), t('Untitled icon')), isFresh: true })))
     // --- Continue: the latest deck, Pinned, Recent & drafts -------------------
     // The latest unpinned deck or draft is the big tile; pinned decks get
     // their own row under it (they never age out of Recent); the rest follow
@@ -833,15 +852,17 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
       const draftItem = (d: { path: string; title: string | null; mtimeMs: number }): RecentItem =>
         ({ path: d.path, name: d.title || t('Untitled'), folder: '', at: d.mtimeMs, draft: true, pinned: false })
       const closedDrafts = drafts.filter((d) => !d.open)
+      // icon sets are drawings too: they continue in the Figure column
+      const drawing = (r: { figure?: boolean; iconset?: boolean }) => !!(r.figure || r.iconset)
       const figures = [
-        ...recent.filter((r) => r.figure).map(toItem),
-        ...closedDrafts.filter((d) => d.figure).map(draftItem),
+        ...recent.filter(drawing).map(toItem),
+        ...closedDrafts.filter(drawing).map(draftItem),
       ].sort((a, b) => b.at - a.at)
-      recent = recent.filter((r) => !r.figure)
+      recent = recent.filter((r) => !drawing(r))
       const pinned = recent.filter((r) => r.pinned).map(toItem)
       const items: RecentItem[] = [
         ...recent.filter((r) => !r.pinned).map(toItem),
-        ...closedDrafts.filter((d) => !d.figure).map(draftItem),
+        ...closedDrafts.filter((d) => !drawing(d)).map(draftItem),
       ].sort((a, b) => b.at - a.at)
       contSlot.replaceChildren()
       for (const sec of [pinnedSection, recentSection]) {
@@ -920,7 +941,9 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
       const starting = filter(startRow)
       const figRest = filter(figRecentSection)
       const figBig = filter(figContSlot)
-      const figs = filter(figRow) + figRest + figBig
+      const iconTiles = filter(iconRow)
+      iconSection.hidden = iconTiles === 0
+      const figs = filter(figRow) + iconTiles + figRest + figBig
       figRecentSection.hidden = figRest === 0
       figContSlot.hidden = figBig === 0
       figNoMatch.hidden = !q || figs > 0
@@ -1040,6 +1063,7 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
 
     if (o.openCreate) openCreateFlow(overlay, card, finish)
     if (o.openFigure) openFigureFlow(overlay, card, finish)
+    if (o.openIconset) openIconsetFlow(overlay, card, finish)
   })
 }
 
@@ -1299,6 +1323,43 @@ function openFigureFlow(overlay: HTMLElement, card: HTMLElement, finish: (choice
   custom.append(Object.assign(document.createElement('span'), { textContent: t('Custom width (mm)') }), cw, go)
   wrap.append(h1, sub, hRow, grid, custom, backButton(closeFlow))
   showStep(wrap)
+}
+
+const titled = (doc: SlidomingoDoc, title: string): SlidomingoDoc => { doc.title = title; return doc }
+
+/** New icon set: a name, what the set is for (the brief Claude draws from)
+ *  and the icons to start with. Ends in an icon-set doc (model.ts newIconsetDoc). */
+function openIconsetFlow(overlay: HTMLElement, card: HTMLElement, finish: (choice: StartupChoice) => void): void {
+  const { showStep, closeFlow } = openFlowCard(overlay, card)
+  const h1 = document.createElement('h1')
+  h1.textContent = t('New icon set')
+  const sub = document.createElement('p')
+  sub.textContent = t('One icon per slide, all in one style. Describe the set, list the icons, then let Claude draft them — or draw them yourself.')
+  const wrap = div('ed-startpick-flow-inner')
+  const field = (label: string, input: HTMLInputElement | HTMLTextAreaElement) => {
+    const l = document.createElement('label')
+    l.style.cssText = 'display:flex;flex-direction:column;gap:6px;font-size:13px'
+    input.className = 'ed-startpick-textarea'
+    input.style.cssText = 'min-height:0;margin-bottom:14px'
+    l.append(Object.assign(document.createElement('span'), { textContent: label }), input)
+    return l
+  }
+  const name = document.createElement('input')
+  name.placeholder = t('e.g. Forensics')
+  const brief = document.createElement('textarea')
+  brief.rows = 2
+  brief.placeholder = t('e.g. Digital forensics for a training course: clean outline icons, friendly, not scary')
+  const names = document.createElement('textarea')
+  names.rows = 5
+  names.placeholder = t('One name per line, e.g.\nfingerprint\nevidence bag\nhash')
+  const go = spButton(ICONS.plus, t('Create icon set'), () => {
+    const list = names.value.split(/\n|,/).map((s) => s.trim()).filter(Boolean).slice(0, 200)
+    const doc = newIconsetDoc({ names: list, brief: brief.value.trim() || undefined })
+    finish({ doc: titled(doc, name.value.trim() || t('Untitled icon set')), isFresh: true })
+  })
+  wrap.append(h1, sub, field(t('Name'), name), field(t('What is the set for, and how should it look?'), brief), field(t('Icons'), names), go, backButton(closeFlow))
+  showStep(wrap)
+  name.focus()
 }
 
 /** A flow card in place of the start page (hidden, not removed, so leaving

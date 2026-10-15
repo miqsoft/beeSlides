@@ -52,6 +52,8 @@ export const claudeInstruction = (sharedDir: string): string =>
   `slides you added unless asked). Icons come from the icon library the user set up: ` +
   `icons({op:"search"}) then icons({op:"insert"}); never write SVG (it is refused: compose shapes, path shapes and text), ` +
   `and never download or embed artwork from the internet yourself (licensing): the library records where each icon came from and its license. ` +
+  `When doc_info says kind "iconset", the document is an icon set (one icon per slide, the slide name is the icon): draw icons only from ` +
+  `path elements like doc_info iconset.pathElement (d in grid units, inside the padding, in the set style). ` +
   `Skip get_slide when the context line ` +
   `already says enough; find content with find_text (not one get_slide per ` +
   `slide) and read a slide with get_slide view "summary" unless you are about ` +

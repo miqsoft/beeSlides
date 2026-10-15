@@ -17,6 +17,7 @@ import { mkdtempSync, readFileSync, writeFileSync, readdirSync, statSync, chmodS
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  docKindOfText,
   extractDocBlock, extractDocBlockText, detectFormat, isTemplateHtml, openAsFor, readTitle, isInside,
   looksLikeShell, decideWrite, backupsToPrune,
 } from '../desktop/src/main/docfile.ts'
@@ -146,6 +147,11 @@ ok(decideWrite(null, { mtimeMs: 1 }) === 'ok', 'a path never stat-ed before is w
   writeFileAtomic(join(dir, 'dirlink', 'Deck.beeslides.html'), 'via dir')
   ok(readFileSync(real, 'utf8') === 'via dir', 'a path through a linked folder writes the real file')
 }
+
+// --- doc kind (recent list / drafts: figures and icon sets go to the Figure column)
+ok(docKindOfText('{"format":"slidomingo/slides","kind":"figure"}') === 'figure', 'a figure is recognised from the raw block')
+ok(docKindOfText('{"kind" : "iconset","iconset":{"grid":24}}') === 'iconset', 'an icon set too')
+ok(docKindOfText('{"title":"kind: iconset"}') === null && docKindOfText('{"kind":"deck"}') === null, 'anything else is a deck')
 
 console.log(`\n${checks - failures}/${checks} checks passed`)
 if (failures) process.exit(1)

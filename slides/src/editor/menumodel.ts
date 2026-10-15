@@ -48,6 +48,8 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'file.exportFigurePdf': { label: 'Export figure as PDF…' },
   'file.exportFigureSvg': { label: 'Export figure as SVG…' },
   'file.exportFigureSvgOutlined': { label: 'Export figure as SVG (text as outlines)…' },
+  'file.exportIconSet': { label: 'Export icon set…' },
+  'file.exportIconSvg': { label: 'Export this icon as SVG…' },
   'file.copyJson': { label: 'Copy document JSON' },
   'file.copyJsonLight': { label: 'Copy document JSON without pictures' },
   'file.scratch': { label: 'Start from scratch…' },
@@ -92,6 +94,11 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'slide.layoutManager': { label: 'Layout Manager…' },
   'slide.settings': { label: 'Slide settings…' },
   'slide.hide': { label: 'Hide slide', kind: 'check' },
+  // icon sets (one icon per slide)
+  'icon.add': { label: 'Add icons…' },
+  'icon.draw': { label: 'Draw with AI' },
+  'icon.applyStyle': { label: 'Apply set style' },
+  'icon.comment': { label: 'Comment on selected icons…' },
 
   'arrange.left': { label: 'Align left', accel: 'Alt+Shift+L' },
   'arrange.centerX': { label: 'Align horizontal centers', accel: 'Alt+Shift+C' },
@@ -176,6 +183,7 @@ export const MENU_MODEL: MenuSection[] = [
       {
         label: 'Export to…', items: [
           'file.exportPdf', 'file.exportFigurePdf', 'file.exportFigureSvg', 'file.exportFigureSvgOutlined',
+          'file.exportIconSet', 'file.exportIconSvg',
           '-', 'file.copyJson', 'file.copyJsonLight',
         ],
       },
@@ -210,6 +218,7 @@ export const MENU_MODEL: MenuSection[] = [
     key: 'slide', label: 'Slide', items: [
       'slide.new', 'slide.changeType', 'slide.saveType', 'slide.layoutManager', '-',
       { label: 'Transition', dynamic: 'transitions' }, 'slide.settings', 'slide.hide',
+      'icon.add', 'icon.draw', 'icon.applyStyle', 'icon.comment',
     ],
   },
   {
@@ -235,7 +244,7 @@ export const MENU_MODEL: MenuSection[] = [
 /** English labels of the main-owned items. The renderer sends them translated
  *  (`MenuModel.labels`), so main needs no catalog of its own. */
 export const MAIN_LABELS = [
-  'New Window', 'New from Default Layout', 'New Layout…', 'New Figure…', 'Open…', 'Open in New Window…',
+  'New Window', 'New from Default Layout', 'New Layout…', 'New Figure…', 'New Icon Set…', 'Open…', 'Open in New Window…',
   'Open Recent', 'No Recent Decks', 'Clear Recent', 'Start Page', 'Paste without Design', 'Actual Size', 'Zoom In', 'Zoom Out',
   'Claude Code Terminal', 'Claude Chats…', 'Developer', 'BeeSlides on GitHub', 'File', 'Edit', 'View', 'Window', 'Help',
 ] as const

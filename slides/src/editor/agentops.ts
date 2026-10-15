@@ -432,6 +432,7 @@ const SETTINGS: AreaHandlers['deck_settings'] = {
   size(ctx, a) {
     const doc = ctx.store.doc
     if (doc.kind === 'figure') return fail('This is a figure: its size is set in figure units in the app.')
+    if (doc.kind === 'iconset') return fail('This is an icon set: its canvas is the icon grid and does not change size.')
     const preset = typeof a.preset === 'string' ? PAGE_SIZE_PRESETS[a.preset as keyof typeof PAGE_SIZE_PRESETS] : undefined
     if (preset && (a.width !== undefined || a.height !== undefined)) return fail('Give a preset or width/height, not both.')
     const width = preset ? preset.w : clampPageEdge((a.width as number | undefined) ?? doc.size.width)

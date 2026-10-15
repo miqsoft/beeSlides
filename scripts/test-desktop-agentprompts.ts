@@ -13,7 +13,7 @@
 // breaking the shell quoting, an ESC ending the paste early, a newline
 // splitting a line, a bogus id or an unbounded list.
 
-import { asPaste, cleanLine, fixCommentsPrompt, fixImportPrompt, MAX_LISTED_COMMENTS, MAX_LISTED_IMPORT_ITEMS } from '../desktop/src/main/agentprompts.ts'
+import { asPaste, cleanLine, drawIconsPrompt, fixCommentsPrompt, fixImportPrompt, MAX_LISTED_COMMENTS, MAX_LISTED_ICONS, MAX_LISTED_IMPORT_ITEMS } from '../desktop/src/main/agentprompts.ts'
 import { convertArgs, findSoffice } from '../desktop/src/main/sourcerender.ts'
 
 let failures = 0
@@ -83,6 +83,25 @@ ok(fixImportPrompt({ items: [{ slide: 1, slideId: 'bad id', code: 'x', detail: '
   'bad slide ids, codes and empty details are dropped')
 const lots = fixImportPrompt({ items: Array.from({ length: MAX_LISTED_IMPORT_ITEMS + 3 }, () => ({ slide: 1, slideId: 's1', code: 'x', detail: 'y' })) }, files)!
 ok(lots.includes('…and 3 more'), 'a long import list is capped and names the rest')
+
+// --- "Draw with AI" in an icon set (drawIconsPrompt) -----------------------------
+const icons = drawIconsPrompt({
+  brief: 'Digital forensics, outline, friendly',
+  icons: [
+    { slide: 1, slideId: 'slide_a', name: 'fingerprint', prompt: 'a fingerprint inside a magnifier' },
+    { slide: 2, slideId: 'slide_b', name: nasty, prompt: nasty },
+    { slide: 3, slideId: 'slide_c' },
+  ],
+})!
+ok(icons.startsWith('Please draw these 3 icons'), 'the header counts the icons')
+ok(icons.includes('1. Slide 1 “fingerprint”: a fingerprint inside a magnifier  [slide id slide_a]'), 'each icon: slide, name, what it shows, id')
+ok(icons.includes('3. Slide 3 “icon 3”  [slide id slide_c]'), 'an unnamed icon without a brief still gets a line')
+ok(icons.includes('The set: Digital forensics, outline, friendly'), 'the set brief is passed on')
+ok(icons.includes('pathElement') && icons.includes('No text, no pictures, no svg'), 'it says how to draw: native paths, never svg')
+ok(!SHELL_UNSAFE.test(icons) && !icons.includes('\x1b') && !icons.includes('\x00'), 'document text cannot break the shell quoting or the paste')
+ok(drawIconsPrompt({ icons: [{ slide: 1, slideId: 'bad id' }, { slide: 0, slideId: 'x' }] }) === null && drawIconsPrompt(null) === null, 'bad ids and slide numbers are dropped')
+const manyIcons = drawIconsPrompt({ icons: Array.from({ length: MAX_LISTED_ICONS + 2 }, (_, i) => ({ slide: i + 1, slideId: `s${i}` })) })!
+ok(manyIcons.includes('…and 2 more'), 'a long icon list is capped and names the rest')
 
 // --- LibreOffice render (sourcerender.ts) ------------------------------------
 ok(findSoffice({ PATH: '/nope' }, () => false) === null, 'no LibreOffice anywhere → null (the fix goes ahead without a picture)')

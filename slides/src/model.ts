@@ -1006,8 +1006,12 @@ export interface Slide {
   /** palette references for the slide's own colours — `background`. See palette.ts. */
   themeRefs?: Record<string, string>
 
-  /** optional friendly name (link pickers, state badges) */
+  /** optional friendly name (link pickers, state badges); in an icon set,
+   *  the icon's name and its exported file name */
   name?: string
+  /** Icon sets only: what to search the icon by, and what it should show
+   *  (the brief an agent draws it from). Additive. */
+  icon?: { keywords?: string[]; prompt?: string }
   /**
    * "GIF" slide: instead of waiting for clicks, play the slide's click builds
    * by themselves — one every `every` seconds, hold `hold` seconds on the last,
@@ -1195,10 +1199,14 @@ export interface SlidomingoDoc {
   }
   /**
    * `'figure'` = a single-canvas paper figure (Figure mode): one slide, no
-   * present mode, exported as vector PDF/SVG. Absent = an ordinary deck.
-   * Additive: older readers open it as a one-slide deck.
+   * present mode, exported as vector PDF/SVG. `'iconset'` = an icon set: one
+   * icon per slide on a square grid, exported as a folder of SVGs. Absent =
+   * an ordinary deck. Additive: older readers open either as a plain deck.
    */
-  kind?: 'figure'
+  kind?: 'figure' | 'iconset'
+  /** An icon set's grid and the one style every icon in it is drawn in
+   *  (`kind: 'iconset'`, one icon per slide). See `iconset.ts`. */
+  iconset?: IconsetInfo
   /** A figure's physical page size (what `size` is at 96 dpi): shown in this
    *  unit and written into the PDF/SVG. `size` stays authoritative in px. */
   figure?: { unit: 'mm' | 'pt' | 'in'; width: number; height: number }
@@ -3714,6 +3722,76 @@ export function newFigureDoc(width: number, height: number, unit: FigureUnit = '
   doc.theme.color = '#000000'
   doc.theme.styleDefaults = FIGURE_STYLE_DEFAULTS
   doc.slides[0].transition = 'none'
+  return doc
+}
+
+// ---- Icon sets -------------------------------------------------------------
+//
+// An icon set is a doc with `kind: 'iconset'`: one icon per slide, named by the
+// slide's `name`, drawn on a square `grid` (24 units) that is `grid * scale` px
+// on the canvas. Every icon shares `iconset.style`. Pure helpers (apply the
+// style, file names, the manifest) live in iconset.ts. See docs/DECISIONS.md
+// ("Icon sets").
+
+export interface IconsetStyle {
+  /** stroke width in grid units */
+  strokeWidth: number
+  cap: 'round' | 'square' | 'butt'
+  join: 'round' | 'bevel' | 'miter'
+  /** empty margin inside the grid, grid units (the keyline square) */
+  padding: number
+  /** outline = strokes only; solid = filled shapes; duotone = strokes plus a
+   *  faint fill */
+  fill: 'outline' | 'solid' | 'duotone'
+  /** the ink everything is drawn in; becomes `currentColor` on export */
+  color: string
+}
+
+export interface IconsetInfo {
+  /** grid units per side, 24 */
+  grid: number
+  /** canvas px per grid unit */
+  scale: number
+  /** what the whole set is for and how it should look, in words */
+  brief?: string
+  style: IconsetStyle
+  license?: string
+  author?: string
+}
+
+export const ICONSET_STYLE_DEFAULTS: IconsetStyle = {
+  strokeWidth: 2, cap: 'round', join: 'round', padding: 2, fill: 'outline', color: '#000000',
+}
+
+/** The look of a first-drawn object on an icon canvas: the set's ink and stroke. */
+export function iconsetStyleDefaults(info: IconsetInfo): StyleDefaults {
+  const w = info.style.strokeWidth * info.scale
+  return {
+    shape: { fill: 'transparent', stroke: info.style.color, strokeWidth: w },
+    line: { color: info.style.color, width: w, strokeCap: info.style.cap },
+    text: { fontFamily: 'Helvetica, Arial, sans-serif', fontSize: 6 * info.scale, color: info.style.color, lineHeight: 1.2 },
+  }
+}
+
+/** One empty icon slide. */
+export function newIconSlide(name: string, prompt?: string): Slide {
+  return emptySlide({ name, transition: 'none', ...(prompt ? { icon: { prompt } } : {}) })
+}
+
+/** A new icon set with one slide per name (one unnamed icon when none). */
+export function newIconsetDoc(opts: { names?: string[]; brief?: string; grid?: number } = {}): SlidomingoDoc {
+  const doc = newDoc()
+  const grid = opts.grid ?? 24
+  const info: IconsetInfo = { grid, scale: Math.max(1, Math.round(384 / grid)), style: { ...ICONSET_STYLE_DEFAULTS } }
+  if (opts.brief) info.brief = opts.brief
+  doc.title = 'Untitled icon set'
+  doc.kind = 'iconset'
+  doc.iconset = info
+  doc.size = { width: grid * info.scale, height: grid * info.scale }
+  doc.theme.color = info.style.color
+  doc.theme.styleDefaults = iconsetStyleDefaults(info)
+  const names = (opts.names ?? []).map((n) => n.trim()).filter(Boolean)
+  doc.slides = (names.length ? names : ['icon']).map((n) => newIconSlide(n))
   return doc
 }
 

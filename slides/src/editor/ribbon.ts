@@ -69,7 +69,7 @@ declare global {
       sendAgentActionResult: (result: { requestId: string; ok: boolean; [key: string]: unknown }) => void
       /** "Polish with Claude" / "Send comments to Claude": type a prompt into
        *  the panel's session (`comments` = editor/comments.ts SentComment[]). */
-      sendAgentPrompt?: (kind: 'polish' | 'fix-comments', comments?: unknown[]) => void
+      sendAgentPrompt?: (kind: 'polish' | 'fix-comments' | 'draw-icons', payload?: unknown) => void
       /** "Fix with Claude" on a PowerPoint import's report (editor/importfix.ts). */
       fixImportWithAi?: (request: { name: string; sourcePath?: string; items: unknown[] }) => Promise<{ ok: boolean; source?: boolean; pdf?: boolean; error?: string }>
       sendTerminalTheme: (theme: 'light' | 'dark') => void
@@ -87,7 +87,7 @@ declare global {
        *  slide lock that sessionId held (store.releaseSessionLocks). */
       onAgentSessionClosed: (cb: (info: { sessionId: string }) => void) => void
       onFullscreenChange: (cb: (state: { fullscreen: boolean }) => void) => void
-      listRecent: () => Promise<{ path: string; openedAt: number; pinned?: boolean; figure?: boolean }[]>
+      listRecent: () => Promise<{ path: string; openedAt: number; pinned?: boolean; figure?: boolean; iconset?: boolean }[]>
       openRecent: (path: string) => void
       openRecentReplacing: (path: string) => void
       listTemplates: () => Promise<{ path: string; json: unknown }[]>
@@ -125,6 +125,9 @@ declare global {
         | { kind: 'svg'; svg: string; suggestedName: string }
         | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string }) =>
         Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }>
+      /** Icon sets: pick a folder; main writes the files into a subfolder named `folderName`. */
+      exportIconset?: (req: { folderName: string; files: Array<{ name: string; text: string }> }) =>
+        Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }>
       presentBegin?: () => Promise<{ speaker: boolean }>
       presentEnd?: () => Promise<void>
       /** A clicked web/mail link, to the user's browser / mail app (main
@@ -144,7 +147,7 @@ declare global {
       onFlushRequest?: (cb: (req: { requestId: string; kind: 'flush' | 'save-as' }) => void) => void
       flushAck?: (requestId: string) => void
       flushResult?: (msg: { requestId: string; status: DesktopFlushStatus; strings?: Record<string, string> }) => void
-      listDrafts?: () => Promise<Array<{ path: string; title: string | null; mtimeMs: number; open: boolean; figure?: boolean }>>
+      listDrafts?: () => Promise<Array<{ path: string; title: string | null; mtimeMs: number; open: boolean; figure?: boolean; iconset?: boolean }>>
       deleteDraft?: (path: string) => Promise<boolean>
       listBackups?: () => Promise<Array<{ path: string; at: number }>>
       openBackup?: (path: string) => Promise<boolean>
@@ -210,7 +213,7 @@ export interface DesktopLaunchDocument {
    *  `default-template` (File ▸ New from Default Template) skips the start
    *  page; `new-template` (File ▸ New Layout…) opens it with the Create
    *  layout chooser up. */
-  startIntent?: 'default-template' | 'new-template' | 'new-figure' | null
+  startIntent?: 'default-template' | 'new-template' | 'new-figure' | 'new-iconset' | null
 }
 export type DesktopWriteResult =
   | { ok: true; mtimeMs: number }

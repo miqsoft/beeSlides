@@ -101,6 +101,8 @@ import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
 import { commentStats, sendCommentsToClaude } from './comments'
+import { addIcons, addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon } from './iconsetactions'
+import { iconsetInfo } from '../iconset'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
   desktopStatus, desktopStatusSource, desktopWritesDisabled, desktopWritesSettled, markDesktopProblem,
@@ -293,6 +295,13 @@ export class Editor {
     // Figure mode's panel (panels.ts buildFigurePanel) talks to the canvas through these
     document.addEventListener('slidomingo:grid-changed', () => this.applyGridPref())
     document.addEventListener('slidomingo:figure-fit', () => this.fitFigureToContent())
+    // the icon-set panel's buttons (panels.ts buildIconsetPanel)
+    document.addEventListener('slidomingo:iconset', ((ev: CustomEvent<{ action: string }>) => {
+      const a = ev.detail?.action
+      if (a === 'draw') this.drawIconsWithAi()
+      else if (a === 'style') this.applyIconStyle()
+      else if (a === 'export') this.exportIconSet()
+    }) as EventListener)
     document.addEventListener('slidomingo:open-layout-manager', ((ev: CustomEvent<OpenLayoutManagerDetail>) => {
       this.openLayoutManager(ev.detail?.tab, ev.detail ?? undefined)
     }) as EventListener)
@@ -309,6 +318,7 @@ export class Editor {
     this.gridBtns = []
     this.root.className = 'ed-root'
     this.root.classList.toggle('ed-figure', this.isFigure)
+    this.root.classList.toggle('ed-iconset', this.isIconset)
     wireTooltips()
 
     // Canvas must exist BEFORE buildWebTopbar()/buildDesktopChrome(): both
@@ -322,7 +332,7 @@ export class Editor {
     const canvasWrap = div('ed-canvas-wrap')
     this.canvasWrap = canvasWrap
     this.canvas = new SlideCanvas(canvasWrap, this.store)
-    this.canvas.setGridPref(loadGridPref(), gridStepPx(this.isFigure)) // saved viewer preference — survives rebuilds
+    this.canvas.setGridPref(loadGridPref(), this.gridStep()) // saved viewer preference — survives rebuilds
 
     const { bar, commentB, formatPainterB, reapplyChangeB, finishMount } =
       isDesktopShell() ? this.buildDesktopChrome() : this.buildWebTopbar()
@@ -570,7 +580,8 @@ export class Editor {
     // commits on any outside mousedown) — this.undo cancels it instead
     undoB.dataset.keepsCrop = ''
     redoB.dataset.keepsCrop = ''
-    const pdfB = tagTool(this.isFigure ? this.figureExportMenu(false) : btn(ICONS.pdf, '', () => this.exportPdf(), t('Export PDF (print)')), 'pdf')
+    const pdfB = tagTool(this.isFigure ? this.figureExportMenu(false) : this.isIconset ? this.iconsetExportMenu(false)
+      : btn(ICONS.pdf, '', () => this.exportPdf(), t('Export PDF (print)')), 'pdf')
     const notesB = tagTool(btn(ICONS.notes, t('Notes'), () => this.toggleNotes(),
       t('Notes — show or hide the speaker notes pane below the slide')), 'notes')
     this.notesToggleBtn = notesB
@@ -838,7 +849,7 @@ export class Editor {
       btn('', t('⛓ Ungroup'), () => this.groupSelection(false), t('Dissolve the group (⇧G)')),
     ])
     const homeRow = ribbonRow([
-      ribbonGroup(t('Slides'), [
+      this.isIconset ? this.iconsetRibbonGroup() : ribbonGroup(t('Slides'), [
         tagTool(btn(ICONS.plus, t('New slide'), (ev) => this.openLayoutPicker(ev.currentTarget as HTMLElement),
           t('Add a slide — pick a slide type')), 'new-slide'),
       ]),
@@ -900,14 +911,15 @@ export class Editor {
     refreshTransitionActive()
     const transitionsRow = ribbonRow([transitionGroup])
 
-    const pdfB = tagTool(this.isFigure ? this.figureExportMenu(true) : btn(ICONS.pdf, t('Export PDF'), () => this.exportPdf(), t('Export PDF (print)')), 'pdf')
+    const pdfB = tagTool(this.isFigure ? this.figureExportMenu(true) : this.isIconset ? this.iconsetExportMenu(true)
+      : btn(ICONS.pdf, t('Export PDF'), () => this.exportPdf(), t('Export PDF (print)')), 'pdf')
     const notesB2 = btn(ICONS.notes, t('Notes'), () => this.toggleNotes(),
       t('Notes — show or hide the speaker notes pane below the slide'))
     this.notesToggleBtn = notesB2
     notesB2.classList.add('ed-slides-only')
     const sorterB = btn(ICONS.grid, t('Slide Sorter'), () => this.openSlideSorter(), t('Switch to a grid view of all slides'))
     const viewRow = ribbonRow([
-      slidesOnly(ribbonGroup(t('Presentation Views'), [sorterB])),
+      iconsetToo(slidesOnly(ribbonGroup(t('Presentation Views'), [sorterB]))),
       slidesOnly(ribbonGroup(t('Show'), [
         btn(ICONS.slideshow, window.slidomingoDesktop?.presentBegin ? t('Present') : t('Slideshow'), () => this.present(false, true),
           window.slidomingoDesktop?.presentBegin
@@ -919,7 +931,7 @@ export class Editor {
           t('Notes, controls and slide thumbnails in a separate window — drag it to a second screen. On macOS, open it before going fullscreen.'))]),
       ])),
       ribbonGroup(t('Panels'), [
-        slidesOnly(btn(ICONS.panelLeft, t('Slides'), () => this.togglePanel('left'), t('Slides — show or hide the slide list'))),
+        iconsetToo(slidesOnly(btn(ICONS.panelLeft, t('Slides'), () => this.togglePanel('left'), t('Slides — show or hide the slide list')))),
         btn(ICONS.panelRight, t('Format'), () => this.togglePanel('right'), t('Format — show or hide the properties panel')),
         notesB2,
       ]),
@@ -937,8 +949,8 @@ export class Editor {
       tabs: [
         { key: 'home', label: t('Home'), row: homeRow },
         { key: 'insert', label: t('Insert'), row: insertRow },
-        ...(this.isFigure ? [] : [{ key: 'design', label: t('Design'), row: designRow }]),
-        ...(this.isFigure ? [] : [{ key: 'transitions', label: t('Transitions'), row: transitionsRow }]),
+        ...(this.isCanvasDoc ? [] : [{ key: 'design', label: t('Design'), row: designRow }]),
+        ...(this.isCanvasDoc ? [] : [{ key: 'transitions', label: t('Transitions'), row: transitionsRow }]),
         { key: 'view', label: t('View'), row: viewRow },
       ],
     })
@@ -1123,7 +1135,7 @@ export class Editor {
   }
 
   toggleNotes() {
-    if (this.isFigure) return
+    if (this.isCanvasDoc) return
     this.notesPane.el.classList.toggle('ed-collapsed')
     const open = !this.notesPane.el.classList.contains('ed-collapsed')
     this.notesToggleBtn?.classList.toggle('ed-btn-armed', open)
@@ -2768,9 +2780,9 @@ export class Editor {
       this.sidebar.appendChild(item)
     })
     this.sidebar.appendChild(this.insertGap(slides.length))
-    const add = btn(ICONS.plus, t('New slide'), () => this.openLayoutPicker(add))
+    const add = btn(ICONS.plus, this.isIconset ? t('Add icons') : t('New slide'), () => this.openLayoutPicker(add))
     add.classList.add('ed-add-slide')
-    add.title = t('New slide from a slide type')
+    add.title = this.isIconset ? t('Add icons by name, one per line') : t('New slide from a slide type')
     this.sidebar.appendChild(add)
     this.sidebar.scrollTop = scroll
     this.highlightSidebar()
@@ -2788,6 +2800,11 @@ export class Editor {
     action: LayoutPickAction = { kind: 'insert', at: this.afterSlideBlock(this.store.currentIndex) },
   ) {
     document.querySelector('.ed-layoutpick')?.remove()
+    // an icon set has no slide types: "New slide" (+, the ribbon) adds icons by name
+    if (this.isIconset) {
+      if (action.kind !== 'change') void addIcons(this.store, action.at)
+      return
+    }
     const doc = this.store.doc
     const target = action.kind === 'change'
       ? doc.slides.find((s) => s.id === (action.slideId ?? doc.slides[this.store.currentIndex]?.id))
@@ -3482,6 +3499,13 @@ export class Editor {
   /** Enter / Ctrl+M in the slide panel: a new slide after the current one,
    *  from its own slide type when it follows one, else "Title + content". */
   private newSlideAfterCurrent() {
+    if (this.isIconset) {
+      const at = this.afterSlideBlock(this.store.currentIndex)
+      addOneIcon(this.store, at)
+      const id = this.store.doc.slides[at]?.id
+      if (id) this.setSlideSel([id], at, id)
+      return
+    }
     const doc = this.store.doc
     const cur = doc.slides[this.store.currentIndex]
     const parent = cur?.stateOf ? doc.slides.find((s) => s.id === cur.stateOf) : cur
@@ -3501,6 +3525,95 @@ export class Editor {
    * hidden slide is material the audience was not meant to be handed.
    */
   get isFigure(): boolean { return this.store.doc.kind === 'figure' }
+  /** An icon set (one icon per slide; DECISIONS "Icon sets"). */
+  get isIconset(): boolean { return this.store.doc.kind === 'iconset' }
+  /** A figure or an icon set: a drawing, not a deck — no present mode, notes,
+   *  transitions or slide types. */
+  get isCanvasDoc(): boolean { return this.isFigure || this.isIconset }
+
+  /** The drawing grid in model px (0 = off): an icon set snaps to whole grid units. */
+  private gridStep(): number {
+    const info = iconsetInfo(this.store.doc)
+    if (info) return loadGridPref().on ? info.scale : 0
+    return gridStepPx(this.isFigure)
+  }
+
+  // --- icon sets (iconsetactions.ts) ---------------------------------------------------
+
+  /** Several icons selected in the slide list → those; one → every icon. */
+  private iconTargets(): string[] {
+    const sel = this.selectedSlideIds()
+    return sel.length > 1 ? sel : this.store.doc.slides.map((s) => s.id)
+  }
+
+  addIcons() {
+    void addIcons(this.store, this.afterSlideBlock(this.store.currentIndex)).then((n) => {
+      if (n) this.toast(t('Added {n} icons', { n }))
+    })
+  }
+
+  drawIconsWithAi() {
+    if (!window.slidomingoDesktop?.sendAgentPrompt) {
+      this.toast(t('Drawing with AI needs the BeeSlides desktop app with Claude set up'))
+      return
+    }
+    this.canvas.commitTextEdit()
+    const n = drawIconsWithAi(this.store, this.selectedSlideIds())
+    this.toast(n ? t('Sent {n} icons to Claude', { n }) : t('Every icon has a drawing — select the icons to redraw'))
+  }
+
+  applyIconStyle() {
+    this.canvas.commitTextEdit()
+    const n = applyIconsetStyle(this.store, this.iconTargets())
+    this.toast(n ? t('Restyled {n} shapes', { n }) : t('Every shape already follows the set style'))
+  }
+
+  commentOnIcons() {
+    const send = !!window.slidomingoDesktop?.sendAgentPrompt
+    void commentOnIcons(this.store, this.selectedSlideIds(), send).then((n) => {
+      if (n && send) this.toast(this.sentToClaudeMsg(n))
+    })
+  }
+
+  exportIconSet() {
+    this.canvas.commitTextEdit()
+    void exportIconSet(this.store, (m) => this.toast(m)).catch((err) =>
+      this.toast(t('Export failed: {m}', { m: err instanceof Error ? err.message : String(err) })))
+  }
+
+  exportIconSvg() {
+    this.canvas.commitTextEdit()
+    void exportOneIcon(this.store, (m) => this.toast(m))
+  }
+
+  /** The Home ribbon's Icons group (in place of Slides). */
+  private iconsetRibbonGroup(): HTMLElement {
+    const items = [
+      tagTool(btn(ICONS.plus, t('Add icons'), () => this.addIcons(), t('Add icons by name, one per line')), 'icon-add'),
+      ...(window.slidomingoDesktop?.sendAgentPrompt
+        ? [tagTool(btn(ICONS.sparkle, t('Draw with AI'), () => this.drawIconsWithAi(),
+          t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style')), 'icon-draw')]
+        : []),
+      tagTool(btn(ICONS.paintbrush, t('Apply set style'), () => this.applyIconStyle(),
+        t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)')), 'icon-style'),
+      tagTool(btn(ICONS.comment, t('Comment on icons'), () => this.commentOnIcons(),
+        t('One comment on each icon selected in the slide list — sent to Claude to redraw them')), 'icon-comment'),
+    ]
+    return ribbonGroup(t('Icons'), items)
+  }
+
+  /** The ribbon's Export dropdown in an icon set. */
+  private iconsetExportMenu(labelled: boolean): HTMLElement {
+    const wrap = div('ed-dropdown')
+    const trigger = btn(ICONS.download, labelled ? t('Export set') : '', () => wrap.classList.toggle('open'),
+      t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries'))
+    const menu = div('ed-menu')
+    menu.appendChild(btn(ICONS.download, t('Export icon set…'), () => { wrap.classList.remove('open'); this.exportIconSet() }))
+    menu.appendChild(btn(ICONS.download, t('Export this icon as SVG…'), () => { wrap.classList.remove('open'); this.exportIconSvg() }))
+    wrap.append(trigger, menu)
+    document.addEventListener('pointerdown', (ev) => { if (!wrap.contains(ev.target as Node)) wrap.classList.remove('open') })
+    return wrap
+  }
 
   /** Figure mode's export: vector PDF at the figure's exact size, or SVG (text kept as text, or outlined). */
   async exportFigure(kind: 'pdf' | 'svg' | 'svg-outlined') {
@@ -3599,6 +3712,7 @@ export class Editor {
   async present(fromStart = false, fullscreen = true, withSpeaker = true, kiosk?: { seconds: number; loop: boolean }) {
     if (this.presenting) return
     if (this.isFigure) { this.toast(t('A figure has nothing to present — export it as PDF or SVG')); return }
+    if (this.isIconset) { this.toast(t('An icon set has nothing to present — export it as SVG')); return }
     if (this.layoutManagerOpen) { this.toast(t('Close the Layout Manager to present')); return }
     // They've started a slideshow — retire the first-run nudge for good.
     lsSet('slidomingo-slideshow-started', '1')
@@ -3777,7 +3891,7 @@ export class Editor {
 
   /** Re-apply the saved Grid & Snap preference to the canvas and every control showing it. */
   private applyGridPref() {
-    this.canvas.setGridPref(loadGridPref(), gridStepPx(this.isFigure))
+    this.canvas.setGridPref(loadGridPref(), this.gridStep())
     this.syncGridControls()
     document.dispatchEvent(new CustomEvent(GRID_PREF_EVENT)) // an open Grid & Snap panel follows ⌘G etc.
     // the Figure panel's own Grid select reads the same preference
@@ -3851,7 +3965,10 @@ export class Editor {
   private registerCommands() {
     const reg = (id: string, run: () => void, o: { enabled?: () => boolean; checked?: () => boolean; visible?: () => boolean } = {}) =>
       this.commands.register(id, { run, ...o })
-    const slidesOnly = () => !this.isFigure
+    const slidesOnly = () => !this.isCanvasDoc
+    // decks and icon sets: a slide list, the sorter, comments to Claude
+    const withList = () => !this.isFigure
+    const iconset = () => this.isIconset
     const noLM = () => !this.layoutManagerOpen
     const deckOnly = () => !this.templateMode
     const hasSel = () => this.store.selectedElements.length > 0
@@ -3877,6 +3994,8 @@ export class Editor {
     reg('file.exportFigurePdf', () => void this.exportFigure('pdf'), { visible: () => this.isFigure })
     reg('file.exportFigureSvg', () => void this.exportFigure('svg'), { visible: () => this.isFigure })
     reg('file.exportFigureSvgOutlined', () => void this.exportFigure('svg-outlined'), { visible: () => this.isFigure })
+    reg('file.exportIconSet', () => this.exportIconSet(), { visible: iconset })
+    reg('file.exportIconSvg', () => this.exportIconSvg(), { visible: iconset })
     reg('file.copyJson', () => void this.copyDocJson())
     reg('file.copyJsonLight', () => void this.copyDocJson(true))
     reg('file.scratch', () => this.startFromScratch(), { visible: slidesOnly })
@@ -3924,6 +4043,10 @@ export class Editor {
       enabled: noLM,
       checked: () => !!this.store.slide?.hidden,
     })
+    reg('icon.add', () => this.addIcons(), { visible: iconset })
+    reg('icon.draw', () => this.drawIconsWithAi(), { visible: () => iconset() && !!window.slidomingoDesktop?.sendAgentPrompt })
+    reg('icon.applyStyle', () => this.applyIconStyle(), { visible: iconset })
+    reg('icon.comment', () => this.commentOnIcons(), { visible: iconset })
     for (const kind of TRANSITION_KINDS) {
       reg(`slide.transition.${kind}`, () => this.setTransition(kind), {
         visible: slidesOnly,
@@ -3943,8 +4066,8 @@ export class Editor {
     reg('arrange.group', () => this.groupSelection(true), { enabled: hasSel })
     reg('arrange.ungroup', () => this.groupSelection(false), { enabled: hasSel })
 
-    reg('view.sorter', () => this.openSlideSorter(), { visible: slidesOnly, enabled: noLM })
-    reg('view.panelSlides', () => this.togglePanel('left'), { visible: slidesOnly, checked: () => !this.sidebar.classList.contains('ed-collapsed') })
+    reg('view.sorter', () => this.openSlideSorter(), { visible: withList, enabled: noLM })
+    reg('view.panelSlides', () => this.togglePanel('left'), { visible: withList, checked: () => !this.sidebar.classList.contains('ed-collapsed') })
     reg('view.panelFormat', () => this.togglePanel('right'), { checked: () => !this.props.classList.contains('ed-collapsed') })
     reg('view.panelNotes', () => this.toggleNotes(), { visible: slidesOnly, checked: () => !this.notesPane.el.classList.contains('ed-collapsed') })
     reg('view.safeZone', () => this.toggleSafeZone(), { checked: () => !!this.canvas?.showSafeZone })
@@ -3969,7 +4092,7 @@ export class Editor {
     }, { visible: slidesOnly })
     reg('play.noSpeaker', () => this.present(false, true, false), { visible: () => slidesOnly() && !!window.slidomingoDesktop?.presentBegin })
     reg('play.sendComments', () => this.sendOpenComments(), {
-      visible: () => slidesOnly() && !!window.slidomingoDesktop?.sendAgentPrompt,
+      visible: () => withList() && !!window.slidomingoDesktop?.sendAgentPrompt,
       enabled: () => commentStats(this.store.doc).openCount > 0,
     })
 
@@ -5135,6 +5258,28 @@ export class Editor {
       // elements arrange fills a span of it with within "columns 7-12".
       layoutGrid: agentLayoutGrid(doc),
       guides: doc.guides ? normalizeGuides(doc.guides, doc.size) : undefined,
+      kind: doc.kind,
+      iconset: this.agentIconsetInfo(),
+    }
+  }
+
+  /** An icon set's grid and style, plus `pathElement`: one path in that style,
+   *  drawn on the whole canvas with the grid as its pathBox, so `d` is written
+   *  in grid units (the draw-icons prompt points here). */
+  private agentIconsetInfo(): Record<string, unknown> | undefined {
+    const info = iconsetInfo(this.store.doc)
+    if (!info) return undefined
+    const st = info.style
+    const { width, height } = this.store.doc.size
+    return {
+      ...info,
+      paddingBox: [st.padding, st.padding, info.grid - st.padding, info.grid - st.padding],
+      pathElement: {
+        type: 'shape', shape: 'path', x: 0, y: 0, w: width, h: height, rotation: 0, opacity: 1, radius: 0,
+        pathBox: [0, 0, info.grid, info.grid], d: `M${st.padding} ${info.grid / 2} H${info.grid - st.padding}`,
+        fill: 'transparent', stroke: st.color, strokeWidth: st.strokeWidth * info.scale, strokeCap: st.cap, strokeJoin: st.join,
+      },
+      note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent.',
     }
   }
 
@@ -5155,6 +5300,7 @@ export class Editor {
         elementCount: s.elements.length,
         roles,
         preview: firstText ? stripHtml(firstText.html).slice(0, 120) : undefined,
+        icon: s.icon ? { ...s.icon } : undefined,
       }
     })
   }
@@ -6553,7 +6699,7 @@ export class Editor {
         this.save(false)
         return
       }
-      if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'p' && isDesktopShell() && !this.isFigure) {
+      if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'p' && isDesktopShell() && !this.isCanvasDoc) {
         ev.preventDefault()
         void this.exportPdf()
         return
@@ -7403,6 +7549,12 @@ function pickDirectoryViaInput(): Promise<File[]> {
 }
 
 // tiny DOM helpers
+/** Keep a slides-only control in an icon set (the slide list and the sorter — styles.css .ed-iconset). */
+function iconsetToo<T extends HTMLElement>(el: T): T {
+  el.classList.add('ed-iconset-too')
+  return el
+}
+
 /** Hide a control in Figure mode (slide list, present, notes — see styles.css .ed-figure). */
 function slidesOnly<T extends HTMLElement>(el: T): T {
   el.classList.add('ed-slides-only')

@@ -638,7 +638,7 @@ export interface OpenOpts {
   editTemplate?: boolean
 }
 
-export type StartIntent = 'default-template' | 'new-template' | 'new-figure'
+export type StartIntent = 'default-template' | 'new-template' | 'new-figure' | 'new-iconset'
 
 /** What a path (or null = a new draft) opens as. Resolved before any view
  *  exists, so replaceDocument can send another app's file to a new window

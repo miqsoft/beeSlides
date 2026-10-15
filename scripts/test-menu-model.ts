@@ -98,7 +98,7 @@ ok(dis.menus.every((m) => noSepBugs(m.items)), 'skeleton has no separator bugs')
 const figure = serializeMenuModel({
   tr: (s) => s, expand: (k) => (k === 'transitions' ? [] : expand(k)), // Editor.expand drops invisible transitions
   state: (id) => {
-    if (id.startsWith('slide.') || id.startsWith('play.') || id === 'file.exportPdf') return { visible: false }
+    if (id.startsWith('slide.') || id.startsWith('icon.') || id.startsWith('play.') || id === 'file.exportPdf' || id.startsWith('file.exportIcon')) return { visible: false }
     if (id.startsWith('arrange.')) return { enabled: false }
     return undefined
   },
@@ -113,6 +113,21 @@ walk(figure.menus.find((m) => m.key === 'arrange')!.items, (it) => { if ('id' in
 // 12 = six aligns, center on slide, two distributes, align-to-slide, group, ungroup
 ok(arrangeItems.length === 12 && arrangeItems.every((it) => 'id' in it && !it.enabled), `disabled state is carried (Arrange with no selection, ${arrangeItems.length} items)`)
 ok(figure.menus.every((m) => noSepBugs(m.items)), 'figure mode has no separator bugs')
+
+// visibility: an icon set — the Slide menu holds the icon commands, Export the set's
+const iconsetDeckOnly = new Set(['slide.new', 'slide.changeType', 'slide.saveType', 'slide.layoutManager', 'slide.settings', 'slide.hide', 'file.exportPdf'])
+const iconset = serializeMenuModel({
+  tr: (s) => s, expand: (k) => (k === 'transitions' ? [] : expand(k)),
+  state: (id) => (iconsetDeckOnly.has(id) || id.startsWith('file.exportFigure') || (id.startsWith('play.') && id !== 'play.sendComments') ? { visible: false } : undefined),
+})
+const iconLeaves: string[] = []
+for (const m of iconset.menus) walk(m.items, (it) => { if ('id' in it) iconLeaves.push(it.id) })
+const slideMenu: string[] = []
+walk(iconset.menus.find((m) => m.key === 'slide')!.items, (it) => { if ('id' in it) slideMenu.push(it.id) })
+ok(slideMenu.join() === 'icon.add,icon.draw,icon.applyStyle,icon.comment', `icon set: the Slide menu is the icon commands (${slideMenu.join()})`)
+ok(iconLeaves.includes('file.exportIconSet') && iconLeaves.includes('file.exportIconSvg') && !iconLeaves.includes('file.exportPdf'), 'icon set: Export lists the set and one icon')
+ok(iconLeaves.includes('play.sendComments'), 'icon set: comments still go to Claude')
+ok(iconset.menus.every((m) => noSepBugs(m.items)), 'icon set has no separator bugs')
 
 // View ▸ Customize… and View ▸ My commands (a UI profile's custom.* commands)
 ok(leaves.some((l) => l.id === 'view.customize' && l.label === '«Customize…»'), 'View ▸ Customize… is a renderer command')

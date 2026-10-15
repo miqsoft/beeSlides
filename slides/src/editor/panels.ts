@@ -36,6 +36,9 @@ import { onSystemFontsReady, requestSystemFonts } from '../localfonts'
 import { ICONS } from '../icons'
 import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
+import { iconsetInfo } from '../iconset'
+import { iconPreviewUrl, withStyle, writeIconsetInfo } from './iconsetactions'
+import type { IconsetInfo, IconsetStyle } from '../model'
 import { loadGridPref, saveGridPref, FIGURE_GRID_STEPS_MM } from './gridpref'
 import { lsJson, lsSet } from '../../../kernel/src/storage.ts'
 import { LIMITS } from '../untrusted'
@@ -539,6 +542,7 @@ export class PropsPanel {
   private buildSlidePanel() {
     const slide = this.store.slide
     if (this.store.doc.kind === 'figure') { this.buildFigurePanel(); return }
+    if (this.store.doc.kind === 'iconset') { this.buildIconsetPanel(); return }
     this.section('Slide')
     this.buildSlideTypeRow(slide)
     // deck-wide page size: presets + custom. Elements keep their absolute
@@ -866,6 +870,101 @@ export class PropsPanel {
     fit.title = t('Crop the canvas to the drawing plus a 2 mm margin')
     fit.addEventListener('click', () => document.dispatchEvent(new CustomEvent('slidomingo:figure-fit')))
     this.host.appendChild(fit)
+  }
+
+  /** An icon set's panel: this icon (name, search words, what it shows, a
+   *  real-size preview), then the set (brief, the one style, licence) and its
+   *  actions. The actions run in the Editor (slidomingo:iconset events). */
+  private buildIconsetPanel() {
+    const doc = this.store.doc
+    const slide = this.store.slide
+    const info = iconsetInfo(doc)
+    if (!info) return
+    const act = (action: string) => () => document.dispatchEvent(new CustomEvent('slidomingo:iconset', { detail: { action } }))
+    const field = (value: string, multi: boolean, placeholder: string, onCommit: (v: string) => void): HTMLElement => {
+      const el = multi ? document.createElement('textarea') : document.createElement('input')
+      if (el instanceof HTMLTextAreaElement) { el.rows = 3; el.className = 'ed-iconset-text' }
+      else el.type = 'text'
+      el.value = value
+      el.placeholder = placeholder
+      el.maxLength = LIMITS.prose
+      el.addEventListener('change', () => onCommit(el.value))
+      return el
+    }
+    const setInfo = (next: IconsetInfo) => this.edit(() => writeIconsetInfo(this.store.doc, next), true)
+
+    this.section('Icon')
+    this.row('Name', field(slide.name ?? '', false, t('e.g. fingerprint'), (v) =>
+      this.edit(() => { if (v.trim()) this.store.slide.name = v.trim(); else delete this.store.slide.name }, true)))
+    this.row('Keywords', field((slide.icon?.keywords ?? []).join(', '), false, t('search words, comma separated'), (v) =>
+      this.edit(() => {
+        const s = this.store.slide
+        const keywords = v.split(',').map((k) => k.trim()).filter(Boolean).slice(0, 32)
+        const icon: NonNullable<Slide['icon']> = { ...s.icon, keywords }
+        if (!keywords.length) delete icon.keywords
+        if (Object.keys(icon).length) s.icon = icon; else delete s.icon
+      }, true)))
+    this.row('What it shows', field(slide.icon?.prompt ?? '', true, t('For Claude: e.g. a fingerprint inside a magnifying glass'), (v) =>
+      this.edit(() => {
+        const s = this.store.slide
+        const icon: NonNullable<Slide['icon']> = { ...s.icon, prompt: v.trim() }
+        if (!icon.prompt) delete icon.prompt
+        if (Object.keys(icon).length) s.icon = icon; else delete s.icon
+      }, true)))
+    const strip = document.createElement('div')
+    strip.className = 'ed-iconset-preview'
+    strip.title = t('Actual size: 16, 24, 32 and 48 px')
+    const url = iconPreviewUrl(this.store, slide.id)
+    for (const px of [16, 24, 32, 48]) {
+      const img = document.createElement('img')
+      img.src = url
+      img.width = img.height = px
+      img.alt = ''
+      img.style.background = slide.background // the icon on its own canvas
+      strip.appendChild(img)
+    }
+    this.host.appendChild(strip)
+
+    this.section('Icon set')
+    this.row('Brief', field(info.brief ?? '', true, t('What the set is for and how it should look'), (v) => {
+      const next = { ...info }
+      if (v.trim()) next.brief = v.trim(); else delete next.brief
+      setInfo(next)
+    }))
+    const st = info.style
+    this.row('Stroke (units)', this.number(st.strokeWidth, 0.25, (v) => v > 0 && v <= info.grid / 2 && setInfo(withStyle(info, { strokeWidth: v }))))
+    const CAPS: Record<string, IconsetStyle['cap']> = { Round: 'round', Square: 'square', Flat: 'butt' }
+    const JOINS: Record<string, IconsetStyle['join']> = { Round: 'round', Bevel: 'bevel', Miter: 'miter' }
+    const FILLS: Record<string, IconsetStyle['fill']> = { Outline: 'outline', Solid: 'solid', Duotone: 'duotone' }
+    const keyOf = <V,>(m: Record<string, V>, v: V) => Object.keys(m).find((k) => m[k] === v) ?? Object.keys(m)[0]
+    this.row('Line ends', this.select(Object.keys(CAPS), keyOf(CAPS, st.cap), (v) => setInfo(withStyle(info, { cap: CAPS[v] }))))
+    this.row('Corners', this.select(Object.keys(JOINS), keyOf(JOINS, st.join), (v) => setInfo(withStyle(info, { join: JOINS[v] }))))
+    this.row('Style', this.select(Object.keys(FILLS), keyOf(FILLS, st.fill), (v) => setInfo(withStyle(info, { fill: FILLS[v] }))))
+    this.row('Padding (units)', this.number(st.padding, 0.5, (v) => v >= 0 && v < info.grid / 2 && setInfo(withStyle(info, { padding: v }))))
+    this.row('Ink', this.color(st.color, (v, fin) => fin && setInfo(withStyle(info, { color: v }))))
+    this.row('License', field(info.license ?? '', false, t('e.g. CC-BY-4.0'), (v) => {
+      const next = { ...info }
+      if (v.trim()) next.license = v.trim(); else delete next.license
+      setInfo(next)
+    }))
+    this.row('Author', field(info.author ?? '', false, '', (v) => {
+      const next = { ...info }
+      if (v.trim()) next.author = v.trim(); else delete next.author
+      setInfo(next)
+    }))
+    const button = (label: string, title: string, action: string) => {
+      const b = document.createElement('button')
+      b.className = 'ed-btn ed-btn-block'
+      b.textContent = label
+      b.title = title
+      b.addEventListener('click', act(action))
+      this.host.appendChild(b)
+    }
+    if (window.slidomingoDesktop?.sendAgentPrompt) {
+      button(t('Draw with AI'), t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style'), 'draw')
+    }
+    button(t('Apply set style'), t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)'), 'style')
+    button(t('Export icon set…'), t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries'), 'export')
   }
 
   private buildMultiPanel(els: SlideElement[]) {

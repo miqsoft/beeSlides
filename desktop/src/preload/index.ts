@@ -226,8 +226,9 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
    *  agent-action-result-<id>.json and clears agent-action-<id>.json. */
   /** Types a prompt (named by `kind`; the text lives in main) into this
    *  window's Claude Code session — "Polish with Claude". `fix-comments`
-   *  carries the comments to list (main validates + formats them). */
-  sendAgentPrompt: (kind: 'polish' | 'fix-comments', comments?: unknown[]): void => ipcRenderer.send('slidomingo:agent-prompt', kind, comments),
+   *  carries the comments to list, `draw-icons` the icons to draw (main
+   *  validates + formats both). */
+  sendAgentPrompt: (kind: 'polish' | 'fix-comments' | 'draw-icons', payload?: unknown): void => ipcRenderer.send('slidomingo:agent-prompt', kind, payload),
   sendAgentActionResult: (result: { requestId: string; ok: boolean; [key: string]: unknown }): void =>
     ipcRenderer.send('slidomingo:agent-action-result', result),
   /** "Fix with Claude" on a PowerPoint import's report: the work list
@@ -276,7 +277,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   /** Most-recently-opened first — mirrors the native File ▸ Open Recent
    *  submenu so the in-app File dropdown (and the startup picker's Recent
    *  section) can show the same list. */
-  listRecent: (): Promise<{ path: string; openedAt: number; pinned?: boolean; figure?: boolean }[]> => ipcRenderer.invoke('slidomingo:list-recent'),
+  listRecent: (): Promise<{ path: string; openedAt: number; pinned?: boolean; figure?: boolean; iconset?: boolean }[]> => ipcRenderer.invoke('slidomingo:list-recent'),
 
   /** Older alias of openDocument(path): opens a recent file in place of
    *  this window's deck. */
@@ -353,7 +354,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   readLaunchDocument: (): Promise<{
     text: string | null; kind: 'file' | 'draft'; role: 'deck' | 'template'
     path: string; name: string | null; dir: string | null; mtimeMs: number | null
-    opened?: boolean; startIntent?: 'default-template' | 'new-template' | 'new-figure' | null
+    opened?: boolean; startIntent?: 'default-template' | 'new-template' | 'new-figure' | 'new-iconset' | null
   } | null> =>
     ipcRenderer.invoke('slidomingo:read-launch-document'),
 
@@ -383,6 +384,10 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
     | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string },
   ): Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }> =>
     ipcRenderer.invoke('slidomingo:export-figure', req),
+  /** Icon sets: native folder picker; main writes the SVGs + icons.json into
+   *  a subfolder named `folderName` (names and sizes checked in main). */
+  exportIconset: (req: { folderName: string; files: Array<{ name: string; text: string }> }): Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }> =>
+    ipcRenderer.invoke('slidomingo:export-iconset', req),
 
   /** One-click Present: main moves this window to the audience display (2+
    *  displays) and says whether to open the speaker view; presentEnd puts the
@@ -438,7 +443,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
     ipcRenderer.send('slidomingo:flush-result', msg),
 
   /** userData/Drafts, newest first (`open` = bound to a window right now). */
-  listDrafts: (): Promise<Array<{ path: string; title: string | null; mtimeMs: number; open: boolean; figure?: boolean }>> => ipcRenderer.invoke('slidomingo:list-drafts'),
+  listDrafts: (): Promise<Array<{ path: string; title: string | null; mtimeMs: number; open: boolean; figure?: boolean; iconset?: boolean }>> => ipcRenderer.invoke('slidomingo:list-drafts'),
   deleteDraft: (path: string): Promise<boolean> => ipcRenderer.invoke('slidomingo:delete-draft', path),
 
   /** Session backups of this window's file ("the file as opened"). */

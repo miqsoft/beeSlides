@@ -780,7 +780,7 @@ function checkAccessibility(
   }
 
   // ---- slide title
-  if (doc.kind === 'figure' || slide.stateOf) return
+  if (doc.kind === 'figure' || doc.kind === 'iconset' || slide.stateOf) return
   const texts = slide.elements.filter((e): e is TextElement => e.type === 'text' && !e.hidden)
   const titles = texts.filter((e) => e.role === 'title')
   if (titles.some((e) => writtenText(e.html))) return

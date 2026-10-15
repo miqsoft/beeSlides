@@ -72,6 +72,48 @@ export function fixCommentsPrompt(raw: unknown): string | null {
   return `${head}\n\n${items.join('\n')}${more}\n\n${FIX_COMMENTS_HOW}`
 }
 
+// --- "Draw with AI" in an icon set ----------------------------------------------
+
+/** At most this many icons are written out; the rest are counted. */
+export const MAX_LISTED_ICONS = 60
+
+const DRAW_ICONS_HOW =
+  'How to draw: read the set first with doc_info, whose iconset entry gives the grid, the style and pathElement, a ready path element in that style. ' +
+  'Each icon is the slide with that id. Build it ONLY from path elements like pathElement (shape path, the frame = the whole canvas, pathBox = the grid), so d is written in grid units: ' +
+  'keep every point inside the padding square, use the set stroke width, caps, joins and ink, whole or half units where you can, and as few, simple shapes as say the idea. ' +
+  'No text, no pictures, no svg elements. A filled detail (a dot) is a path with fill = the ink and no stroke. ' +
+  'Write each icon with write_slide (or insert_elements), look at it with review_slide and correct it until it reads clearly at 24 px and matches the other icons. ' +
+  'For more than about 6 icons, start subagents with a few icons each and run them in parallel: give each its slide ids, names and these instructions, and tell it to change nothing outside its slides. ' +
+  'End with a short list: each icon and what it shows.'
+
+/** The `draw-icons` message: the set brief and the icons to draw, each with
+ *  its slide number, name and what it should show, then how to draw. Every
+ *  field is document text, so each is cleaned like a comment. `null` when
+ *  nothing valid was given. */
+export function drawIconsPrompt(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  const { brief, icons } = raw as Record<string, unknown>
+  if (!Array.isArray(icons)) return null
+  const lines: string[] = []
+  let total = 0
+  for (const it of icons) {
+    if (!it || typeof it !== 'object') continue
+    const { slide, slideId, name, prompt } = it as Record<string, unknown>
+    if (typeof slide !== 'number' || !Number.isInteger(slide) || slide < 1 || slide > 100000) continue
+    if (typeof slideId !== 'string' || !ID_RE.test(slideId)) continue
+    total++
+    if (lines.length >= MAX_LISTED_ICONS) continue
+    const n = cleanLine(name, 60) || `icon ${slide}`
+    const what = cleanLine(prompt, 240)
+    lines.push(`${lines.length + 1}. Slide ${slide} “${n}”${what ? `: ${what}` : ''}  [slide id ${slideId}]`)
+  }
+  if (!total) return null
+  const set = cleanLine(brief, 600)
+  const head = total === 1 ? 'Please draw this icon of the icon set in this document:' : `Please draw these ${total} icons of the icon set in this document (one icon per slide):`
+  const more = total > lines.length ? `\n…and ${total - lines.length} more (the empty slides).` : ''
+  return `${head}\n\n${lines.join('\n')}${more}\n\n${set ? `The set: ${set}\n\n` : ''}${DRAW_ICONS_HOW}`
+}
+
 /** Text for a Claude Code pty: a multi-line message goes in as ONE bracketed
  *  paste so its newlines do not submit it line by line; the caller sends the
  *  Enter separately. */

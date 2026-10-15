@@ -61,6 +61,8 @@ export function isCatalogCommand(id: string): boolean {
 export const RIBBON_LAYOUT: Record<string, Array<{ id: string; caption: string }>> = {
   home: [
     { id: 'home:slides', caption: 'Slides' },
+    // an icon set's Home tab shows this in place of Slides
+    { id: 'home:icons', caption: 'Icons' },
     { id: 'home:format-painter', caption: 'Format Painter' },
     { id: 'home:reapply-change', caption: 'Reapply Change' },
     { id: 'home:arrange', caption: 'Arrange' },
@@ -304,6 +306,9 @@ export const TOOLBAR_ITEMS: readonly CatalogItem[] = [
   { id: 'pdf', label: 'Export PDF…' }, { id: 'notes', label: 'Notes' }, { id: 'layout-manager', label: 'Layout Manager…' },
   { id: 'view', label: 'View' }, { id: 'help', label: 'Help' },
   { id: 'present', label: 'Slideshow' }, { id: 'terminal', label: 'Claude Code Terminal' },
+  // an icon set's Home ▸ Icons group
+  { id: 'icon-add', label: 'Add icons' }, { id: 'icon-draw', label: 'Draw with AI' },
+  { id: 'icon-style', label: 'Apply set style' }, { id: 'icon-comment', label: 'Comment on icons' },
 ]
 /** Toolbar ids that no longer exist, still accepted (and dropped) in a saved
  *  profile: the globe became Settings ▸ General ▸ Language (2026-10-14). */

@@ -680,6 +680,8 @@ const SLIDE_CHECKS: Record<string, Check> = {
   excludeFromNumbering: bool,
   autoBuild: shape(['every', 'hold', 'loop'], { every: num(0.1, 3600), hold: num(0, 3600), loop: bool }, ['every']),
   advanceAfter: num(0.1, 86400),
+  // an icon set's per-icon search words and drawing brief
+  icon: shape(['keywords', 'prompt'], { keywords: list(32, str(LIMITS.scalar)), prompt: str(LIMITS.prose) }),
   // slide-type fields (a pasted doc.layouts entry): the master flag, the
   // footer switches (parentId and the fonts are with styleDefaults above)
   parentOnly: (v) => (v === true ? true : DROP),

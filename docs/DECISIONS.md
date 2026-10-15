@@ -12556,3 +12556,75 @@ remaining language-switching UI". View ▸ Language stays in the desktop app's
 native menu. The `language` toolbar id is retired (`RETIRED_TOOLBAR_ITEMS`), so a
 saved UI profile that hid or ordered it still loads without an error. The
 language remains the viewer's, never the file's.
+
+## 2026-10-15 — Icon sets: a doc kind for drawing icons in one style, drafted by AI from native paths
+
+People wanted their own icons (a forensics set, say) that look like one family,
+not a search through someone else's library. Figure mode could draw one icon,
+but nothing kept a set in one style, one export was one file, and the agent had
+no way to draw icons it was allowed to (2026-10-11: agents do not author SVG).
+
+- **Format: a doc kind, not a file format.** `doc.kind: 'iconset'` beside
+  `'figure'`, with `doc.iconset { grid (24), scale (px per unit, 16), brief?,
+  style { strokeWidth (units), cap, join, padding (units), fill
+  outline|solid|duotone, color }, license?, author? }` and per slide
+  `slide.icon { keywords?, prompt? }`; the slide's `name` is the icon's name.
+  Additive, no `requires`: an older build opens it as a plain deck. The
+  working file stays a `.beeslides.html` (undo, comments, history, sharing
+  for free). The portable form is the EXPORT: one SVG per icon plus
+  `icons.json` — a plain folder any tool can use, no new format to learn.
+- **Editor.** Gated on `doc.kind === 'iconset'` (`Editor.isIconset`;
+  `isCanvasDoc` = figure or icon set for what neither has: present, notes,
+  transitions, Design, slide types). Unlike a figure it KEEPS the slide list
+  and sorter — they are the icon grid. Home ▸ Icons (Add icons, Draw with AI,
+  Apply set style, Comment on icons) replaces Home ▸ Slides; "New slide" adds
+  icons by name. The Format panel shows the icon (name, keywords, what it
+  shows, a 16/24/32/48 px preview) and the set (brief, style, licence). The
+  canvas draws a keyline square + circle at the padding; the grid snaps to
+  one unit. New shapes start in the set style (`theme.styleDefaults` follows
+  the set).
+- **Apply set style** (`iconset.ts iconStylePatch`) writes the set's stroke
+  width, caps, joins and ink onto every shape of the chosen icons — one undo
+  step. It is the answer to drift (an agent's or a person's), so the style is
+  enforced deterministically instead of being argued in prompts.
+- **AI draws native paths only.** `doc_info.iconset` hands an agent the grid,
+  the style and `pathElement`: a complete path element in the set style on the
+  whole canvas with `pathBox` = the grid, so `d` is in grid units. The agent
+  copies it; svg stays refused (agentsvg.ts unchanged). "Draw with AI" sends
+  the empty icons (or the several selected) as the `draw-icons` prompt kind
+  (`agentprompts.ts drawIconsPrompt`, sanitized like fix-comments); the API
+  chat has a `draw-icons` skill, Claude Code the same rules in its launch
+  prompt and agents.md.
+- **Feedback is comments.** One icon: the ordinary comment → Send to Claude.
+  Several: "Comment on icons" writes the same comment on each icon selected
+  in the slide list and sends them — the existing `fix-comments` path and its
+  Accept/Reopen review, nothing new.
+- **Export** (`iconset.ts iconSlideSvg`) is built from the MODEL, not the
+  rendered DOM (unlike figure SVG): every shape becomes one `<path>` in grid
+  units (`viewBox="0 0 24 24"`, width/height 24), the ink becomes
+  `currentColor`, a path already drawn on the grid keeps its own `d` (arcs
+  intact). Path strokes render non-scaling on the canvas, so the canvas px
+  width is divided by `scale` — a DOM clone would have kept 32 px strokes on a
+  24 px icon. Only shapes are icon material; text, pictures and arrowheads are
+  reported, not exported. Desktop writes a subfolder of a picked folder
+  (`slidomingo:export-iconset`, names checked in main: `<slug>.svg`,
+  `icons.json`, `LICENSE.txt` only); the browser downloads a zip
+  (`kernel/src/convert/zip.ts writeZip`).
+- **Library.** A folder icon source reads any `icons.json` it finds:
+  names and keywords join the filename match, its licence/author go into each
+  icon's provenance. A folder without one behaves as before. So an exported
+  set is usable in Insert ▸ Icons and by the agent's `icons` tool as soon as
+  its folder is added — no new source kind. Opening a `.beeslides.html` icon
+  set directly as a source was considered and left out: it would mean parsing
+  documents inside the library and a second trust path, for no gain over the
+  exported folder.
+
+Not done: re-exporting into the same folder leaves files of deleted icons in
+place; Grid & Snap's spacing chips do not apply to icon sets (the grid is one
+unit); recolouring an inserted icon (still 2026-10-11's gap — `currentColor`
+SVGs make it possible later).
+Rigs: `scripts/test-iconset.ts` (pure: new doc, style patch, SVG, names,
+manifest), `scripts/test-iconset-e2e.mjs` (real editor: start page, gating,
+doc_info → write_slide, Apply set style, Draw with AI, multi-icon comment,
+export), `scripts/test-desktop-agentprompts.ts` (draw-icons prompt),
+`scripts/test-menu-model.ts` (icon-set menus), `scripts/test-desktop-docfile.ts`.

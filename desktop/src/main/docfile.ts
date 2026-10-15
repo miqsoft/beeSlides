@@ -24,10 +24,12 @@ export function rawDocBlockText(html: string): string | null {
   return (m[1] ?? '').trim()
 }
 
-/** Is this doc block a figure (doc.kind === 'figure')? Text-level check, so
- *  it works on raw blocks (refs, partial reads) without parsing. */
-export function isFigureDocText(blockText: string): boolean {
-  return /"kind"\s*:\s*"figure"/.test(blockText)
+/** The doc block's `kind` (a figure or an icon set), or null for a deck.
+ *  Text-level check, so it works on raw blocks (refs, partial reads) without
+ *  parsing. */
+export function docKindOfText(blockText: string): 'figure' | 'iconset' | null {
+  const m = /"kind"\s*:\s*"(figure|iconset)"/.exec(blockText)
+  return m ? (m[1] as 'figure' | 'iconset') : null
 }
 
 /** The document the file holds, as text a renderer can load: the doc block

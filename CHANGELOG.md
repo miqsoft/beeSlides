@@ -9,6 +9,15 @@ preserved.
 
 ## [Unreleased]
 
+- **Icon sets:** a new kind of document for drawing your own icons, all in one
+  style — a whole set or a single icon (start page ▸ Icons, desktop File ▸ New
+  Icon Set…). Describe the set, list the icons, and Claude drafts them from
+  editable shapes; comment on one icon or several to have them redrawn. Apply
+  set style keeps stroke width, ends, corners and colour consistent. Export
+  set writes 24 × 24 SVGs (colour follows the text, `currentColor`) with an
+  `icons.json`; add that folder as an icon library and the icons are
+  searchable by name and keyword, with their licence.
+
 ## [1.1.0] — 2026-10-14
 
 - **Speaker view:** extra slides are marked clearly, the laser pointer has its

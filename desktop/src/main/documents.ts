@@ -17,7 +17,7 @@ import {
   bindingFor, createDocumentWindow, draftsDir, dropPartition, goHome, hashPath, noteDocState, openBoundPaths, openPathsFrom,
   openSeededInWindow, readAppShell, readExampleDeck, readViewerShell, rebind, setWriting, launchTextFor, dropSeed, takeAnnounce, takeStartIntent, windowForDocWebContents,
 } from './windows.ts'
-import { backupsToPrune, decideWrite, extractDocBlockText, isFigureDocText, isInside, isTemplateHtml, looksLikeShell, rawDocBlockText, readTitle } from './docfile.ts'
+import { backupsToPrune, decideWrite, extractDocBlockText, docKindOfText, isInside, isTemplateHtml, looksLikeShell, rawDocBlockText, readTitle } from './docfile.ts'
 import { writeFileAtomic } from './fsutil.ts'
 import { addRecent } from './recent.ts'
 import { handleFrom, onFrom } from './ipcguard.ts'
@@ -186,9 +186,9 @@ async function saveDocumentAs(
   return { ok: true, path: target, name: basename(target) }
 }
 
-interface DraftInfo { path: string; title: string | null; mtimeMs: number; open: boolean; figure: boolean }
+interface DraftInfo { path: string; title: string | null; mtimeMs: number; open: boolean; figure: boolean; iconset: boolean }
 
-const draftTitleCache = new Map<string, { mtimeMs: number; title: string | null; figure: boolean }>()
+const draftTitleCache = new Map<string, { mtimeMs: number; title: string | null; kind: 'figure' | 'iconset' | null }>()
 
 export function listDrafts(): DraftInfo[] {
   let names: string[] = []
@@ -203,10 +203,10 @@ export function listDrafts(): DraftInfo[] {
       let cached = draftTitleCache.get(path)
       if (!cached || cached.mtimeMs !== mtimeMs) {
         const html = readFileSync(path, 'utf8')
-        cached = { mtimeMs, title: readTitle(html), figure: isFigureDocText(rawDocBlockText(html) ?? '') }
+        cached = { mtimeMs, title: readTitle(html), kind: docKindOfText(rawDocBlockText(html) ?? '') }
         draftTitleCache.set(path, cached)
       }
-      out.push({ path, title: cached.title, mtimeMs, open: open.has(resolve(path)), figure: cached.figure })
+      out.push({ path, title: cached.title, mtimeMs, open: open.has(resolve(path)), figure: cached.kind === 'figure', iconset: cached.kind === 'iconset' })
     } catch { /* vanished mid-scan */ }
   }
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs)

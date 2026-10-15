@@ -655,7 +655,21 @@ for the whole session. The details behind them:
   element, square at `size`, through the same sanitizer as a paste. Icons keep
   their own colours (no recolouring yet) — check they read on the background.
   When the library is not set up or unreachable, the error says so: tell the
-  user, and fall back to simple shapes rather than hand-written SVG.
+  user, and fall back to simple shapes rather than hand-written SVG. A folder
+  with an `icons.json` (an exported icon set) also matches its names and
+  keywords.
+- **Icon sets** — when `doc_info` says `kind: "iconset"`, the document IS an
+  icon set: one icon per slide, the slide `name` is the icon's name and
+  `slide.icon.prompt` what it shows (`outline` lists both). `doc_info.iconset`
+  gives the grid (24 units), the one style every icon shares and
+  `pathElement`, a complete path element in that style drawn on the whole
+  canvas with the grid as its `pathBox` — so `d` is written in grid units.
+  Draw icons only from copies of it (new `id` and `d`): every point inside
+  `paddingBox`, whole or half units, few simple shapes; a solid detail is a
+  path with the ink as `fill` and a transparent stroke. No text, pictures or
+  svg. Check each with `review_slide`. The user exports the set as SVGs with
+  the ink as `currentColor`; "Apply set style" corrects stroke drift, so keep
+  to the style rather than fighting it.
 - **`update_element`** — shallow-merges `props` into one element. Each key is
   checked against that element type's known keys and value rules (the same
   checks a paste goes through); one bad key refuses the whole call. `null`

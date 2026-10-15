@@ -105,7 +105,7 @@ async function boot() {
 // gate must still answer main's close request ("clean").
 let embedded: string | null = null
 let bound = false
-let startIntent: 'default-template' | 'new-template' | 'new-figure' | null = null
+let startIntent: 'default-template' | 'new-template' | 'new-figure' | 'new-iconset' | null = null
 // A template window (Edit Template, editor/templatewindow.ts): the bound file
 // is a template, edited as one.
 let templateMode = false
@@ -168,9 +168,10 @@ if (envelope) {
   // Whether this is OUR fresh blank deck or someone's document is knowable
   // only here — downstream the two are indistinguishable, and the difference
   // is what stops the return gate appearing over real work.
-  if (!parsed && !isDesktopShell() && location.hash === '#new-figure') {
-    // web entry to Figure mode: the start page's figure-size chooser, then the editor
-    void showStartupPicker({ startIntent: 'new-figure' }).then(({ doc, isFresh }) => bootWith(doc, isFresh))
+  if (!parsed && !isDesktopShell() && (location.hash === '#new-figure' || location.hash === '#new-iconset')) {
+    // web entry to Figure mode / icon sets: the start page's chooser, then the editor
+    const intent = location.hash === '#new-figure' ? 'new-figure' : 'new-iconset'
+    void showStartupPicker({ startIntent: intent }).then(({ doc, isFresh }) => bootWith(doc, isFresh))
   } else {
     bootWith(parsed || newDoc(), !parsed, templateMode && parsed ? 'template' : undefined)
   }

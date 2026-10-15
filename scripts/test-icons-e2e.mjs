@@ -425,7 +425,10 @@ try {
         try {
           const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('icons', { create: true })
           const sub = await dir.getDirectoryHandle('arrows', { create: true })
-          for (const [d, name, data] of [[dir, 'sun.svg', svg], [sub, 'arrow-left.svg', svg], [dir, 'readme.txt', 'not an icon']]) {
+          // an icons.json, as an exported icon set carries (iconset.ts iconManifest)
+          const manifest = JSON.stringify({ format: 'slidomingo-icons', version: 1, name: 'Mine', license: 'CC-BY-4.0', author: 'Icon Maker',
+            icons: [{ file: 'sun.svg', name: 'sun', keywords: ['daylight'] }] })
+          for (const [d, name, data] of [[dir, 'sun.svg', svg], [sub, 'arrow-left.svg', svg], [dir, 'readme.txt', 'not an icon'], [dir, 'icons.json', manifest]]) {
             const w = await (await d.getFileHandle(name, { create: true })).createWritable()
             await w.write(data); await w.close()
           }
@@ -473,6 +476,15 @@ try {
         await clickCell(p, 'arrow-left')
         const els = await slideEls(p)
         check(els.length === 1 && els[0].type === 'svg', 'inserting from the folder creates an svg element', els)
+        // the icons.json: its keywords are searched, its licence travels with the icon
+        await closePopover(p)
+        await openPopover(p)
+        await typeQuery(p, 'daylight')
+        c = await cells(p)
+        check(c.length === 1 && c[0].label === 'sun', 'icons.json keywords are searched (daylight → sun)', c.map((x) => x.label))
+        await clickCell(p, 'sun')
+        const sunEl = (await slideEls(p)).at(-1)
+        check(sunEl?.provenance?.license === 'CC-BY-4.0' && sunEl.provenance.author === 'Icon Maker', 'the manifest licence and author travel with the inserted icon', sunEl?.provenance)
         if (shots) await p.screenshot({ path: join(shots, 'icons-folder.png') })
 
         // folder + server in ONE search

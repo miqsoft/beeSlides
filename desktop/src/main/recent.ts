@@ -5,7 +5,7 @@
 import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, openSync, readSync, closeSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
-import { isFigureDocText } from './docfile.ts'
+import { docKindOfText } from './docfile.ts'
 
 interface RecentEntry {
   path: string
@@ -48,18 +48,18 @@ function writeAll(entries: RecentEntry[]): void {
   writeFileSync(p, JSON.stringify(entries, null, 2), 'utf8')
 }
 
-const figureCache = new Map<string, { mtimeMs: number; figure: boolean }>()
+const kindCache = new Map<string, { mtimeMs: number; kind: 'figure' | 'iconset' | null }>()
 
-/** Is this file a figure (doc.kind === 'figure')? Reads the #slidomingo-doc
+/** Is this file a figure or an icon set (doc.kind)? Reads the #slidomingo-doc
  *  block only — the first thing in a saved file's head — and stops at its
- *  closing tag; an encrypted or unreadable file is simply "not a figure". */
-function isFigureFile(path: string): boolean {
+ *  closing tag; an encrypted or unreadable file is simply a deck. */
+function fileDocKind(path: string): 'figure' | 'iconset' | null {
   try {
     const mtimeMs = statSync(path).mtimeMs
-    const hit = figureCache.get(path)
-    if (hit && hit.mtimeMs === mtimeMs) return hit.figure
+    const hit = kindCache.get(path)
+    if (hit && hit.mtimeMs === mtimeMs) return hit.kind
     const fd = openSync(path, 'r')
-    let figure = false
+    let kind: 'figure' | 'iconset' | null = null
     try {
       const buf = Buffer.alloc(1 << 20)
       let text = ''
@@ -72,21 +72,24 @@ function isFigureFile(path: string): boolean {
         const start = text.indexOf('id="slidomingo-doc"')
         if (start < 0) continue
         const end = text.indexOf('</script', start)
-        figure = isFigureDocText(text.slice(start, end < 0 ? undefined : end))
+        kind = docKindOfText(text.slice(start, end < 0 ? undefined : end))
         if (end >= 0) break
       }
     } finally { closeSync(fd) }
-    figureCache.set(path, { mtimeMs, figure })
-    return figure
+    kindCache.set(path, { mtimeMs, kind })
+    return kind
   } catch {
-    return false
+    return null
   }
 }
 
 /** Most-recently-opened first. Drops entries whose file no longer exists. */
-export function listRecent(): { path: string; openedAt: number; pinned: boolean; figure: boolean }[] {
+export function listRecent(): { path: string; openedAt: number; pinned: boolean; figure: boolean; iconset: boolean }[] {
   return readAll().filter((e) => existsSync(e.path)).sort((a, b) => b.openedAt - a.openedAt)
-    .map((e) => ({ path: e.path, openedAt: e.openedAt, pinned: !!e.pinned, figure: isFigureFile(e.path) }))
+    .map((e) => {
+      const kind = fileDocKind(e.path)
+      return { path: e.path, openedAt: e.openedAt, pinned: !!e.pinned, figure: kind === 'figure', iconset: kind === 'iconset' }
+    })
 }
 
 /** Every pinned entry, plus the MAX_RECENT newest unpinned ones. */

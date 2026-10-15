@@ -170,6 +170,16 @@ name entries there).
   the `<g>`. Verify with `rsvg-convert`/`pdftoppm` vs a canvas screenshot; `pdffonts`/`pdftotext`
   prove the PDF is not rasterised.
 
+## Icon sets (DECISIONS 2026-10-15)
+
+- `doc.kind === 'iconset'`; `.ed-iconset` hides `ed-slides-only` unless it also carries
+  `ed-iconset-too` (slide list, sorter). `Editor.isCanvasDoc` = figure or icon set.
+- Pure side in `iconset.ts` (style patch, model → SVG, file names, `icons.json`); editor glue in
+  `editor/iconsetactions.ts`. The export reads the MODEL, never the DOM: path strokes are
+  non-scaling on the canvas, so stroke px ÷ `scale` = grid units.
+- Agents draw icons only as path shapes (copies of `doc_info.iconset.pathElement`); svg stays
+  refused. Rigs: `test-iconset.ts`, `test-iconset-e2e.mjs`.
+
 ## Rigs worth knowing (all in `scripts/`)
 
 - `test-sanitize.ts`, `test-rich-text.ts`, `test-table-merge.ts`, `test-layoutguard.ts`,

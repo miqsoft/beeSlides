@@ -69,7 +69,12 @@
 //   (b) a local FOLDER via showDirectoryPicker() — same File System Access
 //       API family already used for save/open (see ../save.ts). No server
 //       needed at all, so it has no CORS problem; filtering is a plain
-//       filename substring match.
+//       filename substring match. An `icons.json` in the folder (or any
+//       subfolder) — what an exported icon set carries (../iconset.ts
+//       iconManifest: `{ license?, author?, icons: [{ file, name, keywords? }] }`,
+//       `file` relative to the manifest) — adds its names and keywords to that
+//       match and its licence/author to each icon's provenance; a malformed one
+//       is ignored. Without one, nothing changes.
 //
 // SECURITY. A remote, user-configurable server cannot be trusted to have
 // sanitized what it serves (a server may sanitize SVGs on upload, but
@@ -92,6 +97,7 @@ import { lsGet, lsSet } from '../../../kernel/src/storage.ts'
 import { netFetch, OfflineError, offlineEnabled, remoteSrcBlocked } from '../../../kernel/src/net.ts'
 import { defaultImage, uid, type SlidomingoDoc, type ImageElement, type Provenance, type SlideElement, type SvgElement } from '../model'
 import { positionFloating } from './floatingposition'
+import { ICON_MANIFEST_FILE, manifestMatches, parseIconManifest, type ManifestEntry } from '../iconset'
 
 // --- sources: settings persistence -------------------------------------------
 
@@ -479,19 +485,25 @@ function thumbUrl(root: string, pngUrl: unknown): string | undefined {
 
 // --- source (b): local folder ---------------------------------------------------
 
-interface FolderEntry { name: string; path: string; handle: FileSystemFileHandle }
+interface FolderEntry { name: string; path: string; handle: FileSystemFileHandle; meta?: ManifestEntry }
+
+/** An icons.json bigger than this is not a manifest anyone wrote by hand or export. */
+const MAX_MANIFEST_BYTES = 4 * 1024 * 1024
 
 const folderEntryCache = new WeakMap<FileSystemDirectoryHandle, FolderEntry[]>()
 
-async function walkFolder(dir: FileSystemDirectoryHandle, prefix = '', depth = 0): Promise<FolderEntry[]> {
+async function walkFolder(
+  dir: FileSystemDirectoryHandle, manifests: Array<{ prefix: string; handle: FileSystemFileHandle }>, prefix = '', depth = 0,
+): Promise<FolderEntry[]> {
   if (depth > 4) return [] // arbitrary depth cap — a runaway symlink loop must not hang the search
   const out: FolderEntry[] = []
   for await (const entry of (dir as any).values()) {
     if (out.length >= 4000) break // cap so a huge tree still returns promptly
     if (entry.kind === 'file') {
       if (ICON_EXTS.has(extOf(entry.name))) out.push({ name: entry.name, path: prefix + entry.name, handle: entry })
+      else if (entry.name.toLowerCase() === ICON_MANIFEST_FILE) manifests.push({ prefix, handle: entry })
     } else if (entry.kind === 'directory') {
-      out.push(...await walkFolder(entry, `${prefix}${entry.name}/`, depth + 1))
+      out.push(...await walkFolder(entry, manifests, `${prefix}${entry.name}/`, depth + 1))
     }
   }
   return out
@@ -500,7 +512,20 @@ async function walkFolder(dir: FileSystemDirectoryHandle, prefix = '', depth = 0
 async function folderEntries(dir: FileSystemDirectoryHandle): Promise<FolderEntry[]> {
   const cached = folderEntryCache.get(dir)
   if (cached) return cached
-  const entries = await walkFolder(dir)
+  const manifests: Array<{ prefix: string; handle: FileSystemFileHandle }> = []
+  const entries = await walkFolder(dir, manifests)
+  for (const m of manifests) {
+    try {
+      const file = await m.handle.getFile()
+      if (file.size > MAX_MANIFEST_BYTES) continue
+      const meta = parseIconManifest(await file.text())
+      for (const e of entries) {
+        if (!e.path.startsWith(m.prefix)) continue
+        const hit = meta.get(e.path.slice(m.prefix.length).toLowerCase())
+        if (hit) e.meta = hit
+      }
+    } catch { /* an unreadable manifest is no manifest */ }
+  }
   folderEntryCache.set(dir, entries)
   return entries
 }
@@ -508,14 +533,16 @@ async function folderEntries(dir: FileSystemDirectoryHandle): Promise<FolderEntr
 async function searchFolder(dir: FileSystemDirectoryHandle, source: string, license: string | undefined, q: string): Promise<IconResult[]> {
   const entries = await folderEntries(dir)
   const query = q.trim().toLowerCase()
-  const filtered = query ? entries.filter((e) => e.name.toLowerCase().includes(query)) : entries
+  const filtered = query ? entries.filter((e) => manifestMatches(query, e.name, e.meta)) : entries
   return filtered.slice(0, 60).map((e): IconResult => {
     const ext = extOf(e.name)
     return {
       source,
-      name: e.name,
+      name: e.meta?.name ?? e.name,
+      ...(e.meta?.keywords.length ? { description: e.meta.keywords.join(', ') } : {}),
       ext,
-      provenance: makeProvenance({ origin: source, license }),
+      // the manifest's own licence wins: it travels with those files
+      provenance: makeProvenance({ origin: source, license: e.meta?.license ?? license, author: e.meta?.author }),
       preview: async () => {
         const file = await e.handle.getFile()
         const url = URL.createObjectURL(file)

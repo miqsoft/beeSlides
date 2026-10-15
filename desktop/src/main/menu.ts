@@ -133,6 +133,11 @@ const SLOTS: Record<string, (c: Ctx) => MenuItemConstructorOptions[]> = {
       // the start page, straight on its figure-size chooser (vector PDF/SVG export)
       click: () => createDocumentWindow(null, { startIntent: 'new-figure' }),
     },
+    {
+      label: c.L('New Icon Set…'),
+      // the start page, straight on the icon-set setup (name, brief, icons)
+      click: () => createDocumentWindow(null, { startIntent: 'new-iconset' }),
+    },
   ],
   'file-open': (c) => [
     { label: c.L('Open…'), accelerator: 'CmdOrCtrl+O', click: () => { void openViaDialog() } },

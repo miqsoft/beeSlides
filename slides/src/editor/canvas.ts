@@ -10,6 +10,7 @@ import type { Store } from '../store'
 import { effectiveCanvasSize } from '../store'
 import { t } from '../i18n'
 import { ancestorElementIds, defaultShape, effectiveLayout, internAsset, lineDefaultsFor, normalizeCrop, shapeDefaultsFor, uid, type ShapeElement, type Slide, type SlideElement, type TableElement } from '../model'
+import { iconsetInfo } from '../iconset'
 import { isBackdrop as isBackdropBox, renderSlide, sanitizeHtml } from '../render'
 import { anim } from '../anim'
 import { previewBuilds, previewSlideFx, type BuildPreview } from '../present'
@@ -104,6 +105,8 @@ export class SlideCanvas {
   /** Persistent safe-zone margin guide — purely visual, toggled from the
    *  View menu, state kept in localStorage (never the document). */
   private safeZoneLayer: HTMLElement | null = null
+  /** icon sets: the keyline square + circle (padding) over the icon canvas */
+  private keylineLayer: HTMLElement | null = null
   /** Drawing grid (slides and figures): `gridStep` model px, 0 = off. Drags snap firmly to it (wireMoveable), resizes through Moveable's own grid, points via snapPoint(). */
   private gridLayer: HTMLElement | null = null
   private gridStep = 0
@@ -580,6 +583,7 @@ export class SlideCanvas {
     this.comments?.refresh()
     this.updateSafeZone()
     this.updateGrid()
+    this.updateKeyline()
     this.refreshSnap()
     this.updateBuildBadges()
     if (this.cropMode?.active) this.cropMode.draw()
@@ -986,6 +990,43 @@ export class SlideCanvas {
     this.safeZoneLayer.style.height = `${height}px`
     this.safeZoneLayer.style.setProperty('--sz-margin', `${margin}px`)
     this.safeZoneLayer.style.borderWidth = `0 ${1.5 * inv}px`
+  }
+
+  /** Icon sets: the padding square and the circle inside it, the guides icon
+   *  designers keep shapes on (`iconset.style.padding`). Editor-only, like the
+   *  safe zone; hidden from agent screenshots (`.ed-capturing`). */
+  private updateKeyline() {
+    const info = iconsetInfo(this.store.doc)
+    if (!info || this.pageless) {
+      this.keylineLayer?.remove()
+      this.keylineLayer = null
+      return
+    }
+    if (!this.keylineLayer) {
+      this.keylineLayer = document.createElement('div')
+      this.keylineLayer.className = 'ed-keyline'
+      this.keylineLayer.setAttribute('aria-hidden', 'true')
+    }
+    this.scaleHost.appendChild(this.keylineLayer)
+    const { width, height } = this.store.doc.size
+    const g = info.grid, p = Math.min(Math.max(info.style.padding, 0), g / 2)
+    const inv = 1 / (this.scale || 1)
+    const svgNs = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNs, 'svg')
+    svg.setAttribute('viewBox', `0 0 ${g} ${g}`)
+    svg.setAttribute('width', String(width))
+    svg.setAttribute('height', String(height))
+    const sw = String(inv / info.scale)
+    const add = (tag: string, attrs: Record<string, string | number>) => {
+      const n = document.createElementNS(svgNs, tag)
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v))
+      n.setAttribute('fill', 'none')
+      n.setAttribute('stroke-width', sw)
+      svg.appendChild(n)
+    }
+    add('rect', { x: p, y: p, width: g - 2 * p, height: g - 2 * p })
+    add('circle', { cx: g / 2, cy: g / 2, r: g / 2 - p })
+    this.keylineLayer.replaceChildren(svg)
   }
 
   // --- zoom ------------------------------------------------------------------

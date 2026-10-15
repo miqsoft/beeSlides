@@ -1550,7 +1550,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 .ed-capturing .moveable-control-box, .ed-capturing .ed-lineedit, .ed-capturing .ed-safezone,
 .ed-capturing .ed-comment-layer, .ed-capturing .ed-comment-hl, .ed-capturing .ed-comment-chip,
 .ed-capturing .slidomingo-col-handle, .ed-capturing .ed-zoombar, .ed-capturing .ed-present-pill,
-.ed-capturing .ed-minibar, .ed-capturing .ed-grid, .ed-capturing .ed-layoutgrid,
+.ed-capturing .ed-minibar, .ed-capturing .ed-grid, .ed-capturing .ed-layoutgrid, .ed-capturing .ed-keyline,
 .ed-capturing .ed-guides { visibility: hidden !important; }
 .ed-capturing .slidomingo-el-table td.slidomingo-cell-sel { box-shadow: none !important; }
 
@@ -4059,6 +4059,18 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 
 /* Figure mode: no slide list, present mode or notes; the grid is a canvas-only guide */
 .ed-figure .ed-notes-pane, .ed-figure .ed-notes-resizer, .ed-figure .ed-slides-only, .ed-figure .ed-sidebar, .ed-figure .ed-sidebar + .ed-resizer { display: none !important; }
+/* Icon sets keep the slide list (one icon per slide) and the sorter, nothing else of a deck */
+.ed-iconset .ed-notes-pane, .ed-iconset .ed-notes-resizer, .ed-iconset .ed-slides-only:not(.ed-iconset-too) { display: none !important; }
+.ed-row textarea.ed-iconset-text {
+  flex: 1 1 100%; width: 100%; box-sizing: border-box; resize: vertical;
+  font: inherit; font-size: 12.5px; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 6px; color: var(--ink);
+}
+.ed-iconset-preview { display: flex; align-items: flex-end; gap: 12px; padding: 10px 12px; margin: 4px 0 8px; border-radius: 6px; background: var(--chrome-2, #f3f3f3); }
+.ed-iconset-preview img { display: block; border-radius: 2px; }
+.ed-keyline { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 28; }
+.ed-keyline svg { display: block; overflow: visible; }
+.ed-keyline rect, .ed-keyline circle { stroke: rgb(214 51 159 / 0.45); }
 .ed-grid { position: absolute; left: 0; top: 0; pointer-events: none; }
 
 /* Grid & Snap (editor/gridsnap.ts, canvas.ts updateLayoutGrid/updateGuides).
