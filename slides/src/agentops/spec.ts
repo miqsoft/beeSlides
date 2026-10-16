@@ -343,7 +343,7 @@ export const ICONS_AREA = {
         tile: { type: 'string', description: 'A badge behind the icon.', enum: ['none', 'circle', 'square', 'rounded'] },
         tileColor: { type: 'string', description: 'Badge colour, CSS hex.' },
       },
-      details: 'Only in an icon set. Every icon is painted in the style from its own drawing: each path is a body, detail or accent part (its iconPart, else guessed: big closed shapes are body, lines and small shapes detail). The user sees the styles in the panel and the export writes one folder per style. A style with the same name is replaced.',
+      details: 'Only in an icon set. Every icon is painted in the style from its own drawing: each path is a body, detail or accent part (its iconPart, else guessed: big closed shapes are body, lines and small shapes detail). The user sees the styles in the panel and the export writes one folder per style. A style with the same name is replaced. A style only repaints: a look that needs other shapes (hand-drawn, more detail, other proportions) is a change of the set\'s drawing style (brief, examples) plus a redraw, not a style.',
     },
     tweak: {
       summary: 'icon sets only: paint some shapes of ONE icon their own way in one style (fill, line colour, hidden), or reset them — the drawing and the other styles stay',

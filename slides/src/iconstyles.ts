@@ -2,7 +2,7 @@
 // Copyright (c) 2026 The BeeSlides authors
 //
 // Icon styles (docs/DECISIONS.md, "Icon styles"): an icon set's drawings,
-// painted in more looks — bold, solid, colour, comic, sticker, sketch, badge —
+// painted in more looks — bold, solid, colour, comic, sticker, badge —
 // with nothing redrawn. A look (`IconLook`, model.ts) is a recipe: outline
 // weight and colour, a fill per part of the icon (body / detail / accent),
 // details cut out of a solid body, a hard shadow, a sticker border, a
@@ -15,13 +15,16 @@
 //   - `readLook`         untrusted input (AI op, pasted style, My styles) → a look
 //   - `setTweak`         one shape of one icon painted its own way in a look
 //   - `learnLookFromIcon`  a look read off an icon someone painted by hand
-//   - `learnLookFromSvgStats`  a look read off other people's SVG icons
+//
+// A style only repaints: a look that needs other shapes (hand-drawn, more
+// detail, other proportions) is the set's DRAWING style — its brief and
+// example icons (iconexamples.ts), which Claude reads before drawing.
 //
 // Pure — no DOM, no i18n — so scripts/test-iconstyles.ts runs it in node.
 // Opened files skip untrusted.ts, so everything that reaches markup passes
 // `safeColor` / clamps here, at render time.
 
-import type { IconLook, IconPaint, IconShapeTweak, IconsetStyle, Slide, SlidomingoDoc } from './model.ts'
+import type { IconLook, IconPaint, IconShapeTweak, Slide, SlidomingoDoc } from './model.ts'
 import { ICONSET_STYLE_DEFAULTS, uid } from './model.ts'
 import { escXml, iconShapes, iconsetInfo, isNoPaint, n3, normColor, type IconShape, type IconSvg } from './iconset.ts'
 import { segsBBox, segsToD, type Seg } from './svgpath.ts'
@@ -231,8 +234,6 @@ export interface LookPreset {
 }
 
 export const LOOK_PRESETS: readonly LookPreset[] = [
-  { id: 'outline', name: 'Outline', hint: 'Lines only, in the set ink',
-    make: (ink) => ({ stroke: { weight: 1, color: ink } }) },
   { id: 'bold', name: 'Bold', hint: 'Heavier lines for small sizes and dark backgrounds',
     make: (ink) => ({ stroke: { weight: 1.5, color: ink } }) },
   { id: 'light', name: 'Light', hint: 'Thin lines for large sizes',
@@ -247,8 +248,6 @@ export const LOOK_PRESETS: readonly LookPreset[] = [
     make: () => ({ stroke: { weight: 1.4, color: '#111111', cap: 'round', join: 'round' }, fill: { body: { color: '#ffd23f' }, accent: { color: '#ff4f6d' } }, shadow: { dx: 0.9, dy: 0.9, color: '#111111' } }) },
   { id: 'sticker', name: 'Sticker', hint: 'Color icon with a white die-cut border',
     make: () => ({ stroke: { weight: 1.1, color: '#1f2937', cap: 'round', join: 'round' }, fill: { body: { color: '#a7f3d0' }, accent: { color: '#f472b6' } }, halo: { width: 1.6, color: '#ffffff' }, shadow: { dx: 0, dy: 0.6, color: '#000000', opacity: 0.25 } }) },
-  { id: 'sketch', name: 'Sketch', hint: 'Hand-drawn lines with a light wash',
-    make: (ink) => ({ stroke: { weight: 0.9, color: ink, cap: 'round', join: 'round' }, fill: { body: { color: ink, opacity: 0.08 } }, sketch: 0.7 }) },
   { id: 'badge', name: 'Badge', hint: 'White icon on a colored circle',
     make: () => ({ stroke: { weight: 1.3, color: '#ffffff' }, fill: { accent: { color: '#fde047' } }, tile: { shape: 'circle', color: '#4f46e5', scale: 0.62 } }) },
 ]
@@ -503,62 +502,5 @@ export function learnLookFromIcon(doc: SlidomingoDoc, slide: Slide): Omit<IconLo
   if (Object.keys(fill).length) look.fill = fill
   // a filled body with the ink and details on top in another colour reads as solid
   if (fill.body && normColor(fill.body.color) === color && (fill.body.opacity ?? 1) === 1) look.knockout = true
-  return look
-}
-
-/** One painted element of someone else's SVG icon, as the editor read it. */
-export interface SvgPaintStat {
-  /** null = not stroked */
-  stroke: string | null
-  /** stroke width in OUR grid units (already scaled from the file's viewBox) */
-  strokeWidth: number
-  /** null = not filled */
-  fill: string | null
-  opacity: number
-  cap?: string
-  join?: string
-}
-
-/**
- * A look read off other people's icons (one or several SVG files): the usual
- * stroke weight, colour, caps and joins; fills ranked by how often they occur
- * (most → body, next → accent). `currentColor` stands for `ink`.
- */
-export function learnLookFromSvgStats(stats: readonly SvgPaintStat[], base: IconsetStyle, ink: string): Omit<IconLook, 'id' | 'name'> | null {
-  if (!stats.length) return null
-  const norm = (c: string) => (c.trim().toLowerCase() === 'currentcolor' ? normColor(ink) : normColor(c))
-  const stroked = stats.filter((s) => s.stroke && !isNoPaint(s.stroke) && s.strokeWidth > 0)
-  const color = mode(stroked.map((s) => norm(s.stroke!))) ?? mode(stats.filter((s) => s.fill).map((s) => norm(s.fill!))) ?? normColor(ink)
-  const w = median(stroked.map((s) => s.strokeWidth))
-  const look: Omit<IconLook, 'id' | 'name'> = {
-    stroke: { weight: r2(Math.min(4, Math.max(0.25, (w ?? base.strokeWidth) / (base.strokeWidth || 1)))), color: safeColor(color) },
-  }
-  const cap = oneOf(mode(stroked.map((s) => s.cap).filter(Boolean)), ['round', 'square', 'butt'] as const)
-  const join = oneOf(mode(stroked.map((s) => s.join).filter(Boolean)), ['round', 'bevel', 'miter'] as const)
-  if (cap) look.stroke.cap = cap
-  if (join) look.stroke.join = join
-  const fills = stats.filter((s) => s.fill && !isNoPaint(s.fill))
-  if (!stroked.length && fills.length) {
-    // a filled icon family (no strokes at all): solid
-    look.fill = { body: { color: safeColor(color) } }
-    look.knockout = true
-    return look
-  }
-  const ranked = new Map<string, { n: number; op: number[] }>()
-  for (const s of fills) {
-    const c = norm(s.fill!)
-    if (c === normColor(color) && s.opacity >= 1) continue // ink-coloured dots are linework
-    const e = ranked.get(c) ?? { n: 0, op: [] }
-    e.n++
-    e.op.push(s.opacity)
-    ranked.set(c, e)
-  }
-  const order = [...ranked.entries()].sort((a, b) => b[1].n - a[1].n)
-  const paint = (e: [string, { n: number; op: number[] }]): IconPaint => {
-    const op = median(e[1].op) ?? 1
-    return op < 1 ? { color: safeColor(e[0]), opacity: r2(op) } : { color: safeColor(e[0]) }
-  }
-  if (order[0]) look.fill = { body: paint(order[0]) }
-  if (order[1]) look.fill = { ...look.fill, accent: paint(order[1]) }
   return look
 }

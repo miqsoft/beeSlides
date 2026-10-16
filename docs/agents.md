@@ -664,6 +664,9 @@ for the whole session. The details behind them:
   gives the grid (24 units), the one style every icon shares and
   `pathElement`, a complete path element in that style drawn on the whole
   canvas with the grid as its `pathBox` — so `d` is written in grid units.
+  `doc_info.iconset.examples` (when there) are icons the user likes, as SVG
+  text from other libraries: draw LIKE them (line weight, corner rounding,
+  amount of detail, proportions) with your own paths, never copies.
   Asked for icons in the user's own words, PLAN first: one `icons` call, op
   `plan`, with `[{name, prompt, keywords}]` — it creates empty, named icons
   and draws nothing; the user reviews them and presses Draw with AI.
@@ -678,7 +681,9 @@ for the whole session. The details behind them:
   (`doc_info.iconset.variants` — solid, colour, comic, sticker, badge …)
   repaint the same drawings part by part. When the user describes a look,
   add it with ONE `icons` call, op `style` (name, weight, colour, part fills,
-  only the extras asked for); never redraw icons for a style. A comment
+  only the extras asked for); never redraw icons for a style. A style only
+  repaints: a look that needs other shapes (hand-drawn, more detail) is a
+  change of the drawing style (brief, examples) and a redraw. A comment
   carrying `style` (in `comments`) is about the icon as painted in that style:
   change only that icon there with op `tweak` (its shapes' own fill, line
   colour, or hidden in that style), every icon with op `style`.

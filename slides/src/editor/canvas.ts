@@ -1936,7 +1936,7 @@ export class SlideCanvas {
       b.addEventListener('click', () => this.store.showLook(id))
       bar.appendChild(b)
     }
-    chip(t('Plain'), null, t('The icon as drawn, in the set style'))
+    chip(t('As drawn'), null, t('The icon as drawn, in the set style'))
     for (const l of looks) {
       const tweaked = !!l.tweaks?.[sid]
       chip(l.name, l.id, tweaked

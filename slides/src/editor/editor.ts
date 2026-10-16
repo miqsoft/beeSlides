@@ -105,6 +105,7 @@ import { commentStats, sendCommentsToClaude } from './comments'
 import { openPlanIcons } from './iconplan'
 import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, lookPreviewUrl, planIconsWithAi } from './iconsetactions'
 import { addIconNames, iconsetInfo } from '../iconset'
+import { exampleSvg, readIconExamples } from '../iconexamples'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
   desktopStatus, desktopStatusSource, desktopWritesDisabled, desktopWritesSettled, markDesktopProblem,
@@ -2345,7 +2346,7 @@ export class Editor {
       const variants = icons ? this.store.doc.iconset?.variants ?? [] : []
       looks.hidden = !variants.length
       const shown = this.store.shownLook?.id ?? null
-      for (const [name, id] of [[t('Plain'), null], ...variants.map((l) => [l.name, l.id])] as Array<[string, string | null]>) {
+      for (const [name, id] of [[t('As drawn'), null], ...variants.map((l) => [l.name, l.id])] as Array<[string, string | null]>) {
         const b = document.createElement('button')
         b.type = 'button'
         b.className = 'ed-setchip' + (id === shown ? ' active' : '')
@@ -5604,8 +5605,11 @@ export class Editor {
     if (!info) return undefined
     const st = info.style
     const { width, height } = this.store.doc.size
+    // the examples as SVG text: what an agent reads, not the stored structure
+    const examples = readIconExamples(info.examples).map((ex) => ({ name: ex.name, svg: exampleSvg(ex) }))
     return {
       ...info,
+      examples: examples.length ? examples : undefined,
       paddingBox: [st.padding, st.padding, info.grid - st.padding, info.grid - st.padding],
       pathElement: {
         type: 'shape', shape: 'path', x: 0, y: 0, w: width, h: height, rotation: 0, opacity: 1, radius: 0,
@@ -5614,7 +5618,8 @@ export class Editor {
       },
       note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent. ' +
         'Add iconPart to every path (pathElement has none, so a copy is guessed): body = the main closed silhouette(s), detail = inner lines and dots, accent = at most one small closed highlight. ' +
-        'variants are the set\'s extra styles (icons op style adds one): they repaint the same drawings, so never redraw an icon for a style. ' +
+        'examples (when there) are icons the user likes, from other libraries: draw like them — the same line weight, corner rounding, amount of detail and proportions — but draw your own paths, never copy theirs. ' +
+        'variants are the set\'s extra styles (icons op style adds one): they only repaint the same drawings, so never redraw an icon for a style. ' +
         'A variant\'s tweaks (slide id → element id → fill/stroke/hide) paint single icons their own way in it (icons op tweak).',
     }
   }

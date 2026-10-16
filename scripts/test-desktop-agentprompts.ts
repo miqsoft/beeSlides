@@ -117,11 +117,13 @@ ok(planned.includes('icons op plan') && planned.includes('Do NOT draw'), 'it say
 ok(!SHELL_UNSAFE.test(planned) && !planned.includes('\x1b'), 'the request cannot break the shell quoting or the paste')
 ok(planIconsPrompt({ request: '  ' }) === null && planIconsPrompt(null) === null, 'an empty request gives no message')
 ok(icons.includes('iconPart'), 'drawing asks for a part on every path (for the other styles)')
+ok(icons.includes('If it has examples') && icons.includes('never copy theirs') && icons.includes('the pathElement, the examples and'), 'drawing works from the example icons, passes them to subagents, never copies them')
 
 // --- "Describe a style" (styleIconsPrompt) ----------------------------------------
 const styled = styleIconsPrompt({ request: `comic, yellow, thick lines ${nasty}`, brief: 'forensics' })!
 ok(styled.startsWith('Please add a style') && styled.includes('comic, yellow, thick lines'), 'the look is passed on in the user\'s words')
 ok(styled.includes('icons op style') && styled.includes('Do not draw'), 'one style call, nothing redrawn')
+ok(styled.includes('a style cannot do it') && styled.includes('Drawing section'), 'a look that needs other shapes is sent to the drawing style instead')
 ok(!SHELL_UNSAFE.test(styled) && !styled.includes('\x1b'), 'the description cannot break the shell quoting or the paste')
 ok(styleIconsPrompt({ request: '' }) === null && styleIconsPrompt(7) === null, 'an empty description gives no message')
 

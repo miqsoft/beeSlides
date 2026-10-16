@@ -183,6 +183,10 @@ name entries there).
   `iconstyles.ts iconLookSvg` from `iconset.iconShapes` — never redraw for a style. Every
   untrusted look goes through `readLook`; colours pass `safeColor` again at render.
   `pathElement` must not carry an `iconPart` (copies would all be body). Rig `test-iconstyles.ts`.
+- Drawing vs Styles (DECISIONS 2026-10-16): `iconset.style` + `brief` + `examples` are how icons
+  are DRAWN (Claude reads them first); `variants` only repaint. Example icons are stored only
+  through `iconexamples.ts readIconExample` (allowlist, no text/url/quotes) and re-read where
+  used; agents get them as SVG text and must not copy them. Rig `test-iconexamples.ts`.
 - The style shown on the canvas is `store.iconLook` (view state, never saved; read `shownLook`).
   Per-icon changes in a style are `IconLook.tweaks[slideId][elementId]`; they never leave the
   set (`lookRecipe` for My styles / Copy style). In an icon set no shape is a click-through

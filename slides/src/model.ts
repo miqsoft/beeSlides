@@ -3771,11 +3771,30 @@ export interface IconsetInfo {
   /** what the whole set is for and how it should look, in words */
   brief?: string
   style: IconsetStyle
+  /** icons someone likes (any library), for Claude to draw new icons like:
+   *  the drawing side of the style, read before drawing. Paint and geometry
+   *  attributes only, cleaned (iconexamples.ts); never exported or inserted. */
+  examples?: IconExample[]
   /** more looks of the same drawings (outline, comic, colour …), each exported
    *  into its own folder. See iconstyles.ts. */
   variants?: IconLook[]
   license?: string
   author?: string
+}
+
+/** One example icon (IconsetInfo.examples): its shapes flattened, each with
+ *  its inherited paint and transforms written out. */
+export interface IconExample {
+  /** the file it came from, without .svg */
+  name: string
+  viewBox: [number, number, number, number]
+  shapes: IconExampleShape[]
+}
+
+export interface IconExampleShape {
+  tag: 'path' | 'circle' | 'ellipse' | 'rect' | 'line' | 'polyline' | 'polygon'
+  /** SVG attributes (geometry, paint, transform), each passed iconexamples.ts readers */
+  a: Record<string, string>
 }
 
 /** One paint of an icon style: a colour and how much of it. */

@@ -4221,6 +4221,22 @@ body:has(.ed-lookbar) .ed-toast { bottom: 70px; }
 }
 .ed-iconset-preview { display: flex; align-items: flex-end; gap: 12px; padding: 10px 12px; margin: 4px 0 8px; border-radius: 6px; background: var(--chrome-2, #f3f3f3); }
 .ed-iconset-preview img { display: block; border-radius: 2px; }
+/* example icons (panels.ts buildIconDrawing): what Claude draws like; click one to remove it */
+.ed-iconset-examples { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex: 1 1 auto; min-width: 0; }
+.ed-iconset-example {
+  position: relative; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 0;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--look-paper, var(--field)); color: var(--muted); cursor: pointer;
+}
+.ed-iconset-example img { display: block; }
+.ed-iconset-example:not(.ed-iconset-example-add):hover::after {
+  content: '×'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  border-radius: 5px; font-size: 16px; color: var(--ink); background: color-mix(in srgb, var(--chrome) 78%, transparent);
+}
+.ed-iconset-example-add { border-style: dashed; background: transparent; }
+.ed-iconset-example-add svg { width: 16px; height: 16px; }
+.ed-iconset-example:hover { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.ed-iconset-example:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ed-look-more { margin: 2px 0 6px; color: var(--muted); }
 /* Icon styles (panels.ts buildIconStyles): the same icon in every look, as a gallery */
 .ed-looks { display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 6px; margin: 4px 0 8px; }
 .ed-looks-small { grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); }

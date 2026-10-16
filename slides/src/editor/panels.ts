@@ -38,10 +38,10 @@ import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
 import { iconShapes, iconsetInfo } from '../iconset'
 import {
-  addLook, describeStyleWithAi, findLook, iconPreviewUrl, learnFromIcon, learnFromSvgFiles, lookPreviewUrl, moveLook, removeLook, restoreIconToSet,
+  addExamplesFromFiles, addLook, describeStyleWithAi, examplePreviewUrl, findLook, iconExamples, iconPreviewUrl, learnFromIcon, lookPreviewUrl, moveLook, removeExample, removeLook, restoreIconToSet,
   withStyle, writeIconsetInfo,
 } from './iconsetactions'
-import { ICON_PARTS, LOOK_PRESETS, clearTweaks, iconParts, iconTweaks, lookFromPreset, setTweak, tweakedIconCount, type IconPart } from '../iconstyles'
+import { LOOK_PRESETS, clearTweaks, iconParts, iconTweaks, lookFromPreset, setTweak, tweakedIconCount, type IconPart } from '../iconstyles'
 import { loadMyLooks, lookFromClipText, lookToClipText, removeMyLook, saveMyLook } from './iconlooklibrary'
 import type { IconLook, IconPaint, IconShapeTweak, IconsetInfo, IconsetStyle } from '../model'
 import { loadGridPref, saveGridPref, FIGURE_GRID_STEPS_MM } from './gridpref'
@@ -976,27 +976,12 @@ export class PropsPanel {
       if (ai && !planning) this.host.appendChild(drawB())
     }
 
+    this.buildIconDrawing(info, field)
     this.buildIconStyles(info)
 
     this.section('Icon set')
     this.row('Set name', field(doc.title === 'Untitled icon set' ? '' : doc.title, false, t('e.g. Forensics'), (v) =>
       this.edit(() => { this.store.doc.title = v.trim() || 'Untitled icon set' }, true)))
-    this.row('Brief', field(info.brief ?? '', true, t('What the set is for and how it should look'), (v) => {
-      const next = { ...info }
-      if (v.trim()) next.brief = v.trim(); else delete next.brief
-      setInfo(next)
-    }))
-    const st = info.style
-    this.row('Stroke (units)', this.number(st.strokeWidth, 0.25, (v) => v > 0 && v <= info.grid / 2 && setInfo(withStyle(info, { strokeWidth: v }))))
-    const CAPS: Record<string, IconsetStyle['cap']> = { Round: 'round', Square: 'square', Flat: 'butt' }
-    const JOINS: Record<string, IconsetStyle['join']> = { Round: 'round', Bevel: 'bevel', Miter: 'miter' }
-    const FILLS: Record<string, IconsetStyle['fill']> = { Outline: 'outline', Solid: 'solid', Duotone: 'duotone' }
-    const keyOf = <V,>(m: Record<string, V>, v: V) => Object.keys(m).find((k) => m[k] === v) ?? Object.keys(m)[0]
-    this.row('Line ends', this.select(Object.keys(CAPS), keyOf(CAPS, st.cap), (v) => setInfo(withStyle(info, { cap: CAPS[v] }))))
-    this.row('Corners', this.select(Object.keys(JOINS), keyOf(JOINS, st.join), (v) => setInfo(withStyle(info, { join: JOINS[v] }))))
-    this.row('Style', this.select(Object.keys(FILLS), keyOf(FILLS, st.fill), (v) => setInfo(withStyle(info, { fill: FILLS[v] }))))
-    this.row('Padding (units)', this.number(st.padding, 0.5, (v) => v >= 0 && v < info.grid / 2 && setInfo(withStyle(info, { padding: v }))))
-    this.row('Ink', this.color(st.color, (v, fin) => fin && setInfo(withStyle(info, { color: v }))))
     this.row('License', field(info.license ?? '', false, t('e.g. CC-BY-4.0'), (v) => {
       const next = { ...info }
       if (v.trim()) next.license = v.trim(); else delete next.license
@@ -1007,16 +992,92 @@ export class PropsPanel {
       if (v.trim()) next.author = v.trim(); else delete next.author
       setInfo(next)
     }))
-    const button = (label: string, title: string, action: string) => {
-      const b = document.createElement('button')
-      b.className = 'ed-btn ed-btn-block'
-      b.textContent = label
-      b.title = title
-      b.addEventListener('click', act(action))
-      this.host.appendChild(b)
+    const exp = document.createElement('button')
+    exp.className = 'ed-btn ed-btn-block'
+    exp.textContent = t('Export icon set…')
+    exp.title = t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries')
+    exp.addEventListener('click', act('export'))
+    this.host.appendChild(exp)
+  }
+
+  /** The DRAWING side of the set's style (DECISIONS "Drawing style and
+   *  styles"): what Claude reads before it draws — the brief, example icons
+   *  someone likes, and the line width, ends, corners, padding and ink. The
+   *  Styles section below only repaints what is drawn. */
+  private buildIconDrawing(info: IconsetInfo, field: (value: string, multi: boolean, placeholder: string, onCommit: (v: string) => void) => HTMLElement) {
+    const setInfo = (next: IconsetInfo) => this.edit(() => writeIconsetInfo(this.store.doc, next), true)
+    const hint = (text: string) => {
+      const p = document.createElement('p')
+      p.className = 'ed-hint'
+      p.textContent = text
+      this.host.appendChild(p)
     }
-    button(t('Apply set style'), t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)'), 'style')
-    button(t('Export icon set…'), t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries'), 'export')
+    this.section('Drawing')
+    hint(t('How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.'))
+    this.row('Brief', field(info.brief ?? '', true, t('e.g. friendly and rounded, few details, for a forensics course'), (v) => {
+      const next = { ...info }
+      if (v.trim()) next.brief = v.trim(); else delete next.brief
+      setInfo(next)
+    }))
+
+    // icons someone likes: Claude draws like them, the line settings follow them
+    const examples = iconExamples(this.store.doc)
+    const strip = document.createElement('div')
+    strip.className = 'ed-iconset-examples'
+    examples.forEach((ex, i) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'ed-iconset-example'
+      b.title = t('“{name}” — click to remove', { name: ex.name })
+      const img = document.createElement('img')
+      img.src = examplePreviewUrl(this.store, ex)
+      img.alt = ex.name
+      img.width = img.height = 24
+      b.appendChild(img)
+      b.addEventListener('click', () => removeExample(this.store, i))
+      strip.appendChild(b)
+    })
+    const add = document.createElement('button')
+    add.type = 'button'
+    add.className = 'ed-iconset-example ed-iconset-example-add'
+    add.innerHTML = ICONS.plus
+    add.title = t('Add icons you like (SVG files from any library) — Claude draws new icons like them')
+    add.setAttribute('aria-label', t('Add examples'))
+    add.addEventListener('click', () => {
+      void addExamplesFromFiles(this.store).then((r) => {
+        if (r === 'unreadable') this.toast(t('No icon shapes found in those files'))
+        else if (r) this.toast(Object.keys(r.changed).length
+          ? t('Added the examples and took their line width, ends and corners')
+          : t('Added the examples — Claude draws new icons like them'), 4000)
+      })
+    })
+    strip.appendChild(add)
+    // not this.row: a <label> would forward a click on its text to the first example (removing it)
+    const exRow = document.createElement('div')
+    exRow.className = 'ed-row'
+    const exLabel = document.createElement('span')
+    exLabel.textContent = t('Examples')
+    exRow.append(exLabel, strip)
+    this.host.appendChild(exRow)
+
+    const st = info.style
+    this.row('Stroke (units)', this.number(st.strokeWidth, 0.25, (v) => v > 0 && v <= info.grid / 2 && setInfo(withStyle(info, { strokeWidth: v }))))
+    const CAPS: Record<string, IconsetStyle['cap']> = { Round: 'round', Square: 'square', Flat: 'butt' }
+    const JOINS: Record<string, IconsetStyle['join']> = { Round: 'round', Bevel: 'bevel', Miter: 'miter' }
+    // duotone is paint (a Style) now; a set drawn that way keeps the choice
+    const FILLS: Record<string, IconsetStyle['fill']> = { Outline: 'outline', Solid: 'solid', ...(st.fill === 'duotone' ? { Duotone: 'duotone' as const } : {}) }
+    const keyOf = <V,>(m: Record<string, V>, v: V) => Object.keys(m).find((k) => m[k] === v) ?? Object.keys(m)[0]
+    this.row('Line ends', this.select(Object.keys(CAPS), keyOf(CAPS, st.cap), (v) => setInfo(withStyle(info, { cap: CAPS[v] }))))
+    this.row('Corners', this.select(Object.keys(JOINS), keyOf(JOINS, st.join), (v) => setInfo(withStyle(info, { join: JOINS[v] }))))
+    this.row('Drawn as', this.select(Object.keys(FILLS), keyOf(FILLS, st.fill), (v) => setInfo(withStyle(info, { fill: FILLS[v] }))))
+    this.row('Padding (units)', this.number(st.padding, 0.5, (v) => v >= 0 && v < info.grid / 2 && setInfo(withStyle(info, { padding: v }))))
+    this.row('Ink', this.color(st.color, (v, fin) => fin && setInfo(withStyle(info, { color: v }))))
+    const apply = document.createElement('button')
+    apply.className = 'ed-btn ed-btn-block'
+    apply.textContent = t('Apply set style')
+    apply.title = t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)')
+    apply.addEventListener('click', () => document.dispatchEvent(new CustomEvent('slidomingo:iconset', { detail: { action: 'style' } })))
+    this.host.appendChild(apply)
   }
 
   // ---- icon styles (iconstyles.ts, DECISIONS "Icon styles") ----------------------------
@@ -1062,8 +1123,9 @@ export class PropsPanel {
   }
 
   /** The Styles section: the set's looks as a gallery of the current icon, the
-   *  drawer to add one (presets, My styles, learn, describe with AI) and the
-   *  picked look's settings. */
+   *  drawer to add one (presets, My styles, from this icon, paste, describe
+   *  with AI) and the picked look's settings. A style only repaints; other
+   *  shapes are the Drawing section's job. */
   private buildIconStyles(info: IconsetInfo) {
     const looks = info.variants ?? []
     const sid = this.lookPreviewSlideId()
@@ -1073,8 +1135,8 @@ export class PropsPanel {
     // previews sit on the icons' own canvas colour, like the size strip above
     this.host.style.setProperty('--look-paper', this.store.slide.background || '#ffffff')
     const pick = (id: string) => () => { this.lookDrawer = false; this.store.showLook(id || null) }
-    grid.appendChild(this.lookCard(t('Plain'), lookPreviewUrl(this.store, sid, null), {
-      active: !this.lookSel, title: t('The style the icons are drawn in — edit it under Icon set'), onClick: pick(''),
+    grid.appendChild(this.lookCard(t('As drawn'), lookPreviewUrl(this.store, sid, null), {
+      active: !this.lookSel, title: t('The icons as drawn — change that under Drawing'), onClick: pick(''),
     }))
     for (const l of looks) grid.appendChild(this.lookCard(l.name, lookPreviewUrl(this.store, sid, l), { active: this.lookSel === l.id, onClick: pick(l.id) }))
     const add = document.createElement('button')
@@ -1082,7 +1144,7 @@ export class PropsPanel {
     add.className = 'ed-look-card ed-look-add' + (this.lookDrawer ? ' is-active' : '')
     add.innerHTML = `${ICONS.plus}<span></span>`
     add.querySelector('span')!.textContent = t('Add style')
-    add.title = t('Show the same icons in another style: presets, your saved styles, or learn one')
+    add.title = t('Show the same icons in another style: presets, your saved styles, or make one')
     add.setAttribute('aria-expanded', String(this.lookDrawer))
     add.addEventListener('click', () => { this.lookDrawer = !this.lookDrawer; this.rebuild(true) })
     grid.appendChild(add)
@@ -1096,7 +1158,7 @@ export class PropsPanel {
       hint.className = 'ed-hint'
       hint.textContent = looks.length
         ? t('Every style paints the same drawings, so a fix to an icon shows in all of them. Export writes one folder per style.')
-        : t('Add styles to get the same icons as solid, color, comic, sticker … — nothing is redrawn, and export writes one folder per style.')
+        : t('Styles repaint the same drawings — bold, solid, colour, sticker, badge … Nothing is redrawn, and export writes one folder per style.')
       this.host.appendChild(hint)
     }
     if (looks.length) {
@@ -1109,7 +1171,7 @@ export class PropsPanel {
     }
   }
 
-  /** "Add style": presets, My styles, and the ways to learn a style. */
+  /** "Add style": presets, My styles, and the ways to make one. */
   private buildLookDrawer(info: IconsetInfo, sid: string) {
     const drawer = document.createElement('div')
     drawer.className = 'ed-look-drawer'
@@ -1118,6 +1180,12 @@ export class PropsPanel {
       h.className = 'ed-subhead'
       h.textContent = label
       drawer.appendChild(h)
+    }
+    const note = (text: string) => {
+      const p = document.createElement('p')
+      p.className = 'ed-hint'
+      p.textContent = text
+      drawer.appendChild(p)
     }
     const added = (id: string, name: string) => {
       this.lookDrawer = false
@@ -1137,8 +1205,8 @@ export class PropsPanel {
     drawer.appendChild(presets)
 
     const mine = loadMyLooks()
-    head(t('My styles'))
     if (mine.length) {
+      head(t('My styles'))
       const row = document.createElement('div')
       row.className = 'ed-looks ed-looks-small'
       for (const l of mine) {
@@ -1149,14 +1217,9 @@ export class PropsPanel {
         }))
       }
       drawer.appendChild(row)
-    } else {
-      const none = document.createElement('p')
-      none.className = 'ed-hint'
-      none.textContent = t('Styles you save (or learn) appear here, ready for every icon set.')
-      drawer.appendChild(none)
     }
 
-    head(t('Learn a style'))
+    head(t('Make your own'))
     const action = (label: string, title: string, run: () => void) => {
       const b = document.createElement('button')
       b.className = 'ed-btn ed-btn-block'
@@ -1165,6 +1228,17 @@ export class PropsPanel {
       b.addEventListener('click', run)
       drawer.appendChild(b)
     }
+    if (window.slidomingoDesktop?.sendAgentPrompt) {
+      action(t('Describe with AI…'), t('Say how the icons should look — Claude makes it a style'), () => {
+        void askText({
+          title: t('Describe a style'),
+          placeholder: t('e.g. playful comic look, yellow fills, thick black lines and a hard shadow'),
+          okLabel: t('Send to Claude'),
+        }).then((text) => {
+          if (text && describeStyleWithAi(this.store, text)) this.toast(t('Claude is making the style — it appears in Styles when done'))
+        })
+      })
+    }
     action(t('From this icon'), t('Paint one icon by hand (fills, line color and width), then take its look as a style — the icon goes back to the set style'), () => {
       const l = learnFromIcon(this.store)
       if (!l) { this.toast(t('This icon has nothing drawn yet')); return }
@@ -1172,12 +1246,6 @@ export class PropsPanel {
       restoreIconToSet(this.store, this.store.slide.id)
       added(lookId, l.name)
       this.toast(t('Learned a style from this icon, and put the icon back in the set style (⌘Z brings your paint back)'), 5000)
-    })
-    action(t('From SVG files…'), t('Pick icons you like (from any library) — their line weight, colors and fills become a style'), () => {
-      void learnFromSvgFiles(this.store).then((l) => {
-        if (l === 'unreadable') { this.toast(t('No painted shapes found in those files')); return }
-        if (l) added(addLook(this.store, l), l.name)
-      })
     })
     action(t('Paste style'), t('Add a style someone shared with Copy style'), () => {
       const apply = (text: string | null) => {
@@ -1191,21 +1259,14 @@ export class PropsPanel {
       const clip = navigator.clipboard?.readText ? navigator.clipboard.readText() : Promise.reject(new Error('no clipboard'))
       void clip.then((text) => (typeof lookFromClipText(text) === 'string' ? askPaste() : apply(text))).catch(askPaste)
     })
-    if (window.slidomingoDesktop?.sendAgentPrompt) {
-      action(t('Describe with AI…'), t('Say how the icons should look — Claude makes it a style'), () => {
-        void askText({
-          title: t('Describe a style'),
-          placeholder: t('e.g. playful comic look, yellow fills, thick black lines and a hard shadow'),
-          okLabel: t('Send to Claude'),
-        }).then((text) => {
-          if (text && describeStyleWithAi(this.store, text)) this.toast(t('Claude is making the style — it appears in Styles when done'))
-        })
-      })
-    }
+    note(t('Need other shapes — hand-drawn, more detail, rounder? That is the drawing: change Drawing above (brief, examples) and redraw.'))
     this.host.appendChild(drawer)
   }
 
-  /** The picked style's settings, and what can be done with it. */
+  /** The picked style's settings and actions. The basics show; the rest
+   *  (detail fill, ends, corners, cut-outs, shadow, border, badge, sharing,
+   *  order) is behind "More settings". */
+  private lookMore = false
   private buildLookEditor(look: IconLook, looks: readonly IconLook[]) {
     const id = look.id
     const row = (label: string, input: HTMLElement) => this.row(label, input).classList.add('ed-look-row')
@@ -1213,23 +1274,9 @@ export class PropsPanel {
       const l = findLook(this.store.doc, id)
       if (l) fn(l)
     }, final)
-    const nameField = document.createElement('input')
-    nameField.type = 'text'
-    nameField.value = look.name
-    nameField.maxLength = 60
-    nameField.addEventListener('change', () => { const v = nameField.value.trim(); if (v) set((l) => { l.name = v }) })
-    row('Name', nameField)
-    row('Line weight (×)', this.number(look.stroke.weight, 0.1, (v) => v >= 0.25 && v <= 4 && set((l) => { l.stroke.weight = Math.round(v * 100) / 100 })))
-    row('Line color', this.color(look.stroke.color, (v, fin) => set((l) => { l.stroke.color = v }, fin)))
-    const ENDS: Record<string, IconsetStyle['cap'] | undefined> = { 'As the set': undefined, Round: 'round', Square: 'square', Flat: 'butt' }
-    const CORNERS: Record<string, IconsetStyle['join'] | undefined> = { 'As the set': undefined, Round: 'round', Bevel: 'bevel', Miter: 'miter' }
     const keyOf = <V,>(m: Record<string, V>, v: V) => Object.keys(m).find((k) => m[k] === v) ?? Object.keys(m)[0]
-    row('Line ends', this.select(Object.keys(ENDS), keyOf(ENDS, look.stroke.cap), (v) => set((l) => { if (ENDS[v]) l.stroke.cap = ENDS[v]; else delete l.stroke.cap })))
-    row('Corners', this.select(Object.keys(CORNERS), keyOf(CORNERS, look.stroke.join), (v) => set((l) => { if (CORNERS[v]) l.stroke.join = CORNERS[v]; else delete l.stroke.join })))
-
-    // a fill per part: on/off, colour, opacity
-    const PART_LABEL: Record<string, string> = { body: 'Body fill', detail: 'Detail fill', accent: 'Accent fill' }
-    for (const part of ICON_PARTS) {
+    /** a fill per part: on/off, colour, opacity */
+    const partRow = (part: IconPart, label: string) => {
       const paint = look.fill?.[part]
       const wrap = document.createElement('div')
       wrap.className = 'ed-look-paint'
@@ -1250,27 +1297,55 @@ export class PropsPanel {
         op.classList.add('ed-look-pct')
         wrap.appendChild(op)
       }
-      row(PART_LABEL[part], wrap)
+      row(label, wrap)
     }
-    row('Cut details out', this.toggle(!!look.knockout, (on) => set((l) => { if (on) l.knockout = true; else delete l.knockout })))
 
-    row('Hard shadow', this.toggle(!!look.shadow, (on) => set((l) => { if (on) l.shadow = { dx: 0.9, dy: 0.9, color: '#111111' }; else delete l.shadow })))
-    if (look.shadow) {
-      row('Shadow color', this.color(look.shadow.color, (v, fin) => set((l) => { if (l.shadow) l.shadow.color = v }, fin)))
-      row('Shadow offset (units)', this.offsetPair(look.shadow.dx, look.shadow.dy, (dx, dy) => set((l) => { if (l.shadow) { l.shadow.dx = dx; l.shadow.dy = dy } })))
+    const nameField = document.createElement('input')
+    nameField.type = 'text'
+    nameField.value = look.name
+    nameField.maxLength = 60
+    nameField.addEventListener('change', () => { const v = nameField.value.trim(); if (v) set((l) => { l.name = v }) })
+    row('Name', nameField)
+    row('Line weight (×)', this.number(look.stroke.weight, 0.1, (v) => v >= 0.25 && v <= 4 && set((l) => { l.stroke.weight = Math.round(v * 100) / 100 })))
+    row('Line color', this.color(look.stroke.color, (v, fin) => set((l) => { l.stroke.color = v }, fin)))
+    partRow('body', 'Body fill')
+    partRow('accent', 'Accent fill')
+
+    // the rest, folded; the toggle says how many of them are on
+    const extrasOn = [look.fill?.detail, look.stroke.cap, look.stroke.join, look.knockout, look.shadow, look.halo, look.sketch, look.tile].filter(Boolean).length
+    const more = document.createElement('button')
+    more.type = 'button'
+    more.className = 'ed-btn ed-btn-block ed-look-more'
+    more.setAttribute('aria-expanded', String(this.lookMore))
+    more.textContent = this.lookMore ? t('Fewer settings') : extrasOn ? t('More settings ({n} on)', { n: extrasOn }) : t('More settings')
+    more.addEventListener('click', () => { this.lookMore = !this.lookMore; this.rebuild(true) })
+    this.host.appendChild(more)
+    if (this.lookMore) {
+      partRow('detail', 'Detail fill')
+      const ENDS: Record<string, IconsetStyle['cap'] | undefined> = { 'As the set': undefined, Round: 'round', Square: 'square', Flat: 'butt' }
+      const CORNERS: Record<string, IconsetStyle['join'] | undefined> = { 'As the set': undefined, Round: 'round', Bevel: 'bevel', Miter: 'miter' }
+      row('Line ends', this.select(Object.keys(ENDS), keyOf(ENDS, look.stroke.cap), (v) => set((l) => { if (ENDS[v]) l.stroke.cap = ENDS[v]; else delete l.stroke.cap })))
+      row('Corners', this.select(Object.keys(CORNERS), keyOf(CORNERS, look.stroke.join), (v) => set((l) => { if (CORNERS[v]) l.stroke.join = CORNERS[v]; else delete l.stroke.join })))
+      row('Cut details out', this.toggle(!!look.knockout, (on) => set((l) => { if (on) l.knockout = true; else delete l.knockout })))
+      row('Hard shadow', this.toggle(!!look.shadow, (on) => set((l) => { if (on) l.shadow = { dx: 0.9, dy: 0.9, color: '#111111' }; else delete l.shadow })))
+      if (look.shadow) {
+        row('Shadow color', this.color(look.shadow.color, (v, fin) => set((l) => { if (l.shadow) l.shadow.color = v }, fin)))
+        row('Shadow offset (units)', this.offsetPair(look.shadow.dx, look.shadow.dy, (dx, dy) => set((l) => { if (l.shadow) { l.shadow.dx = dx; l.shadow.dy = dy } })))
+      }
+      row('Sticker border', this.toggle(!!look.halo, (on) => set((l) => { if (on) l.halo = { width: 1.5, color: '#ffffff' }; else delete l.halo })))
+      if (look.halo) {
+        row('Border width (units)', this.number(look.halo.width, 0.25, (v) => v > 0 && v <= 4 && set((l) => { if (l.halo) l.halo.width = v })))
+        row('Border color', this.color(look.halo.color, (v, fin) => set((l) => { if (l.halo) l.halo.color = v }, fin)))
+      }
+      // a wobble is not a hand-drawn set (that is a drawing); only looks that have one show it
+      if (look.sketch) row('Hand-drawn', this.number(look.sketch, 0.1, (v) => v >= 0 && v <= 1 && set((l) => { if (v > 0) l.sketch = Math.round(v * 100) / 100; else delete l.sketch })))
+      const BADGE: Record<string, 'circle' | 'rounded' | 'square' | undefined> = { None: undefined, Circle: 'circle', Rounded: 'rounded', Square: 'square' }
+      row('Badge', this.select(Object.keys(BADGE), keyOf(BADGE, look.tile?.shape), (v) => set((l) => {
+        const shape = BADGE[v]
+        if (shape) l.tile = { color: '#4f46e5', scale: 0.62, ...l.tile, shape }; else delete l.tile
+      })))
+      if (look.tile) row('Badge color', this.color(look.tile.color, (v, fin) => set((l) => { if (l.tile) l.tile.color = v }, fin)))
     }
-    row('Sticker border', this.toggle(!!look.halo, (on) => set((l) => { if (on) l.halo = { width: 1.5, color: '#ffffff' }; else delete l.halo })))
-    if (look.halo) {
-      row('Border width (units)', this.number(look.halo.width, 0.25, (v) => v > 0 && v <= 4 && set((l) => { if (l.halo) l.halo.width = v })))
-      row('Border color', this.color(look.halo.color, (v, fin) => set((l) => { if (l.halo) l.halo.color = v }, fin)))
-    }
-    row('Hand-drawn', this.number(look.sketch ?? 0, 0.1, (v) => v >= 0 && v <= 1 && set((l) => { if (v > 0) l.sketch = Math.round(v * 100) / 100; else delete l.sketch })))
-    const BADGE: Record<string, 'circle' | 'rounded' | 'square' | undefined> = { None: undefined, Circle: 'circle', Rounded: 'rounded', Square: 'square' }
-    row('Badge', this.select(Object.keys(BADGE), keyOf(BADGE, look.tile?.shape), (v) => set((l) => {
-      const shape = BADGE[v]
-      if (shape) l.tile = { color: '#4f46e5', scale: 0.62, ...l.tile, shape }; else delete l.tile
-    })))
-    if (look.tile) row('Badge color', this.color(look.tile.color, (v, fin) => set((l) => { if (l.tile) l.tile.color = v }, fin)))
 
     // single icons painted their own way in this style (buildIconShapeStyle)
     const tweaked = tweakedIconCount(look)
@@ -1312,19 +1387,21 @@ export class PropsPanel {
       if (!cur) return
       this.toast(saveMyLook(cur) ? t('Saved “{name}” to My styles', { name: cur.name }) : t('Could not save — storage is not available here'))
     }, 'ed-primary')
-    act(t('Copy style'), t('Copy the style as text to share it — paste it with Add style ▸ Paste style'), () => {
-      const cur = findLook(this.store.doc, id)
-      if (!cur) return
-      void navigator.clipboard?.writeText(lookToClipText(cur)).then(() => this.toast(t('Style copied')), () => this.toast(t('Could not copy')))
-    })
     act(t('Duplicate'), t('A copy of this style to vary'), () => {
       const cur = findLook(this.store.doc, id)
       if (!cur) return
       this.store.showLook(addLook(this.store, cur))
     })
-    const at = looks.findIndex((l) => l.id === id)
-    if (at > 0) act('↑', t('Move earlier'), () => moveLook(this.store, id, -1))
-    if (at < looks.length - 1) act('↓', t('Move later'), () => moveLook(this.store, id, 1))
+    if (this.lookMore) {
+      act(t('Copy style'), t('Copy the style as text to share it — paste it with Add style ▸ Paste style'), () => {
+        const cur = findLook(this.store.doc, id)
+        if (!cur) return
+        void navigator.clipboard?.writeText(lookToClipText(cur)).then(() => this.toast(t('Style copied')), () => this.toast(t('Could not copy')))
+      })
+      const at = looks.findIndex((l) => l.id === id)
+      if (at > 0) act('↑', t('Move earlier'), () => moveLook(this.store, id, -1))
+      if (at < looks.length - 1) act('↓', t('Move later'), () => moveLook(this.store, id, 1))
+    }
     act(t('Delete'), t('Remove this style from the set (the icons stay)'), () => { this.store.showLook(null); removeLook(this.store, id) }, 'ed-danger')
     this.host.appendChild(bar)
   }
@@ -1478,7 +1555,7 @@ export class PropsPanel {
       const tr = body.insertRow()
       const name = document.createElement('th')
       name.scope = 'row'
-      name.textContent = look ? look.name : t('Plain')
+      name.textContent = look ? look.name : t('As drawn')
       tr.appendChild(name)
       doc.slides.forEach((s, index) => {
         const img = document.createElement('img')
@@ -1492,7 +1569,7 @@ export class PropsPanel {
         open.className = 'ed-look-cell'
         const tweaked = !!look?.tweaks?.[s.id]
         if (tweaked) open.classList.add('is-tweaked')
-        open.title = `${s.name ?? ''} · ${look ? look.name : t('Plain')}` + (tweaked ? ` · ${t('own changes in this style')}` : '')
+        open.title = `${s.name ?? ''} · ${look ? look.name : t('As drawn')}` + (tweaked ? ` · ${t('own changes in this style')}` : '')
         open.appendChild(img)
         open.addEventListener('click', () => {
           dlg.close()

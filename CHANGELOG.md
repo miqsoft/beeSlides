@@ -25,13 +25,13 @@ preserved.
   `icons.json`; add that folder as an icon library and the icons are
   searchable by name and keyword, with their licence.
 - **Icon styles:** show the same icon set in more styles — Bold, Light,
-  Solid, Duotone, Color, Comic, Sticker, Sketch and Badge — without redrawing
+  Solid, Duotone, Color, Comic, Sticker and Badge — without redrawing
   anything: every style paints the same drawings, so fixing an icon fixes it
   in all of them. Make your own: adjust any style (line weight and color,
-  fills for the icon's body, details and accent, cut-out details, a hard
-  shadow, a sticker border, a hand-drawn look, a badge behind), learn one
-  from an icon you painted by hand or from SVG icons you like, or describe
-  it and let Claude make it. Save styles to My styles to use them in every
+  fills for the icon's body and accent; under More settings the details'
+  fill, cut-out details, a hard shadow, a sticker border, a badge behind),
+  learn one from an icon you painted by hand, or describe it and let Claude
+  make it. Save styles to My styles to use them in every
   icon set, and share one with Copy style / Paste style. Compare all styles
   shows every icon in every style, on light or dark. Export writes one folder
   per style, listed in `icons.json`.
@@ -46,6 +46,13 @@ preserved.
   Claude is told which style a comment is about (it can change one icon in a
   style, too). Clicking now picks the line under the pointer in an icon set,
   not always the top shape.
+- **Draw like the icons you like:** an icon set's Drawing section holds what
+  Claude reads before it draws — the brief, example icons (add SVG files
+  from any library: Claude draws new icons like them, and the set's line
+  width, ends and corners follow them) and the line settings. Styles only
+  repaint the drawings; a look that needs other shapes (hand-drawn, more
+  detail) is a change in Drawing and a redraw, and Claude says so when asked
+  for one.
 - **Icon sets feel like an icon editor, not a deck:** the icon list is a grid
   of tiles with each icon's name underneath, and an icon not drawn yet shows
   what it is meant to show. View ▸ All icons shows the whole set by name, in
@@ -54,7 +61,7 @@ preserved.
   triangle, line, curve, freeform, polygon, shape presets — with nothing the
   export would leave out. The panel plans with AI only while the set is still
   empty, an empty icon says so instead of showing blank previews, the
-  set's own look is called "Plain", and slide wording ("To slide", "Slide
+  set's own look is called "As drawn", and slide wording ("To slide", "Slide
   Sorter", "slide list", "Check slides") is gone from icon sets, the menu bar
   included (its Slide menu is Icons there).
 - **Add icons the quick way:** click the + tile at the end of the icon grid

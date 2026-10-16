@@ -12920,3 +12920,57 @@ layer in Figma), so:
 Rig: `scripts/test-iconset-e2e.mjs` (tile size, focus, no popup, Enter adds and
 continues, duplicate note, empty Enter, click-away keeps, one undo per name,
 the Plan card and ⌘↩).
+## 2026-10-16 — Drawing style and styles: what Claude draws like vs what repaints
+
+"Style" meant two things in an icon set: `iconset.style` (stroke, caps,
+outline/solid — how icons are DRAWN) and `iconset.variants` (looks that
+REPAINT the drawings). The panel showed both under similar words (a "Style:
+Outline/Solid/Duotone" select and Outline/Solid/Duotone presets), and the
+recipes also claimed looks that need other shapes (Sketch, "learn from SVG
+icons"), which paint cannot deliver. Owner: maintainer, with Claude.
+
+- **Two sections.** *Drawing* (panels.ts `buildIconDrawing`): the brief,
+  example icons, stroke, ends, corners, "Drawn as" (Outline / Solid; Duotone
+  only for a set already drawn so — it is paint, a Style), padding, ink,
+  Apply set style. *Styles*: paint only. *Icon set*: name, licence, author,
+  export. The set's own card is "As drawn" (was "Plain"), on the canvas and
+  in All icons too.
+- **Example icons are a generation input, not a recipe.**
+  `IconsetInfo.examples: IconExample[]` (model.ts) — SVG files someone likes,
+  flattened by `iconsetactions.ts readSvgExample` (DOMParser; inherited paint
+  and ancestor transforms written onto each shape; never inserted in the
+  page) and kept only through `iconexamples.ts readIconExample`: drawable
+  tags, an attribute allowlist, value regexes (no quotes, no `url()`, no
+  text). At most `MAX_EXAMPLES` (newest win) × `MAX_EXAMPLE_SHAPES`. Read
+  again where used (opened files skip untrusted.ts). `doc_info.iconset.
+  examples` hands them to agents as SVG text (`exampleSvg`), with a note to
+  draw LIKE them and never copy their paths (licensing); the draw-icons
+  prompt and skill pass them to subagents. Not exported. Additive, no
+  `requires`.
+- **The line style follows the examples.** Adding examples sets the set's
+  stroke width (median, to ¼ unit, scaled from each file's viewBox), caps,
+  joins (unset = SVG defaults butt/miter) and outline vs solid (no strokes at
+  all) — `styleFromExamples`, one undo step with the add. Ink and padding
+  stay. Drawn icons change only with Apply set style.
+- **Replaced:** "Learn a style ▸ From SVG files…" (`learnLookFromSvgStats`,
+  `svgPaintStats`): reading other icons' paint into a recipe answered "draw
+  mine like these" with a colour histogram. The examples do that now.
+- **Presets only repaint.** No Outline (it was "As drawn" again) and no
+  Sketch (a wobble is not a hand-drawn set). `sketch` stays in the model and
+  renderer: older looks keep it, and its row shows only for a look that has
+  one. The style-icons prompt, the `style` op and the skill say that a look
+  needing other shapes is a drawing change plus a redraw, and to tell the
+  user so.
+- **Simpler editor.** A style shows Name, Line weight, Line color, Body and
+  Accent fill; the rest (detail fill, ends, corners, cut-out, shadow, border,
+  badge, Copy style, ↑↓) is behind "More settings (n on)". The drawer lists
+  My styles only when there are some.
+- **Not done (open):** a per-style redrawn icon (geometry override, e.g. a
+  real solid version where knockout fails). It would mean N × M drawings
+  again for the icons that use it, and more UI; left until cut-out solid is
+  shown to fail in practice.
+
+Rigs: `scripts/test-iconexamples.ts` (reader, SVG out, line style),
+`scripts/test-iconstyles.ts` (presets), `scripts/test-iconset-e2e.mjs`
+(sections order, real file picker → cleaned examples, style follows,
+doc_info, remove/undo, More settings), `scripts/test-desktop-agentprompts.ts`.

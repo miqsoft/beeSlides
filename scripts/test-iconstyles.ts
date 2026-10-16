@@ -3,14 +3,14 @@
 //
 // slides/src/iconstyles.ts — icon styles (DECISIONS "Icon styles"): which part
 // each shape is, one icon in one look, the presets, reading untrusted looks,
-// learning a look from a painted icon and from other SVG icons. Run (bundled):
+// learning a look from a painted icon. Run (bundled):
 //   slides/node_modules/.bin/esbuild scripts/test-iconstyles.ts --bundle --platform=node --format=esm --outfile=/tmp/t.mjs && node /tmp/t.mjs
 // With ICONSTYLES_SHEET=<file.svg> it also writes every preset × icon as one sheet to look at.
 import { writeFileSync } from 'node:fs'
-import { newIconsetDoc, defaultShape, type ShapeElement, type SlidomingoDoc } from '../slides/src/model.ts'
+import { newIconsetDoc, defaultShape, type IconLook, type ShapeElement, type SlidomingoDoc } from '../slides/src/model.ts'
 import { iconShapes, iconsetInfo } from '../slides/src/iconset.ts'
 import {
-  LOOK_PRESETS, clearTweaks, iconLookSvg, iconParts, iconTweaks, learnLookFromIcon, learnLookFromSvgStats, lookFromPreset, lookRecipe, readLook, readTweak,
+  LOOK_PRESETS, clearTweaks, iconLookSvg, iconParts, iconTweaks, learnLookFromIcon, lookFromPreset, lookRecipe, readLook, readTweak,
   safeColor, setTweak, sketchSegs, tweakedIconCount, MAX_TWEAK_SHAPES,
 } from '../slides/src/iconstyles.ts'
 import { parsePath } from '../slides/src/svgpath.ts'
@@ -83,6 +83,10 @@ console.log('-- one icon in a look')
 {
   const ink = iconsetInfo(doc)!.style.color
   const presets = Object.fromEntries(LOOK_PRESETS.map((p) => [p.id, lookFromPreset(p, ink, p.name)]))
+  // no Outline or Sketch preset any more (a wobble is not a drawing style); looks can still have them
+  presets.outline = { id: 'outline', name: 'Outline', stroke: { weight: 1, color: ink } }
+  presets.sketch = { id: 'sketch', name: 'Sketch', stroke: { weight: 0.9, color: ink }, sketch: 0.7 }
+  ok(!LOOK_PRESETS.some((p) => p.id === 'outline' || p.id === 'sketch') && LOOK_PRESETS.length === 8, 'the presets only repaint: no Outline (= as drawn), no Sketch')
   const outline = iconLookSvg(doc, search, presets.outline).svg
   ok(outline.includes('viewBox="0 0 24 24"') && !outline.includes('\u0000'), 'grid units, no colour tokens left', outline)
   ok(outline.includes('stroke="currentColor"') && !outline.includes('#000000'), 'one colour → currentColor', outline)
@@ -130,22 +134,6 @@ console.log('-- learning a look')
   ok(l?.stroke.color === '#cc0000' && l.stroke.weight === 1.5, 'stroke colour and weight (48 px = 3 units = 1.5 ×)', l)
   ok(l?.fill?.body?.color === '#ffee00' && l.fill.accent?.color === '#0000ff' && l.fill.accent.opacity === 0.5, 'fills per part, with opacity', l?.fill)
   ok(learnLookFromIcon(doc, { ...search, elements: [] }) === null, 'an empty icon teaches nothing')
-
-  const base = iconsetInfo(doc)!.style
-  const lucide = learnLookFromSvgStats([
-    { stroke: 'currentColor', strokeWidth: 2, fill: null, opacity: 1, cap: 'round', join: 'round' },
-    { stroke: 'currentColor', strokeWidth: 2, fill: null, opacity: 1, cap: 'round', join: 'round' },
-  ], base, '#000000')
-  ok(lucide?.stroke.weight === 1 && lucide.stroke.color === '#000000' && lucide.stroke.cap === 'round' && !lucide.fill, 'outline icons: weight 1, currentColor = the ink', lucide)
-  const flat = learnLookFromSvgStats([
-    { stroke: '#222222', strokeWidth: 1.5, fill: '#ff8800', opacity: 1 },
-    { stroke: '#222222', strokeWidth: 1.5, fill: '#ff8800', opacity: 1 },
-    { stroke: '#222222', strokeWidth: 1.5, fill: '#00aaff', opacity: 1 },
-  ], base, '#000000')
-  ok(flat?.stroke.weight === 0.75 && flat.fill?.body?.color === '#ff8800' && flat.fill.accent?.color === '#00aaff', 'most-used fill → body, next → accent', flat)
-  const solid = learnLookFromSvgStats([{ stroke: null, strokeWidth: 0, fill: '#333333', opacity: 1 }], base, '#000000')
-  ok(solid?.knockout === true && solid.fill?.body?.color === '#333333', 'no strokes anywhere → a solid look', solid)
-  ok(learnLookFromSvgStats([], base, '#000') === null, 'nothing read → null')
 }
 
 console.log('-- one icon its own way in a style (tweaks)')
@@ -170,7 +158,7 @@ console.log('-- one icon its own way in a style (tweaks)')
   ok(!iconLookSvg(doc, search, none).svg.includes('fill="#7dd3fc"'), 'fill "none" leaves the body empty')
 
   // hiding one shape keeps the others' parts and hand-drawn wobble
-  const sk = lookFromPreset(LOOK_PRESETS.find((p) => p.id === 'sketch')!, '#000000', 'Sketch')
+  const sk: IconLook = { id: 'sk', name: 'Sketch', stroke: { weight: 0.9, color: '#000000' }, sketch: 0.7 }
   const skHidden = structuredClone(sk)
   setTweak(skHidden, search.id, glint.id, { hide: true })
   const strokes = (look: typeof sk) => [...iconLookSvg(doc, search, look).svg.matchAll(/<path d="([^"]+)"[^>]*stroke=/g)].map((m) => m[1])

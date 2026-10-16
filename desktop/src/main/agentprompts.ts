@@ -109,6 +109,7 @@ const STYLE_ICONS_HOW =
   'How: call doc_info (its iconset entry has the set style, the brief and the styles already there) and look at two or three icons with review_slide. ' +
   'Turn the description into ONE icons op style call: a name (two or three words), the outline weight (× the set stroke, 0.25-4) and colour, line ends and corners, fills for the body, detail and accent parts (a colour, optionally an opacity), and only the extras it asks for: knockout (details cut out of a solid body), a hard shadow, a sticker border (halo), a hand-drawn wobble (sketch 0-1) or a badge (tile). ' +
   'Pick colours that work together and keep the icons readable at 24 px. Do not draw or change any icon. ' +
+  'A style only repaints the drawings. If the look needs other shapes (hand-drawn lines, more or less detail, other proportions, 3D), a style cannot do it: say so, and suggest changing the set drawing style instead (the brief and example icons in the Drawing section) and redrawing. ' +
   'End with one line naming the style and what it looks like, and say it can be adjusted in the Styles section of the panel.'
 
 /** The `style-icons` message: the look the user described, then how to write it. `null` when empty. */
@@ -128,12 +129,13 @@ export const MAX_LISTED_ICONS = 60
 
 const DRAW_ICONS_HOW =
   'How to draw: read the set first with doc_info, whose iconset entry gives the grid, the style and pathElement, a ready path element in that style. ' +
+  'If it has examples, those are icons the user likes (SVG from other libraries): draw like them (the same line weight, corner rounding, amount of detail and proportions) but draw your own paths, never copy theirs. ' +
   'Each icon is the slide with that id. Build it ONLY from path elements like pathElement (shape path, the frame = the whole canvas, pathBox = the grid), so d is written in grid units: ' +
   'keep every point inside the padding square, use the set stroke width, caps, joins and ink, whole or half units where you can, and as few, simple shapes as say the idea. ' +
   'No text, no pictures, no svg elements. A filled detail (a dot) is a path with fill = the ink and no stroke. ' +
   'Give every path an iconPart, so the set can be shown in other styles (solid, colour, comic): body for the main closed silhouette(s), detail for inner lines and dots, accent for at most one small closed highlight. ' +
   'Write each icon with write_slide (or insert_elements), look at it with review_slide and correct it until it reads clearly at 24 px and matches the other icons. ' +
-  'For more than 3 icons, do not draw them yourself: start subagents with 3 or 4 icons each, all in one turn so they run in parallel; give each its slide ids, names, what each shows, the set brief, the pathElement and these instructions, and tell it to change nothing outside its slides. When they are back, compare the icons with review_slide and fix any that stand out. ' +
+  'For more than 3 icons, do not draw them yourself: start subagents with 3 or 4 icons each, all in one turn so they run in parallel; give each its slide ids, names, what each shows, the set brief, the pathElement, the examples and these instructions, and tell it to change nothing outside its slides. When they are back, compare the icons with review_slide and fix any that stand out. ' +
   'End with a short list: each icon and what it shows.'
 
 /** The `draw-icons` message: the set brief and the icons to draw, each with

@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// Icon-set actions (docs/DECISIONS.md, "Icon sets", "Icon styles"): add
-// icons, change the set's style, "Apply set style", "Draw with AI", one
-// comment on several icons, the extra styles (add, learn, describe with AI)
-// and the two exports. The pure parts (style patch, SVG, manifest) are
+// Icon-set actions (docs/DECISIONS.md, "Icon sets", "Icon styles", "Drawing
+// style and styles"): add icons, change the set's drawing style and its
+// example icons, "Apply set style", "Draw with AI", one comment on several
+// icons, the extra styles (add, learn, describe with AI) and the two exports. The pure parts (style patch, SVG, manifest) are
 // in ../iconset.ts; this file is the editor glue.
 
-import { ICONSET_STYLE_DEFAULTS, iconsetStyleDefaults, newIconSlide, uid, type IconLook, type IconsetInfo, type IconsetStyle, type ShapeElement, type SlidomingoDoc } from '../model'
+import { ICONSET_STYLE_DEFAULTS, iconsetStyleDefaults, newIconSlide, uid, type IconExample, type IconLook, type IconsetInfo, type IconsetStyle, type ShapeElement, type SlidomingoDoc } from '../model'
 import { ICON_MANIFEST_FILE, iconFileNames, iconManifest, iconSlideSvg, iconStylePatch, iconsetInfo, iconsToDraw, iconSlug, isNoPaint, styleFolderNames } from '../iconset'
-import { iconLookSvg, learnLookFromIcon, learnLookFromSvgStats, safeColor, type SvgPaintStat } from '../iconstyles'
+import { iconLookSvg, learnLookFromIcon, safeColor } from '../iconstyles'
+import { EXAMPLE_ATTRS, MAX_EXAMPLES, MAX_EXAMPLE_SHAPES, exampleSvg, readIconExample, readIconExamples, styleFromExamples } from '../iconexamples'
 import { writeZip } from '../../../kernel/src/convert/zip.ts'
 import { askText, commentAuthor, sendCommentsToClaude } from './comments'
 import { t } from '../i18n'
@@ -297,68 +298,117 @@ export function learnFromIcon(store: Store): IconLook | null {
   return { id: 'learned', name: t('Learned from “{name}”', { name: store.slide.name ?? t('icon') }), ...l }
 }
 
-const PAINTED = 'path, circle, ellipse, rect, line, polyline, polygon'
+// ---- example icons (iconexamples.ts): the drawing side of the style ------------------
 
-/** One SVG file's painted elements, for learnLookFromSvgStats. The file is
- *  only parsed (never put in the page), and only paint attributes are read. */
-export function svgPaintStats(text: string, grid: number): SvgPaintStat[] {
+const PAINTED = 'path, circle, ellipse, rect, line, polyline, polygon'
+const PAINT_ATTRS = ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 'fill-rule', 'opacity', 'fill-opacity', 'stroke-opacity']
+
+/** One SVG file → an example icon: its shapes flattened, each with the paint
+ *  it inherits and its ancestors' transforms written out. The file is only
+ *  parsed (never put in the page); readIconExample keeps what is allowed. */
+export function readSvgExample(text: string, name: string): IconExample | null {
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
   const root = doc.documentElement
-  if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) return []
+  if (!root || root.nodeName.toLowerCase() !== 'svg' || doc.querySelector('parsererror')) return null
   const vb = (root.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number)
-  const width = vb.length === 4 && vb[2] > 0 ? vb[2] : parseFloat(root.getAttribute('width') ?? '') || 24
-  const k = grid / width
+  const w = parseFloat(root.getAttribute('width') ?? '') || 24
+  const h = parseFloat(root.getAttribute('height') ?? '') || w
+  const viewBox: [number, number, number, number] = vb.length === 4 && vb.every(Number.isFinite) && vb[2] > 0 && vb[3] > 0 ? [vb[0], vb[1], vb[2], vb[3]] : [0, 0, w, h]
   /** an attribute or a `style` declaration, nearest ancestor first (SVG inheritance) */
-  const prop = (el: Element, name: string): string | null => {
+  const prop = (el: Element, key: string): string | null => {
     for (let n: Element | null = el; n; n = n.parentElement) {
-      const m = new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;]+)`).exec(n.getAttribute('style') ?? '')
+      const m = new RegExp(`(?:^|;)\\s*${key}\\s*:\\s*([^;]+)`).exec(n.getAttribute('style') ?? '')
       if (m) return m[1].trim()
-      const a = n.getAttribute(name)
-      if (a !== null) return a.trim()
+      const v = n.getAttribute(key)
+      if (v !== null) return v.trim()
     }
     return null
   }
-  const out: SvgPaintStat[] = []
-  for (const el of Array.from(root.querySelectorAll(PAINTED)).slice(0, 400)) {
+  const shapes: IconExample['shapes'] = []
+  for (const el of Array.from(root.querySelectorAll(PAINTED)).slice(0, MAX_EXAMPLE_SHAPES)) {
     if (el.closest('defs, clipPath, mask, pattern, symbol, marker')) continue
-    const stroke = prop(el, 'stroke')
-    const fill = prop(el, 'fill') ?? '#000000' // the SVG default
-    const sw = parseFloat(prop(el, 'stroke-width') ?? '1')
-    const op = parseFloat(prop(el, 'fill-opacity') ?? '1') * parseFloat(prop(el, 'opacity') ?? '1')
-    const lineLike = el.nodeName.toLowerCase() === 'line' || el.nodeName.toLowerCase() === 'polyline'
-    out.push({
-      stroke: stroke && stroke !== 'none' ? stroke : null,
-      strokeWidth: Number.isFinite(sw) ? sw * k : 0,
-      fill: lineLike || fill === 'none' ? null : fill,
-      opacity: Number.isFinite(op) ? op : 1,
-      cap: prop(el, 'stroke-linecap') ?? undefined,
-      join: prop(el, 'stroke-linejoin') ?? undefined,
-    })
+    const a: Record<string, string> = {}
+    for (const k of EXAMPLE_ATTRS) {
+      if (PAINT_ATTRS.includes(k) || k === 'transform') continue
+      const v = el.getAttribute(k)
+      if (v !== null) a[k] = v
+    }
+    for (const k of PAINT_ATTRS) {
+      const v = prop(el, k)
+      if (v !== null) a[k] = v
+    }
+    a.fill ??= '#000000' // the SVG default
+    const tf: string[] = []
+    for (let n: Element | null = el; n && n !== root; n = n.parentElement) {
+      const v = n.getAttribute('transform')
+      if (v) tf.unshift(v)
+    }
+    if (tf.length) a.transform = tf.join(' ')
+    shapes.push({ tag: el.nodeName.toLowerCase() as IconExample['shapes'][number]['tag'], a })
   }
-  return out
+  return readIconExample({ name, viewBox, shapes })
 }
 
-/** "Learn from SVG files…": pick icons you like (any library), get their style. */
-export function learnFromSvgFiles(store: Store): Promise<IconLook | null | 'unreadable'> {
-  const info = iconsetInfo(store.doc)
-  if (!info) return Promise.resolve(null)
+/** The set's examples, read again (an opened file skips untrusted.ts). */
+export function iconExamples(doc: SlidomingoDoc): IconExample[] {
+  return readIconExamples(doc.iconset?.examples)
+}
+
+/** One example at real size for the panel, currentColor shown as the set ink. */
+export function examplePreviewUrl(store: Store, ex: IconExample): string {
+  const svg = exampleSvg(ex, { ink: safeColor(iconsetInfo(store.doc)?.style.color ?? '#000000') })
+  return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : ''
+}
+
+/** What adding examples did: how many, and the style values they changed. */
+export interface ExamplesAdded { added: number; changed: Partial<IconsetStyle> }
+
+/**
+ * "Add examples…": pick icons you like (any library). They are kept in the
+ * set for Claude to draw like, and the set's line width, ends, corners and
+ * outline/solid follow what they share — one undo step.
+ */
+export function addExamplesFromFiles(store: Store): Promise<ExamplesAdded | null | 'unreadable'> {
+  if (!iconsetInfo(store.doc)) return Promise.resolve(null)
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.svg,image/svg+xml'
     input.multiple = true
     input.addEventListener('change', async () => {
-      const files = Array.from(input.files ?? []).filter((f) => f.size < 2_000_000).slice(0, 50)
+      const files = Array.from(input.files ?? []).filter((f) => f.size < 2_000_000).slice(0, MAX_EXAMPLES)
       if (!files.length) { resolve(null); return }
-      const stats: SvgPaintStat[] = []
-      for (const f of files) stats.push(...svgPaintStats(await f.text(), info.grid))
-      const l = learnLookFromSvgStats(stats, info.style, info.style.color)
-      if (!l) { resolve('unreadable'); return }
-      const base = files.length === 1 ? files[0].name.replace(/\.svg$/i, '') : t('{n} icons', { n: files.length })
-      resolve({ id: 'learned', name: t('Learned from “{name}”', { name: base.slice(0, 40) }), ...l })
+      const read: IconExample[] = []
+      for (const f of files) {
+        const ex = readSvgExample(await f.text(), f.name.replace(/\.svg$/i, ''))
+        if (ex) read.push(ex)
+      }
+      resolve(read.length ? addExamples(store, read) : 'unreadable')
     })
     input.click()
   })
+}
+
+/** Keep these examples in the set and let its drawing style follow them. One undo step. */
+export function addExamples(store: Store, examples: readonly IconExample[]): ExamplesAdded {
+  const info = iconsetInfo(store.doc)
+  if (!info) return { added: 0, changed: {} }
+  const all = readIconExamples([...iconExamples(store.doc), ...examples])
+  const patch = styleFromExamples(all, info.grid)
+  const changed: Partial<IconsetStyle> = {}
+  for (const [k, v] of Object.entries(patch) as Array<[keyof IconsetStyle, never]>) if (info.style[k] !== v) changed[k] = v
+  store.commit(() => writeIconsetInfo(store.doc, { ...withStyle(info, patch), examples: all }))
+  return { added: examples.length, changed }
+}
+
+/** Drop one example (by its place in the list). */
+export function removeExample(store: Store, index: number): void {
+  const info = iconsetInfo(store.doc)
+  if (!info) return
+  const next = iconExamples(store.doc).filter((_, i) => i !== index)
+  const out: IconsetInfo = { ...info, examples: next }
+  if (!next.length) delete out.examples
+  store.commit(() => writeIconsetInfo(store.doc, out))
 }
 
 /** "Describe with AI": the look in the user's words → Claude writes it (icons op "style"). */
