@@ -126,6 +126,9 @@ try {
   console.log('\ninsert')
   await load([{ elements: [] }])
   await settle()
+  // a desktop-width tab has the ribbon (DECISIONS 2026-10-13): Equation lives on its Insert tab
+  const insertTab = p.locator('.ed-ribbon-tab[data-tab-key="insert"]')
+  if (await insertTab.count()) await insertTab.click()
   const insertBtn = p.locator('button:visible[title^="Add an equation"]').first()
   await insertBtn.click()
   await p.waitForSelector('.ed-math-pop')
@@ -252,8 +255,9 @@ try {
   await load([{ elements: [m('a + b = c')], transition: 'fade' }, { elements: [m('b + a = c')], transition: 'morph' }])
   await settle()
   await p.evaluate(() => window.slidomingo.anim.setManual(true))
-  await p.locator('button[title="More ways to present"]:visible').click()
-  await p.locator('button:has-text("Present in this tab"):visible').click()
+  // a desktop-width tab: Play ▸ Present in tab (menu bar, DECISIONS 2026-10-13)
+  await p.click('.ed-menubar-top[data-menu="play"]')
+  await p.click('.ed-menubar-row[data-command="play.inTab"]')
   await p.waitForSelector('.reveal section.present', { timeout: 10_000 })
   await settle(500)
   const symX = () => p.evaluate(() => {

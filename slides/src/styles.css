@@ -322,38 +322,27 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    untouched — this only ever swaps which vertical edge the menu grows from. */
 .ed-dropdown.ed-menu-flip-up > .ed-menu { top: auto; bottom: calc(100% + 4px); }
 
-/* ————— desktop shell chrome (slidomingo/desktop ONLY) —————
- * The Electron shell hides the OS title bar (titleBarStyle:'hiddenInset',
- * desktop/src/main/windows.ts) and merges it into .ed-titlebar instead of
- * stacking a second bar below it; the ribbon (.ed-ribbon) replaces the flat
- * .ed-topbar above with real tabs. Scoped under [data-desktop-shell] (set
- * once at boot by main.ts, only inside slidomingo/desktop — see editor/ribbon.ts
- * isDesktopShell()) so a plain browser tab, where window.slidomingoDesktop is
- * undefined, never sees or pays for any of this: .ed-topbar above is
- * completely untouched. Every color below reuses the existing chrome
- * tokens, so the Auto/Light/Dark toggle (About dialog) re-themes this
- * chrome for free — no desktop-specific theme code exists. */
-:root[data-desktop-shell] { --ribbon-row-h: 44px; }
+/* ————— ribbon chrome: title bar + ribbon (+ in-page menu bar) —————
+ * The desktop shell AND a desktop-width browser tab (editor/ribbon.ts
+ * useRibbonChrome; DECISIONS 2026-10-13 "Web chrome parity"). Scoped under
+ * [data-ribbon-chrome], which Editor.build() sets; phones keep the flat
+ * .ed-topbar above, untouched. What only the Electron window needs (the
+ * traffic-light gutter, the drag region) stays under [data-desktop-shell]
+ * (set once at boot by main.ts). Every color below reuses the existing
+ * chrome tokens, so the Auto/Light/Dark toggle re-themes this chrome for
+ * free. */
+:root[data-ribbon-chrome] { --ribbon-row-h: 44px; }
 
-:root[data-desktop-shell] .ed-desktop-chrome { display: flex; flex-direction: column; }
+:root[data-ribbon-chrome] .ed-desktop-chrome { display: flex; flex-direction: column; }
 
-:root[data-desktop-shell] .ed-titlebar {
+:root[data-ribbon-chrome] .ed-titlebar {
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: var(--ribbon-row-h);
   padding: 8px 14px;
-  /* room for the traffic lights Electron overlays at trafficLightPosition
-     {x:18,y:18} (windows.ts) — tuned against that exact value; the two must
-     move together if that position ever changes. Collapsed in native
-     fullscreen — see the [data-desktop-fullscreen] override below. */
-  padding-inline-start: 78px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
-  /* The window itself is the drag handle; every interactive child opts back
-     out below. Same idiom as desktop/src/renderer/terminal/terminal.css's
-     .term-header/.term-actions. */
-  -webkit-app-region: drag;
   /* Same ceiling, same reason, as .ed-topbar above (hard-won #9): a flex
      item honours z-index even at position:static, so this opens a stacking
      context that caps every descendant — including the reused .ed-menu
@@ -365,20 +354,61 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
      (e.g. File's "Open Recent" list) rendered UNDER it. */
   z-index: 51;
 }
+/* The browser's menu bar (editor/menubar.ts) — File … Help in the title
+   bar. Panels are position:fixed (placed by menubar.ts), so they escape the
+   ribbon below; the title bar's z-index ceiling (51) still caps them, which
+   is above the ribbon (50) and everything in .ed-main. */
+.ed-menubar { display: flex; align-items: center; gap: 0; flex: none; }
+.ed-menubar-top {
+  font: inherit; font-size: 13px; color: var(--ink); background: transparent;
+  border: none; border-radius: 6px; padding: 5px 7px; cursor: default; white-space: nowrap;
+}
+.ed-menubar-top:hover, .ed-menubar-top.ed-menubar-open { background: var(--chrome-2); }
+.ed-menubar-top:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ed-menubar-panel {
+  position: fixed; display: flex; flex-direction: column; min-width: 220px;
+  max-height: calc(100vh - 12px); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(23 18 10 / 0.14); padding: 4px; z-index: 60;
+}
+.ed-menubar-row {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  font: inherit; font-size: 13px; color: var(--ink); text-align: start;
+  background: transparent; border: none; border-radius: 6px; padding: 5px 10px 5px 6px; cursor: default;
+}
+.ed-menubar-row.ed-menubar-hot { background: var(--chrome-2); }
+.ed-menubar-row.ed-menubar-disabled { color: var(--muted); opacity: .6; }
+.ed-menubar-mark { flex: none; width: 14px; text-align: center; }
+.ed-menubar-label { flex: 1 1 auto; white-space: nowrap; }
+.ed-menubar-accel { flex: none; color: var(--muted); font-size: 12px; white-space: nowrap; padding-inline-start: 18px; }
+.ed-menubar-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+
 /* macOS hides the traffic lights entirely in native fullscreen — nothing
    fills the 78px gutter reserved above, so collapse it to the bar's own
    baseline inline padding (matches the 14px every other side already uses). */
 :root[data-desktop-shell][data-desktop-fullscreen] .ed-titlebar {
   padding-inline-start: 14px;
 }
+/* Desktop shell only: */
+:root[data-desktop-shell] .ed-titlebar {
+  /* room for the traffic lights Electron overlays at trafficLightPosition
+     {x:18,y:18} (windows.ts) — tuned against that exact value; the two must
+     move together if that position ever changes. Collapsed in native
+     fullscreen — see the [data-desktop-fullscreen] override below. */
+  padding-inline-start: 78px;
+  /* The window itself is the drag handle; every interactive child opts back
+     out below. Same idiom as desktop/src/renderer/terminal/terminal.css's
+     .term-header/.term-actions. */
+  -webkit-app-region: drag;
+}
 :root[data-desktop-shell] .ed-titlebar > * { -webkit-app-region: no-drag; }
-:root[data-desktop-shell] .ed-titlebar-quick { display: flex; align-items: center; gap: 6px; flex: none; }
-:root[data-desktop-shell] .ed-titlebar-title { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; }
+:root[data-ribbon-chrome] .ed-titlebar-quick { display: flex; align-items: center; gap: 6px; flex: none; }
+:root[data-ribbon-chrome] .ed-titlebar-title { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; overflow: hidden; }
 /* min-width: 0 lets the title give way to the file chip beside it (which never
    shrinks) instead of pushing the pair out of the row in a narrow window. */
-:root[data-desktop-shell] .ed-titlebar-title .ed-title { width: min(320px, 100%); min-width: 0; text-align: center; }
-:root[data-desktop-shell] .ed-titlebar-right { display: flex; align-items: center; gap: 8px; flex: none; margin-inline-start: auto; }
-:root[data-desktop-shell] .ed-titlebar-logo { display: flex; align-items: center; cursor: pointer; }
+:root[data-ribbon-chrome] .ed-titlebar-title .ed-title { width: min(320px, 100%); min-width: 0; text-align: center; }
+:root[data-ribbon-chrome] .ed-titlebar-right { display: flex; align-items: center; gap: 8px; flex: none; margin-inline-start: auto; }
+:root[data-ribbon-chrome] .ed-titlebar-logo { display: flex; align-items: center; cursor: pointer; }
 
 /* Layout Manager overlay's own head bar sits in the same top-left corner as
    .ed-titlebar above (it isn't nested inside it — the overlay covers the
@@ -387,7 +417,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 :root[data-desktop-shell] .ed-layoutmgr-head { padding-inline-start: 78px; }
 :root[data-desktop-shell][data-desktop-fullscreen] .ed-layoutmgr-head { padding-inline-start: 14px; }
 
-:root[data-desktop-shell] .ed-ribbon {
+:root[data-ribbon-chrome] .ed-ribbon {
   display: flex;
   flex-direction: column;
   background: var(--chrome);
@@ -395,15 +425,15 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   /* Same reasoning as .ed-titlebar's ceiling, immediately above. */
   z-index: 50;
 }
-:root[data-desktop-shell] .ed-ribbon.ed-ribbon-collapsed { display: none; }
-:root[data-desktop-shell] .ed-ribbon-tabs {
+:root[data-ribbon-chrome] .ed-ribbon.ed-ribbon-collapsed { display: none; }
+:root[data-ribbon-chrome] .ed-ribbon-tabs {
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 4px 14px 0;
   border-bottom: 1px solid var(--line);
 }
-:root[data-desktop-shell] .ed-ribbon-tab {
+:root[data-ribbon-chrome] .ed-ribbon-tab {
   font: inherit;
   font-size: 13px;
   color: var(--muted);
@@ -413,9 +443,9 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   padding: 7px 12px;
   cursor: pointer;
 }
-:root[data-desktop-shell] .ed-ribbon-tab:hover { color: var(--ink); background: var(--chrome-2); }
-:root[data-desktop-shell] .ed-ribbon-tab.ed-ribbon-tab-active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
-:root[data-desktop-shell] .ed-ribbon-rows { display: flex; }
+:root[data-ribbon-chrome] .ed-ribbon-tab:hover { color: var(--ink); background: var(--chrome-2); }
+:root[data-ribbon-chrome] .ed-ribbon-tab.ed-ribbon-tab-active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+:root[data-ribbon-chrome] .ed-ribbon-rows { display: flex; }
 /* NEVER give this `overflow-x: auto` (or any non-visible overflow) again —
    it shipped that way once and silently broke every ribbon-group dropdown
    (Shape, Media, …: ordinary `.ed-dropdown`/`.ed-menu` widgets, position:
@@ -430,7 +460,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    "the dropdown doesn't overlap, it creates a slider". The web topbar
    (.ed-topbar, above) already had this rule baked in: "responsive by hiding
    labels, never a scrollbar" — this row must follow the same rule. */
-:root[data-desktop-shell] .ed-ribbon-row {
+:root[data-ribbon-chrome] .ed-ribbon-row {
   display: flex;
   align-items: stretch;
   gap: 4px;
@@ -441,8 +471,8 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    (author rules always win over UA ones at equal specificity) — without
    this, buildRibbon()'s `row.hidden = true` on inactive tabs did nothing and
    every tab's group row rendered at once, all glued into the same flex row. */
-:root[data-desktop-shell] .ed-ribbon-row[hidden] { display: none; }
-:root[data-desktop-shell] .ed-ribbon-group {
+:root[data-ribbon-chrome] .ed-ribbon-row[hidden] { display: none; }
+:root[data-ribbon-chrome] .ed-ribbon-group {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -450,23 +480,23 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   padding: 2px 10px;
   border-inline-end: 1px solid var(--line);
 }
-:root[data-desktop-shell] .ed-ribbon-group:last-child { border-inline-end: none; }
-:root[data-desktop-shell] .ed-ribbon-group-body { display: flex; align-items: center; gap: 4px; flex: 1; }
-:root[data-desktop-shell] .ed-ribbon-group-caption { font-size: 11px; color: var(--muted); white-space: nowrap; }
-:root[data-desktop-shell] .ed-ribbon-collapse-glyph { font-size: 10px; }
+:root[data-ribbon-chrome] .ed-ribbon-group:last-child { border-inline-end: none; }
+:root[data-ribbon-chrome] .ed-ribbon-group-body { display: flex; align-items: center; gap: 4px; flex: 1; }
+:root[data-ribbon-chrome] .ed-ribbon-group-caption { font-size: 11px; color: var(--muted); white-space: nowrap; }
+:root[data-ribbon-chrome] .ed-ribbon-collapse-glyph { font-size: 10px; }
 /* [ Grid |▾] (editor.gridSplitButton): one control in two halves — the
    left toggles, the caret opens a panel. A hairline joins them on hover so
    the caret reads as part of Grid, not as a separate tool. */
-:root[data-desktop-shell] .ed-ribbon-split { display: inline-flex; align-items: stretch; border-radius: 8px; box-shadow: inset 0 0 0 1px transparent; }
-:root[data-desktop-shell] .ed-ribbon-split:hover { box-shadow: inset 0 0 0 1px var(--line); }
-:root[data-desktop-shell] .ed-ribbon-split > .ed-btn:first-child { border-start-end-radius: 0; border-end-end-radius: 0; }
-:root[data-desktop-shell] .ed-ribbon-split-caret {
+:root[data-ribbon-chrome] .ed-ribbon-split { display: inline-flex; align-items: stretch; border-radius: 8px; box-shadow: inset 0 0 0 1px transparent; }
+:root[data-ribbon-chrome] .ed-ribbon-split:hover { box-shadow: inset 0 0 0 1px var(--line); }
+:root[data-ribbon-chrome] .ed-ribbon-split > .ed-btn:first-child { border-start-end-radius: 0; border-end-end-radius: 0; }
+:root[data-ribbon-chrome] .ed-ribbon-split-caret {
   border-start-start-radius: 0;
   border-end-start-radius: 0;
   padding-inline: 5px;
   border-inline-start: 1px solid transparent;
 }
-:root[data-desktop-shell] .ed-ribbon-split:hover .ed-ribbon-split-caret { border-inline-start-color: var(--line); }
+:root[data-ribbon-chrome] .ed-ribbon-split:hover .ed-ribbon-split-caret { border-inline-start-color: var(--line); }
 
 /* ————— main layout ————— */
 
@@ -3722,7 +3752,7 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
 /* the row's and the format bar's chevron */
 .ed-slidetype-chev { display: inline-flex; flex: none; color: var(--muted); }
 .ed-slidetype-chev svg, .ed-slidetype-more svg { width: 14px; height: 14px; }
-:root[data-desktop-shell] .ed-ribbon-split-caret svg { width: 12px; height: 12px; }
+:root[data-ribbon-chrome] .ed-ribbon-split-caret svg { width: 12px; height: 12px; }
 /* the format bar's slide-type button names the type (minitoolbar.ts) */
 .ed-minibar-typename { display: inline-block; max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; margin-inline-end: 2px; }
 .ed-minibar-text .ed-slidetype-chev { vertical-align: middle; }
@@ -6278,10 +6308,10 @@ button.ed-sd-from:focus-visible { outline: 2px solid var(--blue); outline-offset
 /* ————— Customize the editor (editor/customize/: a per-install UI profile) —————
    Everything a profile changes is a catalog token, a density switch, or the
    buttons it adds — no rule here reads anything from the profile itself. */
-:root[data-desktop-shell] .ed-ribbon-group[hidden],
-:root[data-desktop-shell] .ed-ribbon-tab[hidden] { display: none; }
-:root[data-desktop-shell] .ed-ribbon-tab-custom { display: inline-flex; align-items: center; gap: 5px; }
-:root[data-desktop-shell] .ed-ribbon-tab-custom::before {
+:root[data-ribbon-chrome] .ed-ribbon-group[hidden],
+:root[data-ribbon-chrome] .ed-ribbon-tab[hidden] { display: none; }
+:root[data-ribbon-chrome] .ed-ribbon-tab-custom { display: inline-flex; align-items: center; gap: 5px; }
+:root[data-ribbon-chrome] .ed-ribbon-tab-custom::before {
   content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none;
 }
 .ed-btn-custom svg { flex: none; }
@@ -6295,10 +6325,10 @@ button.ed-sd-from:focus-visible { outline: 2px solid var(--blue); outline-offset
 :root[data-ui-density="compact"] { --ribbon-row-h: 34px; }
 :root[data-ui-density="compact"] .ed-btn { padding: 4px 7px; font-size: 12.5px; }
 :root[data-ui-density="compact"] .ed-topbar { padding-top: 3px; padding-bottom: 3px; }
-:root[data-ui-density="compact"][data-desktop-shell] .ed-titlebar { padding-top: 4px; padding-bottom: 4px; }
-:root[data-ui-density="compact"][data-desktop-shell] .ed-ribbon-row { padding: 3px 8px; }
-:root[data-ui-density="compact"][data-desktop-shell] .ed-ribbon-group { padding: 0 7px; gap: 2px; }
-:root[data-ui-density="compact"][data-desktop-shell] .ed-ribbon-tab { padding: 5px 10px; }
+:root[data-ui-density="compact"][data-ribbon-chrome] .ed-titlebar { padding-top: 4px; padding-bottom: 4px; }
+:root[data-ui-density="compact"][data-ribbon-chrome] .ed-ribbon-row { padding: 3px 8px; }
+:root[data-ui-density="compact"][data-ribbon-chrome] .ed-ribbon-group { padding: 0 7px; gap: 2px; }
+:root[data-ui-density="compact"][data-ribbon-chrome] .ed-ribbon-tab { padding: 5px 10px; }
 :root[data-ui-density="compact"] .ed-section { padding-top: 6px; padding-bottom: 6px; }
 .ed-mytools > .ed-menu { inset-inline-start: auto; inset-inline-end: 0; }
 

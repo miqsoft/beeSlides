@@ -79,7 +79,8 @@ import { openSaveSelectionDialog } from './saveselection'
 import { openVariantPicker, type PendingVariant, type PendingVariants } from './variantpicker'
 import { colorForSession } from './sessioncolor'
 import { flipMenuIfNeeded, positionFloating } from './floatingposition'
-import { isDesktopShell, buildRibbon, ribbonGroup, ribbonRow } from './ribbon'
+import { isDesktopShell, useRibbonChrome, buildRibbon, ribbonGroup, ribbonRow } from './ribbon'
+import { buildMenuBar, type BarItem, type MenuBarHandle } from './menubar'
 import { buildTitlebar } from './titlebar'
 import {
   openLayoutManager, renderDocumentMetaForm, moveLayoutWithinParent, remintElements,
@@ -93,7 +94,7 @@ import {
 } from './insertgroup'
 import { SHAPE_PRESETS } from './shapepresets'
 import { CommandRegistry, commandLabel } from './commands'
-import { ALIGN_KEYS, TRANSITION_KINDS, TRANSITION_LABELS } from './menumodel'
+import { ALIGN_KEYS, TRANSITION_KINDS, TRANSITION_LABELS, type MenuModel } from './menumodel'
 import type { AlignEdge } from '../alignment'
 import { openReusableObjectPicker } from './reusableobjects'
 import { buildSaveIndicator, type SaveIndicator } from './saveindicator'
@@ -128,10 +129,10 @@ import { isAreaTool, runAreaOp, sectionRows, type IconLibraryAccess, type SlideW
  *  notice has been acknowledged. It is a property of the browser. */
 const SAVE_NOTICE_KEY = 'slidomingo-save-notice'
 
-/** Shared return shape for buildWebTopbar()/buildDesktopChrome() — see
+/** Shared return shape for buildWebTopbar()/buildRibbonChrome() — see
  *  build()'s fork. commentB/pdfB/formatPainterB are nodes the shared tail of
- *  build() wires up regardless of branch; finishMount is web/mobile-only
- *  (phone-chrome capture + fitTopbar/observers), absent on the desktop shell. */
+ *  build() wires up regardless of branch; finishMount is phone-topbar-only
+ *  (phone-chrome capture + fitTopbar/observers), absent with the ribbon. */
 interface TopbarBuild {
   bar: HTMLElement
   commentB: HTMLElement
@@ -162,6 +163,13 @@ export class Editor {
   private customizer: UiCustomizer | null = null
   private ribbonHandle: RibbonHandle | null = null
   private myToolsSlot: HTMLElement | null = null
+  /** Title bar + ribbon (desktop shell, desktop-width browser) rather than
+   *  the flat phone topbar — decided by each build() (ribbon.ts
+   *  useRibbonChrome); DECISIONS 2026-10-13 "Web chrome parity". */
+  private ribbonChrome = false
+  /** The browser's in-page menu bar (editor/menubar.ts) — null on desktop,
+   *  whose menu is native, and with the phone topbar. */
+  private menuBar: MenuBarHandle | null = null
 
   private sentToClaudeMsg(n: number): string {
     return this.claudeOpen ? t('Sent {n} comments to Claude', { n }) : t('Starting Claude Code with {n} comments…', { n })
@@ -192,9 +200,9 @@ export class Editor {
   private notesPane!: NotesPane
   private notesToggleBtn?: HTMLElement
   /** Save button + dirty dot + "Saved"/"Backed up" flash tag for the main
-   *  editor's own topbar/ribbon — built once, since buildWebTopbar() and
-   *  buildDesktopChrome() never both run in the same Editor lifetime
-   *  (isDesktopShell() is fixed at construction). See `activeSaveIndicator`
+   *  editor's own topbar/ribbon — rebuilt by every build(), which runs
+   *  exactly one of buildWebTopbar() / buildRibbonChrome() (`ribbonChrome`).
+   *  See `activeSaveIndicator`
    *  for the Layout Manager overlay's own separate instance. */
   private saveIndicator!: SaveIndicator
   private fileChip?: HTMLElement
@@ -203,7 +211,7 @@ export class Editor {
   private thumbTimer = 0
   private presenting = false
   /** Topbar badge for a pending propose_variants set — created lazily in
-   *  buildDesktopChrome (desktop shell only, next to the terminal toggle),
+   *  buildRibbonChrome (desktop shell only, next to the terminal toggle),
    *  hidden while pendingVariants is null. */
   private variantBadge?: HTMLElement
   /** A propose_variants candidate set awaiting a human pick — NEVER written
@@ -322,8 +330,21 @@ export class Editor {
     this.root.classList.toggle('ed-figure', this.isFigure)
     this.root.classList.toggle('ed-iconset', this.isIconset)
     wireTooltips()
+    // which chrome this build gets; the previous build's handles describe DOM
+    // that is gone (a language switch rebuilds on the same viewport, but the
+    // answer is re-asked, so a reload on a resized window can change it)
+    this.ribbonChrome = useRibbonChrome()
+    document.documentElement.toggleAttribute('data-ribbon-chrome', this.ribbonChrome)
+    this.myToolsSlot = null
+    this.ribbonHandle = null
+    this.ribbonToggle = null
+    this.ribbonCollapsed = () => false
+    this.menuBar?.close()
+    this.menuBar = null
+    this.phoneChrome = null
+    this.topbar = null
 
-    // Canvas must exist BEFORE buildWebTopbar()/buildDesktopChrome(): both
+    // Canvas must exist BEFORE buildWebTopbar()/buildRibbonChrome(): both
     // wire the insert toolbar via insertgroup.ts's buildInsertGroup(store,
     // canvas), which captures `canvas` BY VALUE into each button's click
     // closure — constructing it after left every insert button (Text,
@@ -337,7 +358,7 @@ export class Editor {
     this.canvas.setGridPref(loadGridPref(), this.gridStep()) // saved viewer preference — survives rebuilds
 
     const { bar, commentB, formatPainterB, reapplyChangeB, finishMount } =
-      isDesktopShell() ? this.buildDesktopChrome() : this.buildWebTopbar()
+      this.ribbonChrome ? this.buildRibbonChrome() : this.buildWebTopbar()
     // a saved View preference must show as "on" in the controls built just now
     this.syncSafeZoneButtons()
     this.syncBuildBadgeButtons()
@@ -363,15 +384,15 @@ export class Editor {
         this.sidebar.blur()
       }
     }, true)
-    // Presenting lives in ONE split pill beside the zoom control on web/mobile
-    // — the main half starts the fullscreen show, its menu holds tab-fill and
-    // speaker view. Desktop already has equivalent entry points (the
-    // titlebar's Slideshow icon + the View ribbon's Show group), so this
-    // floating canvas-corner control is redundant clutter there — built only
-    // off desktop.
+    // Presenting lives in ONE split pill beside the zoom control with the phone
+    // topbar — the main half starts the fullscreen show, its menu holds
+    // tab-fill and speaker view. The ribbon chrome already has equivalent
+    // entry points (the titlebar's Slideshow icon, the View ribbon's Show
+    // group, the Play menu), so this floating canvas-corner control is
+    // redundant clutter there — built only with the phone topbar.
     let pill: HTMLElement | null = null
     let showB: HTMLElement | null = null
-    if (!isDesktopShell()) {
+    if (!this.ribbonChrome) {
       pill = div('ed-dropdown ed-present-pill ed-slides-only')
       showB = btn(ICONS.slideshow, t('Slideshow'), () => this.present(false, true),
         t('Start the slideshow fullscreen — F toggles fullscreen, S opens speaker view, Esc ends'))
@@ -442,8 +463,8 @@ export class Editor {
       this.props.classList.add('ed-collapsed')
     }
 
-    // Web/mobile-only: phone-chrome capture + fitTopbar/observers wiring.
-    // buildDesktopChrome() returns no finishMount — the desktop shell has no
+    // Phone topbar only: phone-chrome capture + fitTopbar/observers wiring.
+    // buildRibbonChrome() returns no finishMount — the ribbon has no
     // narrow-window fold system (by design; see the ribbon/titlebar files).
     finishMount?.()
 
@@ -499,11 +520,10 @@ export class Editor {
   }
 
   /**
-   * Web/mobile: the flat responsive topbar (wordmark, title, Insert group,
-   * actions group, phone-chrome fold menus). Pure extraction from the
-   * pre-desktop-shell build() — behavior byte-identical; a plain browser tab
-   * (the hosted web app) always takes this branch. See buildDesktopChrome() for the
-   * slidomingo/desktop title bar + ribbon this never runs alongside.
+   * Phones (ribbon.ts COMPACT_CHROME_QUERY): the flat responsive topbar
+   * (wordmark, title, Insert group, actions group, phone-chrome fold menus).
+   * A desktop-width browser tab gets buildRibbonChrome() instead, like the
+   * desktop shell; the two never run in the same build().
    */
   private buildWebTopbar(): TopbarBuild {
     // topbar
@@ -705,19 +725,21 @@ export class Editor {
   }
 
   /**
-   * slidomingo/desktop ONLY: native title bar merge (editor/titlebar.ts) +
-   * PowerPoint-style ribbon (editor/ribbon.ts). Never runs in a browser tab —
-   * gated by isDesktopShell() in build(). This branch builds its own
-   * instances of the buttons/dropdowns the web topbar also builds: the two
-   * branches never run in the same Editor lifetime (isDesktopShell() cannot
-   * change mid-session), so there is no live node to share, unlike
-   * applyPhoneChrome's reparent discipline (which moves ONE set of nodes
-   * between two DOM positions within the SAME branch). commentB/pdfB/
-   * formatPainterB are still returned because the shared tail of build()
-   * (canvas/panel wiring) needs them regardless of
-   * which branch ran.
+   * Title bar (editor/titlebar.ts) + PowerPoint-style ribbon
+   * (editor/ribbon.ts): the desktop shell, and a desktop-width browser tab
+   * (`ribbonChrome`, ribbon.ts useRibbonChrome). ONE builder for both — the
+   * differences are per ITEM, gated on the desktop API each one needs
+   * (terminal, agent variants, start page, ☰ native menu popup) — so the
+   * browser gets the same groups and `data-ui-tool` ids as desktop. In a
+   * browser the title bar also carries the in-page menu bar (menubar.ts,
+   * drawn from the same command registry as the native menu). This branch builds its own instances of the
+   * buttons/dropdowns the phone topbar also builds: the two never run in the
+   * same build(), so there is no live node to share, unlike
+   * applyPhoneChrome's reparent discipline. commentB/pdfB/formatPainterB are
+   * returned because the shared tail of build() needs them either way.
    */
-  private buildDesktopChrome(): TopbarBuild {
+  private buildRibbonChrome(): TopbarBuild {
+    const desktop = window.slidomingoDesktop
     const wrap = div('ed-desktop-chrome')
 
     // ---- pieces shared by the title bar and elsewhere in the class --------
@@ -754,6 +776,8 @@ export class Editor {
     const presentB = tagTool(btn(ICONS.slideshow, '', () => this.present(false, true),
       t('Start the slideshow fullscreen — F toggles fullscreen, S opens speaker view, Esc ends')), 'present')
     presentB.classList.add('ed-slides-only')
+    // Claude Code terminal + agent variant picker: desktop APIs, no browser
+    // equivalent — not built at all off desktop (never a silent no-op)
     const terminalB = tagTool(btn(ICONS.terminal, '', () => void window.slidomingoDesktop?.toggleTerminal(),
       t('Toggle Claude Code terminal (⌘`)')), 'terminal')
     window.slidomingoDesktop?.onTerminalStateChange?.((state) => {
@@ -799,10 +823,25 @@ export class Editor {
     const menuB = !isMacOS() && window.slidomingoDesktop?.popupAppMenu
       ? [btn('<span class="ed-menu-glyph">☰</span>', '', () => void window.slidomingoDesktop!.popupAppMenu!(), t('Menu'))]
       : []
+    // Browser: the in-page menu bar, drawn from the SAME registry model the
+    // native menu is (commands.serialize()); main-owned slots map to web
+    // equivalents or nothing (webMenuSlot).
+    if (!desktop) {
+      this.menuBar = buildMenuBar({
+        model: () => this.commands.serialize(),
+        run: (id) => { this.commands.run(id) },
+        slot: (name, model) => this.webMenuSlot(name, model),
+        mac: isMacOS(),
+        label: t('Menu'),
+      })
+    }
     buildTitlebar(wrap, {
-      quickAccess: [...menuB, ...homeB, saveGroup, undoB, redoB],
+      quickAccess: [...(this.menuBar ? [this.menuBar.el] : []), ...menuB, ...homeB, saveGroup, undoB, redoB],
       titleInput: title,
-      rightCluster: [presentB, terminalB, variantBadge, settingsB, collapseB],
+      rightCluster: desktop
+        ? [presentB, terminalB, variantBadge, settingsB, collapseB]
+        // the language is in Settings ▸ General and View ▸ Language
+        : [presentB, settingsB, collapseB],
       logo,
     })
     // title is now DOM-attached (buildTitlebar put it in .ed-titlebar-title) —
@@ -1419,9 +1458,10 @@ export class Editor {
         () => void this.saveAsTemplate())
       // the document AS DATA — history and the AI/JSON round-trip live with
       // the other file operations now (they were buried in the About dialog).
-      // On desktop they are in the native File menu only (this list keeps the
-      // save variants); the web and phone ⋯ keep them here.
-      if (isDesktopShell()) return
+      // With the ribbon chrome they are in the File menu only (native on
+      // desktop, in-page in a browser) and this list keeps the save
+      // variants; the phone ⋯ keeps them here.
+      if (this.ribbonChrome) return
       into.appendChild(tag(div('ed-menu-sep')))
       item(ICONS.history, t('Version history…'),
         t('Restore an earlier auto-saved version of this deck (kept locally in this browser).'),
@@ -4277,6 +4317,49 @@ export class Editor {
     return this.commands.serialize()
   }
 
+  /**
+   * The browser menu bar's stand-ins for the blocks desktop MAIN owns
+   * (menumodel.ts `{ slot }`, desktop menu.ts SLOTS). Each is an existing
+   * Editor method or nothing: New Window / New Layout / Recent / Start Page,
+   * Close / Quit, UI zoom (the browser's own), the Claude terminal & chats,
+   * Developer and the Window menu have no browser equivalent and are left
+   * out — never a silent no-op.
+   */
+  private webMenuSlot(name: string, model: MenuModel): BarItem[] {
+    const live = !this.presenting
+    switch (name) {
+      case 'file-open':
+        // File System Access only (Chromium); elsewhere a deck opens by drop
+        return typeof (window as unknown as { showOpenFilePicker?: unknown }).showOpenFilePicker === 'function'
+          ? [{ label: model.labels['Open…'] ?? t('Open…'), accel: 'CmdOrCtrl+O', enabled: live, run: () => void this.openViaPicker() }]
+          : []
+      case 'edit-roles':
+        // the roles' web equivalents: Cut/Copy fire the same copy/cut events
+        // the keys do (wireCopy, or a text field's own); Paste reads the
+        // clipboard like the context menu's Paste
+        return [
+          { label: t('Cut'), accel: 'CmdOrCtrl+X', enabled: live, run: () => { document.execCommand('cut') } },
+          { label: t('Copy'), accel: 'CmdOrCtrl+C', enabled: live, run: () => { document.execCommand('copy') } },
+          // (in a field or text edit: just the words, at the caret)
+          { label: t('Paste'), accel: 'CmdOrCtrl+V', enabled: live, run: () => void this.pasteFromClipboardAsync({ plain: this.textOwnsClipboard() }) },
+          { label: model.labels['Paste without Design'] ?? t('Paste without Design'), accel: 'CmdOrCtrl+Shift+V', enabled: live,
+            run: () => void this.pasteFromClipboardAsync({ plain: true }) },
+        ]
+      case 'file-quit': {
+        // no app menu in a browser: Settings… closes File, as on Windows/Linux
+        const app = model.menus.find((m) => m.key === 'app')?.items ?? []
+        return [{ type: 'separator' }, ...(app as BarItem[])]
+      }
+      case 'help-links':
+        return [{ type: 'separator' }, {
+          label: model.labels['BeeSlides on GitHub'] ?? t('BeeSlides on GitHub'), enabled: true,
+          run: () => { window.open('https://github.com/miqsoft/beeslides', '_blank', 'noopener') },
+        }]
+      default:
+        return []
+    }
+  }
+
   /** The per-install UI profile (editor/customize/): applied now, again on
    *  every change (this window, another window, an AI), after every rebuild. */
   private wireCustomizer() {
@@ -6848,7 +6931,9 @@ export class Editor {
         this.save(false)
         return
       }
-      if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'p' && isDesktopShell() && !this.isCanvasDoc) {
+      // ⌘P = File ▸ Export PDF… wherever the menu shows it (native or in-page
+      // menu bar) — printing the editor UI itself is never what's wanted
+      if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'p' && this.ribbonChrome && !this.isCanvasDoc) {
         ev.preventDefault()
         void this.exportPdf()
         return

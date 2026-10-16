@@ -169,8 +169,15 @@ try {
   // ---------------------------------------------------------------- the show
   await p.evaluate(() => { window.slidomingo.anim.setManual(true) })
   await p.evaluate(() => { try { localStorage.setItem('slidomingo-reduce-motion', 'off') } catch {} })
-  await p.click('button[title="More ways to present"]:visible')
-  await p.click('button:has-text("Present in this tab"):visible')
+  // a desktop-width tab has the menu bar (DECISIONS 2026-10-13): Play ▸ Present in tab;
+  // a phone-width one the Slideshow pill's menu
+  if (await p.locator('.ed-menubar-top[data-menu="play"]').count()) {
+    await p.click('.ed-menubar-top[data-menu="play"]')
+    await p.click('.ed-menubar-row[data-command="play.inTab"]')
+  } else {
+    await p.click('button[title="More ways to present"]:visible')
+    await p.click('button:has-text("Present in this tab"):visible')
+  }
   await p.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 10_000 })
   await p.waitForTimeout(600)
   const tick = (s) => p.evaluate((sec) => window.slidomingo.anim.tick(sec), s)

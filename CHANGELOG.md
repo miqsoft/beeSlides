@@ -9,6 +9,12 @@ preserved.
 
 ## [Unreleased]
 
+- **The browser editor gets the desktop chrome:** in a desktop-width browser
+  tab, BeeSlides now shows the same labelled ribbon as the desktop app and a
+  menu bar (File, Edit, Insert, Slide, Arrange, View, Play, Help) drawn from
+  the same commands, instead of a row of unlabelled icons. Icon sets get
+  their Icons ribbon group and Icons menu in the browser too. ⌘P exports a
+  PDF. Phones keep the compact top bar.
 - **Icon sets:** a new kind of document for drawing your own icons, all in one
   style — a whole set or a single icon (start page ▸ Icons ▸ Icon set, desktop
   File ▸ New Icon Set… — it opens straight in the editor). Say what you need in your own words ("think about 12 icons for

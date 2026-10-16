@@ -157,12 +157,17 @@ async function boot(ctx, seed = {}) {
   return p
 }
 
-const iconsBtn = (p) => p.locator('button:visible[title^="Search and insert an icon"]').first()
+// a desktop-width tab has the ribbon (DECISIONS 2026-10-13): Icons lives on its Insert tab
+async function clickIconsButton(p) {
+  const tab = p.locator('.ed-ribbon-tab[data-tab-key="insert"]')
+  if (await tab.count()) await tab.click()
+  await p.locator('button:visible[title^="Search and insert an icon"]').first().click()
+}
 const statusOf = (p) => p.locator('.ed-icon-status').innerText()
 
 /** Opens the popover and waits for the first search to settle (cells or a status line). */
 async function openPopover(p) {
-  await iconsBtn(p).click()
+  await clickIconsButton(p)
   await p.waitForSelector('.ed-icon-pop')
   await settled(p)
 }

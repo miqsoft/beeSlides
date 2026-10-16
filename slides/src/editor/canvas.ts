@@ -377,7 +377,7 @@ export class SlideCanvas {
       if (ev.target instanceof Element && ev.target.closest('.moveable-control-box')) return
       const r = this.scaleHost.getBoundingClientRect()
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
-      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-minibar, .ed-math-pop')) return
+      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome, .ed-minibar, .ed-math-pop')) return
       ev.preventDefault()
       ev.stopPropagation()
       this.deepSelect((ev.clientX - r.left) / this.scale, (ev.clientY - r.top) / this.scale)
@@ -398,7 +398,7 @@ export class SlideCanvas {
       // whole-slide anchor rather than nothing.
       const r = this.wrap.getBoundingClientRect()
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
-      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar')) return
+      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome')) return
       if (!this.onContextMenu) return
       ev.preventDefault()
       // resolveClickTarget (not a raw '.slidomingo-el' hit) so a right-click
@@ -426,7 +426,7 @@ export class SlideCanvas {
       if (ev.target instanceof Element && ev.target.closest('.moveable-control-box')) return
       const r = this.wrap.getBoundingClientRect()
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
-      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar')) return
+      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome')) return
       const hitEl = ev.target instanceof Element ? ev.target.closest<HTMLElement>('.slidomingo-el') : null
       if (!hitEl?.dataset.elId) return
       ev.preventDefault()
@@ -451,7 +451,7 @@ export class SlideCanvas {
       if (ev.target instanceof Element && ev.target.closest('.moveable-control-box')) return
       const r = this.wrap.getBoundingClientRect()
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
-      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar')) return
+      if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome')) return
       const hitEl = ev.target instanceof Element ? ev.target.closest<HTMLElement>('.slidomingo-el') : null
       if (!hitEl?.dataset.elId) return
       ev.preventDefault()
@@ -1271,7 +1271,7 @@ export class SlideCanvas {
     }
     const onDown = (ev: MouseEvent) => {
       const t = ev.target instanceof Element ? ev.target : null
-      if (t?.closest('.ed-topbar')) return // let the 💬 toggle (or other tools) handle it
+      if (t?.closest('.ed-topbar, .ed-desktop-chrome')) return // let the 💬 toggle (or other tools) handle it
       if (!t?.closest('.ed-canvas-wrap')) {
         cleanup() // clicked some other UI: disarm without placing
         return

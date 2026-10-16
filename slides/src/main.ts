@@ -77,9 +77,11 @@ startTheme()
 
 // slidomingo/desktop chrome marker — same AFTER-capturePristine, BEFORE-paint
 // rule as startTheme() above (an attribute set any earlier would travel into
-// every saved file). Pure CSS-scoping signal for the native title
-// bar/ribbon (editor/titlebar.ts, editor/ribbon.ts); JS branches on
-// isDesktopShell() directly, not this attribute. No-op in a browser tab.
+// every saved file). Pure CSS-scoping signal for what only the Electron
+// window needs (traffic-light gutters, drag regions); the title bar/ribbon
+// themselves are scoped by [data-ribbon-chrome], which Editor.build() sets
+// in a desktop-width browser too. JS branches on isDesktopShell() directly,
+// not this attribute. No-op in a browser tab.
 if (isDesktopShell()) document.documentElement.dataset.desktopShell = '1'
 
 // Watch the offline switch in OTHER tabs. `storage` fires only in the tabs

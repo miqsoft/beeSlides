@@ -83,6 +83,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 
 ## Panels, toolbars, Customize
 
+- Title bar + ribbon (`buildRibbonChrome`) run on desktop AND in desktop-width browsers (`ribbon.ts useRibbonChrome`); phones get `buildWebTopbar`. Gate desktop-only ITEMS on the API they call (`window.slidomingoDesktop?.x`), never the chrome on `isDesktopShell()`. The browser menu bar (`menubar.ts`) draws `commands.serialize()`; main-owned slots map in `Editor.webMenuSlot`.
 - `this.section(key, …)` takes the ENGLISH key: open state persists by `data-key` in `slidomingo-panel-open-v2`. A new orderable section needs an entry in `catalog.PANEL_SECTIONS`.
 - `ElementEdits` (`elementactions.ts`) owns undo bursts (reset on selection/current, never on panel rebuild); setters take one id or several (one undo step).
 - Mini toolbar never rebuilds while one of its fields is focused or its colour popover is open. The docked top bar is a second instance: control changes show in both.

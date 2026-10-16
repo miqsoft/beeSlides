@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// slidomingo/desktop ONLY: shell detection + the PowerPoint-style ribbon (tab
-// strip + one visible group row per tab, collapsible down to the title bar).
-// A plain browser tab (the hosted web app or any web/mobile use) never sees any of
-// this — window.slidomingoDesktop is undefined there, isDesktopShell() is false,
-// and editor.ts never calls into this module at all.
+// Shell detection + the PowerPoint-style ribbon (tab strip + one visible
+// group row per tab, collapsible down to the title bar). Used by the desktop
+// shell AND by a desktop-width browser tab (useRibbonChrome(); DECISIONS
+// 2026-10-13 "Web chrome parity"); phones and short touch screens keep the
+// flat web topbar (editor.ts buildWebTopbar). isDesktopShell() still answers
+// "is window.slidomingoDesktop there?" — gate desktop-only ITEMS on it (or on
+// the specific API), never the chrome as a whole.
 //
 // This file deliberately never imports Editor's type and never calls a
 // private Editor method — it only lays out finished, already-wired
@@ -13,7 +15,7 @@
 // available). That keeps this module decoupled, independently testable, and
 // guarantees zero reimplemented command logic: every button the ribbon shows
 // is either a relocated existing node or a one-line call to an
-// already-public method, built in editor.ts's buildDesktopChrome().
+// already-public method, built in editor.ts's buildRibbonChrome().
 
 import { lsGet, lsSet } from '../../../kernel/src/storage.ts'
 import { t } from '../i18n'
@@ -224,6 +226,19 @@ export type DesktopFlushStatus = 'clean' | 'flushed' | 'failed' | 'unsaveable'
 
 export function isDesktopShell(): boolean {
   return typeof window.slidomingoDesktop !== 'undefined'
+}
+
+/** Where a browser keeps the flat, foldable web topbar (+ phone ⋯ menu)
+ *  instead of the title bar + menu bar + ribbon: phones, and touch screens
+ *  too short for three rows of chrome (a phone in landscape). */
+export const COMPACT_CHROME_QUERY = '(max-width: 700px), (pointer: coarse) and (max-height: 500px)'
+
+/** Title bar + ribbon (+ the in-page menu bar in a browser) — always in the
+ *  desktop shell; in a browser unless the viewport is phone-sized. Decided
+ *  when the editor chrome is (re)built (Editor.build), not live. */
+export function useRibbonChrome(): boolean {
+  if (isDesktopShell()) return true
+  return !(typeof window.matchMedia === 'function' && window.matchMedia(COMPACT_CHROME_QUERY).matches)
 }
 
 function div(cls: string): HTMLElement {

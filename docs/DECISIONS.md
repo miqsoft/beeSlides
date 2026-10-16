@@ -12816,3 +12816,47 @@ drag to reorder in the grid, more columns when wider), `scripts/test-ui-profile.
 (ribbon groups `insert:shapes`, `view:icons`), `scripts/test-menu-model.ts`
 (label and title overrides), `desktop/scripts/e2e-menu.mjs` (File ▸ New Icon
 Set… → the real menu bar says Icons, All icons, canvas; Insert shapes only).
+
+## 2026-10-13 — Web chrome parity: the browser editor gets the ribbon and an in-page menu bar
+
+Supersedes "Web topbar and phone ⋯ are unchanged" (2026-10-06, One command
+registry) for desktop-width browsers. Decided:
+- **One chrome builder, gated per item.** `Editor.buildRibbonChrome()` (was
+  `buildDesktopChrome`) runs in the desktop shell AND in a browser unless
+  the viewport is phone-sized (`ribbon.ts useRibbonChrome`,
+  `COMPACT_CHROME_QUERY` = `(max-width: 700px), (pointer: coarse) and
+  (max-height: 500px)`). Same tabs, groups and `data-ui-tool` ids as
+  desktop; only items needing a desktop API are left out in a browser
+  (Claude Code terminal, agent-variant badge, Send to Claude, Start page,
+  ☰ native popup, "Present without Speaker View"). The browser keeps
+  Speaker View (ribbon View ▸ Show) and gains nothing that silently no-ops.
+  CSS for the title bar/ribbon is scoped by `[data-ribbon-chrome]` (set by
+  `build()`); `[data-desktop-shell]` keeps only Electron-window needs
+  (traffic-light gutter, drag region).
+- **In-page menu bar = the native menu's model.** `editor/menubar.ts` draws
+  `commands.serialize()` — the same translated, state-aware model desktop
+  sends to main — in the title bar (File … Help); a click is
+  `commands.run(id)`. Accelerators are display-only, as on desktop. Main-owned
+  `{ slot }` blocks map to web equivalents in `Editor.webMenuSlot`: Open…
+  (File System Access, only where it exists), Cut/Copy/Paste/Paste without
+  Design (copy/cut events; clipboard read like the context menu), Settings…
+  at the end of File, BeeSlides on GitHub. New Window/New Layout/New
+  Figure, Recent, Start Page, Close/Quit, UI zoom (the browser's own),
+  the terminal/chats, Developer and the Window menu are omitted. The
+  Windows/Linux desktop ☰ stays the native popup (nothing to share: it is
+  Electron's Menu.popup, not page code).
+- **Save ▾ = save variants only** wherever the File menu exists; the phone ⋯
+  keeps history, JSON round-trip and imports. ⌘P = Export PDF… with the
+  ribbon chrome (it was desktop-only; printing the editor UI is never the
+  intent; not in figures or icon sets, which export their own way). The
+  floating Slideshow pill shows only with the phone topbar. The language is
+  picked in Settings ▸ General and View ▸ Language (the globe left the title
+  bar with 87e8b53).
+- **Phones are unchanged**: the flat topbar, fold tiers and ⋯ menu.
+- **Chosen at build, not live.** A window resized across the threshold keeps
+  its chrome until the next rebuild (reload, language switch): `build()`
+  creates a new SlideCanvas, so swapping chrome on resize is not cheap.
+No new UI strings (every label already existed for desktop). Verified by
+the ad-hoc Playwright run in the PR, plus the e2e rigs updated for the
+ribbon (icons/math reach Insert via the ribbon tab; zoom/math present via
+Play ▸ Present in tab).
