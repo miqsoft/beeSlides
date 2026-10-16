@@ -102,9 +102,9 @@ import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
 import { commentStats, sendCommentsToClaude } from './comments'
-import { openAddIcons } from './iconadd'
+import { openPlanIcons } from './iconplan'
 import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, lookPreviewUrl, planIconsWithAi } from './iconsetactions'
-import { iconsetInfo } from '../iconset'
+import { addIconNames, iconsetInfo } from '../iconset'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
   desktopStatus, desktopStatusSource, desktopWritesDisabled, desktopWritesSettled, markDesktopProblem,
@@ -2865,11 +2865,15 @@ export class Editor {
    *  is meant to show. */
   private thumbSurface(slide: Slide, width: number): HTMLElement {
     if (this.isIconset && !slide.elements.length) {
+      // an empty icon canvas: its keyline circle, and what it is meant to show if that is known
       const box = div('slidomingo-thumb-surface ed-icon-empty')
       box.style.width = box.style.height = `${width}px`
-      const text = document.createElement('span')
-      text.textContent = slide.icon?.prompt || t('Not drawn yet')
-      box.appendChild(text)
+      box.title = t('Not drawn yet')
+      if (slide.icon?.prompt) {
+        const text = document.createElement('span')
+        text.textContent = slide.icon.prompt
+        box.appendChild(text)
+      }
       return box
     }
     const look = this.store.shownLook
@@ -2937,14 +2941,117 @@ export class Editor {
       this.sidebar.appendChild(item)
     })
     if (gaps) this.sidebar.appendChild(this.insertGap(slides.length))
-    // an icon set's + is the grid's last tile: its icons go at the end
-    const add = btn(ICONS.plus, this.isIconset ? t('Add icons') : t('New slide'),
-      () => (this.isIconset ? this.addIcons(add, this.store.doc.slides.length) : this.openLayoutPicker(add)))
-    add.classList.add('ed-add-slide')
-    add.title = this.isIconset ? t('Name new icons one after another — each Enter adds one') : t('New slide from a slide type')
-    this.sidebar.appendChild(add)
+    if (this.isIconset) this.sidebar.appendChild(this.iconAddTile())
+    else {
+      const add = btn(ICONS.plus, t('New slide'), () => this.openLayoutPicker(add))
+      add.classList.add('ed-add-slide')
+      add.title = t('New slide from a slide type')
+      this.sidebar.appendChild(add)
+    }
     this.sidebar.scrollTop = scroll
     this.highlightSidebar()
+    if (this.iconAdding) this.focusIconAdding()
+  }
+
+  // ---- adding icons in the grid (DECISIONS 2026-10-16 "Add icons in place") ----
+
+  /** The + tile is a name field: Enter adds the icon and starts the next. */
+  private iconAdding = false
+  /** a name the last Enter found already in the set (shown on the tile until the next key) */
+  private iconAddDup = ''
+
+  /** The icon grid's last tile: "+ Add icons", or, while adding, a new tile
+   *  with its name field under it, the way a new icon will look. */
+  private iconAddTile(): HTMLElement {
+    const how = t('Name new icons one after another — each Enter adds one')
+    if (!this.iconAdding) {
+      const add = btn(ICONS.plus, t('Add icons'), () => this.startIconAdding(), how)
+      add.classList.add('ed-add-slide')
+      return add
+    }
+    const tile = div('ed-add-slide ed-icon-adding' + (this.iconAddDup ? ' is-dup' : ''))
+    const face = div('ed-icon-adding-face')
+    face.textContent = this.iconAddDup ? t('Already in the set') : ''
+    const name = document.createElement('input')
+    name.type = 'text'
+    name.className = 'ed-icon-adding-name'
+    name.placeholder = t('Name')
+    name.maxLength = 120
+    name.title = how
+    name.setAttribute('aria-label', how)
+    name.value = this.iconAddDup
+    tile.append(face, name)
+    let busy = false
+    const add = (names: string[]) => {
+      const list = names.map((n) => n.trim()).filter(Boolean)
+      if (!list.length) return
+      busy = true
+      let res: { slideIds: string[]; added: number } = { slideIds: [], added: 0 }
+      this.store.commit(() => { res = addIconNames(this.store.doc, list, this.store.doc.slides.length) })
+      // a single name already there: say so on the tile and show that icon
+      this.iconAddDup = res.added === 0 && list.length === 1 ? list[0] : ''
+      const last = res.slideIds[res.slideIds.length - 1]
+      const i = this.store.doc.slides.findIndex((s) => s.id === last)
+      if (i >= 0) this.setSlideSel([last], i, last)
+      this.rebuildSidebar()
+      busy = false
+    }
+    name.addEventListener('keydown', (ev) => {
+      ev.stopPropagation()
+      if (ev.isComposing) return
+      if (ev.key === 'Escape') { ev.preventDefault(); this.stopIconAdding(); return }
+      if (ev.key !== 'Enter') return
+      ev.preventDefault()
+      if (!name.value.trim()) this.stopIconAdding() // an empty Enter = done
+      else add([name.value])
+    })
+    name.addEventListener('input', () => {
+      if (!this.iconAddDup) return
+      this.iconAddDup = ''
+      tile.classList.remove('is-dup')
+      face.textContent = ''
+    })
+    // a pasted list: every line (or comma-separated name) becomes an icon
+    name.addEventListener('paste', (ev) => {
+      const text = ev.clipboardData?.getData('text/plain') ?? ''
+      if (!/[\n,]/.test(text)) return
+      ev.preventDefault()
+      add(text.split(/\r?\n|,/).slice(0, 200))
+    })
+    // clicking away keeps a typed name (like naming a new folder) and stops
+    name.addEventListener('blur', () => setTimeout(() => {
+      if (busy || !this.iconAdding) return
+      const live = this.sidebar.querySelector('.ed-icon-adding-name')
+      if (live && document.activeElement === live) return
+      if (name.isConnected && name.value.trim() && name.value !== this.iconAddDup) add([name.value])
+      this.stopIconAdding()
+    }))
+    return tile
+  }
+
+  /** Turn the + tile into a name field (the list opens if it was hidden). */
+  startIconAdding() {
+    if (!this.isIconset) return
+    this.canvas.commitTextEdit()
+    if (this.sidebar.classList.contains('ed-collapsed')) this.togglePanel('left')
+    this.iconAdding = true
+    this.iconAddDup = ''
+    this.rebuildSidebar()
+  }
+
+  private stopIconAdding() {
+    if (!this.iconAdding) return
+    this.iconAdding = false
+    this.iconAddDup = ''
+    this.rebuildSidebar()
+  }
+
+  private focusIconAdding() {
+    const name = this.sidebar.querySelector<HTMLInputElement>('.ed-icon-adding-name')
+    if (!name) return
+    name.focus()
+    if (this.iconAddDup) name.select()
+    name.closest('.ed-add-slide')?.scrollIntoView({ block: 'nearest' })
   }
 
   // --- layouts ---------------------------------------------------------------
@@ -2961,7 +3068,7 @@ export class Editor {
     document.querySelector('.ed-layoutpick')?.remove()
     // an icon set has no slide types: "New slide" (+, the ribbon) adds icons by name
     if (this.isIconset) {
-      if (action.kind !== 'change') this.addIcons(anchor, action.at)
+      if (action.kind !== 'change') this.startIconAdding()
       return
     }
     const doc = this.store.doc
@@ -3707,32 +3814,18 @@ export class Editor {
     return sel.length > 1 ? sel : this.store.doc.slides.map((s) => s.id)
   }
 
-  /** Add icons (iconadd.ts): a popover by `anchor` — each Enter adds one,
-   *  shown and selected in the grid at once; with Claude, a description plans them. */
-  addIcons(anchor: HTMLElement | DOMRect = this.menuAnchor(), at = this.afterSlideBlock(this.store.currentIndex), focus: 'name' | 'plan' = 'name') {
-    this.canvas.commitTextEdit()
-    openAddIcons(this.store, anchor, {
-      at,
-      focus,
-      plan: window.slidomingoDesktop?.sendAgentPrompt ? (request) => void this.planIconsWithAi(request) : undefined,
-      reanchor: () => this.sidebar.querySelector('.ed-add-slide'),
-      onAdded: (ids) => {
-        const last = ids[ids.length - 1]
-        const i = this.store.doc.slides.findIndex((s) => s.id === last)
-        if (i >= 0) this.setSlideSel([last], i, last)
-        this.revealSlides([last])
-      },
-    })
-  }
-
   /** "Plan with AI": a free-text request → Claude plans the icons. Without
-   *  one, the Add icons popover opens on its describe box. */
+   *  one, a small card asks for it (iconplan.ts) under `anchor`. */
   async planIconsWithAi(request?: string, anchor?: HTMLElement) {
     if (!window.slidomingoDesktop?.sendAgentPrompt) {
       this.toast(t('Drawing with AI needs the BeeSlides desktop app with Claude set up'))
       return
     }
-    if (!request?.trim()) { this.addIcons(anchor, undefined, 'plan'); return }
+    if (!request?.trim()) {
+      this.canvas.commitTextEdit()
+      openPlanIcons(anchor ?? this.menuAnchor(), (r) => void this.planIconsWithAi(r))
+      return
+    }
     this.canvas.commitTextEdit()
     if (planIconsWithAi(this.store, request)) this.toast(t('Claude is planning the icons — check the list, then press Draw with AI'))
   }
@@ -3777,7 +3870,7 @@ export class Editor {
     const items = [
       ...(ai ? [tagTool(btn(ICONS.sparkle, t('Plan with AI'), (ev) => void this.planIconsWithAi(undefined, ev.currentTarget as HTMLElement),
         t('Say which icons you need in your own words — Claude plans them as empty icons for you to check')), 'icon-plan')] : []),
-      tagTool(btn(ICONS.plus, t('Add icons'), (ev) => this.addIcons(ev.currentTarget as HTMLElement), t('Name new icons one after another — each Enter adds one')), 'icon-add'),
+      tagTool(btn(ICONS.plus, t('Add icons'), () => this.startIconAdding(), t('Name new icons one after another — each Enter adds one')), 'icon-add'),
       ...(ai
         ? [tagTool(btn(ICONS.paintbrush, t('Draw with AI'), () => this.drawIconsWithAi(),
           t('Claude drafts every empty icon (or the icons selected in the icon list) from native shapes, in the set style')), 'icon-draw')]
@@ -4235,7 +4328,7 @@ export class Editor {
       checked: () => !!this.store.slide?.hidden,
     })
     reg('icon.plan', () => void this.planIconsWithAi(), { visible: () => iconset() && !!window.slidomingoDesktop?.sendAgentPrompt })
-    reg('icon.add', () => this.addIcons(), { visible: iconset })
+    reg('icon.add', () => this.startIconAdding(), { visible: iconset })
     reg('icon.draw', () => this.drawIconsWithAi(), { visible: () => iconset() && !!window.slidomingoDesktop?.sendAgentPrompt })
     reg('icon.applyStyle', () => this.applyIconStyle(), { visible: iconset })
     reg('icon.comment', () => this.commentOnIcons(), { visible: iconset })

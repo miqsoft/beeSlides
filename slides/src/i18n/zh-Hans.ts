@@ -4,11 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
-  "Name an icon, press Enter": "输入图标名称，按回车",
-  "Each Enter adds an icon. Paste a list to add them all.": "每按一次回车添加一个图标。粘贴列表可一次全部添加。",
-  "Added 1 icon": "已添加 1 个图标",
   "Already in the set": "图标集中已有",
-  "or describe them, and Claude plans the list": "或描述它们，由 Claude 规划列表",
   "Name new icons one after another — each Enter adds one": "依次为新图标命名——每按一次回车添加一个",
   "Relative to canvas": "相对于画布",
   "Comment (C) — click a shape or a spot on the icon": "评论（C）— 点击某个形状或图标上的位置",
@@ -2296,7 +2292,6 @@ export const zhHans: Catalog = {
   "Actual size: 16, 24, 32 and 48 px": "实际大小：16、24、32 和 48 px",
   "Add icons": "添加图标",
   "Add icons…": "添加图标…",
-  "Added {n} icons": "已添加 {n} 个图标",
   "An icon set has nothing to present — export it as SVG": "图标集没有可放映的内容 — 请将其导出为 SVG",
   "Apply set style": "应用图标集样式",
   "Author: {a}": "作者：{a}",

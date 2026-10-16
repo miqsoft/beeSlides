@@ -4,11 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const it: Catalog = {
-  "Name an icon, press Enter": "Dai un nome all’icona e premi Invio",
-  "Each Enter adds an icon. Paste a list to add them all.": "Ogni Invio aggiunge un’icona. Incolla un elenco per aggiungerle tutte.",
-  "Added 1 icon": "1 icona aggiunta",
   "Already in the set": "Già nel set",
-  "or describe them, and Claude plans the list": "oppure descrivile e Claude pianifica l’elenco",
   "Name new icons one after another — each Enter adds one": "Dai un nome alle nuove icone una dopo l’altra — ogni Invio ne aggiunge una",
   "Relative to canvas": "Rispetto all’area di lavoro",
   "Comment (C) — click a shape or a spot on the icon": "Commento (C) — fai clic su una forma o su un punto dell’icona",
@@ -2296,7 +2292,6 @@ export const it: Catalog = {
   "Actual size: 16, 24, 32 and 48 px": "Dimensione reale: 16, 24, 32 e 48 px",
   "Add icons": "Aggiungi icone",
   "Add icons…": "Aggiungi icone…",
-  "Added {n} icons": "{n} icone aggiunte",
   "An icon set has nothing to present — export it as SVG": "Un set di icone non ha nulla da presentare: esportalo come SVG",
   "Apply set style": "Applica stile del set",
   "Author: {a}": "Autore: {a}",

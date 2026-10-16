@@ -4,11 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
-  "Name an icon, press Enter": "アイコン名を入力して Enter",
-  "Each Enter adds an icon. Paste a list to add them all.": "Enter ごとにアイコンが 1 つ追加されます。リストを貼り付けるとまとめて追加できます。",
-  "Added 1 icon": "アイコンを 1 個追加しました",
   "Already in the set": "すでにセットにあります",
-  "or describe them, and Claude plans the list": "または説明すると Claude が一覧を考えます",
   "Name new icons one after another — each Enter adds one": "新しいアイコンを順に名付けます — Enter ごとに 1 つ追加",
   "Relative to canvas": "キャンバスに合わせる",
   "Comment (C) — click a shape or a spot on the icon": "コメント (C) — 図形またはアイコン上の位置をクリック",
@@ -2296,7 +2292,6 @@ export const ja: Catalog = {
   "Actual size: 16, 24, 32 and 48 px": "実寸: 16・24・32・48 px",
   "Add icons": "アイコンを追加",
   "Add icons…": "アイコンを追加…",
-  "Added {n} icons": "{n} 個のアイコンを追加しました",
   "An icon set has nothing to present — export it as SVG": "アイコンセットには発表するものがありません — SVG として書き出してください",
   "Apply set style": "セットのスタイルを適用",
   "Author: {a}": "作者: {a}",

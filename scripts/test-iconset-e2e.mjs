@@ -531,36 +531,54 @@ const wide = await page.evaluate(() => {
 })
 ok(Number(wide.cols) >= 3 && wide.oneRow, `a wider list holds more tiles in a row (${JSON.stringify(wide)})`)
 
-// --- Add icons: + tile → a name per Enter, live in the grid; Claude plans from a description ---
+// --- Add icons in place: the + tile becomes a new tile to name; Enter adds it and starts the next ---
 await page.locator('.ed-sidebar .ed-add-slide').click()
 await page.waitForTimeout(200)
-const popAt = await page.evaluate(() => ({
-  open: !!document.querySelector('.ed-iconadd'),
-  beside: document.querySelector('.ed-iconadd')?.getBoundingClientRect().left >= document.querySelector('.ed-sidebar').getBoundingClientRect().right,
-  focus: document.activeElement?.className,
-}))
-ok(popAt.open && popAt.beside && popAt.focus === 'ed-iconadd-name', `the + tile opens Add icons beside the list, ready to type (${JSON.stringify(popAt)})`)
-for (const name of ['lock', 'hash', 'key']) { await page.locator('.ed-iconadd-name').fill(name); await page.locator('.ed-iconadd-name').press('Enter'); await page.waitForTimeout(150) }
+const naming = await page.evaluate(() => {
+  const tile = document.querySelector('.ed-sidebar .ed-icon-adding')
+  const thumb = document.querySelector('.ed-sidebar .ed-thumb')
+  return { tile: !!tile, focus: document.activeElement?.className, sameSize: !!tile && Math.abs(tile.getBoundingClientRect().width - thumb.getBoundingClientRect().width) < 2, popup: !!document.querySelector('.ed-iconadd, .ed-iconplan, dialog[open]') }
+})
+ok(naming.tile && naming.focus === 'ed-icon-adding-name' && naming.sameSize && !naming.popup, `the + tile turns into a new tile with its name field, no popup (${JSON.stringify(naming)})`)
+for (const name of ['lock', 'Hash', 'key']) {
+  await page.keyboard.type(name); await page.keyboard.press('Enter'); await page.waitForTimeout(150)
+  if (name === 'Hash') {
+    const dupe = await page.evaluate(() => ({ note: document.querySelector('.ed-icon-adding.is-dup .ed-icon-adding-face')?.textContent, active: document.querySelector('.ed-sidebar .ed-thumb.active .ed-thumb-num')?.textContent }))
+    ok(dupe.note === 'Already in the set' && dupe.active === 'hash', `a name already in the set is not added twice: the tile says so and that icon is shown (${JSON.stringify(dupe)})`)
+    await page.keyboard.press('Meta+a'); await page.keyboard.press('Backspace')
+  }
+}
 const added = await page.evaluate(() => ({
   names: window.slidomingo.doc.slides.map((s) => s.name).join(),
-  status: document.querySelector('.ed-iconadd-status')?.textContent,
   tiles: document.querySelectorAll('.ed-sidebar .ed-thumb').length,
   active: document.querySelector('.ed-sidebar .ed-thumb.active .ed-thumb-num')?.textContent,
+  still: document.activeElement?.className,
 }))
-ok(added.names === 'fingerprint,evidence bag,hash,lock,key' && added.tiles === 5, `each Enter adds an icon at the end of the set, a name already there is not added twice (${added.names})`)
-ok(added.active === 'key' && added.status === 'Added 2 icons', `the newest icon is selected; the popover counts what it added (${added.active}, ${added.status})`)
-await page.locator('.ed-iconadd-name').press('Enter')
+ok(added.names === 'fingerprint,evidence bag,hash,lock,key' && added.tiles === 5, `each Enter adds an icon at the end of the set (${added.names})`)
+ok(added.active === 'key' && added.still === 'ed-icon-adding-name', `the newest icon is selected and the next name field is ready (${added.active}, ${added.still})`)
+await page.keyboard.press('Enter')
 await page.waitForTimeout(150)
-ok(!(await page.locator('.ed-iconadd').count()), 'an empty Enter closes it')
+ok(!(await page.locator('.ed-icon-adding').count()) && await page.locator('.ed-sidebar .ed-add-slide').count() === 1, 'an empty Enter stops; the + tile is back')
+await page.locator('.ed-ribbon-tab:has-text("Home"), [role="tab"]:has-text("Home")').first().click()
+await page.locator('[data-ui-tool="icon-add"]').first().click()
+await page.waitForTimeout(150)
+await page.keyboard.type('cloud')
+await page.mouse.click(700, 520)
+await page.waitForTimeout(250)
+const away = await page.evaluate(() => ({ last: window.slidomingo.doc.slides.at(-1).name, adding: !!document.querySelector('.ed-icon-adding') }))
+ok(away.last === 'cloud' && !away.adding, `Home ▸ Add icons starts the same; clicking away keeps a typed name and stops (${JSON.stringify(away)})`)
+await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+await page.waitForTimeout(200)
+ok(await page.evaluate(() => window.slidomingo.doc.slides.length) === 5, 'one undo removes the last icon added (one step per name)')
 await page.locator('.ed-ribbon-tab:has-text("Home"), [role="tab"]:has-text("Home")').first().click()
 await page.locator('[data-ui-tool="icon-plan"]').first().click()
 await page.waitForTimeout(200)
-ok(await page.evaluate(() => document.activeElement?.className) === 'ed-iconadd-plan', 'Plan with AI opens the same popover on its describe box')
-await page.locator('.ed-iconadd-plan').fill('six icons for network forensics')
-await page.locator('.ed-iconadd-go').click()
+ok(await page.evaluate(() => document.activeElement?.className) === 'ed-iconplan-ask', 'Plan with AI opens a card that asks what the set is for')
+await page.keyboard.type('six icons for network forensics')
+await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
 await page.waitForTimeout(200)
 const planned2 = await page.evaluate(() => window.__prompts.filter((p) => p.kind === 'plan-icons').at(-1)?.payload?.request)
-ok(planned2 === 'six icons for network forensics' && !(await page.locator('.ed-iconadd').count()), `a description goes to Claude as a plan request (${planned2})`)
+ok(planned2 === 'six icons for network forensics' && !(await page.locator('.ed-iconplan').count()), `⌘↩ sends it to Claude as a plan request (${planned2})`)
 // the shared text dialog has a real card look (it had no styles of its own)
 await page.locator('[data-ui-tool="icon-comment"]').first().click()
 await page.waitForTimeout(200)

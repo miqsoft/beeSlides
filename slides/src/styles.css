@@ -4128,7 +4128,7 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 .ed-iconset .ed-thumb.active .ed-thumb-num { color: var(--ink); font-weight: 600; }
 /* the badges keep to the picture, clear of the name row */
 .ed-iconset .ed-thumb-cmt { bottom: auto; top: 5px; }
-/* "+ Add icons" is the grid's last tile, the size of an icon (opens iconadd.ts) */
+/* "+ Add icons" is the grid's last tile, the size of an icon (editor.ts iconAddTile) */
 .ed-iconset .ed-sidebar > .ed-add-slide {
   grid-column: auto; box-sizing: border-box;
   width: calc(var(--icon-tile, 64px) + 4px); height: calc(var(--icon-tile, 64px) + 26px);
@@ -4137,34 +4137,66 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 }
 .ed-iconset .ed-sidebar > .ed-add-slide svg { width: 20px; height: 20px; }
 .ed-iconset .ed-sidebar > .ed-add-slide:hover { color: var(--ink); border-color: var(--accent); background: var(--chrome); }
-/* Add icons (editor/iconadd.ts): a name per Enter, or a description for Claude */
-.ed-iconadd {
-  position: fixed; z-index: 200; width: 320px; max-width: calc(100vw - 16px);
+/* adding icons in the grid (editor.ts iconAddTile): the + tile becomes a new
+   tile — an empty canvas with its name field where the name will be */
+.ed-iconset .ed-sidebar > .ed-icon-adding {
+  display: flex; flex-direction: column; align-items: stretch;
+  cursor: default; padding: 0; gap: 0; justify-content: flex-start; overflow: hidden;
+  border: 2px solid var(--accent); background: var(--surface); color: var(--muted);
+}
+.ed-iconset .ed-sidebar > .ed-icon-adding:hover { background: var(--surface); }
+.ed-icon-adding-face {
+  flex: 1 1 auto; min-height: 0; align-self: stretch; display: flex; align-items: center; justify-content: center;
+  padding: 6px; font-size: 9.5px; line-height: 1.25; text-align: center; color: var(--muted);
+  background:
+    radial-gradient(circle, transparent 0 calc(38% - 1px), color-mix(in srgb, var(--muted) 30%, transparent) calc(38% - 1px) 38%, transparent 38%)
+    var(--chrome);
+}
+.ed-icon-adding.is-dup .ed-icon-adding-face { color: var(--accent-text); font-weight: 600; background: var(--chrome); }
+.ed-icon-adding-name {
+  flex: none; box-sizing: border-box; width: 100%; height: 22px; padding: 0 4px; border: 0; border-top: 1px solid var(--line);
+  font: inherit; font-size: 11px; font-weight: 600; text-align: center; color: var(--ink); background: var(--surface);
+}
+.ed-icon-adding-name:focus { outline: none; }
+.ed-icon-adding-name::placeholder { color: var(--muted); font-weight: 500; }
+/* Plan with AI (editor/iconplan.ts): what the set is for, in the user's words */
+.ed-iconplan {
+  position: fixed; z-index: 200; width: 360px; max-width: calc(100vw - 16px); box-sizing: border-box;
   background: var(--surface); color: var(--ink); border: 1px solid var(--line);
-  border-radius: 12px; box-shadow: 0 12px 32px rgb(23 18 10 / 0.18);
-  padding: 12px 14px 14px; font-size: 13px;
-  display: flex; flex-direction: column; gap: 8px;
+  border-radius: 14px; box-shadow: 0 16px 40px rgb(23 18 10 / 0.18), 0 2px 6px rgb(23 18 10 / 0.06);
+  padding: 14px 16px 14px; font-size: 13px;
 }
-.ed-iconadd-title { font-weight: 700; font-size: 13.5px; }
-.ed-iconadd input, .ed-iconadd textarea {
-  box-sizing: border-box; width: 100%; font: inherit; font-size: 13px; color: var(--ink);
-  background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px;
+.ed-iconplan-head { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.ed-iconplan-mark {
+  display: inline-flex; width: 26px; height: 26px; border-radius: 8px; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-text);
 }
-.ed-iconadd input:focus, .ed-iconadd textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 0; border-color: var(--accent); }
-.ed-iconadd textarea { resize: vertical; min-height: 64px; line-height: 1.4; }
-.ed-iconadd-status { font-size: 11.5px; color: var(--muted); min-height: 1.3em; }
-.ed-iconadd-status.is-done { color: var(--accent-text); font-weight: 600; }
-.ed-iconadd-or {
-  display: flex; align-items: center; gap: 8px; margin-top: 4px;
-  font-size: 11.5px; color: var(--muted);
+.ed-iconplan-mark svg { width: 16px; height: 16px; }
+.ed-iconplan-sub { margin: 6px 0 10px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.ed-iconplan-ask {
+  display: block; box-sizing: border-box; width: 100%; min-height: 92px; resize: vertical;
+  font: inherit; font-size: 13px; line-height: 1.45; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px;
 }
-.ed-iconadd-or::before, .ed-iconadd-or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
-.ed-iconadd-go { align-self: flex-end; }
+.ed-iconplan-ask:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 80%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.ed-iconplan-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.ed-iconplan-foot kbd {
+  font: inherit; font-size: 11px; color: var(--muted); padding: 1px 6px;
+  border: 1px solid var(--line); border-radius: 5px; background: var(--chrome);
+}
+.ed-iconplan-go {
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 7px 16px; border: 0; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); cursor: pointer;
+}
+.ed-iconplan-go:disabled { opacity: 0.45; cursor: default; }
 .ed-iconset .ed-thumb-lock { bottom: auto; top: 5px; }
 /* an icon not drawn yet: what it is meant to show, on a dashed tile */
 .ed-icon-empty {
-  box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  padding: 8px; background: var(--chrome); outline: 1.5px dashed var(--line); outline-offset: -5px;
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 10px;
+  /* an empty icon canvas: the keyline circle, faint */
+  background:
+    radial-gradient(circle, transparent 0 calc(38% - 1px), color-mix(in srgb, var(--muted) 22%, transparent) calc(38% - 1px) 38%, transparent 38%)
+    var(--chrome);
 }
 .ed-icon-empty span {
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
@@ -6651,4 +6683,3 @@ dialog.ed-cz-picker:not([open]) { display: none; }
 
 /* "Use a different layout" (editor.ts pickImportLayout): one button per layout */
 .ed-import-layouts { flex-wrap: wrap; max-height: 50vh; overflow-y: auto; }
-.ed-iconadd .ed-btn.ed-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; border-radius: 999px; padding: 6px 14px; font-weight: 600; }

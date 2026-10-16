@@ -4,11 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const zhHant: Catalog = {
-  "Name an icon, press Enter": "輸入圖示名稱，按 Enter",
-  "Each Enter adds an icon. Paste a list to add them all.": "每按一次 Enter 新增一個圖示。貼上清單可一次全部新增。",
-  "Added 1 icon": "已新增 1 個圖示",
   "Already in the set": "圖示集中已有",
-  "or describe them, and Claude plans the list": "或描述它們，由 Claude 規劃清單",
   "Name new icons one after another — each Enter adds one": "依序為新圖示命名——每按一次 Enter 新增一個",
   "Relative to canvas": "相對於畫布",
   "Comment (C) — click a shape or a spot on the icon": "評論（C）— 點選某個形狀或圖示上的位置",
@@ -2296,7 +2292,6 @@ export const zhHant: Catalog = {
   "Actual size: 16, 24, 32 and 48 px": "實際大小：16、24、32 和 48 px",
   "Add icons": "新增圖示",
   "Add icons…": "新增圖示…",
-  "Added {n} icons": "已新增 {n} 個圖示",
   "An icon set has nothing to present — export it as SVG": "圖示集沒有可放映的內容 — 請將其匯出為 SVG",
   "Apply set style": "套用圖示集樣式",
   "Author: {a}": "作者：{a}",

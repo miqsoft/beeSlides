@@ -12893,3 +12893,30 @@ Rigs: `scripts/test-iconset.ts` (addIconNames), `scripts/test-iconset-e2e.mjs`
 (+ tile → popover beside the list, Enter adds and selects, duplicate refused,
 empty Enter closes, Plan opens the describe box and sends `plan-icons`, the
 dialog's computed style).
+
+## 2026-10-16 — Add icons in place: name the new tile, no popup
+
+Supersedes the popover of "Add icons: a name per Enter" (same day). It worked,
+but it was a form floating over the canvas, cut off from the grid it filled.
+Native apps name a new item where it appears (a new folder in Finder, a
+layer in Figma), so:
+
+- **The + tile becomes the new tile** (`Editor.iconAddTile`, `iconAdding`):
+  an empty icon canvas the size of the others with its name field where the
+  name goes. Enter adds the icon at the end of the set (`addIconNames`, one
+  commit) and the next empty tile is ready; a name already in the set is not
+  added — the tile says "Already in the set" and that icon is shown. A pasted
+  list adds every name. Esc or an empty Enter stops; clicking away keeps a
+  typed name and stops (like naming a new folder). The adding state lives on
+  the Editor, so it survives the list's rebuild after each add.
+  Home ▸ Add icons and the Icons menu start the same (the list opens if hidden).
+- **Plan with AI is its own card** (`editor/iconplan.ts`): sparkle header, what
+  it does, a roomy box, ⌘↩, one button. The panel's Plan section (an empty
+  set) is unchanged.
+- **Empty tiles are calmer**: a faint keyline circle, like an empty icon
+  canvas, instead of "Not drawn yet" on every tile; the "what it shows" text
+  only where there is one (the words stay as the tile's tooltip).
+
+Rig: `scripts/test-iconset-e2e.mjs` (tile size, focus, no popup, Enter adds and
+continues, duplicate note, empty Enter, click-away keeps, one undo per name,
+the Plan card and ⌘↩).
