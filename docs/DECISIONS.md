@@ -12974,3 +12974,23 @@ Rigs: `scripts/test-iconexamples.ts` (reader, SVG out, line style),
 `scripts/test-iconstyles.ts` (presets), `scripts/test-iconset-e2e.mjs`
 (sections order, real file picker → cleaned examples, style follows,
 doc_info, remove/undo, More settings), `scripts/test-desktop-agentprompts.ts`.
+
+## 2026-10-16 — No chat box in the panel: the Claude chat is where you ask
+
+An empty icon set's Format panel had a "Plan with AI" section: a big text box
+and a button. It sent the same `plan-icons` prompt into the same Claude chat
+as Home ▸ Plan with AI and the Icons menu — a third way in, and one that
+looked like a second chat beside the real one.
+
+- **Removed** the panel's Plan section (textarea `ed-iconset-ask`, its button,
+  its CSS). While nothing is drawn the panel shows one hint instead
+  (`.ed-iconset-start`: tell Claude in the chat, or Plan with AI in Home) and
+  keeps "Draw N empty icons" — a one-click action, not a chat.
+- **Kept** Plan with AI in the ribbon and menu (`editor/iconplan.ts`): it
+  wraps the request as `plan-icons` (plan empty icons, draw nothing), which a
+  free message in the chat does not guarantee.
+- Supersedes the "Panel" bullet of "Icon sets look like an icon editor" and
+  the panel's Plan section kept in "Add icons in place".
+
+Rig: `scripts/test-iconset-e2e.mjs` (hint shown and no Plan box on an empty
+set, Plan through the Home card, hint gone once an icon is drawn).

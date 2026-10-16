@@ -59,8 +59,8 @@ preserved.
   any of its styles. The 24-unit grid is on by default (⌘G hides it; decks keep
   their own setting). Insert is a drawing toolbar — rectangle, ellipse,
   triangle, line, curve, freeform, polygon, shape presets — with nothing the
-  export would leave out. The panel plans with AI only while the set is still
-  empty, an empty icon says so instead of showing blank previews, the
+  export would leave out. An empty set's panel points you to the Claude chat
+  (or Home ▸ Plan with AI) instead of a chat box of its own, an empty icon says so instead of showing blank previews, the
   set's own look is called "As drawn", and slide wording ("To slide", "Slide
   Sorter", "slide list", "Check slides") is gone from icon sets, the menu bar
   included (its Slide menu is Icons there).

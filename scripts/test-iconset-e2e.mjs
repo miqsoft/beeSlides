@@ -12,7 +12,7 @@
 // 0 without it or a build.
 //
 // Checks: the Icon set tile opens an empty set; name and brief are set in
-// the panel; its Plan with AI box sends a free-text request to Claude; Claude's plan (icons op "plan") arrives
+// the panel; Plan with AI (Home) sends a free-text request to Claude; Claude's plan (icons op "plan") arrives
 // as empty, named icons;
 // the editor keeps the slide list but drops notes, Design and Transitions; the
 // keyline overlay is drawn; doc_info hands an agent the set style and a ready
@@ -111,9 +111,14 @@ await page.waitForTimeout(200)
 d = await doc()
 ok(d.title === 'Forensics' && d.iconset?.brief?.startsWith('Digital forensics'), `name and brief set from the panel (${d.title})`)
 
-// Plan with AI: free text in the panel → Claude
-await page.locator('textarea.ed-iconset-ask').fill('think about 3 icons for evidence handling')
-await page.locator('.ed-btn-block:has-text("Plan with AI")').click()
+// an empty set: the panel points at the Claude chat (no chat box of its own)
+const start = await page.evaluate(() => ({ hint: document.querySelector('.ed-iconset-start')?.textContent ?? '', ask: !!document.querySelector('textarea.ed-iconset-ask') }))
+ok(/Claude in the chat/.test(start.hint) && !start.ask, `an empty set's panel points at the chat, no Plan box (${start.hint})`)
+
+// Plan with AI: free text in the Home card → Claude
+await page.locator('[data-ui-tool="icon-plan"]').first().click()
+await page.locator('.ed-iconplan-ask').fill('think about 3 icons for evidence handling')
+await page.locator('.ed-iconplan-go').click()
 await page.waitForTimeout(200)
 const planAsk = await page.evaluate(() => window.__prompts.find((p) => p.kind === 'plan-icons'))
 ok(planAsk?.payload?.request === 'think about 3 icons for evidence handling' && planAsk.payload.brief.startsWith('Digital'), 'Plan with AI sends the request in the user\'s words, with the brief')
@@ -152,7 +157,7 @@ const ui = await page.evaluate(() => {
 ok(ui.root && ui.sidebar && !ui.notes, `slide list shown, notes hidden (${JSON.stringify({ sidebar: ui.sidebar, notes: ui.notes })})`)
 ok(!ui.tabs.some((x) => /Design|Transitions/.test(x ?? '')), `no Design or Transitions tab (${ui.tabs.join(', ')})`)
 ok(ui.keyline, 'the keyline square/circle is drawn over the canvas')
-ok(ui.panel.includes('Plan with AI') && ui.panel.includes('Icon') && ui.panel.includes('Icon set'), `the Format panel: plan, this icon, the set (${ui.panel.join(', ')})`)
+ok(!ui.panel.includes('Plan with AI') && ui.panel.includes('Icon') && ui.panel.includes('Icon set'), `the Format panel: this icon, the set, no Plan section (${ui.panel.join(', ')})`)
 if (shots) await page.screenshot({ path: join(shots, 'iconset-editor.png') })
 
 // --- it reads as an icon set, not a deck ----------------------------------------------
@@ -231,7 +236,7 @@ d = await doc()
 ok(d.slides[0].elements.every((e) => e.strokeWidth === 32 && e.stroke === '#000000'), 'Apply set style puts every shape back on the set style')
 
 const afterDraw = await page.evaluate(() => [...document.querySelectorAll('.ed-section')].map((h) => h.textContent))
-ok(!afterDraw.includes('Plan with AI'), 'once an icon is drawn, planning leaves the panel (it stays in the ribbon)')
+ok(!(await page.locator('.ed-iconset-start').count()), 'once an icon is drawn, the chat hint leaves the panel (Plan with AI stays in the ribbon)')
 await page.locator('.ed-ribbon-tab:has-text("View"), [role="tab"]:has-text("View")').first().click()
 await page.locator('.ed-ribbon button:has-text("All icons")').first().click()
 await page.waitForTimeout(250)

@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const zhHant: Catalog = {
+  "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "在聊天中告訴 Claude 這套圖示的用途，或使用「常用」中的「用 AI 規劃」——Claude 先規劃空圖示供你檢查，然後繪製。",
   "Drawing": "繪製",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "每個圖示的繪製方式 — Claude 繪製前會讀取這些設定和你的範例圖示。下方的樣式只會重新上色。",
   "e.g. friendly and rounded, few details, for a forensics course": "例如：友善、圓潤、細節少，用於鑑識課程",

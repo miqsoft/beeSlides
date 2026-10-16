@@ -908,28 +908,14 @@ export class PropsPanel {
       draw.addEventListener('click', act('draw'))
       return draw
     }
-    // planning is how a set starts; once icons are drawn it stays in the ribbon (Home ▸ Plan with AI)
+    // a set with nothing drawn: point at the Claude chat (and Home ▸ Plan with
+    // AI) instead of a second chat box in the panel (DECISIONS "No chat box in the panel")
     const planning = ai && doc.slides.every((s) => !s.elements.length)
-
-    // the AI workflow: say what you need → Claude plans empty icons → you check → Draw
     if (planning) {
-      this.section('Plan with AI')
-      const ask = document.createElement('textarea')
-      ask.className = 'ed-iconset-text ed-iconset-ask'
-      ask.rows = 4
-      ask.maxLength = LIMITS.prose
-      ask.placeholder = t('e.g. think about 12 icons for a digital forensics course: evidence handling, analysis tools, reporting')
-      this.host.appendChild(ask)
-      const go = document.createElement('button')
-      go.className = 'ed-btn ed-btn-block ed-primary'
-      go.textContent = t('Plan with AI')
-      go.title = t('Say which icons you need in your own words — Claude plans them as empty icons for you to check')
-      go.addEventListener('click', () => {
-        if (!ask.value.trim()) { ask.focus(); return }
-        document.dispatchEvent(new CustomEvent('slidomingo:iconset', { detail: { action: 'plan', request: ask.value } }))
-        ask.value = ''
-      })
-      this.host.appendChild(go)
+      const start = document.createElement('p')
+      start.className = 'ed-hint ed-iconset-start'
+      start.textContent = t('Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.')
+      this.host.appendChild(start)
       this.host.appendChild(drawB())
     }
 

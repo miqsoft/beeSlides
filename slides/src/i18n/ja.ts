@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "チャットで Claude にセットの用途を伝えるか、「ホーム」の「AI で計画」を使います。Claude が空のアイコンを計画し、確認後に描画します。",
   "Drawing": "描画",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "すべてのアイコンの描き方です — Claude は描く前にこれと例のアイコンを読みます。下のスタイルは塗り直すだけです。",
   "e.g. friendly and rounded, few details, for a forensics course": "例: 親しみやすく丸みのある形、ディテールは少なめ、フォレンジック講座向け",

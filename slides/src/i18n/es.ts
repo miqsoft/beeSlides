@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const es: Catalog = {
+  "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "Dile a Claude en el chat para qué es el conjunto, o usa Planificar con IA en Inicio: Claude planifica iconos vacíos para que los revises y luego Dibujar.",
   "Drawing": "Dibujo",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "Cómo se dibuja cada icono: Claude lo lee, junto con tus iconos de ejemplo, antes de dibujar. Los estilos de abajo solo vuelven a pintar.",
   "e.g. friendly and rounded, few details, for a forensics course": "p. ej., amable y redondeado, pocos detalles, para un curso de análisis forense",
