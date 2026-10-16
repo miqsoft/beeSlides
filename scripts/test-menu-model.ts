@@ -128,6 +128,20 @@ ok(slideMenu.join() === 'icon.plan,icon.add,icon.draw,icon.applyStyle,icon.comme
 ok(iconLeaves.includes('file.exportIconSet') && iconLeaves.includes('file.exportIconSvg') && !iconLeaves.includes('file.exportPdf'), 'icon set: Export lists the set and one icon')
 ok(iconLeaves.includes('play.sendComments'), 'icon set: comments still go to Claude')
 ok(iconset.menus.every((m) => noSepBugs(m.items)), 'icon set has no separator bugs')
+// an icon set renames, never re-lists: a command's label and a menu's title follow the document
+const renamed = serializeMenuModel({
+  tr: (s) => `«${s}»`, expand: () => [],
+  state: (id) => (id === 'view.sorter' ? { label: 'All icons' } : id === 'arrange.centerSlide' ? { label: 'Center on canvas' } : undefined),
+  menuLabel: (key) => (key === 'slide' ? 'Icons' : undefined),
+})
+const leafOf = (m: ReturnType<typeof serializeMenuModel>, id: string) => {
+  let hit: WireItem | undefined
+  for (const x of m.menus) walk(x.items, (it) => { if ('id' in it && it.id === id) hit = it })
+  return hit as (WireItem & { label: string }) | undefined
+}
+ok(leafOf(renamed, 'view.sorter')?.label === '«All icons»' && leafOf(renamed, 'arrange.centerSlide')?.label === '«Center on canvas»', 'a command label can follow the document, translated')
+ok(renamed.menus.find((m) => m.key === 'slide')?.label === '«Icons»' && renamed.menus.find((m) => m.key === 'view')?.label === '«View»', 'a menu title can follow the document; the others keep theirs')
+ok(leafOf(full, 'view.sorter')?.label !== undefined && leafOf(renamed, 'view.panelSlides')?.label === '«Slides»', 'without an override the catalog label stays')
 
 // View ▸ Customize… and View ▸ My commands (a UI profile's custom.* commands)
 ok(leaves.some((l) => l.id === 'view.customize' && l.label === '«Customize…»'), 'View ▸ Customize… is a renderer command')

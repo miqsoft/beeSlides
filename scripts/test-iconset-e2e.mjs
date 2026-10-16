@@ -77,6 +77,10 @@ await page.addInitScript(() => {
     onSlideWrite: (cb) => { window.__slideWrite = cb },
     sendSlideWriteResult: (r) => { window.__results[r.requestId] = r },
     sendAgentPrompt: (kind, payload) => { window.__prompts.push({ kind, payload: JSON.parse(JSON.stringify(payload ?? null)) }) },
+    setMenuModel: (m) => { window.__menu = m },
+    listTemplateMeta: () => Promise.resolve([]), // the start page lists layouts, recents and drafts
+    listRecent: () => Promise.resolve([]),
+    listDrafts: () => Promise.resolve([]),
     exportIconset: (req) => { window.__exports.push(req); return Promise.resolve({ ok: true, path: '/tmp/x/' + req.folderName }) },
   }
   const absent = new Set(['iconFetch', 'setIconToken', 'iconTokenStatus', 'adoptIconTokens'])
@@ -149,6 +153,42 @@ ok(ui.keyline, 'the keyline square/circle is drawn over the canvas')
 ok(ui.panel.includes('Plan with AI') && ui.panel.includes('Icon') && ui.panel.includes('Icon set'), `the Format panel: plan, this icon, the set (${ui.panel.join(', ')})`)
 if (shots) await page.screenshot({ path: join(shots, 'iconset-editor.png') })
 
+// --- it reads as an icon set, not a deck ----------------------------------------------
+const native = await page.evaluate(() => {
+  const vis = (el) => !!el && el.getBoundingClientRect().width > 0 && getComputedStyle(el).display !== 'none'
+  const thumbs = [...document.querySelectorAll('.ed-sidebar .ed-thumb')]
+  const box = (el) => el.getBoundingClientRect()
+  const words = new Set()
+  for (const el of document.querySelectorAll('.ed-root button, .ed-root [title], .ed-root .ed-section, .ed-root label')) {
+    if (!vis(el)) continue
+    for (const x of [el.textContent ?? '', el.getAttribute('title') ?? '']) if (/\bslides?\b/i.test(x) && x.length < 90) words.add(x.trim())
+  }
+  return {
+    grid: getComputedStyle(document.querySelector('.ed-sidebar')).display === 'grid',
+    sameRow: Math.abs(box(thumbs[0]).top - box(thumbs[1]).top) < 2 && box(thumbs[1]).left > box(thumbs[0]).right,
+    names: thumbs.map((th) => th.querySelector('.ed-thumb-num')?.textContent).join(),
+    nameUnder: box(thumbs[0].querySelector('.ed-thumb-num')).top > box(thumbs[0].querySelector('.slidomingo-thumb-surface')).bottom - 1,
+    placeholder: thumbs[1].querySelector('.ed-icon-empty')?.textContent,
+    gaps: [...document.querySelectorAll('.ed-sidebar .ed-insertgap')].filter(vis).length,
+    unitGrid: !!document.querySelector('.ed-stage-scale .ed-grid'),
+    chip: document.querySelector('.ed-quickbar-chip.is-slide')?.textContent,
+    sizes: document.querySelectorAll('.ed-iconset-preview').length,
+    hint: [...document.querySelectorAll('.ed-props .ed-hint')].some((h) => /^Not drawn yet/.test(h.textContent ?? '')),
+    words: [...words],
+  }
+})
+ok(native.grid && native.sameRow && native.gaps === 0, `the icon list is a grid of tiles, no insert gaps (${JSON.stringify({ grid: native.grid, sameRow: native.sameRow, gaps: native.gaps })})`)
+ok(native.names === 'fingerprint,evidence bag,hash' && native.nameUnder, `each tile names its icon, under the picture (${native.names})`)
+ok(native.placeholder === 'a sealed bag with a tag', `an icon not drawn yet shows what it is meant to show (${native.placeholder})`)
+ok(native.unitGrid, 'the unit grid is shown by default in an icon set')
+ok(native.chip === 'Icon' && native.sizes === 0 && native.hint, `an empty icon: "Icon" chip, a hint instead of blank size previews (${native.chip}, ${native.sizes})`)
+ok(!native.words.length, `no slide wording in the icon set's chrome (${native.words.join(' | ')})`)
+await page.locator('.ed-ribbon-tab:has-text("Insert"), [role="tab"]:has-text("Insert")').first().click()
+const insertTab = await page.evaluate(() => [...document.querySelectorAll('.ed-ribbon button')].filter((b) => b.getBoundingClientRect().width > 0).map((b) => b.textContent?.trim()))
+ok(insertTab.includes('Ellipse') && insertTab.includes('Polygon') && !insertTab.some((x) => /^(Text|Image|Table|Chart|Equation|Embed|Code|Icons)$/.test(x ?? '')),
+  `Insert draws shapes only — what the export keeps (${insertTab.filter(Boolean).join(', ')})`)
+await page.locator('.ed-ribbon-tab:has-text("Home"), [role="tab"]:has-text("Home")').first().click()
+
 // --- agent: doc_info → pathElement → write_slide ---------------------------------------
 async function query(verb, args = {}) {
   const id = `q${++n}`
@@ -187,6 +227,21 @@ await page.locator('[data-ui-tool="icon-style"]').first().click()
 await page.waitForTimeout(200)
 d = await doc()
 ok(d.slides[0].elements.every((e) => e.strokeWidth === 32 && e.stroke === '#000000'), 'Apply set style puts every shape back on the set style')
+
+const afterDraw = await page.evaluate(() => [...document.querySelectorAll('.ed-section')].map((h) => h.textContent))
+ok(!afterDraw.includes('Plan with AI'), 'once an icon is drawn, planning leaves the panel (it stays in the ribbon)')
+await page.locator('.ed-ribbon-tab:has-text("View"), [role="tab"]:has-text("View")').first().click()
+await page.locator('.ed-ribbon button:has-text("All icons")').first().click()
+await page.waitForTimeout(250)
+const overview = await page.evaluate(() => ({
+  title: document.querySelector('.ed-sorter-overlay h2')?.textContent,
+  names: [...document.querySelectorAll('.ed-sorter-item .ed-sorter-num')].map((n) => n.textContent).join(),
+  empty: document.querySelectorAll('.ed-sorter-item .ed-icon-empty').length,
+}))
+ok(overview.title === 'All icons' && overview.names === 'fingerprint,evidence bag,hash' && overview.empty === 2, `All icons: every icon by name, the empty ones as placeholders (${JSON.stringify(overview)})`)
+if (shots) await page.screenshot({ path: join(shots, 'iconset-overview.png') })
+await page.keyboard.press('Escape')
+await page.locator('.ed-ribbon-tab:has-text("Home"), [role="tab"]:has-text("Home")').first().click()
 
 // --- Draw with AI: the empty icons go to Claude --------------------------------------
 await page.locator('[data-ui-tool="icon-draw"]').first().click()
@@ -254,7 +309,7 @@ const sections = await page.evaluate(() => [...document.querySelectorAll('.ed-se
 ok(sections.includes('Styles'), `the panel has a Styles section (${sections.join(', ')})`)
 await page.locator('.ed-section[data-key="Styles"]').evaluate((h) => h.scrollIntoView())
 const cards = () => page.evaluate(() => [...document.querySelectorAll('.ed-looks:not(.ed-looks-small) .ed-look-card:not(.ed-look-add) span')].map((s) => s.textContent))
-ok((await cards()).join() === 'Set style', 'one card at first: the set style')
+ok((await cards()).join() === 'Plain', 'one card at first: Plain, the set style')
 await page.locator('.ed-look-add').click()
 await page.waitForTimeout(150)
 const presetNames = await page.evaluate(() => [...document.querySelectorAll('.ed-look-drawer .ed-looks-small .ed-look-card span')].map((s) => s.textContent))
@@ -264,7 +319,7 @@ await page.locator('.ed-look-drawer .ed-look-card:has(span:text-is("Comic"))').c
 await page.waitForTimeout(200)
 d = await doc()
 ok(d.iconset.variants?.length === 1 && d.iconset.variants[0].name === 'Comic' && d.iconset.variants[0].shadow, 'a preset click adds the Comic style to the set')
-ok((await cards()).join() === 'Set style,Comic', 'the gallery shows it, picked')
+ok((await cards()).join() === 'Plain,Comic', 'the gallery shows it, picked')
 await rowInput('Line weight (×)').fill('2')
 await rowInput('Line weight (×)').press('Tab')
 await page.waitForTimeout(150)
@@ -396,9 +451,9 @@ ok(sentStyled?.payload?.[0]?.style === 'Comic', 'and Claude is told the style', 
 const agentCmts = await page.evaluate(() => window.slidomingo.comments?.() ?? [])
 ok(agentCmts.some((c) => c.style?.name === 'Comic'), 'comments() names the style for agents')
 // the compare sheet marks the icon and opens it in that style
-await page.locator('.ed-lookbar button:text-is("Set style")').click()
+await page.locator('.ed-lookbar button:text-is("Plain")').click()
 await page.waitForTimeout(150)
-ok((await view()).src === '', 'Set style shows the drawing again')
+ok((await view()).src === '', 'Plain shows the drawing again')
 await page.locator('button:has-text("Compare all styles…")').click()
 await page.waitForTimeout(250)
 const marked = await page.evaluate(() => document.querySelectorAll('dialog.ed-look-sheet .ed-look-cell.is-tweaked').length)
@@ -407,7 +462,7 @@ await page.locator('dialog.ed-look-sheet .ed-look-cell.is-tweaked').click()
 await page.waitForTimeout(250)
 v = await view()
 ok(v.active === 'Comic •' && !(await page.locator('dialog.ed-look-sheet').count()), 'clicking it opens that icon in that style on the canvas')
-await page.locator('.ed-lookbar button:text-is("Set style")').click()
+await page.locator('.ed-lookbar button:text-is("Plain")').click()
 await page.waitForTimeout(100)
 await page.locator('.ed-ribbon-tab:has-text("View"), [role="tab"]:has-text("View")').first().click()
 
@@ -422,6 +477,59 @@ const man2 = JSON.parse(exp2.files.at(-1).text)
 ok(man2.styles?.map((x) => x.folder).join() === 'comic,learned-from-fingerprint,shared-badge,pastel' && man2.icons.some((i) => i.file === 'comic/hash.svg' && i.keywords?.includes('Comic')), 'icons.json lists the styles; each copy is searchable by its style')
 const comicSvg = exp2.files.find((f) => f.name === 'comic/fingerprint.svg').text
 ok(comicSvg.includes('<g transform="translate(0.9 0.9)">') && comicSvg.includes('#ffd23f'), 'the comic file carries its shadow and colours')
+
+// --- the native menu speaks icons too -------------------------------------------------------
+const menu = await page.evaluate(() => {
+  const labels = {}
+  const walk = (items) => { for (const it of items ?? []) { if (it.id) labels[it.id] = it.label; if (it.submenu) walk(it.submenu) } }
+  for (const m of window.__menu?.menus ?? []) walk(m.items)
+  return { titles: (window.__menu?.menus ?? []).map((m) => m.label), labels }
+})
+ok(menu.labels['view.sorter'] === 'All icons' && menu.labels['view.panelSlides'] === 'Icons' && menu.labels['arrange.centerSlide'] === 'Center on canvas' && menu.labels['arrange.toSlide'] === 'Relative to canvas',
+  `menu items say icons and canvas (${['view.sorter', 'view.panelSlides', 'arrange.centerSlide', 'arrange.toSlide'].map((k) => menu.labels[k]).join(', ')})`)
+ok(menu.titles.includes('Icons') && !menu.titles.includes('Slide'), `the Slide menu is the Icons menu (${menu.titles.join(', ')})`)
+
+// --- All icons in a style: the same choice as the canvas ------------------------------------
+await page.locator('.ed-ribbon button:has-text("All icons")').first().click()
+await page.waitForTimeout(250)
+const chips = await page.evaluate(() => [...document.querySelectorAll('.ed-sorter-looks .ed-setchip')].map((b) => b.textContent))
+ok(chips.join() === 'Plain,Comic,Learned from “fingerprint”,Shared badge,Pastel', `All icons offers the set's styles (${chips.join()})`)
+await page.locator('.ed-sorter-looks .ed-setchip:text-is("Comic")').click()
+await page.waitForTimeout(250)
+const inComic = await page.evaluate(() => ({
+  active: document.querySelector('.ed-sorter-looks .ed-setchip.active')?.textContent,
+  imgs: document.querySelectorAll('.ed-sorter-item .slidomingo-thumb-surface img').length,
+  canvas: document.querySelector('.ed-lookbar .ed-setchip.active')?.textContent,
+}))
+ok(inComic.active === 'Comic' && inComic.imgs === 3 && /^Comic/.test(inComic.canvas ?? ''), `a style picked there shows every icon in it, and the canvas follows (${JSON.stringify(inComic)})`)
+if (shots) await page.screenshot({ path: join(shots, 'iconset-overview-comic.png') })
+await page.locator('.ed-sorter-looks .ed-setchip:text-is("Plain")').click()
+await page.keyboard.press('Escape')
+await page.waitForTimeout(150)
+
+// --- the icon grid: drag to reorder, more columns when wider ---------------------------------
+const order = async () => page.evaluate(() => window.slidomingo.doc.slides.map((s) => s.name).join())
+const before = await order()
+await page.locator('.ed-sidebar .ed-thumb').nth(2).dragTo(page.locator('.ed-sidebar .ed-thumb').nth(0), { targetPosition: { x: 3, y: 30 } })
+await page.waitForTimeout(250)
+const after = await order()
+ok(before === 'fingerprint,evidence bag,hash' && after === 'hash,fingerprint,evidence bag', `dragging a tile before the first moves it there (${before} → ${after})`)
+const last = page.locator('.ed-sidebar .ed-thumb').nth(2)
+const lastBox = await last.boundingBox()
+await page.locator('.ed-sidebar .ed-thumb').nth(0).dragTo(last, { targetPosition: { x: lastBox.width - 3, y: 30 } })
+await page.waitForTimeout(250)
+ok(await order() === 'fingerprint,evidence bag,hash', `and after the last puts it back (${await order()})`)
+const grip = await page.locator('.ed-sidebar + .ed-resizer').boundingBox()
+await page.mouse.move(grip.x + grip.width / 2, grip.y + 120)
+await page.mouse.down()
+await page.mouse.move(grip.x + grip.width / 2 + 90, grip.y + 120, { steps: 6 })
+await page.mouse.up()
+await page.waitForTimeout(300)
+const wide = await page.evaluate(() => {
+  const th = [...document.querySelectorAll('.ed-sidebar .ed-thumb')].map((x) => x.getBoundingClientRect())
+  return { cols: getComputedStyle(document.querySelector('.ed-sidebar')).getPropertyValue('--icon-cols').trim(), oneRow: th.every((r) => Math.abs(r.top - th[0].top) < 2) }
+})
+ok(Number(wide.cols) >= 3 && wide.oneRow, `a wider list holds more tiles in a row (${JSON.stringify(wide)})`)
 
 // --- no presenting --------------------------------------------------------------------------
 const hidden = await page.evaluate(() => [...document.querySelectorAll('[data-ui-tool="present"], [data-ui-tool="notes"]')].every((b) => getComputedStyle(b).display === 'none'))

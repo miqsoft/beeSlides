@@ -77,6 +77,8 @@ export const RIBBON_LAYOUT: Record<string, Array<{ id: string; caption: string }
     { id: 'insert:tables-charts', caption: 'Tables & Charts' },
     { id: 'insert:text', caption: 'Text' },
     { id: 'insert:symbols', caption: 'Symbols' },
+    // an icon set's Insert tab: its drawing tools
+    { id: 'insert:shapes', caption: 'Shapes' },
   ],
   design: [
     { id: 'design:slide-type', caption: 'Slide Type' },
@@ -87,6 +89,8 @@ export const RIBBON_LAYOUT: Record<string, Array<{ id: string; caption: string }
   ],
   view: [
     { id: 'view:presentation-views', caption: 'Presentation Views' },
+    // an icon set's View tab shows this (All icons) in place of Presentation Views
+    { id: 'view:icons', caption: 'Icons' },
     { id: 'view:show', caption: 'Show' },
     { id: 'view:panels', caption: 'Panels' },
     { id: 'view:guides', caption: 'Guides & Checks' },

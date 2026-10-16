@@ -37,6 +37,9 @@ export const LENGTH_UNITS: LengthUnit[] = ['px', 'pt', 'mm', 'cm', 'in']
 
 export interface GridPref {
   on: boolean
+  /** Icon sets keep their own switch, on unless turned off: an icon is drawn
+   *  on its unit grid, so it is shown there by default. */
+  iconOn: boolean
   slideStepPx: number
   figureStepMm: number
   /** the slide unit for the panel's lengths (figures follow their own unit) */
@@ -51,7 +54,7 @@ export interface GridPref {
 export const FIGURE_GRID_STEPS_MM = [1, 2, 5, 10]
 
 const SNAP_DEFAULTS: SnapTargets = { grid: true, layout: true, guides: true, margins: true, objects: true, slide: true }
-const DEFAULTS: GridPref = { on: false, slideStepPx: 20, figureStepMm: 2, unit: 'px', showLayout: true, showGuides: true, snap: SNAP_DEFAULTS }
+const DEFAULTS: GridPref = { on: false, iconOn: true, slideStepPx: 20, figureStepMm: 2, unit: 'px', showLayout: true, showGuides: true, snap: SNAP_DEFAULTS }
 
 export function loadGridPref(): GridPref {
   try {
@@ -64,6 +67,7 @@ export function loadGridPref(): GridPref {
     ) as unknown as SnapTargets
     return {
       on: j.on === true,
+      iconOn: j.iconOn !== false,
       slideStepPx: pos(j.slideStepPx, DEFAULTS.slideStepPx),
       figureStepMm: pos(j.figureStepMm, DEFAULTS.figureStepMm),
       unit: LENGTH_UNITS.includes(j.unit) ? j.unit : DEFAULTS.unit,
@@ -78,6 +82,11 @@ export function loadGridPref(): GridPref {
 
 export function saveGridPref(p: GridPref) {
   lsSet(KEY, JSON.stringify(p))
+}
+
+/** The switch that shows the grid in this kind of document (icon sets have their own). */
+export function gridOnKey(iconset: boolean): 'on' | 'iconOn' {
+  return iconset ? 'iconOn' : 'on'
 }
 
 /** Active grid step in model px (0 when off). */

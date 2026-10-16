@@ -29,6 +29,9 @@ export interface Command {
   /** A user-authored label (UI profile `custom.*` commands, View ▸ My
    *  commands): shown as typed, never passed through t(). */
   label?: string
+  /** The menu label for now, as an English catalog key (translated like the
+   *  catalog's); absent = the catalog's own */
+  menuLabel?(): string | undefined
 }
 
 export class CommandRegistry {
@@ -38,6 +41,8 @@ export class CommandRegistry {
   /** The accelerator the native menu shows for a command — the UI profile's
    *  shortcuts (customize/apply.ts) replace the catalog's. */
   accelFor: ((id: string, builtin: string | undefined) => string | undefined) | null = null
+  /** A top-level menu's title for now, as an English key (absent = the catalog's) */
+  menuTitle: ((key: string) => string | undefined) | null = null
 
   register(id: string, cmd: Command): void { this.cmds.set(id, cmd) }
   /** Drops every command whose id starts with `prefix` (a UI profile's
@@ -62,6 +67,7 @@ export class CommandRegistry {
       visible,
       enabled: !this.blocked() && (c.enabled ? c.enabled() : true),
       checked: c.checked ? c.checked() : undefined,
+      ...(c.menuLabel?.() ? { label: c.menuLabel() } : {}),
     }
   }
 
@@ -78,6 +84,7 @@ export class CommandRegistry {
       tr: (en) => t(en),
       state: (id) => this.state(id),
       ...(this.accelFor ? { accel: this.accelFor } : {}),
+      ...(this.menuTitle ? { menuLabel: this.menuTitle } : {}),
       expand: (kind) => {
         if (kind === 'shapes') {
           const leaf = (id: string, label: string) => ({ id, label: t(label), ...this.state(id) })

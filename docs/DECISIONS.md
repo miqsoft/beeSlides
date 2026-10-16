@@ -12759,3 +12759,60 @@ Rigs: `scripts/test-iconstyles.ts` (tweaks render/clear/read/bounds/recipe),
 (styled comment line), `scripts/test-iconset-e2e.mjs` (canvas view, invisible
 but selectable shapes, In “Comic” section, tweak + part, chip dot, comment
 look + Claude payload + comments(), compare-sheet jump).
+
+## 2026-10-16 — Icon sets look like an icon editor: same slide list, icon-shaped
+
+Icon sets KEPT the slide list and sorter on purpose (2026-10-15: they are the
+icon grid), but they still looked like a deck: a one-column list of big
+squares labelled "1 · fingerprint", a sorter of numbered blank squares, Insert
+offering text, pictures, tables and charts the export drops, "To slide",
+"Check slides", and a hidden unit grid.
+
+- **Same component, icon layout.** Not a second sidebar: the list keeps its
+  selection, multi-select, drag, copy/paste, focus zone, comment and lock
+  badges. In `.ed-iconset` it is a CSS grid (`Editor.iconTiles`: as many
+  columns of at least 64 px as the sidebar width holds, re-fitted on resize),
+  the name sits UNDER the tile, no numbers, no insert gaps (Add icons and
+  Enter add). The sidebar's drop controller reads `axis`/`nestable` per
+  dragover (getters), so it is a grid with no extras in an icon set. An icon
+  with no shapes renders a dashed placeholder with its "what it shows" text
+  (`thumbSurface`), in the list and the sorter alike.
+- **The sorter is "All icons"** in an icon set: names under 112 px tiles, and
+  the style chips in its bar set `store.iconLook` — the same choice as the
+  canvas, not a second one.
+- **Insert = what the export keeps.** `iconSlideSvg` exports shapes only, so an
+  icon set's Insert tab is the shape tools as direct buttons (no arrow,
+  no connector) plus Shape presets and Objects; text, image, icons, media,
+  zoom, table, chart, code, embed and equation are hidden in the toolbar
+  (`ed-not-iconset`) and the native menu (`visible`). Nothing in the model
+  forbids them: paste and agents still can, and export still reports them.
+- **Grid on by default, its own switch.** `GridPref.iconOn` (default true) is
+  the icon-set grid switch; decks and figures keep `on`. A deck user who never
+  turns the grid on still sees it in an icon set, where drawing is on units.
+  Grid & Snap shows "24 × 24 cells" and drops grid spacing and columns there.
+- **Panel.** "Plan with AI" is a panel section only while nothing is drawn
+  (it stays in the ribbon); an empty icon gets a hint (and Draw) instead of
+  four blank size previews; the set's own look is "Plain" (it read as a verb,
+  "Set style", next to "Apply set style"); "Draw 1 empty icon" is its own string
+  (t() has no plurals).
+- **Wording.** In an icon set: To canvas / Center on canvas, Icons (panel
+  toggle and list), Show/Hide icon list, "Icon" on the quick bar, Duplicate/
+  Delete icon, "Claude Code drew the icon …"; Check slides is hidden (it
+  checks deck problems only).
+- **Native menu: rename, never re-list.** A command keeps its id and its place
+  in `MENU_MODEL`; `reg(…, { menuLabel })` gives an English key for now
+  (`ItemState.label`, translated like the catalog's), and
+  `CommandRegistry.menuTitle` renames a top-level menu. An icon set's menu
+  bar says Icons (the Slide menu), View ▸ All icons / Icons, Arrange ▸ Center
+  on canvas / Relative to canvas (figures too). A second id per document kind
+  was rejected: shortcuts, UI profiles and the e2e id checks would all fork.
+- **Style chips vs toasts.** The "Show in" chips stay bottom-left of the
+  canvas; toasts rise above them while they are shown (`body:has(.ed-lookbar)`).
+
+Rigs: `scripts/test-iconset-e2e.mjs` (grid tiles, names under, placeholder,
+no insert gaps, unit grid on, Icon chip, empty hint, no slide wording, Insert
+tab, planning leaves the panel, All icons and its style chips, menu labels,
+drag to reorder in the grid, more columns when wider), `scripts/test-ui-profile.ts`
+(ribbon groups `insert:shapes`, `view:icons`), `scripts/test-menu-model.ts`
+(label and title overrides), `desktop/scripts/e2e-menu.mjs` (File ▸ New Icon
+Set… → the real menu bar says Icons, All icons, canvas; Insert shapes only).

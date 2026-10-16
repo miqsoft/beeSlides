@@ -271,7 +271,12 @@ export type ExpandItem =
   | { label: string; submenu: ExpandItem[] }
   | '-'
 
-export interface ItemState { enabled?: boolean; checked?: boolean; visible?: boolean }
+export interface ItemState {
+  enabled?: boolean; checked?: boolean; visible?: boolean
+  /** An English key that replaces the catalog label for now — one command,
+   *  two kinds of document (Slide Sorter / All icons in an icon set). */
+  label?: string
+}
 
 export interface SerializeEnv {
   /** translate an English key */
@@ -286,6 +291,8 @@ export interface SerializeEnv {
    *  off a built-in key, or give a command a key it had none for); absent =
    *  the catalog's own */
   accel?: (id: string, builtin: string | undefined) => string | undefined
+  /** An English key that replaces a top-level menu's title (an icon set's Slide menu is Icons) */
+  menuLabel?: (key: string) => string | undefined
 }
 
 /** Every static (non-generated) command id the tree references. */
@@ -306,7 +313,7 @@ export function serializeMenuModel(env: SerializeEnv, locale = 'en'): MenuModel 
   const leaf = (id: string, meta: CmdMeta, st: ItemState | undefined): WireItem | null => {
     if (st?.visible === false) return null
     const item: WireItem = {
-      id, label: env.tr(meta.label),
+      id, label: env.tr(st?.label ?? meta.label),
       enabled: env.disabled ? false : st?.enabled !== false,
     }
     const accel = env.accel ? env.accel(id, meta.accel) : meta.accel
@@ -355,7 +362,7 @@ export function serializeMenuModel(env: SerializeEnv, locale = 'en'): MenuModel 
     }
     return out
   }
-  const menus = MENU_MODEL.map((s) => ({ key: s.key, label: env.tr(s.label), items: tidy(build(s.items)) }))
+  const menus = MENU_MODEL.map((s) => ({ key: s.key, label: env.tr(env.menuLabel?.(s.key) ?? s.label), items: tidy(build(s.items)) }))
   const labels: Record<string, string> = {}
   for (const k of MAIN_LABELS) labels[k] = env.tr(k)
   return { locale, labels, menus }

@@ -40,6 +40,17 @@ preserved.
   Claude is told which style a comment is about (it can change one icon in a
   style, too). Clicking now picks the line under the pointer in an icon set,
   not always the top shape.
+- **Icon sets feel like an icon editor, not a deck:** the icon list is a grid
+  of tiles with each icon's name underneath, and an icon not drawn yet shows
+  what it is meant to show. View ▸ All icons shows the whole set by name, in
+  any of its styles. The 24-unit grid is on by default (⌘G hides it; decks keep
+  their own setting). Insert is a drawing toolbar — rectangle, ellipse,
+  triangle, line, curve, freeform, polygon, shape presets — with nothing the
+  export would leave out. The panel plans with AI only while the set is still
+  empty, an empty icon says so instead of showing blank previews, the
+  set's own look is called "Plain", and slide wording ("To slide", "Slide
+  Sorter", "slide list", "Check slides") is gone from icon sets, the menu bar
+  included (its Slide menu is Icons there).
 
 ## [1.1.0] — 2026-10-14
 

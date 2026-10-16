@@ -63,6 +63,7 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 
 - The editor's registry (`slides/src/editor/menumodel.ts` + `commands.ts`) is the single source of truth; main's `menu.ts` only draws the model it receives.
 - Adding a command takes one `COMMANDS` entry, a place in `MENU_MODEL`, and one `reg(...)` in `registerCommands`. `test-menu-model.ts` and `e2e-menu.mjs` fail if these disagree.
+- A label that depends on the document (icon set: All icons, Center on canvas) is `reg(…, { menuLabel })` with an English key; a top-level title is `commands.menuTitle`. Never a second command id.
 - Each shortcut has exactly one owner. Renderer commands get `registerAccelerator:false` in main, so that only the page's keydown fires them. Main-owned items keep real accelerators and the page never listens for them.
 - A window with no editor shows the renderer items disabled, not hidden. Models are kept per doc webContents.
 - Main has no i18n catalog: the renderer translates every menu label, including main-owned ones.

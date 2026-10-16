@@ -187,6 +187,9 @@ name entries there).
   Per-icon changes in a style are `IconLook.tweaks[slideId][elementId]`; they never leave the
   set (`lookRecipe` for My styles / Copy style). In an icon set no shape is a click-through
   backdrop (`render.ts hitNone`).
+- The icon list is the slide list laid out as a grid (`.ed-iconset .ed-sidebar`,
+  `Editor.iconTiles`, `thumbSurface` placeholder for empty icons) — never a second sidebar.
+  `ed-not-iconset` hides a control in icon sets; the grid switch is `GridPref.iconOn`, not `on`.
 
 ## Rigs worth knowing (all in `scripts/`)
 

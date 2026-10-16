@@ -1633,7 +1633,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 }
 /* icon styles: which style the canvas shows (canvas.ts renderLookBar) —
    bottom-left, clear of the docked quick bar (top) and the zoom bar (right) */
-.ed-setbar.ed-lookbar { top: auto; bottom: 14px; left: 16px; transform: none; max-width: calc(100% - 440px); }
+.ed-setbar.ed-lookbar { top: auto; bottom: 14px; left: 16px; transform: none; max-width: calc(100% - 440px); overflow-x: auto; scrollbar-width: none; }
 
 /* ————— slide surface (shared by canvas, thumbs, present) ————— */
 
@@ -4077,7 +4077,50 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
   font: inherit; font-size: 12.5px; padding: 4px 6px;
   border: 1px solid var(--line); border-radius: 6px; color: var(--ink);
 }
-.ed-iconset .ed-thumb-num { max-width: calc(100% - 8px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* …where the slide list is a grid of icon tiles, the name under each
+   (editor.ts iconTiles sets --icon-cols / --icon-tile). Same list, same
+   selection, drag and keys: only the layout changes. */
+.ed-iconset .ed-not-iconset { display: none !important; }
+.ed-iconset .ed-sidebar {
+  display: grid;
+  grid-template-columns: repeat(var(--icon-cols, 2), auto);
+  justify-content: center;
+  align-content: start;
+  gap: 10px 8px;
+}
+.ed-iconset .ed-sidebar > .ed-add-slide,
+.ed-iconset .ed-sidebar > .ed-section-head { grid-column: 1 / -1; }
+.ed-iconset .ed-thumb { width: calc(var(--icon-tile, 64px) + 4px); border-radius: 10px; }
+.ed-iconset .ed-thumb-num {
+  order: 2; align-self: stretch; margin: 0; padding: 3px 5px 4px; border-radius: 0;
+  background: none; font-weight: 500; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ed-iconset .ed-thumb.active .ed-thumb-num { color: var(--ink); font-weight: 600; }
+/* the badges keep to the picture, clear of the name row */
+.ed-iconset .ed-thumb-cmt { bottom: auto; top: 5px; }
+.ed-iconset .ed-thumb-lock { bottom: auto; top: 5px; }
+/* an icon not drawn yet: what it is meant to show, on a dashed tile */
+.ed-icon-empty {
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  padding: 8px; background: var(--chrome); outline: 1.5px dashed var(--line); outline-offset: -5px;
+}
+.ed-icon-empty span {
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: 9.5px; line-height: 1.25; text-align: center; color: var(--muted); overflow-wrap: anywhere;
+}
+/* All icons (the sorter of an icon set): small tiles, the name underneath, style chips in the bar */
+.ed-sorter-icons .ed-sorter-grid { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 14px 10px; }
+.ed-sorter-icons .ed-sorter-item { display: flex; flex-direction: column; align-items: center; }
+.ed-sorter-icons .ed-sorter-num {
+  max-width: 100%; padding: 6px 2px 0; font-weight: 500; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ed-sorter-icons .ed-icon-empty span { font-size: 11px; -webkit-line-clamp: 5; }
+.ed-setbar.ed-sorter-looks { position: static; transform: none; box-shadow: none; max-width: none; overflow-x: auto; scrollbar-width: none; }
+.ed-setbar.ed-sorter-looks[hidden] { display: none; }
+/* the style chips sit bottom-left of the canvas: toasts rise above them */
+body:has(.ed-lookbar) .ed-toast { bottom: 70px; }
 .ed-iconset-ask {
   display: block; width: 100%; box-sizing: border-box; resize: vertical; margin: 4px 0 8px;
   font: inherit; font-size: 12.5px; padding: 6px 8px;

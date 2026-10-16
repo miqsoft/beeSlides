@@ -174,6 +174,26 @@ async function driver() {
   await focus(A)
   ok(!!await waitFor(() => item('File', 'Save')?.enabled === true), 'refocusing the editor window re-enables them')
 
+  // ---- an icon set: the same registry, icon wording (DECISIONS 2026-10-16)
+  const beforeIcons = new Set(BrowserWindow.getAllWindows().map((w) => w.id))
+  item('File', 'New Icon Set…').click()
+  const iconWin = await waitFor(() => BrowserWindow.getAllWindows().find((w) => !beforeIcons.has(w.id)))
+  const I = await waitFor(async () => {
+    for (const wc of docWcs()) {
+      if (winOf(wc) !== iconWin || wc.isLoading()) continue
+      if (await js(wc, () => window.slidomingo?.doc?.kind === 'iconset' && !!window.slidomingo.menu && !!document.querySelector('.ed-iconset')).catch(() => false)) return wc
+    }
+    return null
+  }, 15000)
+  ok(!!I && !!await focus(I), 'File ▸ New Icon Set… opens the icon set editor')
+  ok(!!await waitFor(() => !!top('Icons') && !top('Slide'), 6000), `the Slide menu is called Icons there (${Menu.getApplicationMenu().items.map((i) => i.label).join(' | ')})`)
+  ok(!!item('View', 'All icons') && !!item('View', 'Icons') && !item('View', 'Slide Sorter') && !item('View', 'Check slides'), 'View ▸ All icons and Icons; no Slide Sorter or Check slides')
+  ok(!!item('Arrange', 'Align', 'Center on canvas') && !!item('Arrange', 'Relative to canvas'), 'Arrange aligns to the canvas')
+  ok(!item('Insert', 'Text') && !item('Insert', 'Image') && !item('Insert', 'Table') && !!item('Insert', 'Shape', 'Ellipse'), 'Insert keeps shapes only')
+  iconWin?.close()
+  await focus(A)
+  ok(!!await waitFor(() => !!top('Slide') && !!item('View', 'Slide Sorter') && !!item('View', 'Check slides')), 'back in the deck, the deck wording returns')
+
   clearTimeout(hardStop)
   clipboard.writeText(savedText)
   report()

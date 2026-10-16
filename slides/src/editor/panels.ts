@@ -900,9 +900,19 @@ export class PropsPanel {
     const setInfo = (next: IconsetInfo) => this.edit(() => writeIconsetInfo(this.store.doc, next), true)
     const ai = !!window.slidomingoDesktop?.sendAgentPrompt
     const empty = doc.slides.filter((s) => !s.elements.length).length
+    const drawB = () => {
+      const draw = document.createElement('button')
+      draw.className = 'ed-btn ed-btn-block'
+      draw.textContent = empty === 1 ? t('Draw 1 empty icon') : empty ? t('Draw {n} empty icons', { n: empty }) : t('Draw with AI')
+      draw.title = t('Claude drafts every empty icon (or the icons selected in the icon list) from native shapes, in the set style')
+      draw.addEventListener('click', act('draw'))
+      return draw
+    }
+    // planning is how a set starts; once icons are drawn it stays in the ribbon (Home ▸ Plan with AI)
+    const planning = ai && doc.slides.every((s) => !s.elements.length)
 
     // the AI workflow: say what you need → Claude plans empty icons → you check → Draw
-    if (ai) {
+    if (planning) {
       this.section('Plan with AI')
       const ask = document.createElement('textarea')
       ask.className = 'ed-iconset-text ed-iconset-ask'
@@ -920,17 +930,14 @@ export class PropsPanel {
         ask.value = ''
       })
       this.host.appendChild(go)
-      const draw = document.createElement('button')
-      draw.className = 'ed-btn ed-btn-block'
-      draw.textContent = empty ? t('Draw {n} empty icons', { n: empty }) : t('Draw with AI')
-      draw.title = t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style')
-      draw.addEventListener('click', act('draw'))
-      this.host.appendChild(draw)
+      this.host.appendChild(drawB())
     }
 
     this.section('Icon')
-    this.row('Name', field(slide.name ?? '', false, t('e.g. fingerprint'), (v) =>
-      this.edit(() => { if (v.trim()) this.store.slide.name = v.trim(); else delete this.store.slide.name }, true)))
+    const nameField = field(slide.name ?? '', false, t('e.g. fingerprint'), (v) =>
+      this.edit(() => { if (v.trim()) this.store.slide.name = v.trim(); else delete this.store.slide.name }, true))
+    nameField.title = t('The icon’s name — also its file name when you export the set')
+    this.row('Name', nameField)
     this.row('Keywords', field((slide.icon?.keywords ?? []).join(', '), false, t('search words, comma separated'), (v) =>
       this.edit(() => {
         const s = this.store.slide
@@ -946,19 +953,28 @@ export class PropsPanel {
         if (!icon.prompt) delete icon.prompt
         if (Object.keys(icon).length) s.icon = icon; else delete s.icon
       }, true)))
-    const strip = document.createElement('div')
-    strip.className = 'ed-iconset-preview'
-    strip.title = t('Actual size: 16, 24, 32 and 48 px')
-    const url = iconPreviewUrl(this.store, slide.id)
-    for (const px of [16, 24, 32, 48]) {
-      const img = document.createElement('img')
-      img.src = url
-      img.width = img.height = px
-      img.alt = ''
-      img.style.background = slide.background // the icon on its own canvas
-      strip.appendChild(img)
+    if (slide.elements.length) {
+      const strip = document.createElement('div')
+      strip.className = 'ed-iconset-preview'
+      strip.title = t('Actual size: 16, 24, 32 and 48 px')
+      const url = iconPreviewUrl(this.store, slide.id)
+      for (const px of [16, 24, 32, 48]) {
+        const img = document.createElement('img')
+        img.src = url
+        img.width = img.height = px
+        img.alt = ''
+        img.style.background = slide.background // the icon on its own canvas
+        strip.appendChild(img)
+      }
+      this.host.appendChild(strip)
+    } else {
+      // an empty icon: say so, instead of four blank squares
+      const hint = document.createElement('p')
+      hint.className = 'ed-hint'
+      hint.textContent = t('Not drawn yet. Draw it with the tools in Insert, or let Claude draft it.')
+      this.host.appendChild(hint)
+      if (ai && !planning) this.host.appendChild(drawB())
     }
-    this.host.appendChild(strip)
 
     this.buildIconStyles(info)
 
@@ -1057,7 +1073,7 @@ export class PropsPanel {
     // previews sit on the icons' own canvas colour, like the size strip above
     this.host.style.setProperty('--look-paper', this.store.slide.background || '#ffffff')
     const pick = (id: string) => () => { this.lookDrawer = false; this.store.showLook(id || null) }
-    grid.appendChild(this.lookCard(t('Set style'), lookPreviewUrl(this.store, sid, null), {
+    grid.appendChild(this.lookCard(t('Plain'), lookPreviewUrl(this.store, sid, null), {
       active: !this.lookSel, title: t('The style the icons are drawn in — edit it under Icon set'), onClick: pick(''),
     }))
     for (const l of looks) grid.appendChild(this.lookCard(l.name, lookPreviewUrl(this.store, sid, l), { active: this.lookSel === l.id, onClick: pick(l.id) }))
@@ -1462,7 +1478,7 @@ export class PropsPanel {
       const tr = body.insertRow()
       const name = document.createElement('th')
       name.scope = 'row'
-      name.textContent = look ? look.name : t('Set style')
+      name.textContent = look ? look.name : t('Plain')
       tr.appendChild(name)
       doc.slides.forEach((s, index) => {
         const img = document.createElement('img')
@@ -1476,7 +1492,7 @@ export class PropsPanel {
         open.className = 'ed-look-cell'
         const tweaked = !!look?.tweaks?.[s.id]
         if (tweaked) open.classList.add('is-tweaked')
-        open.title = `${s.name ?? ''} · ${look ? look.name : t('Set style')}` + (tweaked ? ` · ${t('own changes in this style')}` : '')
+        open.title = `${s.name ?? ''} · ${look ? look.name : t('Plain')}` + (tweaked ? ` · ${t('own changes in this style')}` : '')
         open.appendChild(img)
         open.addEventListener('click', () => {
           dlg.close()

@@ -135,7 +135,7 @@ const SLOTS: Record<string, (c: Ctx) => MenuItemConstructorOptions[]> = {
     },
     {
       label: c.L('New Icon Set…'),
-      // the start page, straight on the icon-set setup (name, brief, icons)
+      // straight into the editor on an empty icon set (no setup step)
       click: () => createDocumentWindow(null, { startIntent: 'new-iconset' }),
     },
   ],

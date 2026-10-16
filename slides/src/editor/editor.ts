@@ -62,7 +62,7 @@ import { t, setLocale, locale, localeChoices, applyDirection, isRtl } from '../i
 import { injectFonts } from '../fonts'
 import { APP_VERSION, appConfig } from '../../../kernel/src/app.ts'
 import { lsGet, lsJson, lsSet } from '../../../kernel/src/storage.ts'
-import { loadGridPref, saveGridPref, gridStepPx } from './gridpref'
+import { loadGridPref, saveGridPref, gridOnKey, gridStepPx } from './gridpref'
 import { GRID_PREF_EVENT, openGridSnapPanel } from './gridsnap'
 import { layoutTracks, normalizeGuides, normalizeLayoutGrid } from '../layoutgrid'
 import { convertPptx } from '../../../kernel/src/convert/pptx.ts'
@@ -354,7 +354,7 @@ export class Editor {
     this.sidebar.tabIndex = 0
     this.sidebar.setAttribute('role', 'listbox')
     this.sidebar.setAttribute('aria-multiselectable', 'true')
-    this.sidebar.setAttribute('aria-label', t('Slides'))
+    this.sidebar.setAttribute('aria-label', this.isIconset ? t('Icons') : t('Slides'))
     this.wireSidebarDrop()
     // Pressing anywhere outside the panel leaves the zone, even where that
     // press can't take focus itself (the stage prevents default on it).
@@ -549,19 +549,22 @@ export class Editor {
     // things you put on a slide · data & special objects · reuse · format
     // tools · comment (appended below). Dividers vanish in phone menus.
     const tbSep = () => { const d = document.createElement('span'); d.className = 'ed-tb-sep'; d.setAttribute('aria-hidden', 'true'); return d }
+    // an icon set exports shapes only: the rest would be left out of its SVGs
+    for (const el of [insertGroup.text, insertGroup.image, insertGroup.icons, insertGroup.media, insertGroup.table,
+      insertGroup.chart, insertGroup.math, insertGroup.code, insertGroup.embed]) notIconset(el)
     insert.append(
       insertGroup.text,
       insertGroup.shape,
       insertGroup.image,
       insertGroup.icons,
       insertGroup.media,
-      tbSep(),
+      notIconset(tbSep()),
       insertGroup.table,
       insertGroup.chart,
       insertGroup.math,
       insertGroup.code,
       insertGroup.embed,
-      tagTool(zoomDropdown(this.store, this.canvas), 'zoom'),
+      notIconset(tagTool(zoomDropdown(this.store, this.canvas), 'zoom')),
       tbSep(),
       insertGroup.objects,
       tagTool(this.saveSelectionButton(), 'save-selection'),
@@ -572,7 +575,7 @@ export class Editor {
       tbSep(),
     )
     const commentB = tagTool(btn(ICONS.comment, t('Comment'), () => this.canvas.toggleCommentMode(),
-      t('Comment (C) — click an element or a spot on the slide')), 'comment')
+      this.isIconset ? t('Comment (C) — click a shape or a spot on the icon') : t('Comment (C) — click an element or a spot on the slide')), 'comment')
     insert.appendChild(commentB)
 
     const actions = div('ed-group ed-group-right')
@@ -634,7 +637,7 @@ export class Editor {
         moreD.classList.toggle('open')
       }, t('More actions')),
       moreMenu)
-    const slidesB = btn(ICONS.panelLeft, t('Slides'), () => this.togglePanel('left'), t('Slides — show or hide the slide list'))
+    const slidesB = this.slideListButton()
     slidesB.classList.add('ed-phone-only')
     const formatB = btn(ICONS.panelRight, t('Format'), () => this.togglePanel('right'), t('Format — show or hide the properties panel'))
     formatB.classList.add('ed-phone-only')
@@ -814,7 +817,7 @@ export class Editor {
     const reapplyChangeB = tagTool(btn(ICONS.reapply, t('Reapply Change'), () => this.toggleReapplyChange(),
       t('Reapply Change — click a recently-edited element, then click others of the same type to apply that same edit (Esc to stop)')), 'reapply-change')
     const commentB = tagTool(btn(ICONS.comment, t('Comment'), () => this.canvas.toggleCommentMode(),
-      t('Comment (C) — click an element or a spot on the slide')), 'comment')
+      this.isIconset ? t('Comment (C) — click a shape or a spot on the icon') : t('Comment (C) — click an element or a spot on the slide')), 'comment')
     // Send open comments to Claude (starts the terminal if it isn't open)
     const sendB = tagTool(btn(ICONS.sparkle, t('Send to Claude'), () => this.sendOpenComments(), ''), 'send-to-claude')
     const refreshSendB = () => {
@@ -833,8 +836,9 @@ export class Editor {
     const alignBtn = (glyph: string, title: string, edge: AlignEdge) =>
       btn(`<b>${glyph}</b>`, '', () => this.alignSelection(edge), title)
     // Align to slide: the PowerPoint mode, but lit up while it is on
-    const toSlideB = btn(ICONS.centerSlide, t('To slide'), () => this.toggleAlignToSlide(),
-      t('Align and distribute against the slide instead of the selection') + ` (${displayChord('Alt+Shift+S', isMacOS())})`)
+    const toSlideB = btn(ICONS.centerSlide, this.isCanvasDoc ? t('To canvas') : t('To slide'), () => this.toggleAlignToSlide(),
+      (this.isCanvasDoc ? t('Align and distribute against the canvas instead of the selection') : t('Align and distribute against the slide instead of the selection'))
+        + ` (${displayChord('Alt+Shift+S', isMacOS())})`)
     this.alignRefBtns.push(toSlideB)
     const arrangeGroup = ribbonGroup(t('Arrange'), [
       alignBtn('⇤', t('Align left'), 'left'),
@@ -843,7 +847,7 @@ export class Editor {
       alignBtn('⤒', t('Align top'), 'top'),
       alignBtn('⇳', t('Align vertical middles'), 'middleY'),
       alignBtn('⤓', t('Align bottom'), 'bottom'),
-      btn('<b>⊕</b>', '', () => this.centerSelectionOnSlide(), t('Center on slide')),
+      btn('<b>⊕</b>', '', () => this.centerSelectionOnSlide(), this.isCanvasDoc ? t('Center on canvas') : t('Center on slide')),
       toSlideB,
       btn('<b>⋯</b>', '', () => this.distributeSelection('x'), t('Equal horizontal gaps (3+)')),
       btn('<b>⋮</b>', '', () => this.distributeSelection('y'), t('Equal vertical gaps (3+)')),
@@ -862,12 +866,23 @@ export class Editor {
     ])
 
     const ribbonInsertGroup = buildInsertGroup(this.store, this.canvas)
-    const insertRow = ribbonRow([
+    const objectsGroup = ribbonGroup(t('Objects'), [ribbonInsertGroup.objects, tagTool(this.saveSelectionButton(), 'save-selection'), tagTool(this.libraryPanelButton(), 'library')])
+    // An icon set exports shapes only (iconset.ts iconSlideSvg), so its Insert
+    // tab is a drawing toolbar: no text, pictures, media, tables or charts that
+    // the export would leave out.
+    const insertRow = this.isIconset ? ribbonRow([
+      ribbonGroup(t('Shapes'), [
+        ...SHAPE_MENU.filter((item) => item.draw !== 'connector' && item.kind !== 'arrow').map((item) =>
+          btn(item.icon, t(item.label), () => insertShape(this.store, this.canvas, item), t(item.tip))),
+        ribbonInsertGroup.shape,
+      ]),
+      objectsGroup,
+    ]) : ribbonRow([
       ribbonGroup(t('Basic'), [ribbonInsertGroup.text, ribbonInsertGroup.image]),
       ribbonGroup(t('Illustrations'), [ribbonInsertGroup.shape, ribbonInsertGroup.icons]),
       ribbonGroup(t('Media'), [ribbonInsertGroup.media]),
       ribbonGroup(t('Zoom'), [tagTool(zoomDropdown(this.store, this.canvas), 'zoom')]),
-      ribbonGroup(t('Objects'), [ribbonInsertGroup.objects, tagTool(this.saveSelectionButton(), 'save-selection'), tagTool(this.libraryPanelButton(), 'library')]),
+      objectsGroup,
       ribbonGroup(t('Tables & Charts'), [ribbonInsertGroup.table, ribbonInsertGroup.chart]),
       ribbonGroup(t('Text'), [ribbonInsertGroup.code, ribbonInsertGroup.embed]),
       ribbonGroup(t('Symbols'), [ribbonInsertGroup.math]),
@@ -919,9 +934,9 @@ export class Editor {
       t('Notes — show or hide the speaker notes pane below the slide'))
     this.notesToggleBtn = notesB2
     notesB2.classList.add('ed-slides-only')
-    const sorterB = btn(ICONS.grid, t('Slide Sorter'), () => this.openSlideSorter(), t('Switch to a grid view of all slides'))
+    const sorterB = this.sorterButton(() => this.openSlideSorter())
     const viewRow = ribbonRow([
-      iconsetToo(slidesOnly(ribbonGroup(t('Presentation Views'), [sorterB]))),
+      iconsetToo(slidesOnly(this.isIconset ? ribbonGroup(t('Icons'), [sorterB]) : ribbonGroup(t('Presentation Views'), [sorterB]))),
       slidesOnly(ribbonGroup(t('Show'), [
         btn(ICONS.slideshow, window.slidomingoDesktop?.presentBegin ? t('Present') : t('Slideshow'), () => this.present(false, true),
           window.slidomingoDesktop?.presentBegin
@@ -933,7 +948,7 @@ export class Editor {
           t('Notes, controls and slide thumbnails in a separate window — drag it to a second screen. On macOS, open it before going fullscreen.'))]),
       ])),
       ribbonGroup(t('Panels'), [
-        iconsetToo(slidesOnly(btn(ICONS.panelLeft, t('Slides'), () => this.togglePanel('left'), t('Slides — show or hide the slide list')))),
+        iconsetToo(slidesOnly(this.slideListButton())),
         btn(ICONS.panelRight, t('Format'), () => this.togglePanel('right'), t('Format — show or hide the properties panel')),
         notesB2,
       ]),
@@ -941,8 +956,8 @@ export class Editor {
         // margin guides are the Grid & Snap panel's "Margins" row (and View ▸ Margin guides)
         this.gridSplitButton(),
         slidesOnly(this.buildBadgeButton('ed-btn-armed')),
-        btn(ICONS.checkCircle, t('Check slides'), () => this.openDeckCheck(),
-          t('Find problems before you present: text that is cut off or doesn’t fit its box, missing pictures or fonts, broken links, and animations that won’t play.')),
+        notIconset(btn(ICONS.checkCircle, t('Check slides'), () => this.openDeckCheck(),
+          t('Find problems before you present: text that is cut off or doesn’t fit its box, missing pictures or fonts, broken links, and animations that won’t play.'))),
       ]),
       ribbonGroup(t('Export'), [pdfB]),
     ])
@@ -1010,9 +1025,10 @@ export class Editor {
       if (b) {
         b.textContent = glyph(side)
         const collapsed = (side === 'left' ? this.sidebar : this.props).classList.contains('ed-collapsed')
-        b.title = collapsed
-          ? side === 'left' ? t('Show slide list ([)') : t('Show properties (])')
-          : side === 'left' ? t('Hide slide list ([)') : t('Hide properties (])')
+        const list = this.isIconset
+          ? (collapsed ? t('Show icon list ([)') : t('Hide icon list ([)'))
+          : (collapsed ? t('Show slide list ([)') : t('Hide slide list ([)'))
+        b.title = side === 'left' ? list : collapsed ? t('Show properties (])') : t('Hide properties (])')
       }
     }
   }
@@ -2110,7 +2126,7 @@ export class Editor {
       if (wrap.classList.contains('open')) flipMenuIfNeeded(wrap, menu)
     }, t('View'))
     const safeZoneB = this.safeZoneButton(btn(ICONS.ruler, t('Margin guides'), () => this.toggleSafeZone(), t('Show the deck’s side margins. Keep text between the dashed lines so it lines up with your other slides. “Check slides” points out text that crosses them.')), 'ed-menu-on')
-    const sorterB = btn(ICONS.grid, t('Slide Sorter'), () => { wrap.classList.remove('open'); this.openSlideSorter() }, t('Switch to a grid view of all slides'))
+    const sorterB = this.sorterButton(() => { wrap.classList.remove('open'); this.openSlideSorter() })
     menu.append(
       sorterB,
       div('ed-menu-sep'),
@@ -2119,8 +2135,8 @@ export class Editor {
       this.gridButton('ed-menu-on'),
       btn(ICONS.magnet, t('Grid & Snap…'), () => { wrap.classList.remove('open'); this.openGridSnap(trigger) },
         t('Grid spacing, column grid, guides — and what things snap to')),
-      btn(ICONS.checkCircle, t('Check slides'), () => { wrap.classList.remove('open'); this.openDeckCheck() },
-        t('Find problems before you present: text that is cut off or doesn’t fit its box, missing pictures or fonts, broken links, and animations that won’t play.')),
+      notIconset(btn(ICONS.checkCircle, t('Check slides'), () => { wrap.classList.remove('open'); this.openDeckCheck() },
+        t('Find problems before you present: text that is cut off or doesn’t fit its box, missing pictures or fonts, broken links, and animations that won’t play.'))),
     )
     wrap.append(trigger, menu)
     document.addEventListener('pointerdown', (ev) => {
@@ -2269,16 +2285,35 @@ export class Editor {
     if (this.layoutManagerOpen) { this.toast(t('Close the Layout Manager to open Slide Sorter')); return }
     this.slideSorterOpen = true
     document.querySelector('.ed-sorter-overlay')?.remove()
-    const overlay = div('ed-sorter-overlay')
+    // an icon set's sorter is its overview: every icon by name, in any of its styles
+    const icons = this.isIconset
+    const overlay = div('ed-sorter-overlay' + (icons ? ' ed-sorter-icons' : ''))
     const bar = div('ed-sorter-bar')
     const h = document.createElement('h2')
-    h.textContent = t('Slide Sorter')
+    h.textContent = icons ? t('All icons') : t('Slide Sorter')
     const count = div('ed-sorter-count')
-    const dupBtn = btn(ICONS.copy, t('Duplicate'), () => batchDuplicate(), t('Duplicate selected slides'))
-    const delBtn = btn(ICONS.trash, t('Delete'), () => batchDelete(), t('Delete selected slides'))
+    const dupBtn = btn(ICONS.copy, t('Duplicate'), () => batchDuplicate(), icons ? t('Duplicate selected icons') : t('Duplicate selected slides'))
+    const delBtn = btn(ICONS.trash, t('Delete'), () => batchDelete(), icons ? t('Delete selected icons') : t('Delete selected slides'))
     const closeBtn = btn('✕', '', () => close(), t('Close (Esc)'))
     closeBtn.classList.add('ed-sorter-close')
-    bar.append(h, count, dupBtn, delBtn, closeBtn)
+    const looks = div('ed-setbar ed-sorter-looks')
+    bar.append(h, looks, count, dupBtn, delBtn, closeBtn)
+    /** the style chips: the same choice as the canvas's (store.iconLook) */
+    const renderLooks = () => {
+      looks.replaceChildren()
+      const variants = icons ? this.store.doc.iconset?.variants ?? [] : []
+      looks.hidden = !variants.length
+      const shown = this.store.shownLook?.id ?? null
+      for (const [name, id] of [[t('Plain'), null], ...variants.map((l) => [l.name, l.id])] as Array<[string, string | null]>) {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.className = 'ed-setchip' + (id === shown ? ' active' : '')
+        b.setAttribute('aria-pressed', String(id === shown))
+        b.textContent = name
+        b.addEventListener('click', () => this.store.showLook(id))
+        looks.appendChild(b)
+      }
+    }
     const scroll = div('ed-sorter-scroll')
     const grid = div('ed-sorter-grid')
     scroll.appendChild(grid)
@@ -2359,11 +2394,17 @@ export class Editor {
         if (slide.stateOf) item.classList.add('state')
         if (slide.hidden) item.classList.add('hidden')
         const num = div('ed-sorter-num')
-        num.textContent = slide.stateOf
-          ? (slide.name ?? '⤷')
-          : (paginates(slide, this.store.doc) ? String(this.linearNumber(i)) : '—')
-        item.appendChild(num)
-        item.appendChild(renderThumbnail(slide, this.store.doc, 220))
+        if (icons) {
+          num.textContent = slide.name || t('Untitled icon')
+          if (slide.icon?.prompt) item.title = slide.icon.prompt
+          item.append(this.thumbSurface(slide, 112), num)
+        } else {
+          num.textContent = slide.stateOf
+            ? (slide.name ?? '⤷')
+            : (paginates(slide, this.store.doc) ? String(this.linearNumber(i)) : '—')
+          item.appendChild(num)
+          item.appendChild(renderThumbnail(slide, this.store.doc, 220))
+        }
         this.appendLockBadge(item, slide.id)
         item.addEventListener('click', (ev) => {
           if (ev.shiftKey || ev.metaKey || ev.ctrlKey) {
@@ -2412,9 +2453,12 @@ export class Editor {
 
     const unsub = this.store.on('slides', () => renderGrid())
     const unsubLocks = this.store.on('locks', () => renderGrid())
+    const unsubLook = this.store.on('look', () => { renderLooks(); renderGrid() })
+    renderLooks()
     const close = () => {
       unsub()
       unsubLocks()
+      unsubLook()
       overlay.remove()
       document.removeEventListener('keydown', onKey, true)
       this.slideSorterOpen = false
@@ -2704,15 +2748,15 @@ export class Editor {
       num.title = parent >= 0
         ? t('Extra slide of slide {n} — press X on slide {n} while presenting', { n: this.linearNumber(parent) })
         : t('Hidden — skipped while presenting and left out of PDF export')
-    } else if (this.isIconset && slide.name) {
-      // an icon set's list is its plan: number + name, the empty icons too
-      num.textContent = `${i + 1} · ${slide.name}`
+    } else if (this.isIconset) {
+      // an icon set's list is its plan: the name under each tile, the empty icons too
+      num.textContent = slide.name || t('Untitled icon')
       if (slide.icon?.prompt) num.title = slide.icon.prompt
     } else {
       num.textContent = String(this.linearNumber(i))
     }
     // thumb width tracks the (resizable) sidebar; states and extras render smaller
-    const base = Math.max(96, this.panelW.left - 52)
+    const base = this.thumbBase()
     const nested = isState || extraParent(this.store.doc, i) >= 0
     const surface = this.thumbSurface(slide, nested ? Math.round(base * 0.84) : base)
     const cmtState = thumbCommentState(slide)
@@ -2736,8 +2780,8 @@ export class Editor {
     if (clicks) item.appendChild(this.buildsBadge(clicks))
     const tools = div('ed-thumb-tools')
     tools.append(
-      btn(ICONS.copy, '', (ev) => { ev.stopPropagation(); this.duplicateSlide(i); this.focusSlidePanel() }, t('Duplicate slide')),
-      btn(ICONS.trash, '', (ev) => { ev.stopPropagation(); this.deleteSlide(i); this.focusSlidePanel() }, t('Delete slide')),
+      btn(ICONS.copy, '', (ev) => { ev.stopPropagation(); this.duplicateSlide(i); this.focusSlidePanel() }, this.isIconset ? t('Duplicate icon') : t('Duplicate slide')),
+      btn(ICONS.trash, '', (ev) => { ev.stopPropagation(); this.deleteSlide(i); this.focusSlidePanel() }, this.isIconset ? t('Delete icon') : t('Delete slide')),
     )
     item.append(num, surface, tools)
     item.dataset.slideId = slide.id
@@ -2746,8 +2790,47 @@ export class Editor {
     return item
   }
 
-  /** A slide-list thumbnail; in an icon set with a style shown, the icon in that style. */
+  /** Show/hide the slide list — in an icon set, the icon list. */
+  private slideListButton(): HTMLElement {
+    return this.isIconset
+      ? btn(ICONS.panelLeft, t('Icons'), () => this.togglePanel('left'), t('Icons — show or hide the icon list'))
+      : btn(ICONS.panelLeft, t('Slides'), () => this.togglePanel('left'), t('Slides — show or hide the slide list'))
+  }
+
+  /** The Slide Sorter — in an icon set, the overview of all icons. */
+  private sorterButton(run: () => void): HTMLElement {
+    return this.isIconset
+      ? btn(ICONS.grid, t('All icons'), run, t('Every icon of the set in one grid, in any of its styles'))
+      : btn(ICONS.grid, t('Slide Sorter'), run, t('Switch to a grid view of all slides'))
+  }
+
+  /** Slide-list thumbnail width: the sidebar's, or one tile of an icon set's grid. */
+  private thumbBase(): number {
+    return this.isIconset ? this.iconTiles().size : Math.max(96, this.panelW.left - 52)
+  }
+
+  /** An icon set lays its list out as a grid of tiles (styles.css .ed-iconset
+   *  .ed-sidebar): as many columns of at least 64 px as the sidebar holds. */
+  private iconTiles(): { cols: number; size: number } {
+    // the sidebar's padding (2 × 12) and scrollbar gutter; each tile adds a 2 px border
+    const inner = this.panelW.left - 34
+    const gap = 8
+    const cols = Math.max(2, Math.floor((inner + gap) / (64 + 4 + gap)))
+    return { cols, size: Math.floor((inner - (cols - 1) * gap) / cols) - 4 }
+  }
+
+  /** A slide-list thumbnail; in an icon set with a style shown, the icon in
+   *  that style, and an icon not drawn yet is a placeholder showing what it
+   *  is meant to show. */
   private thumbSurface(slide: Slide, width: number): HTMLElement {
+    if (this.isIconset && !slide.elements.length) {
+      const box = div('slidomingo-thumb-surface ed-icon-empty')
+      box.style.width = box.style.height = `${width}px`
+      const text = document.createElement('span')
+      text.textContent = slide.icon?.prompt || t('Not drawn yet')
+      box.appendChild(text)
+      return box
+    }
     const look = this.store.shownLook
     if (!look) return renderThumbnail(slide, this.store.doc, width)
     const box = document.createElement('div')
@@ -2785,10 +2868,17 @@ export class Editor {
     const ranges = sectionsInOrder(doc).map((section) => ({ section, ...sectionRange(doc, section) }))
     const headerAt = new Map(ranges.map((r) => [r.start, r]))
     const hiddenIdx = collapsedSlideIndices(doc, ranges)
+    // an icon set's grid adds icons with "Add icons" and Enter, not by hover gaps
+    const gaps = !this.isIconset
+    if (this.isIconset) {
+      const { cols, size } = this.iconTiles()
+      this.sidebar.style.setProperty('--icon-cols', String(cols))
+      this.sidebar.style.setProperty('--icon-tile', `${size}px`)
+    }
     slides.forEach((slide, i) => {
       // hover gap = insert here; never between a parent and its states, and
       // never inside a collapsed section — there's nothing to insert between
-      if (!slide.stateOf && !hiddenIdx.has(i)) this.sidebar.appendChild(this.insertGap(i))
+      if (gaps && !slide.stateOf && !hiddenIdx.has(i)) this.sidebar.appendChild(this.insertGap(i))
       const r = headerAt.get(i)
       if (r) {
         this.sidebar.appendChild(buildSectionHeader({
@@ -2805,7 +2895,7 @@ export class Editor {
       if (extraParent(doc, i) >= 0) item.classList.add('ed-thumb-extra')
       this.sidebar.appendChild(item)
     })
-    this.sidebar.appendChild(this.insertGap(slides.length))
+    if (gaps) this.sidebar.appendChild(this.insertGap(slides.length))
     const add = btn(ICONS.plus, this.isIconset ? t('Add icons') : t('New slide'), () => this.openLayoutPicker(add))
     add.classList.add('ed-add-slide')
     add.title = this.isIconset ? t('Add icons by name, one per line') : t('New slide from a slide type')
@@ -3205,9 +3295,11 @@ export class Editor {
    *  every rebuild). A drop selects what moved and opens any collapsed
    *  section it landed in. */
   private wireSidebarDrop() {
+    // read on every dragover: an icon set's list is a grid, and icons have no extras
+    const iconset = () => this.isIconset
     wireSlideDrop(this.store, this.sidebar, {
-      axis: 'y',
-      nestable: true,
+      get axis() { return iconset() ? 'grid' as const : 'y' as const },
+      get nestable() { return !iconset() },
       scroller: this.sidebar,
       onDropped: (kind, ids) => {
         if (kind !== 'slides') return
@@ -3396,7 +3488,7 @@ export class Editor {
       const doc = this.store.doc
       const expected = doc.slides.length - collapsedSlideIndices(doc).size
       if (thumbs.length !== expected) return this.rebuildSidebar()
-      const base = Math.max(96, this.panelW.left - 52)
+      const base = this.thumbBase()
       thumbs.forEach((item) => {
         const slide = this.store.doc.slides[Number(item.dataset.index)]
         if (!slide) return
@@ -3560,7 +3652,7 @@ export class Editor {
   /** The drawing grid in model px (0 = off): an icon set snaps to whole grid units. */
   private gridStep(): number {
     const info = iconsetInfo(this.store.doc)
-    if (info) return loadGridPref().on ? info.scale : 0
+    if (info) return loadGridPref().iconOn ? info.scale : 0
     return gridStepPx(this.isFigure)
   }
 
@@ -3637,12 +3729,12 @@ export class Editor {
       tagTool(btn(ICONS.plus, t('Add icons'), () => this.addIcons(), t('Add icons by name, one per line')), 'icon-add'),
       ...(ai
         ? [tagTool(btn(ICONS.paintbrush, t('Draw with AI'), () => this.drawIconsWithAi(),
-          t('Claude drafts every empty icon (or the icons selected in the slide list) from native shapes, in the set style')), 'icon-draw')]
+          t('Claude drafts every empty icon (or the icons selected in the icon list) from native shapes, in the set style')), 'icon-draw')]
         : []),
       tagTool(btn(ICONS.checkCircle, t('Apply set style'), () => this.applyIconStyle(),
         t('Stroke width, caps, joins and ink from the set, on every icon (or the selected ones)')), 'icon-style'),
       tagTool(btn(ICONS.comment, t('Comment on icons'), () => this.commentOnIcons(),
-        t('One comment on each icon selected in the slide list — sent to Claude to redraw them')), 'icon-comment'),
+        t('One comment on each icon selected in the icon list — sent to Claude to redraw them')), 'icon-comment'),
     ]
     return ribbonGroup(t('Icons'), items)
   }
@@ -3946,7 +4038,8 @@ export class Editor {
 
   toggleGrid() {
     const p = loadGridPref()
-    saveGridPref({ ...p, on: !p.on })
+    const key = gridOnKey(this.isIconset)
+    saveGridPref({ ...p, [key]: !p[key] })
     this.applyGridPref()
   }
 
@@ -4008,7 +4101,7 @@ export class Editor {
   }
 
   private registerCommands() {
-    const reg = (id: string, run: () => void, o: { enabled?: () => boolean; checked?: () => boolean; visible?: () => boolean } = {}) =>
+    const reg = (id: string, run: () => void, o: { enabled?: () => boolean; checked?: () => boolean; visible?: () => boolean; menuLabel?: () => string | undefined } = {}) =>
       this.commands.register(id, { run, ...o })
     const slidesOnly = () => !this.isCanvasDoc
     // decks and icon sets: a slide list, the sorter, comments to Claude
@@ -4056,17 +4149,19 @@ export class Editor {
       reg(`table.${op}`, () => { this.canvas.tableRange.run(op) }, { visible: oneTable, enabled: () => this.canvas.tableRange.can(op) })
     }
 
-    reg('insert.text', () => insertText(this.store, this.canvas))
-    reg('insert.image', () => pickImage(this.store, this.canvas))
-    reg('insert.icons', () => openIconSearchPopover(this.store, this.menuAnchor(), (el) => this.canvas.insert(el)))
-    reg('insert.mediaFile', () => pickMedia(this.store, this.canvas))
-    reg('insert.videoLink', () => promptMediaUrl(this.store, this.canvas, 'video'))
-    reg('insert.audioLink', () => promptMediaUrl(this.store, this.canvas, 'audio'))
-    reg('insert.table', () => insertTable(this.store, this.canvas))
-    reg('insert.chart', () => insertChart(this.store, this.canvas))
-    reg('insert.code', () => insertCode(this.store, this.canvas))
-    reg('insert.embed', () => insertEmbed(this.canvas))
-    reg('insert.math', () => insertMath())
+    // an icon set exports shapes only (iconset.ts iconSlideSvg)
+    const notIcons = () => !iconset()
+    reg('insert.text', () => insertText(this.store, this.canvas), { visible: notIcons })
+    reg('insert.image', () => pickImage(this.store, this.canvas), { visible: notIcons })
+    reg('insert.icons', () => openIconSearchPopover(this.store, this.menuAnchor(), (el) => this.canvas.insert(el)), { visible: notIcons })
+    reg('insert.mediaFile', () => pickMedia(this.store, this.canvas), { visible: notIcons })
+    reg('insert.videoLink', () => promptMediaUrl(this.store, this.canvas, 'video'), { visible: notIcons })
+    reg('insert.audioLink', () => promptMediaUrl(this.store, this.canvas, 'audio'), { visible: notIcons })
+    reg('insert.table', () => insertTable(this.store, this.canvas), { visible: notIcons })
+    reg('insert.chart', () => insertChart(this.store, this.canvas), { visible: notIcons })
+    reg('insert.code', () => insertCode(this.store, this.canvas), { visible: notIcons })
+    reg('insert.embed', () => insertEmbed(this.canvas), { visible: notIcons })
+    reg('insert.math', () => insertMath(), { visible: notIcons })
     reg('insert.objects', () => openReusableObjectPicker(this.store, this.menuAnchor()))
     reg('insert.saveSelection', () => void openSaveSelectionDialog(this.store, this.store.selectedElements), { enabled: hasSel })
     reg('insert.library', () => openLibraryPanel(this.store, this.menuAnchor()))
@@ -4105,15 +4200,18 @@ export class Editor {
     for (const edge of Object.keys(EDGES) as Array<keyof typeof EDGES>) {
       reg(`arrange.${edge}`, () => this.alignSelection(edge), { enabled: hasSel })
     }
-    reg('arrange.centerSlide', () => this.centerSelectionOnSlide(), { enabled: hasSel })
-    reg('arrange.toSlide', () => this.toggleAlignToSlide(), { checked: () => this.panel.alignRef === 'slide' })
+    // a figure or icon set aligns to its canvas
+    reg('arrange.centerSlide', () => this.centerSelectionOnSlide(), { enabled: hasSel, menuLabel: () => (this.isCanvasDoc ? 'Center on canvas' : undefined) })
+    reg('arrange.toSlide', () => this.toggleAlignToSlide(), { checked: () => this.panel.alignRef === 'slide', menuLabel: () => (this.isCanvasDoc ? 'Relative to canvas' : undefined) })
     reg('arrange.distX', () => this.distributeSelection('x'), { enabled: hasSel })
     reg('arrange.distY', () => this.distributeSelection('y'), { enabled: hasSel })
     reg('arrange.group', () => this.groupSelection(true), { enabled: hasSel })
     reg('arrange.ungroup', () => this.groupSelection(false), { enabled: hasSel })
 
-    reg('view.sorter', () => this.openSlideSorter(), { visible: withList, enabled: noLM })
-    reg('view.panelSlides', () => this.togglePanel('left'), { visible: withList, checked: () => !this.sidebar.classList.contains('ed-collapsed') })
+    reg('view.sorter', () => this.openSlideSorter(), { visible: withList, enabled: noLM, menuLabel: () => (iconset() ? 'All icons' : undefined) })
+    reg('view.panelSlides', () => this.togglePanel('left'), { visible: withList, checked: () => !this.sidebar.classList.contains('ed-collapsed'), menuLabel: () => (iconset() ? 'Icons' : undefined) })
+    // an icon set's Slide menu holds the icon commands (menumodel.ts)
+    this.commands.menuTitle = (key) => (key === 'slide' && iconset() ? 'Icons' : undefined)
     reg('view.panelFormat', () => this.togglePanel('right'), { checked: () => !this.props.classList.contains('ed-collapsed') })
     reg('view.panelNotes', () => this.toggleNotes(), { visible: slidesOnly, checked: () => !this.notesPane.el.classList.contains('ed-collapsed') })
     reg('view.safeZone', () => this.toggleSafeZone(), { checked: () => !!this.canvas?.showSafeZone })
@@ -4125,7 +4223,7 @@ export class Editor {
       enabled: () => !!this.store.doc.layoutGrid,
       checked: () => !!this.store.doc.layoutGrid && loadGridPref().showLayout,
     })
-    reg('view.checkDeck', () => this.openDeckCheck())
+    reg('view.checkDeck', () => this.openDeckCheck(), { visible: notIcons })
     reg('view.ribbon', () => this.ribbonToggle?.(), { visible: () => this.ribbonToggle !== null, checked: () => !this.ribbonCollapsed() })
     reg('view.customize', () => { this.canvas.commitTextEdit(); this.openSettings('customize') })
     for (const c of localeChoices()) reg(`view.lang.${c.code}`, () => this.changeLocale(c.code))
@@ -5255,7 +5353,9 @@ export class Editor {
     }
 
     this.commitAgentWrite(cmd.slideId, () => { resolved.array[resolved.idx] = slide }, 'slides', { reflow: cmd.reflow !== false })
-    this.toast(t('Claude Code edited slide “{id}”', { id: cmd.slideId }))
+    this.toast(this.isIconset
+      ? t('Claude Code drew the icon “{name}”', { name: slide.name || t('Untitled icon') })
+      : t('Claude Code edited slide “{id}”', { id: cmd.slideId }))
     const layout = this.layoutReport()
     respond({ requestId: cmd.requestId, ok: true, summary: `Updated slide ${cmd.slideId}.`, warnings: this.warningsForSlide(cmd.slideId), ...layout })
   }
@@ -7598,6 +7698,12 @@ function pickDirectoryViaInput(): Promise<File[]> {
 }
 
 // tiny DOM helpers
+/** Hide a control in an icon set (styles.css .ed-iconset .ed-not-iconset). */
+function notIconset<T extends HTMLElement>(el: T): T {
+  el.classList.add('ed-not-iconset')
+  return el
+}
+
 /** Keep a slides-only control in an icon set (the slide list and the sorter — styles.css .ed-iconset). */
 function iconsetToo<T extends HTMLElement>(el: T): T {
   el.classList.add('ed-iconset-too')
@@ -7992,7 +8098,9 @@ function startSlideDrag(ev: DragEvent, ids: string[], source: HTMLElement, conta
     const ghost = div('ed-drag-stack')
     const copy = surface.cloneNode(true) as HTMLElement
     const badge = div('ed-drag-stack-count')
-    badge.textContent = t('{n} slides', { n: String(ids.length) })
+    badge.textContent = activeDragDoc(container)?.kind === 'iconset'
+      ? t('{n} icons', { n: String(ids.length) })
+      : t('{n} slides', { n: String(ids.length) })
     ghost.append(copy, badge)
     document.body.appendChild(ghost)
     ev.dataTransfer.setDragImage(ghost, 16, 16)

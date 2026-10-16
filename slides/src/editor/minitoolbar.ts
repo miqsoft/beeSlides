@@ -373,7 +373,7 @@ export class MiniToolbar {
     const run = this.hooks.runCommand
     if (!els.length && run && !this.store.editingSurface) {
       const slide = this.store.slide
-      chip(t('Slide')).classList.add('is-slide')
+      chip(this.store.doc.kind === 'iconset' ? t('Icon') : t('Slide')).classList.add('is-slide')
       this.el.appendChild(this.labelled(t('Background'), this.panel.colorControl(slide.background,
         (v, fin) => this.edits.edit(() => { this.store.slide.background = v }, fin), { ref: { id: null, path: 'background' } })))
       if (this.hooks.commandVisible?.('slide.transition.fade') !== false) {

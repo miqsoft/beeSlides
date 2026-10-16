@@ -19,7 +19,7 @@ import { ICONS } from '../icons'
 import { positionAtRect } from './floatingposition'
 import { defaultLayoutGrid, normalizeGuides, normalizeLayoutGrid, MAX_TRACKS, type LayoutGrid } from '../layoutgrid'
 import {
-  FIGURE_GRID_STEPS_MM, LENGTH_UNITS, fittingSteps, formatLength, fromUnit, loadGridPref, saveGridPref, toUnit,
+  FIGURE_GRID_STEPS_MM, LENGTH_UNITS, fittingSteps, formatLength, fromUnit, gridOnKey, loadGridPref, saveGridPref, toUnit,
   type GridPref, type LengthUnit, type SnapTargets,
 } from './gridpref'
 import { isMacOS } from '../screens'
@@ -75,6 +75,9 @@ export function openGridSnapPanel(anchor: HTMLElement | DOMRect, host: GridSnapH
     const guides = normalizeGuides(doc.guides, doc.size)
     const nGuides = guides.x.length + guides.y.length
     const stepPx = host.isFigure ? fromUnit(pref.figureStepMm, 'mm') : pref.slideStepPx
+    const icon = doc.kind === 'iconset' ? doc.iconset : undefined
+    const iconGrid = !!icon
+    const onKey = gridOnKey(iconGrid)
     pop.replaceChildren()
 
     // --- head -------------------------------------------------------------
@@ -111,10 +114,11 @@ export function openGridSnapPanel(anchor: HTMLElement | DOMRect, host: GridSnapH
       m.append(sc)
     }
     const hiddenWhy = t('Things snap only while they are shown')
-    row(ICONS.grid, t('Grid'), pref.on ? formatLength(stepPx, unit) : t('Off'),
-      { on: pref.on, set: (v) => setPref({ on: v }) },
-      { on: pref.snap.grid, set: (v) => setSnap('grid', v), disabled: !pref.on, why: !pref.on ? hiddenWhy : undefined })
-    row(ICONS.layoutColumns, t('Columns'), grid ? columnsLabel(grid) : t('None yet'),
+    const gridOn = pref[onKey]
+    row(ICONS.grid, t('Grid'), !gridOn ? t('Off') : icon ? t('{n} × {m} cells', { n: icon.grid, m: icon.grid }) : formatLength(stepPx, unit),
+      { on: gridOn, set: (v) => setPref({ [onKey]: v }) },
+      { on: pref.snap.grid, set: (v) => setSnap('grid', v), disabled: !gridOn, why: !gridOn ? hiddenWhy : undefined })
+    if (!iconGrid) row(ICONS.layoutColumns, t('Columns'), grid ? columnsLabel(grid) : t('None yet'),
       { on: pref.showLayout && !!grid, set: (v) => setPref({ showLayout: v }), disabled: !grid },
       { on: pref.snap.layout, set: (v) => setSnap('layout', v), disabled: !grid || !pref.showLayout, why: grid && !pref.showLayout ? hiddenWhy : undefined })
     row(ICONS.guides, t('Guides'), nGuides ? String(nGuides) : t('None yet'),
@@ -125,62 +129,66 @@ export function openGridSnapPanel(anchor: HTMLElement | DOMRect, host: GridSnapH
       { on: pref.snap.margins, set: (v) => setSnap('margins', v), why: t('The template’s borders: the safe zone at the sides and the column grid’s outer margins') })
     row(ICONS.objects, t('Objects'), t('Edges, centers, equal gaps'), null,
       { on: pref.snap.objects, set: (v) => setSnap('objects', v) })
-    row(ICONS.centerSlide, host.isFigure ? t('Canvas') : t('Slide'), t('Edges and center'), null,
+    row(ICONS.centerSlide, host.isFigure || iconGrid ? t('Canvas') : t('Slide'), t('Edges and center'), null,
       { on: pref.snap.slide, set: (v) => setSnap('slide', v) })
     pop.appendChild(m)
 
-    // --- grid spacing -----------------------------------------------------
-    const gs = section(t('Grid spacing'))
-    const spacing = el('div', 'ed-gs-line')
-    spacing.appendChild(lengthInput(stepPx, unit, (px) => {
-      if (!(px > 0.5)) return render()
-      setPref(host.isFigure ? { on: true, figureStepMm: round(toUnit(px, 'mm'), 3) } : { on: true, slideStepPx: round(px, 3) })
-    }, t('Grid spacing')))
-    gs.appendChild(spacing)
-    const presets = host.isFigure ? FIGURE_GRID_STEPS_MM.map((mm) => fromUnit(mm, 'mm')) : fittingSteps(doc.size)
-    const chips = el('div', 'ed-gs-chips')
-    if (!host.isFigure) chips.appendChild(el('span', 'ed-gs-hint', t('Fit the slide exactly:')))
-    for (const px of presets) {
-      const on = pref.on && Math.abs(px - stepPx) < 0.01
-      const c = chip(host.isFigure ? `${round(toUnit(px, 'mm'), 2)} mm` : formatLength(px, unit), on, () =>
-        setPref(host.isFigure ? { on: true, figureStepMm: round(toUnit(px, 'mm'), 3) } : { on: true, slideStepPx: px }))
-      if (!host.isFigure) c.title = t('{n} × {m} cells', { n: Math.round(doc.size.width / px), m: Math.round(doc.size.height / px) })
-      chips.appendChild(c)
-    }
-    gs.appendChild(chips)
-    pop.appendChild(gs)
-
-    // --- layout columns (document) -----------------------------------------
-    const ls = section(t('Columns'), t('Saved with the deck — every slide and slide type shares them, and AI agents place content by them.'))
-    if (!grid) {
-      const add = el('div', 'ed-gs-chips')
-      add.appendChild(el('span', 'ed-gs-hint', t('Add a column grid:')))
-      for (const n of [2, 3, 4, 6, 12]) {
-        add.appendChild(chip(String(n), false, () => {
-          if (!loadGridPref().showLayout) setPref({ showLayout: true })
-          commit(() => { store.doc.layoutGrid = { ...defaultLayoutGrid(doc.size), columns: n } })
-        }, t('{n} columns', { n })))
+    // an icon set's grid is its units, and it has no columns: neither section applies
+    let gs: HTMLElement | null = null
+    if (!iconGrid) {
+      // --- grid spacing -----------------------------------------------------
+      gs = section(t('Grid spacing'))
+      const spacing = el('div', 'ed-gs-line')
+      spacing.appendChild(lengthInput(stepPx, unit, (px) => {
+        if (!(px > 0.5)) return render()
+        setPref(host.isFigure ? { on: true, figureStepMm: round(toUnit(px, 'mm'), 3) } : { on: true, slideStepPx: round(px, 3) })
+      }, t('Grid spacing')))
+      gs.appendChild(spacing)
+      const presets = host.isFigure ? FIGURE_GRID_STEPS_MM.map((mm) => fromUnit(mm, 'mm')) : fittingSteps(doc.size)
+      const chips = el('div', 'ed-gs-chips')
+      if (!host.isFigure) chips.appendChild(el('span', 'ed-gs-hint', t('Fit the slide exactly:')))
+      for (const px of presets) {
+        const on = pref.on && Math.abs(px - stepPx) < 0.01
+        const c = chip(host.isFigure ? `${round(toUnit(px, 'mm'), 2)} mm` : formatLength(px, unit), on, () =>
+          setPref(host.isFigure ? { on: true, figureStepMm: round(toUnit(px, 'mm'), 3) } : { on: true, slideStepPx: px }))
+        if (!host.isFigure) c.title = t('{n} × {m} cells', { n: Math.round(doc.size.width / px), m: Math.round(doc.size.height / px) })
+        chips.appendChild(c)
       }
-      ls.appendChild(add)
-    } else {
-      const set = (patch: Partial<LayoutGrid>) => commit(() => {
-        const g = normalizeLayoutGrid(store.doc.layoutGrid, store.doc.size)
-        if (g) store.doc.layoutGrid = { ...g, ...patch }
-      })
-      const form = el('div', 'ed-gs-form')
-      form.append(
-        field(t('Columns'), countInput(grid.columns, 1, (n) => set({ columns: n }))),
-        field(t('Rows'), countInput(grid.rows ?? 0, 0, (n) => set({ rows: n }))),
-        field(t('Gutter'), lengthInput(grid.gutter, unit, (px) => set({ gutter: Math.max(0, px) }), t('Gutter'))),
-        field(t('Side margins'), lengthInput(grid.marginX, unit, (px) => set({ marginX: Math.max(0, px) }), t('Side margins'))),
-        field(t('Top & bottom'), lengthInput(grid.marginY, unit, (px) => set({ marginY: Math.max(0, px) }), t('Top & bottom'))),
-      )
-      ls.appendChild(form)
-      const acts = el('div', 'ed-gs-actions')
-      acts.appendChild(button(t('Remove columns'), () => commit(() => { delete store.doc.layoutGrid })))
-      ls.appendChild(acts)
+      gs.appendChild(chips)
+      pop.appendChild(gs)
+
+      // --- layout columns (document) -----------------------------------------
+      const ls = section(t('Columns'), t('Saved with the deck — every slide and slide type shares them, and AI agents place content by them.'))
+      if (!grid) {
+        const add = el('div', 'ed-gs-chips')
+        add.appendChild(el('span', 'ed-gs-hint', t('Add a column grid:')))
+        for (const n of [2, 3, 4, 6, 12]) {
+          add.appendChild(chip(String(n), false, () => {
+            if (!loadGridPref().showLayout) setPref({ showLayout: true })
+            commit(() => { store.doc.layoutGrid = { ...defaultLayoutGrid(doc.size), columns: n } })
+          }, t('{n} columns', { n })))
+        }
+        ls.appendChild(add)
+      } else {
+        const set = (patch: Partial<LayoutGrid>) => commit(() => {
+          const g = normalizeLayoutGrid(store.doc.layoutGrid, store.doc.size)
+          if (g) store.doc.layoutGrid = { ...g, ...patch }
+        })
+        const form = el('div', 'ed-gs-form')
+        form.append(
+          field(t('Columns'), countInput(grid.columns, 1, (n) => set({ columns: n }))),
+          field(t('Rows'), countInput(grid.rows ?? 0, 0, (n) => set({ rows: n }))),
+          field(t('Gutter'), lengthInput(grid.gutter, unit, (px) => set({ gutter: Math.max(0, px) }), t('Gutter'))),
+          field(t('Side margins'), lengthInput(grid.marginX, unit, (px) => set({ marginX: Math.max(0, px) }), t('Side margins'))),
+          field(t('Top & bottom'), lengthInput(grid.marginY, unit, (px) => set({ marginY: Math.max(0, px) }), t('Top & bottom'))),
+        )
+        ls.appendChild(form)
+        const acts = el('div', 'ed-gs-actions')
+        acts.appendChild(button(t('Remove columns'), () => commit(() => { delete store.doc.layoutGrid })))
+        ls.appendChild(acts)
+      }
+      pop.appendChild(ls)
     }
-    pop.appendChild(ls)
 
     // --- guides (document) ---------------------------------------------------
     const gd = section(t('Guides'), t('Drag one out from the top or left edge of the slide. Drag a guide off the slide to remove it.'))
