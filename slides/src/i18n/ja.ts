@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Style & canvas": "スタイルとキャンバス",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "アイコンをセットのスタイルのいずれかで表示します — スタイルは塗り直すだけで、描き直しはしません",
   "Add or edit styles…": "スタイルを追加・編集…",
   "The icon canvas: square or another aspect ratio — every icon in the set shares it": "アイコンのキャンバス: 正方形または別の縦横比 — セット内のすべてのアイコンで共通です",

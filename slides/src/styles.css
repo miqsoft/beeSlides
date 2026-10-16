@@ -481,6 +481,26 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   border-inline-end: 1px solid var(--line);
 }
 :root[data-ribbon-chrome] .ed-ribbon-group:last-child { border-inline-end: none; }
+/* ribbon.ts fit(): a row too wide for the window gives up room in tiers,
+   each adding to the last (icons and tooltips stay):
+   1 labels outside the row's first group · 2 big groups fold into one
+   "Caption ▾" button · 3 labels everywhere but on a dropdown showing a
+   choice ([data-keep-label]) · 4 those too */
+:root[data-ribbon-chrome] :is(.ed-ribbon-fit-1, .ed-ribbon-fit-2) > .ed-ribbon-group:not(:first-child) .ed-btn:has(> svg):not([data-keep-label]) > span:not(.ed-caret),
+:root[data-ribbon-chrome] .ed-ribbon-fit-3 .ed-btn:has(> svg):not([data-keep-label]) > span:not(.ed-caret),
+:root[data-ribbon-chrome] .ed-ribbon-fit-4 .ed-btn:has(> svg) > span:not(.ed-caret) { display: none; }
+:root[data-ribbon-chrome] .ed-ribbon-fold { display: none; }
+:root[data-ribbon-chrome] :is(.ed-ribbon-fit-2, .ed-ribbon-fit-3, .ed-ribbon-fit-4) > .ed-ribbon-group[data-foldable] { position: relative; }
+:root[data-ribbon-chrome] :is(.ed-ribbon-fit-2, .ed-ribbon-fit-3, .ed-ribbon-fit-4) > .ed-ribbon-group[data-foldable] > .ed-ribbon-fold { display: inline-flex; flex: 1; }
+:root[data-ribbon-chrome] :is(.ed-ribbon-fit-2, .ed-ribbon-fit-3, .ed-ribbon-fit-4) > .ed-ribbon-group[data-foldable] > .ed-ribbon-group-body { display: none; }
+/* unfolded: the group's own controls in a card under its button, labels back */
+:root[data-ribbon-chrome] :is(.ed-ribbon-fit-2, .ed-ribbon-fit-3, .ed-ribbon-fit-4) > .ed-ribbon-group-open[data-foldable] > .ed-ribbon-group-body {
+  display: flex; position: absolute; top: calc(100% + 4px); inset-inline-start: 0; z-index: 30;
+  padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14); white-space: nowrap;
+  flex-wrap: wrap; width: max-content; max-width: min(620px, calc(100vw - 24px));
+}
+:root[data-ribbon-chrome] .ed-ribbon-group-open[data-foldable] > .ed-ribbon-group-body .ed-btn > span { display: inline !important; }
 :root[data-ribbon-chrome] .ed-ribbon-group-body { display: flex; align-items: center; gap: 4px; flex: 1; }
 :root[data-ribbon-chrome] .ed-ribbon-group-caption { font-size: 11px; color: var(--muted); white-space: nowrap; }
 :root[data-ribbon-chrome] .ed-ribbon-collapse-glyph { font-size: 10px; }
@@ -1663,7 +1683,6 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 }
 /* icon styles: which style the canvas shows (canvas.ts renderLookBar) —
    bottom-left, clear of the docked quick bar (top) and the zoom bar (right) */
-.ed-setbar.ed-lookbar { top: auto; bottom: 14px; left: 16px; transform: none; max-width: calc(100% - 440px); overflow-x: auto; scrollbar-width: none; }
 
 /* ————— slide surface (shared by canvas, thumbs, present) ————— */
 
@@ -4213,7 +4232,6 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 .ed-setbar.ed-sorter-looks { position: static; transform: none; box-shadow: none; max-width: none; overflow-x: auto; scrollbar-width: none; }
 .ed-setbar.ed-sorter-looks[hidden] { display: none; }
 /* the style chips sit bottom-left of the canvas: toasts rise above them */
-body:has(.ed-lookbar) .ed-toast { bottom: 70px; }
 .ed-iconset-preview { display: flex; align-items: flex-end; gap: 12px; padding: 10px 12px; margin: 4px 0 8px; border-radius: 6px; background: var(--chrome-2, #f3f3f3); }
 .ed-iconset-preview img { display: block; border-radius: 2px; }
 /* example icons (panels.ts buildIconDrawing): what Claude draws like; click one to remove it */
@@ -4716,6 +4734,8 @@ html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-sli
 }
 .ed-split .ed-btn:hover { background: var(--chrome-2); }
 .ed-caret { font-size: 10px; line-height: 1; }
+.ed-btn .ed-caret-chevron { display: inline-flex; margin-inline-start: -2px; opacity: 0.6; }
+.ed-btn .ed-caret-chevron svg { width: 12px; height: 12px; }
 
 /* bottom-end cluster: [Slideshow pill] [zoom pill] */
 .ed-corner-br {

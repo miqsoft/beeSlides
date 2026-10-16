@@ -13041,3 +13041,33 @@ Rigs: `scripts/test-iconset.ts` (`translatePathD`, resize there and back,
 export, manifest, presets), `scripts/test-iconset-e2e.mjs` (Style ▾ and
 Canvas ▾ in Home, 4:3 canvas, keyline, tiles, doc_info, undo),
 `scripts/test-ui-profile.ts` (ribbon group id).
+
+## 2026-10-16 — One place to pick the shown style; the ribbon fits by measuring
+
+A look at the icon set UI after the Style ▾ / Canvas ▾ entry above: the
+shown style could be picked in three places on one screen (Home ▸ Style ▾,
+the "Show in" bar under the canvas, the panel's style cards), the dropdown
+carets read as bullets, the Home row was cut off at 1500 px, and the panel's
+Canvas select was truncated.
+
+- **The "Show in" bar under the canvas is gone** (`canvas.renderLookBar`).
+  Home ▸ Style ▾ is where you pick what the canvas shows; it took over the
+  bar's dot (•: this icon has its own changes in that style) and tooltips.
+  The panel's style cards stay — that is where styles are made and edited —
+  and All icons keeps its chips (an overlay with no ribbon).
+- **Canvas ▾ is the one place for the aspect ratio** (the panel row is
+  gone). The group is captioned "Style & canvas"; both triggers end in the
+  app's chevron and keep their label when the ribbon tightens
+  (`data-keep-label`).
+- **Ribbon rows fit by measuring** (`ribbon.ts fit`, every tab, decks too),
+  like the phone topbar — never a scrollbar (the `.ed-ribbon-rows` overflow
+  note). Tiers, each adding to the last: 1 labels go outside the row's first
+  group; 2 a group of more than 6 controls folds into one "Caption ▾" button
+  whose click shows its controls in a card under it (kept on screen); 3
+  labels go everywhere but on `data-keep-label` buttons; 4 those too. A
+  ResizeObserver on the rows and a MutationObserver (labels, hidden groups)
+  re-run it. Icon set Home now fits down to 1000 px with the shown style
+  still named.
+
+Rig: `scripts/test-iconset-e2e.mjs` (styles picked through Style ▾, the dot,
+no bar, the ribbon at 2600 and 1000 px, Arrange folding and unfolding).

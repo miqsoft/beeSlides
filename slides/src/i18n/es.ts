@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const es: Catalog = {
+  "Style & canvas": "Estilo y lienzo",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Muestra los iconos en uno de los estilos del conjunto: un estilo solo vuelve a pintar, no se redibuja nada",
   "Add or edit styles…": "Añadir o editar estilos…",
   "The icon canvas: square or another aspect ratio — every icon in the set shares it": "El lienzo de los iconos: cuadrado u otra proporción; todos los iconos del conjunto lo comparten",

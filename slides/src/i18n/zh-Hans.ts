@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
+  "Style & canvas": "样式和画布",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "以这套图标的某种样式显示图标 — 样式只重新上色，不会重新绘制",
   "Add or edit styles…": "添加或编辑样式…",
   "The icon canvas: square or another aspect ratio — every icon in the set shares it": "图标画布：正方形或其他宽高比 — 整套图标共用",

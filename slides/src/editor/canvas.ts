@@ -1813,7 +1813,6 @@ export class SlideCanvas {
       }
     }
     this.renderSetBar(sets)
-    this.renderLookBar()
     if (this.surface) this.surface.replaceWith(next)
     else this.scaleHost.appendChild(next)
     this.surface = next
@@ -1907,41 +1906,6 @@ export class SlideCanvas {
         this.render()
       })
       bar.appendChild(chip)
-    }
-    this.wrap.appendChild(bar)
-  }
-
-  /** Icon sets with styles: chips above the canvas that show the icon in a
-   *  style (store.iconLook). A dot marks a style this icon is painted its own
-   *  way in (IconLook.tweaks). */
-  private renderLookBar() {
-    this.wrap.querySelector('.ed-lookbar')?.remove()
-    const looks = this.store.doc.kind === 'iconset' && !this.store.editingSurface ? this.store.doc.iconset?.variants ?? [] : []
-    if (!looks.length) return
-    const shown = this.store.shownLook?.id ?? null
-    const sid = this.store.slide.id
-    const bar = document.createElement('div')
-    bar.className = 'ed-setbar ed-lookbar'
-    const label = document.createElement('span')
-    label.className = 'ed-setbar-label'
-    label.textContent = t('Show in:')
-    bar.appendChild(label)
-    const chip = (name: string, id: string | null, title: string, tweaked = false) => {
-      const b = document.createElement('button')
-      b.type = 'button'
-      b.className = 'ed-setchip' + (id === shown ? ' active' : '')
-      b.textContent = name + (tweaked ? ' •' : '')
-      b.title = title
-      b.setAttribute('aria-pressed', String(id === shown))
-      b.addEventListener('click', () => this.store.showLook(id))
-      bar.appendChild(b)
-    }
-    chip(t('As drawn'), null, t('The icon as drawn, in the set style'))
-    for (const l of looks) {
-      const tweaked = !!l.tweaks?.[sid]
-      chip(l.name, l.id, tweaked
-        ? t('Show the icons in “{name}” — this icon has its own changes in it', { name: l.name })
-        : t('Show the icons in “{name}” — select a shape to paint it its own way in this style', { name: l.name }), tweaked)
     }
     this.wrap.appendChild(bar)
   }

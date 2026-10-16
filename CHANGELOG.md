@@ -25,10 +25,14 @@ preserved.
   `icons.json`; add that folder as an icon library and the icons are
   searchable by name and keyword, with their licence.
 - **Icon sets — Style and Canvas in Home:** pick the style the icons are
-  shown in right beside Plan with AI and Add icons, and make the icons
-  square or another shape — 4:3, 3:2, 16:9, 2:1 or portrait 3:4. Changing it
-  keeps every drawing centred (one undo step); the export, the styles and
-  Claude's drawing follow the new canvas.
+  shown in right beside Plan with AI and Add icons (it replaces the "Show in"
+  bar under the canvas), and make the icons square or another shape — 4:3,
+  3:2, 16:9, 2:1 or portrait 3:4. Changing it keeps every drawing centred
+  (one undo step); the export, the styles and Claude's drawing follow the
+  new canvas.
+- **The ribbon fits smaller windows:** instead of cutting off groups on the
+  right, it drops button labels and folds big groups (Arrange) into one
+  button that opens them.
 - **Icon styles:** show the same icon set in more styles — Bold, Light,
   Solid, Duotone, Color, Comic, Sticker and Badge — without redrawing
   anything: every style paints the same drawings, so fixing an icon fixes it

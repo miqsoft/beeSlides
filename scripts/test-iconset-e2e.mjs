@@ -407,15 +407,23 @@ await page.waitForTimeout(150)
 if (shots) await page.locator('dialog.ed-look-sheet').screenshot({ path: join(shots, 'iconstyles-sheet-dark.png') })
 await page.locator('dialog.ed-look-sheet button:has-text("Close")').click()
 
+// the style shown on the canvas: Home ▸ Style ▾ (the label is the shown style's name)
+async function showStyle(name) {
+  await page.locator('.ed-ribbon-tab[data-tab-key="home"]').click()
+  await page.locator('[data-ui-tool="icon-look"] > button').click()
+  await page.locator(`[data-ui-tool="icon-look"] .ed-menu .ed-btn:text-matches("^${name}( •)?$")`).click()
+  await page.waitForTimeout(100)
+}
+
 // --- a style on the canvas: see it, paint one icon its own way in it, comment on it ----------
 await thumbs.nth(1).click() // the evidence bag (bag = body, flap, tag = accent)
 await page.waitForTimeout(150)
-await page.locator('.ed-lookbar button:text-is("Comic")').click()
+await showStyle('Comic')
 await page.waitForTimeout(250)
 const view = () => page.evaluate(() => {
   const img = document.querySelector('.ed-stage-scale .ed-lookview img')
   const el = document.querySelector('.ed-stage-scale .slidomingo-el[data-el-id="bag"]')
-  return { src: img ? decodeURIComponent(img.getAttribute('src') ?? '') : '', shapeOpacity: el ? getComputedStyle(el).opacity : null, active: document.querySelector('.ed-lookbar .ed-setchip.active')?.textContent, thumb: !!document.querySelector('.ed-sidebar .ed-thumb.active img, .ed-sidebar .ed-thumb img') }
+  return { src: img ? decodeURIComponent(img.getAttribute('src') ?? '') : '', shapeOpacity: el ? getComputedStyle(el).opacity : null, active: document.querySelector('[data-ui-tool="icon-look"] > button > span')?.textContent, thumb: !!document.querySelector('.ed-sidebar .ed-thumb.active img, .ed-sidebar .ed-thumb img') }
 })
 let v = await view()
 ok(v.src.includes('#ffd23f') && v.src.includes('translate(0.9 0.9)'), 'the canvas paints the icon in the Comic style (yellow body, hard shadow)')
@@ -437,7 +445,10 @@ ok(comic.tweaks?.[d.slides[1].id]?.bag?.fill === 'none', 'No fill here writes a 
 ok(d.slides[1].elements.find((e) => e.id === 'bag').fill === 'transparent', 'the drawing itself is untouched')
 v = await view()
 ok(!v.src.includes('#ffd23f') && v.src.includes('#ff4f6d'), 'the canvas shows the bag without its yellow, the tag keeps its accent')
-ok(v.active === 'Comic •', `the chip marks this icon's own changes (${v.active})`)
+await page.locator('[data-ui-tool="icon-look"] > button').click()
+const marks = await page.locator('[data-ui-tool="icon-look"] .ed-menu .ed-btn').allTextContents()
+await page.locator('[data-ui-tool="icon-look"] > button').click()
+ok(v.active === 'Comic' && marks.includes('Comic •'), `Style ▾ marks the style this icon has its own changes in (${marks.join()})`)
 if (shots) await page.screenshot({ path: join(shots, 'iconstyles-shape.png') })
 await rowSelect('Part').selectOption('Accent')
 await page.waitForTimeout(150)
@@ -467,7 +478,7 @@ ok(sentStyled?.payload?.[0]?.style === 'Comic', 'and Claude is told the style', 
 const agentCmts = await page.evaluate(() => window.slidomingo.comments?.() ?? [])
 ok(agentCmts.some((c) => c.style?.name === 'Comic'), 'comments() names the style for agents')
 // the compare sheet marks the icon and opens it in that style
-await page.locator('.ed-lookbar button:text-is("As drawn")').click()
+await showStyle('As drawn')
 await page.waitForTimeout(150)
 ok((await view()).src === '', 'As drawn shows the drawing again')
 await page.locator('button:has-text("Compare all styles…")').click()
@@ -477,8 +488,12 @@ ok(marked === 1, `the compare sheet marks the one icon with its own changes (${m
 await page.locator('dialog.ed-look-sheet .ed-look-cell.is-tweaked').click()
 await page.waitForTimeout(250)
 v = await view()
-ok(v.active === 'Comic •' && !(await page.locator('dialog.ed-look-sheet').count()), 'clicking it opens that icon in that style on the canvas')
-await page.locator('.ed-lookbar button:text-is("As drawn")').click()
+ok(v.active === 'Comic' && !(await page.locator('dialog.ed-look-sheet').count()), 'clicking it opens that icon in that style on the canvas')
+await page.locator('[data-ui-tool="icon-look"] > button').click()
+const dotted = await page.locator('[data-ui-tool="icon-look"] .ed-menu .ed-btn').allTextContents()
+ok(dotted.includes('Comic •'), `still marked after the compare sheet (${dotted.join()})`)
+await page.locator('[data-ui-tool="icon-look"] > button').click()
+await showStyle('As drawn')
 await page.waitForTimeout(100)
 await page.locator('.ed-ribbon-tab:has-text("View"), [role="tab"]:has-text("View")').first().click()
 
@@ -515,9 +530,9 @@ await page.waitForTimeout(250)
 const inComic = await page.evaluate(() => ({
   active: document.querySelector('.ed-sorter-looks .ed-setchip.active')?.textContent,
   imgs: document.querySelectorAll('.ed-sorter-item .slidomingo-thumb-surface img').length,
-  canvas: document.querySelector('.ed-lookbar .ed-setchip.active')?.textContent,
+  canvas: document.querySelector('[data-ui-tool="icon-look"] > button > span')?.textContent,
 }))
-ok(inComic.active === 'Comic' && inComic.imgs === 3 && /^Comic/.test(inComic.canvas ?? ''), `a style picked there shows every icon in it, and the canvas follows (${JSON.stringify(inComic)})`)
+ok(inComic.active === 'Comic' && inComic.imgs === 3 && inComic.canvas === 'Comic', `a style picked there shows every icon in it, and the canvas follows (${JSON.stringify(inComic)})`)
 if (shots) await page.screenshot({ path: join(shots, 'iconset-overview-comic.png') })
 await page.locator('.ed-sorter-looks .ed-setchip:text-is("As drawn")').click()
 await page.keyboard.press('Escape')
@@ -528,16 +543,18 @@ await page.waitForTimeout(150)
   await page.locator('.ed-ribbon-tab:has-text("Home"), [data-ribbon-tab="home"]').first().click().catch(() => {})
   const look = page.locator('[data-ui-tool="icon-look"]').first()
   ok((await look.locator('button').first().textContent())?.includes('As drawn'), 'the ribbon shows the style the icons are shown in')
+  ok(await page.evaluate(() => document.querySelector('[data-ui-tool="icon-look"]')?.closest('.ed-ribbon-group')?.querySelector('.ed-ribbon-group-caption')?.textContent === 'Style & canvas'), 'its group says Style & canvas')
   await look.locator('button').first().click()
   const items = await look.locator('.ed-menu .ed-btn').allTextContents()
-  ok(items.slice(0, 5).join() === 'As drawn,Comic,Learned from “fingerprint”,Shared badge,Pastel' && /styles/.test(items.at(-1) ?? ''), `Style ▾ lists the set's styles (${items.join()})`)
-  await look.locator('.ed-menu .ed-btn:text-is("Comic")').click()
+  ok(items.slice(0, 5).map((x) => x.replace(/ •$/, '')).join() === 'As drawn,Comic,Learned from “fingerprint”,Shared badge,Pastel' && /styles/.test(items.at(-1) ?? ''), `Style ▾ lists the set's styles (${items.join()})`)
+  await look.locator('.ed-menu .ed-btn:text-matches("^Comic( •)?$")').click()
   await page.waitForTimeout(200)
   const shown = await page.evaluate(() => ({
     label: document.querySelector('[data-ui-tool="icon-look"] > button')?.textContent,
-    canvas: document.querySelector('.ed-lookbar .ed-setchip.active')?.textContent,
+    lookview: !!document.querySelector('.ed-stage-scale .ed-lookview img'),
+    bar: !!document.querySelector('.ed-lookbar'),
   }))
-  ok(/Comic/.test(shown.label ?? '') && /^Comic/.test(shown.canvas ?? ''), `picking Comic there shows the canvas in it, and the label follows (${JSON.stringify(shown)})`)
+  ok(/Comic/.test(shown.label ?? '') && shown.lookview && !shown.bar, `picking Comic there shows the canvas in it, the label follows, no second bar under the canvas (${JSON.stringify(shown)})`)
   await look.locator('button').first().click()
   await look.locator('.ed-menu .ed-btn:text-is("As drawn")').click()
   await page.waitForTimeout(150)
@@ -681,6 +698,38 @@ ok(d.iconset.examples?.length === 1 && d.iconset.examples[0].name === 'key', 'a 
 await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
 await page.waitForTimeout(150)
 ok((await doc()).iconset.examples?.length === 2, 'and undo brings it back')
+
+// --- the ribbon fits a narrow window: labels go, icons and the shown style stay ----------------
+{
+  const vp = page.viewportSize()
+  await page.locator('.ed-ribbon-tab[data-tab-key="home"]').click()
+  const fitState = () => page.evaluate(() => {
+    const row = [...document.querySelectorAll('.ed-ribbon-row')].find((r) => !r.hidden)
+    const rows = document.querySelector('.ed-ribbon-rows')
+    const label = document.querySelector('[data-ui-tool="icon-look"] > button > span')
+    const plan = document.querySelector('[data-ui-tool="icon-plan"] > span')
+    return { over: row.scrollWidth - rows.clientWidth, tier: [...row.classList].find((c) => c.startsWith('ed-ribbon-fit')) ?? '',
+      style: label && getComputedStyle(label).display !== 'none', plan: plan && getComputedStyle(plan).display !== 'none' }
+  })
+  await page.setViewportSize({ width: 2600, height: vp.height })
+  await page.waitForTimeout(300)
+  const wide = await fitState()
+  ok(wide.over <= 0 && !wide.tier && wide.plan, `a wide window keeps every label (${JSON.stringify(wide)})`)
+  await page.setViewportSize({ width: 1000, height: vp.height })
+  await page.waitForTimeout(300)
+  const narrow = await fitState()
+  ok(narrow.over <= 0 && !!narrow.tier && narrow.style, `a narrow window drops labels to fit, the shown style stays (${JSON.stringify(narrow)})`)
+  // Arrange folded into one button; a click shows its controls
+  const fold = page.locator('.ed-ribbon-group[data-foldable] > .ed-ribbon-fold:visible').first()
+  ok(await fold.count() === 1 && /Arrange/.test(await fold.textContent() ?? ''), 'Arrange folds into one Arrange ▾ button')
+  await fold.click()
+  const open = await page.evaluate(() => { const b = document.querySelector('.ed-ribbon-group-open > .ed-ribbon-group-body'); return !!b && getComputedStyle(b).display !== 'none' && b.getBoundingClientRect().height > 0 })
+  ok(open, 'clicking it shows the Arrange controls')
+  if (shots) await page.screenshot({ path: join(shots, 'iconset-ribbon-narrow.png') })
+  await page.mouse.click(700, 600)
+  await page.setViewportSize(vp)
+  await page.waitForTimeout(200)
+}
 
 // --- no presenting --------------------------------------------------------------------------
 const hidden = await page.evaluate(() => [...document.querySelectorAll('[data-ui-tool="present"], [data-ui-tool="notes"]')].every((b) => getComputedStyle(b).display === 'none'))

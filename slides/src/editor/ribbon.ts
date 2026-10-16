@@ -19,6 +19,7 @@
 
 import { lsGet, lsSet } from '../../../kernel/src/storage.ts'
 import { t } from '../i18n'
+import { ICONS } from '../icons'
 import { RIBBON_LAYOUT } from './customize/catalog.ts'
 
 /** Present only inside the slidomingo/desktop Electron shell (preload/index.ts's
@@ -292,6 +293,39 @@ export interface RibbonHandle {
 
 const COLLAPSE_KEY = 'slidomingo-ribbon-collapsed'
 
+/** A group with more controls than this folds into one "Caption ▾" button
+ *  when the row is short of room (ribbon.ts fit, tier 2). */
+const FOLD_OVER = 6
+
+/** Gives a big group its fold button (hidden until the row folds it): the
+ *  caption and a chevron; a click shows the group's controls below it. */
+function makeFoldable(g: HTMLElement): void {
+  const body = g.querySelector<HTMLElement>(':scope > .ed-ribbon-group-body')
+  if (!body || body.children.length <= FOLD_OVER || g.querySelector(':scope > .ed-ribbon-fold')) return
+  g.dataset.foldable = ''
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'ed-btn ed-ribbon-fold'
+  const label = document.createElement('span')
+  label.textContent = g.querySelector('.ed-ribbon-group-caption')?.textContent ?? ''
+  b.append(label)
+  b.insertAdjacentHTML('beforeend', `<span class="ed-caret ed-caret-chevron">${ICONS.chevronDown}</span>`)
+  b.addEventListener('click', () => {
+    body.style.insetInlineStart = body.style.insetInlineEnd = ''
+    if (!g.classList.toggle('ed-ribbon-group-open')) return
+    // keep the card on screen: near the right edge it opens leftwards
+    const r = body.getBoundingClientRect()
+    if (r.right > window.innerWidth - 8) { body.style.insetInlineStart = 'auto'; body.style.insetInlineEnd = '0' }
+  })
+  // a control used from the unfolded group closes it; so does a press elsewhere
+  body.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).closest('.ed-dropdown')) return
+    g.classList.remove('ed-ribbon-group-open')
+  })
+  document.addEventListener('pointerdown', (ev) => { if (!g.contains(ev.target as Node)) g.classList.remove('ed-ribbon-group-open') })
+  g.insertBefore(b, body)
+}
+
 /** Tags each built-in group with its catalog id by its caption — matched
  *  against the TRANSLATED English caption, so editor.ts's ribbonGroup()
  *  calls need no ids of their own. A group nobody listed stays untagged. */
@@ -299,6 +333,7 @@ function tagGroups(tab: RibbonTabDef): HTMLElement[] {
   const groups = [...tab.row.querySelectorAll<HTMLElement>(':scope > .ed-ribbon-group')]
   const layout = RIBBON_LAYOUT[tab.key] ?? []
   for (const g of groups) {
+    makeFoldable(g)
     const caption = g.querySelector('.ed-ribbon-group-caption')?.textContent ?? ''
     const hit = layout.find((l) => t(l.caption) === caption)
     if (hit) g.dataset.groupId = hit.id
@@ -327,7 +362,34 @@ export function buildRibbon(container: HTMLElement, opts: RibbonOpts): RibbonHan
     active = key
     for (const t of tabs) t.row.hidden = t.key !== key
     for (const [k, b] of tabButtons) b.classList.toggle('ed-ribbon-tab-active', k === key)
+    fit()
   }
+  /** The shown row fits by MEASURING (like the phone topbar), each tier
+   *  adding to the last: 1 drops button labels outside the row's first
+   *  group, 2 folds big groups into one "Caption ▾" button, 3 drops labels
+   *  everywhere but on `data-keep-label` buttons (a dropdown showing a
+   *  choice), 4 those too. Tooltips stay; never a scrollbar (see the
+   *  .ed-ribbon-rows note in styles.css). */
+  const FIT = ['ed-ribbon-fit-1', 'ed-ribbon-fit-2', 'ed-ribbon-fit-3', 'ed-ribbon-fit-4']
+  let fitting = false
+  const fit = () => {
+    const row = tabs.find((t) => t.key === active)?.row
+    if (!row || fitting) return
+    fitting = true
+    row.classList.remove(...FIT)
+    row.querySelectorAll('.ed-ribbon-group-open').forEach((g) => g.classList.remove('ed-ribbon-group-open'))
+    const room = rows.clientWidth
+    for (let i = 0; room > 0 && row.scrollWidth > room && i < FIT.length; i++) {
+      row.classList.remove(...FIT)
+      row.classList.add(FIT[i])
+    }
+    fitting = false
+  }
+  let fitFrame = 0
+  const refit = () => { cancelAnimationFrame(fitFrame); fitFrame = requestAnimationFrame(fit) }
+  new ResizeObserver(refit).observe(rows)
+  // labels that follow the doc (Style ▾) and Customize's hide/order change widths
+  new MutationObserver(refit).observe(rows, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] })
   const addTabButton = (t: RibbonTabDef, custom: boolean) => {
     const b = document.createElement('button')
     b.type = 'button'

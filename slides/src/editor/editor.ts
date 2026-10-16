@@ -3890,7 +3890,7 @@ export class Editor {
   /** The Home ribbon's Icon set group: the style the icons are shown in and
    *  the canvas's aspect ratio, beside Plan with AI and Add icons. */
   private iconsetLookGroup(): HTMLElement {
-    return ribbonGroup(t('Icon set'), [tagTool(this.iconLookMenu(), 'icon-look'), tagTool(this.iconCanvasMenu(), 'icon-canvas')])
+    return ribbonGroup(t('Style & canvas'), [tagTool(this.iconLookMenu(), 'icon-look'), tagTool(this.iconCanvasMenu(), 'icon-canvas')])
   }
 
   /** A ribbon dropdown whose label follows the doc: `fill` rebuilds the menu
@@ -3905,7 +3905,9 @@ export class Editor {
       menu.replaceChildren()
       fill(menu, close)
     }, tip)
-    trigger.insertAdjacentHTML('beforeend', '<span class="ed-caret">▾</span>')
+    trigger.insertAdjacentHTML('beforeend', `<span class="ed-caret ed-caret-chevron">${ICONS.chevronDown}</span>`)
+    // the label IS the choice: it stays when the ribbon drops labels to fit
+    trigger.dataset.keepLabel = ''
     // a style's name is the user's: set as text, never markup
     const text = trigger.querySelector('span')!
     let seen = false
@@ -3927,12 +3929,20 @@ export class Editor {
       () => this.store.shownLook?.name ?? t('As drawn'),
       (menu, close) => {
         const shown = this.store.shownLook?.id ?? null
-        const variants = this.store.doc.iconset?.variants ?? []
-        for (const [name, id] of [[t('As drawn'), null], ...variants.map((l) => [l.name, l.id])] as Array<[string, string | null]>) {
-          const b = btn('', '', () => { close(); this.store.showLook(id) })
-          b.textContent = name // a style's name is the user's: never markup
+        const sid = this.store.slide.id
+        const pick = (name: string, id: string | null, title: string, tweaked = false) => {
+          const b = btn('', '', () => { close(); this.store.showLook(id) }, title)
+          b.textContent = name + (tweaked ? ' •' : '') // a style's name is the user's: never markup
           if (id === shown) b.classList.add('ed-menu-on')
           menu.appendChild(b)
+        }
+        pick(t('As drawn'), null, t('The icon as drawn, in the set style'))
+        // a dot: this icon is painted its own way in that style (IconLook.tweaks)
+        for (const l of this.store.doc.iconset?.variants ?? []) {
+          const tweaked = !!l.tweaks?.[sid]
+          pick(l.name, l.id, tweaked
+            ? t('Show the icons in “{name}” — this icon has its own changes in it', { name: l.name })
+            : t('Show the icons in “{name}” — select a shape to paint it its own way in this style', { name: l.name }), tweaked)
         }
         menu.appendChild(div('ed-menu-sep'))
         menu.appendChild(btn('', t('Add or edit styles…'), () => { close(); this.revealPanelSection('Styles') }))

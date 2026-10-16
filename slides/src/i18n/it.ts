@@ -4,6 +4,7 @@
 import type { Catalog } from '../i18n'
 
 export const it: Catalog = {
+  "Style & canvas": "Stile e area di lavoro",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Mostra le icone in uno degli stili del set: uno stile ridipinge soltanto, nulla viene ridisegnato",
   "Add or edit styles…": "Aggiungi o modifica stili…",
   "The icon canvas: square or another aspect ratio — every icon in the set shares it": "L’area di lavoro delle icone: quadrata o con un altro rapporto — tutte le icone del set la condividono",

@@ -63,7 +63,7 @@ export const RIBBON_LAYOUT: Record<string, Array<{ id: string; caption: string }
     { id: 'home:slides', caption: 'Slides' },
     // an icon set's Home tab shows this in place of Slides
     { id: 'home:icons', caption: 'Icons' },
-    { id: 'home:icon-set', caption: 'Icon set' },
+    { id: 'home:icon-set', caption: 'Style & canvas' },
     { id: 'home:format-painter', caption: 'Format Painter' },
     { id: 'home:reapply-change', caption: 'Reapply Change' },
     { id: 'home:arrange', caption: 'Arrange' },

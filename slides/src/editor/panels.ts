@@ -36,10 +36,10 @@ import { onSystemFontsReady, requestSystemFonts } from '../localfonts'
 import { ICONS } from '../icons'
 import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
-import { ICON_CANVASES, iconCanvasId, iconCanvasUnits, iconShapes, iconShortSide, iconsetInfo, type IconsetGrid } from '../iconset'
+import { iconShapes, iconShortSide, iconsetInfo, type IconsetGrid } from '../iconset'
 import {
   addExamplesFromFiles, addLook, describeStyleWithAi, examplePreviewUrl, findLook, iconExamples, iconExportTip, iconPreviewUrl, learnFromIcon, lookPreviewUrl, moveLook, removeExample, removeLook, restoreIconToSet,
-  setIconCanvas, withStyle, writeIconsetInfo,
+  withStyle, writeIconsetInfo,
 } from './iconsetactions'
 import { LOOK_PRESETS, clearTweaks, iconParts, iconTweaks, lookFromPreset, setTweak, tweakedIconCount, type IconPart } from '../iconstyles'
 import { loadMyLooks, lookFromClipText, lookToClipText, removeMyLook, saveMyLook } from './iconlooklibrary'
@@ -970,24 +970,6 @@ export class PropsPanel {
     this.section('Icon set')
     this.row('Set name', field(doc.title === 'Untitled icon set' ? '' : doc.title, false, t('e.g. Forensics'), (v) =>
       this.edit(() => { this.store.doc.title = v.trim() || 'Untitled icon set' }, true)))
-    // the canvas's aspect ratio: every icon shares it (the ribbon's Canvas ▾ too)
-    const canvasName = (id: string) => id === '1:1' ? t('Square', undefined, 'canvas') : id === '3:4' ? `3:4 ${t('Portrait')}` : id
-    const canvasOpts = ICON_CANVASES.map((c) => {
-      const u = iconCanvasUnits(info, c.id)
-      return { id: c.id, label: `${canvasName(c.id)} — ${u.w} × ${u.h}` }
-    })
-    const onCanvas = iconCanvasId(info)
-    const custom = onCanvas ? [] : [`${info.grid} × ${info.gridH}`]
-    const canvasSel = this.select([...custom, ...canvasOpts.map((o) => o.label)],
-      canvasOpts.find((o) => o.id === onCanvas)?.label ?? custom[0], (v) => {
-        const pick = canvasOpts.find((o) => o.label === v)
-        if (pick && setIconCanvas(this.store, pick.id)) {
-          const next = iconsetInfo(this.store.doc)
-          if (next) this.toast(t('Canvas: {w} × {h} units — the drawings stay centred', { w: next.grid, h: next.gridH }))
-        }
-      })
-    canvasSel.title = t('The icon canvas: square or another aspect ratio — every icon in the set shares it')
-    this.row('Canvas', canvasSel)
     this.row('License', field(info.license ?? '', false, t('e.g. CC-BY-4.0'), (v) => {
       const next = { ...info }
       if (v.trim()) next.license = v.trim(); else delete next.license

@@ -7,6 +7,7 @@
 import type { Catalog } from '../i18n'
 
 export const pt: Catalog = {
+  "Style & canvas": "Estilo e tela",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Mostra os ícones em um dos estilos do conjunto — um estilo apenas repinta, nada é redesenhado",
   "Add or edit styles…": "Adicionar ou editar estilos…",
   "The icon canvas: square or another aspect ratio — every icon in the set shares it": "A tela dos ícones: quadrada ou outra proporção — todos os ícones do conjunto a compartilham",
