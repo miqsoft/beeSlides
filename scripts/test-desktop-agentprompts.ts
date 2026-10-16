@@ -47,6 +47,13 @@ ok(fixCommentsPrompt([{ id: 'bad id', slide: 1, text: 'x' }, { id: 'ok', slide: 
   'bad ids, slide numbers and empty texts are dropped')
 ok(fixCommentsPrompt([{ id: 'one', slide: 1, text: 'x' }])!.startsWith('Please fix this review comment:'), 'one comment reads in the singular')
 
+// icon sets: a comment written while the icon was shown in a style
+const inStyle = fixCommentsPrompt([{ id: 'cs', slide: 3, on: 'shape', text: 'lens should be blue', style: "Comic's $best" }])!
+ok(inStyle.includes('1. Slide 3 · on “shape” · in the style “Comic’s ＄best”: lens should be blue  [cs]'), 'a styled comment names its style (cleaned like the text)', inStyle.split('\n')[2])
+ok(inStyle.includes('icons op tweak') && inStyle.includes('icons op style'), 'and says how to change one icon in a style vs the whole style')
+ok(!SHELL_UNSAFE.test(inStyle), 'a style name cannot break the shell quoting')
+ok(!text.includes('icons op tweak'), 'comments without a style get no style instructions')
+
 const many = Array.from({ length: MAX_LISTED_COMMENTS + 5 }, (_, i) => ({ id: `c${i}`, slide: 1, text: 'x' }))
 const long = fixCommentsPrompt(many)!
 ok(long.includes(`Please fix these ${MAX_LISTED_COMMENTS + 5} review comments:`) && long.includes('…and 5 more'), 'a long batch is capped and names the rest')

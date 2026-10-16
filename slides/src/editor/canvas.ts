@@ -10,7 +10,8 @@ import type { Store } from '../store'
 import { effectiveCanvasSize } from '../store'
 import { t } from '../i18n'
 import { ancestorElementIds, defaultShape, effectiveLayout, internAsset, lineDefaultsFor, normalizeCrop, shapeDefaultsFor, uid, type ShapeElement, type Slide, type SlideElement, type TableElement } from '../model'
-import { iconsetInfo } from '../iconset'
+import { iconShapes, iconsetInfo } from '../iconset'
+import { lookPreviewUrl } from './iconsetactions'
 import { isBackdrop as isBackdropBox, renderSlide, sanitizeHtml } from '../render'
 import { anim } from '../anim'
 import { previewBuilds, previewSlideFx, type BuildPreview } from '../present'
@@ -107,6 +108,8 @@ export class SlideCanvas {
   private safeZoneLayer: HTMLElement | null = null
   /** icon sets: the keyline square + circle (padding) over the icon canvas */
   private keylineLayer: HTMLElement | null = null
+  /** icon sets: the icon painted in the style being shown (store.iconLook) */
+  private lookLayer: HTMLElement | null = null
   /** Drawing grid (slides and figures): `gridStep` model px, 0 = off. Drags snap firmly to it (wireMoveable), resizes through Moveable's own grid, points via snapPoint(). */
   private gridLayer: HTMLElement | null = null
   private gridStep = 0
@@ -481,7 +484,10 @@ export class SlideCanvas {
 
     store.on('current', () => this.render())
     store.on('doc', () => this.render())
+    store.on('look', () => this.render())
     store.on('selection', () => this.syncTargets())
+    // while shapes are dragged, show them as drawn: the styled picture would lag behind
+    this.gestureListeners.add((on) => this.scaleHost.classList.toggle('ed-lookview-live', on))
 
     this.render()
   }
@@ -1807,11 +1813,69 @@ export class SlideCanvas {
       }
     }
     this.renderSetBar(sets)
+    this.renderLookBar()
     if (this.surface) this.surface.replaceWith(next)
     else this.scaleHost.appendChild(next)
     this.surface = next
+    this.updateLookView()
     this.relayout()
     this.syncTargets()
+  }
+
+  /** Icon sets: with a style shown (store.iconLook), the icon is painted in
+   *  it over the canvas and the drawn shapes turn invisible — still there to
+   *  select, move and edit, and shown again while a gesture runs. Editor-only;
+   *  agent screenshots see the drawing (`.ed-capturing`). */
+  private updateLookView() {
+    const look = this.store.editingSurface ? undefined : this.store.shownLook
+    this.scaleHost.classList.toggle('ed-lookview-on', !!look)
+    if (!look || !this.surface) {
+      this.lookLayer?.remove()
+      this.lookLayer = null
+      return
+    }
+    if (!this.lookLayer) {
+      this.lookLayer = document.createElement('div')
+      this.lookLayer.className = 'ed-lookview'
+      this.lookLayer.setAttribute('aria-hidden', 'true')
+      this.lookLayer.appendChild(document.createElement('img')).alt = ''
+    }
+    // right above the slide, under the guides and the selection box
+    if (this.lookLayer.previousElementSibling !== this.surface) this.surface.after(this.lookLayer)
+    const { width, height } = this.store.doc.size
+    const img = this.lookLayer.firstElementChild as HTMLImageElement
+    img.width = width
+    img.height = height
+    const url = lookPreviewUrl(this.store, this.store.slide.id, look)
+    if (img.getAttribute('src') !== url) img.src = url
+    this.updateLookSelection()
+  }
+
+  /** The selected shapes, outlined over the styled picture: the drawn shapes
+   *  are invisible there, so this is how you see what you picked. */
+  private updateLookSelection() {
+    const layer = this.lookLayer
+    if (!layer) return
+    layer.querySelector('svg')?.remove()
+    const sel = new Set(this.store.selection)
+    if (!sel.size) return
+    const info = iconsetInfo(this.store.doc)
+    if (!info) return
+    const picked = iconShapes(this.store.doc, this.store.slide).shapes.filter((s) => sel.has(s.el.id))
+    if (!picked.length) return
+    const ns = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(ns, 'svg')
+    const { width, height } = this.store.doc.size
+    svg.setAttribute('viewBox', `0 0 ${info.grid} ${info.grid}`)
+    svg.setAttribute('width', String(width))
+    svg.setAttribute('height', String(height))
+    svg.setAttribute('class', 'ed-lookview-sel')
+    for (const s of picked) {
+      const p = document.createElementNS(ns, 'path')
+      p.setAttribute('d', s.d)
+      svg.appendChild(p)
+    }
+    layer.appendChild(svg)
   }
 
   /**
@@ -1847,6 +1911,41 @@ export class SlideCanvas {
     this.wrap.appendChild(bar)
   }
 
+  /** Icon sets with styles: chips above the canvas that show the icon in a
+   *  style (store.iconLook). A dot marks a style this icon is painted its own
+   *  way in (IconLook.tweaks). */
+  private renderLookBar() {
+    this.wrap.querySelector('.ed-lookbar')?.remove()
+    const looks = this.store.doc.kind === 'iconset' && !this.store.editingSurface ? this.store.doc.iconset?.variants ?? [] : []
+    if (!looks.length) return
+    const shown = this.store.shownLook?.id ?? null
+    const sid = this.store.slide.id
+    const bar = document.createElement('div')
+    bar.className = 'ed-setbar ed-lookbar'
+    const label = document.createElement('span')
+    label.className = 'ed-setbar-label'
+    label.textContent = t('Show in:')
+    bar.appendChild(label)
+    const chip = (name: string, id: string | null, title: string, tweaked = false) => {
+      const b = document.createElement('button')
+      b.type = 'button'
+      b.className = 'ed-setchip' + (id === shown ? ' active' : '')
+      b.textContent = name + (tweaked ? ' •' : '')
+      b.title = title
+      b.setAttribute('aria-pressed', String(id === shown))
+      b.addEventListener('click', () => this.store.showLook(id))
+      bar.appendChild(b)
+    }
+    chip(t('Set style'), null, t('The icon as drawn, in the set style'))
+    for (const l of looks) {
+      const tweaked = !!l.tweaks?.[sid]
+      chip(l.name, l.id, tweaked
+        ? t('Show the icons in “{name}” — this icon has its own changes in it', { name: l.name })
+        : t('Show the icons in “{name}” — select a shape to paint it its own way in this style', { name: l.name }), tweaked)
+    }
+    this.wrap.appendChild(bar)
+  }
+
   private selectedNodes(): HTMLElement[] {
     if (!this.surface) return []
     return this.store.selection
@@ -1876,6 +1975,7 @@ export class SlideCanvas {
   }
 
   private syncTargets() {
+    this.updateLookSelection()
     // A single selected line/curve/connector is edited with endpoint handles
     // (LineEditor), not Moveable's box — grab an end and drag it.
     const sel = this.store.selectedElements

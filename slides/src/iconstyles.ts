@@ -13,6 +13,7 @@
 //   - `iconLookSvg`      one icon in one look → a standalone SVG (grid units)
 //   - `LOOK_PRESETS`     the built-in looks
 //   - `readLook`         untrusted input (AI op, pasted style, My styles) → a look
+//   - `setTweak`         one shape of one icon painted its own way in a look
 //   - `learnLookFromIcon`  a look read off an icon someone painted by hand
 //   - `learnLookFromSvgStats`  a look read off other people's SVG icons
 //
@@ -20,7 +21,7 @@
 // Opened files skip untrusted.ts, so everything that reaches markup passes
 // `safeColor` / clamps here, at render time.
 
-import type { IconLook, IconPaint, IconsetStyle, Slide, SlidomingoDoc } from './model.ts'
+import type { IconLook, IconPaint, IconShapeTweak, IconsetStyle, Slide, SlidomingoDoc } from './model.ts'
 import { ICONSET_STYLE_DEFAULTS, uid } from './model.ts'
 import { escXml, iconShapes, iconsetInfo, isNoPaint, n3, normColor, type IconShape, type IconSvg } from './iconset.ts'
 import { segsBBox, segsToD, type Seg } from './svgpath.ts'
@@ -73,6 +74,89 @@ function readPaint(v: unknown): IconPaint | undefined {
 
 const LOOK_ID_RE = /^[a-z][a-z0-9-]{0,40}$/
 
+/** Slide and element ids as `uid()` makes them (and agents may write). */
+const TWEAK_ID_RE = /^[A-Za-z0-9_-]{1,80}$/
+/** Bounds on a look's tweaks: icons per look, shapes per icon. */
+export const MAX_TWEAK_ICONS = 500
+export const MAX_TWEAK_SHAPES = 200
+
+/** Untrusted → one shape's tweak, or undefined when it changes nothing. */
+export function readTweak(v: unknown): IconShapeTweak | undefined {
+  if (!v || typeof v !== 'object') return undefined
+  const r = v as Record<string, unknown>
+  const out: IconShapeTweak = {}
+  if (r.fill === 'none') out.fill = 'none'
+  else {
+    const p = readPaint(r.fill)
+    if (p) out.fill = p
+  }
+  if (typeof r.stroke === 'string' && COLOR_RE.test(r.stroke.trim()) && !isNoPaint(r.stroke)) out.stroke = r.stroke.trim()
+  if (r.hide === true) out.hide = true
+  return Object.keys(out).length ? out : undefined
+}
+
+function readTweaks(v: unknown): IconLook['tweaks'] | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const out: NonNullable<IconLook['tweaks']> = {}
+  let icons = 0
+  for (const [sid, shapes] of Object.entries(v as Record<string, unknown>)) {
+    if (icons >= MAX_TWEAK_ICONS) break
+    if (!TWEAK_ID_RE.test(sid) || !shapes || typeof shapes !== 'object' || Array.isArray(shapes)) continue
+    const one: Record<string, IconShapeTweak> = {}
+    let n = 0
+    for (const [eid, tw] of Object.entries(shapes as Record<string, unknown>)) {
+      if (n >= MAX_TWEAK_SHAPES) break
+      const t = TWEAK_ID_RE.test(eid) ? readTweak(tw) : undefined
+      if (t) { one[eid] = t; n++ }
+    }
+    if (n) { out[sid] = one; icons++ }
+  }
+  return icons ? out : undefined
+}
+
+/** The tweaks of one icon in a look ({} when none). */
+export function iconTweaks(look: IconLook, slideId: string): Readonly<Record<string, IconShapeTweak>> {
+  return look.tweaks?.[slideId] ?? {}
+}
+
+/** How many icons a look paints their own way. */
+export function tweakedIconCount(look: IconLook): number {
+  return Object.keys(look.tweaks ?? {}).length
+}
+
+/**
+ * Set (or with `undefined`, clear) one shape's tweak in a look; empty maps
+ * are removed, so a look without tweaks has no `tweaks` key. Mutates `look`.
+ */
+export function setTweak(look: IconLook, slideId: string, elementId: string, tweak: IconShapeTweak | undefined): void {
+  const all = { ...look.tweaks }
+  const one = { ...all[slideId] }
+  const clean = readTweak(tweak)
+  if (clean) one[elementId] = clean
+  else delete one[elementId]
+  if (Object.keys(one).length) all[slideId] = one
+  else delete all[slideId]
+  if (Object.keys(all).length) look.tweaks = all
+  else delete look.tweaks
+}
+
+/** Clear every tweak of one icon in a look (`slideId`), or of all icons. Mutates `look`. */
+export function clearTweaks(look: IconLook, slideId?: string): void {
+  if (slideId === undefined) { delete look.tweaks; return }
+  if (!look.tweaks?.[slideId]) return
+  const all = { ...look.tweaks }
+  delete all[slideId]
+  if (Object.keys(all).length) look.tweaks = all
+  else delete look.tweaks
+}
+
+/** The look without what belongs to one set (its tweaks name that set's
+ *  icons): what My styles and Copy style keep. */
+export function lookRecipe(look: IconLook): IconLook {
+  const { tweaks: _tweaks, ...rest } = look
+  return structuredClone(rest)
+}
+
 /**
  * Untrusted input → a clean look, or a message saying what is wrong. The one
  * gate for the agent's `style` op, a pasted style and "My styles". Only `name`
@@ -124,6 +208,8 @@ export function readLook(raw: unknown): IconLook | string {
       scale: Math.round(clamp(tl.scale, 0.4, 0.9, 0.62) * 100) / 100,
     }
   }
+  const tweaks = readTweaks(r.tweaks)
+  if (tweaks) look.tweaks = tweaks
   return look
 }
 
@@ -238,8 +324,18 @@ export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, 
   const info = iconsetInfo(doc) ?? { grid: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
   const look = usableLook(lookIn, info.style.color)
   const g = info.grid
-  const { shapes, skipped } = iconShapes(doc, slide)
-  const parts = iconParts(shapes)
+  const all = iconShapes(doc, slide)
+  const skipped = all.skipped
+  // parts are guessed on the whole drawing, so hiding a shape in this look
+  // does not turn another one into the body
+  const allParts = iconParts(all.shapes)
+  const tweaks = iconTweaks(look, slide.id)
+  const keep = all.shapes.map((s) => !tweaks[s.el.id]?.hide)
+  const shapes = all.shapes.filter((_, i) => keep[i])
+  const parts = allParts.filter((_, i) => keep[i])
+  /** shape i's place in the whole drawing: its wobble stays the same when another is hidden */
+  const at = all.shapes.map((_, i) => i).filter((i) => keep[i])
+  const tweakOf = (i: number): IconShapeTweak | undefined => tweaks[shapes[i].el.id]
   const ink = look.stroke.color
   const cap = look.stroke.cap ?? info.style.cap
   const join = look.stroke.join ?? info.style.join
@@ -260,13 +356,18 @@ export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, 
 
   const sw = (s: IconShape) => s.strokeW * look.stroke.weight
   const dOf = (s: IconShape, i: number, pass: number) =>
-    look.sketch ? segsToD(sketchSegs(s.segs, look.sketch, seed + i * 7919 + pass * 104729)) : s.d
-  /** What fills shape i: its part's paint, or, for a shape drawn filled (a dot), the ink. */
+    look.sketch ? segsToD(sketchSegs(s.segs, look.sketch, seed + at[i] * 7919 + pass * 104729)) : s.d
+  /** What fills shape i: its own tweak, else its part's paint, or, for a
+   *  shape drawn filled (a dot), the ink. */
   const paintOf = (i: number): IconPaint | undefined => {
     const s = shapes[i]
     if (s.open) return undefined
+    const tw = tweakOf(i)?.fill
+    if (tw) return tw === 'none' ? undefined : tw
     return look.fill?.[parts[i]] ?? (s.filled ? { color: ink } : undefined)
   }
+  /** The outline colour of shape i: its own tweak, else the look's. */
+  const inkOf = (i: number): string => tweakOf(i)?.stroke ?? ink
   const fillRule = (s: IconShape) => (s.el.fillRule === 'evenodd' ? ' fill-rule="evenodd"' : '')
   const alpha = (s: IconShape, extra = 1) => {
     const o = s.el.opacity * extra
@@ -300,8 +401,8 @@ export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, 
     shapes.forEach((s, i) => {
       if (!s.strokeW || (cut.has(i) && !over)) return
       const w = sw(s)
-      out.push(`<path d="${escXml(dOf(s, i, 0))}" stroke="${col(over ?? ink)}" stroke-width="${n3(w)}"${alpha(s)}/>`)
-      if (look.sketch && !over) out.push(`<path d="${escXml(dOf(s, i, 1))}" stroke="${col(ink)}" stroke-width="${n3(w * 0.55)}"${alpha(s, 0.7)}/>`)
+      out.push(`<path d="${escXml(dOf(s, i, 0))}" stroke="${col(over ?? inkOf(i))}" stroke-width="${n3(w)}"${alpha(s)}/>`)
+      if (look.sketch && !over) out.push(`<path d="${escXml(dOf(s, i, 1))}" stroke="${col(inkOf(i))}" stroke-width="${n3(w * 0.55)}"${alpha(s, 0.7)}/>`)
     })
     return out
   }

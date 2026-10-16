@@ -9,7 +9,7 @@
 // pasted style (JSON with `format: slidomingo-icon-style`).
 
 import type { IconLook } from '../model'
-import { readLook } from '../iconstyles'
+import { lookRecipe, readLook } from '../iconstyles'
 import { lsJson, lsSetJson } from '../../../kernel/src/storage.ts'
 
 const KEY = 'slidomingo-icon-styles-v1'
@@ -24,11 +24,12 @@ export function loadMyLooks(): IconLook[] {
 
 const store = (looks: IconLook[]): boolean => lsSetJson(KEY, looks.slice(0, MAX))
 
-/** Save (or replace, by name) a style in My styles. */
+/** Save (or replace, by name) a style in My styles — the recipe only: its
+ *  tweaks name one set's icons. */
 export function saveMyLook(look: IconLook): boolean {
   const key = look.name.toLowerCase()
   const rest = loadMyLooks().filter((l) => l.name.toLowerCase() !== key)
-  return store([structuredClone(look), ...rest])
+  return store([lookRecipe(look), ...rest])
 }
 
 export function removeMyLook(id: string): void {
@@ -37,9 +38,9 @@ export function removeMyLook(id: string): void {
 
 export const STYLE_CLIP_FORMAT = 'slidomingo-icon-style'
 
-/** A style as text to paste somewhere else. */
+/** A style as text to paste somewhere else (the recipe, without this set's tweaks). */
 export function lookToClipText(look: IconLook): string {
-  const { id: _id, ...rest } = look
+  const { id: _id, ...rest } = lookRecipe(look)
   return JSON.stringify({ format: STYLE_CLIP_FORMAT, version: 1, style: rest }, null, 2)
 }
 

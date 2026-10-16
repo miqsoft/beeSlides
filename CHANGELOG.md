@@ -29,6 +29,17 @@ preserved.
   icon set, and share one with Copy style / Paste style. Compare all styles
   shows every icon in every style, on light or dark. Export writes one folder
   per style, listed in `icons.json`.
+- **See and fine-tune icon styles on the canvas:** "Show in" (bottom left of
+  the canvas) paints the icon you are editing — and the slide list — in any
+  of the set's styles, while the shapes stay editable underneath. Select a
+  shape to set its part (body, detail, accent — it counts in every style) or
+  paint it its own way in just that style: its own fill, no fill, its own line
+  color, or leave it out. The drawing and the other styles stay as they are; a
+  • marks the icons with their own changes, and Compare all styles opens any
+  icon in any style. Comments written while a style is shown remember it, and
+  Claude is told which style a comment is about (it can change one icon in a
+  style, too). Clicking now picks the line under the pointer in an icon set,
+  not always the top shape.
 
 ## [1.1.0] — 2026-10-14
 

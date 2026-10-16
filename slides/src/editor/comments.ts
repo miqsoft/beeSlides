@@ -171,6 +171,8 @@ export interface SentComment {
   text: string
   /** the user's latest reply after a Claude reply — feedback on an earlier attempt */
   feedback?: string
+  /** icon sets: the name of the style the comment is about (Comment.look) */
+  style?: string
 }
 
 /** "Send comments to Claude": ONE undo step that marks every open comment in
@@ -193,7 +195,8 @@ export function sendCommentsToClaude(store: Store, only?: Set<string>): number {
         const replies = c.replies ?? []
         const lastClaude = replies.map((r) => r.author).lastIndexOf(CLAUDE)
         const feedback = lastClaude >= 0 ? replies.slice(lastClaude + 1).map((r) => r.text).join(' / ') : ''
-        list.push({ id: c.id, slide: i + 1, on, text: c.text, ...(feedback ? { feedback } : {}) })
+        const style = c.look ? store.doc.iconset?.variants?.find((l) => l.id === c.look)?.name : undefined
+        list.push({ id: c.id, slide: i + 1, on, text: c.text, ...(feedback ? { feedback } : {}), ...(style ? { style } : {}) })
       }
     })
   })
@@ -351,9 +354,10 @@ export class CommentsUI {
         if (submit) {
           const text = ta.value.trim()
           if (text) {
+            const look = this.store.shownLook
             const comment: Comment = {
               id: uid('cmt'), elementId, ...(point ?? {}), ...(area ?? {}), author: commentAuthor(), text,
-              at: new Date().toISOString(),
+              at: new Date().toISOString(), ...(look ? { look: look.id } : {}),
             }
             this.justCreated = comment.id
             this.store.commit(() => {
@@ -440,6 +444,18 @@ export class CommentsUI {
       moreB.addEventListener('click', () => { menu.hidden = !menu.hidden })
       head.append(label, resolveB, moreB, menu)
       pop.appendChild(head)
+
+      // icon sets: written while the icon was shown in a style — about it in that style
+      const look = c.look ? this.store.doc.iconset?.variants?.find((l) => l.id === c.look) : undefined
+      if (look) {
+        const shown = this.store.shownLook?.id === look.id
+        const chip = el('button', 'ed-comment-look' + (shown ? ' is-shown' : ''), t('In the style “{name}”', { name: look.name }))
+        chip.type = 'button'
+        chip.title = shown ? t('The canvas shows this style') : t('Show the icon in this style')
+        chip.disabled = shown
+        chip.addEventListener('click', () => { close(); this.store.showLook(look.id) })
+        pop.appendChild(chip)
+      }
 
       if (c.agentDone) {
         const banner = el('div', 'ed-comment-banner ed-comment-check', '✦ ' + t('Claude marked this done — please check') + ' ')

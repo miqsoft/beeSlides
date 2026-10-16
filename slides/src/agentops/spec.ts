@@ -345,6 +345,20 @@ export const ICONS_AREA = {
       },
       details: 'Only in an icon set. Every icon is painted in the style from its own drawing: each path is a body, detail or accent part (its iconPart, else guessed: big closed shapes are body, lines and small shapes detail). The user sees the styles in the panel and the export writes one folder per style. A style with the same name is replaced.',
     },
+    tweak: {
+      summary: 'icon sets only: paint some shapes of ONE icon their own way in one style (fill, line colour, hidden), or reset them — the drawing and the other styles stay',
+      params: {
+        style: { type: 'string', description: 'The style\'s name (doc_info iconset.variants).', required: true },
+        slideId: { type: 'string', description: 'The icon: its slide id (from outline).', required: true },
+        elementIds: { type: 'string[]', description: 'The icon\'s shapes to change (element ids from read_slide).', required: true },
+        fill: { type: 'string', description: 'Their fill in this style: CSS hex, "none" (not filled) or "style" (as the style paints the part).' },
+        fillOpacity: { type: 'number', description: 'Opacity of that fill (0.05-1, default 1).', min: 0.05, max: 1 },
+        stroke: { type: 'string', description: 'Their line colour in this style: CSS hex or "style".' },
+        hide: { type: 'boolean', description: 'true: left out of this style; false: shown again.' },
+        reset: { type: 'boolean', description: 'true: drop every own change of these shapes in this style first.' },
+      },
+      details: 'For a comment written "in the style X" that concerns one icon only. A change for every icon belongs in the style itself (op style); a wrong drawing is fixed in the shapes (write_slide), which changes every style. The user sees own changes as a dot on the style chip above the canvas.',
+    },
   },
   notYet: [
     'recolouring an inserted icon',

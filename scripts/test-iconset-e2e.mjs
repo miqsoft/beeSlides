@@ -19,7 +19,10 @@
 // path element; that path is accepted by write_slide, svg is refused; Apply
 // set style corrects drift in one undo step; Draw with AI sends the empty
 // icons; a comment on two selected icons goes to Claude for both; Export set
-// writes one 24 × 24 currentColor SVG per icon plus icons.json.
+// writes one 24 × 24 currentColor SVG per icon plus icons.json. Styles: a
+// style shown on the canvas paints the icon over its (invisible, still
+// selectable) shapes; a shape's own paint in that style and its part; the
+// comment written there remembers the style; Compare opens icon × style.
 import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -332,6 +335,81 @@ await page.locator('dialog.ed-look-sheet .ed-seg button').nth(1).click()
 await page.waitForTimeout(150)
 if (shots) await page.locator('dialog.ed-look-sheet').screenshot({ path: join(shots, 'iconstyles-sheet-dark.png') })
 await page.locator('dialog.ed-look-sheet button:has-text("Close")').click()
+
+// --- a style on the canvas: see it, paint one icon its own way in it, comment on it ----------
+await thumbs.nth(1).click() // the evidence bag (bag = body, flap, tag = accent)
+await page.waitForTimeout(150)
+await page.locator('.ed-lookbar button:text-is("Comic")').click()
+await page.waitForTimeout(250)
+const view = () => page.evaluate(() => {
+  const img = document.querySelector('.ed-stage-scale .ed-lookview img')
+  const el = document.querySelector('.ed-stage-scale .slidomingo-el[data-el-id="bag"]')
+  return { src: img ? decodeURIComponent(img.getAttribute('src') ?? '') : '', shapeOpacity: el ? getComputedStyle(el).opacity : null, active: document.querySelector('.ed-lookbar .ed-setchip.active')?.textContent, thumb: !!document.querySelector('.ed-sidebar .ed-thumb.active img, .ed-sidebar .ed-thumb img') }
+})
+let v = await view()
+ok(v.src.includes('#ffd23f') && v.src.includes('translate(0.9 0.9)'), 'the canvas paints the icon in the Comic style (yellow body, hard shadow)')
+ok(v.shapeOpacity === '0' && v.active === 'Comic', `the drawn shapes stay underneath, invisible but selectable; the Comic chip is on (${JSON.stringify({ o: v.shapeOpacity, a: v.active })})`)
+ok(v.thumb, 'the slide list shows the icons in the style too')
+if (shots) await page.screenshot({ path: join(shots, 'iconstyles-canvas.png') })
+// pick the bag's top edge (12, 8 in grid units): the only stroke there
+const box = await page.locator('.ed-stage-scale .slidomingo-slide').boundingBox()
+await page.mouse.click(box.x + box.width * 12 / 24, box.y + box.height * 8 / 24)
+await page.waitForTimeout(250)
+const head = await page.evaluate(() => [...document.querySelectorAll('.ed-section')].map((h) => h.textContent))
+ok(head.some((h) => h.includes('In “Comic”')), `a selected shape gets an “In Comic” section (${head.join(', ')})`)
+const rowSelect = (label) => page.locator('.ed-row', { has: page.locator(`span:text-is("${label}")`) }).locator('select').first()
+await rowSelect('Fill here').selectOption('No fill')
+await page.waitForTimeout(200)
+d = await doc()
+const comic = d.iconset.variants.find((l) => l.name === 'Comic')
+ok(comic.tweaks?.[d.slides[1].id]?.bag?.fill === 'none', 'No fill here writes a tweak for this shape in this style', comic.tweaks)
+ok(d.slides[1].elements.find((e) => e.id === 'bag').fill === 'transparent', 'the drawing itself is untouched')
+v = await view()
+ok(!v.src.includes('#ffd23f') && v.src.includes('#ff4f6d'), 'the canvas shows the bag without its yellow, the tag keeps its accent')
+ok(v.active === 'Comic •', `the chip marks this icon's own changes (${v.active})`)
+if (shots) await page.screenshot({ path: join(shots, 'iconstyles-shape.png') })
+await rowSelect('Part').selectOption('Accent')
+await page.waitForTimeout(150)
+d = await doc()
+ok(d.slides[1].elements.find((e) => e.id === 'bag').iconPart === 'accent', 'Part is written on the shape (it counts in every style)')
+await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+await page.waitForTimeout(150)
+// a comment written while Comic is shown is about the icon in Comic
+await page.keyboard.press('Escape')
+await page.waitForTimeout(100)
+const commentBtn = page.locator('[data-ui-tool="icon-comment"]:visible').first()
+if (!(await commentBtn.count())) {
+  for (const tab of await page.locator('.ed-ribbon-tab').all()) {
+    await tab.click()
+    if (await page.locator('[data-ui-tool="icon-comment"]:visible').count()) break
+  }
+}
+await page.locator('[data-ui-tool="icon-comment"]:visible').first().click()
+await page.locator('dialog.ed-askdialog textarea').fill('the bag should stay white in comic')
+await page.locator('dialog.ed-askdialog button.ed-primary').click()
+await page.waitForTimeout(300)
+d = await doc()
+const styledCmt = d.slides[1].comments?.find((c) => c.text === 'the bag should stay white in comic')
+ok(styledCmt?.look === comic.id, 'the comment remembers the style it was written in')
+const sentStyled = await page.evaluate(() => window.__prompts.filter((p) => p.kind === 'fix-comments').at(-1))
+ok(sentStyled?.payload?.[0]?.style === 'Comic', 'and Claude is told the style', sentStyled?.payload)
+const agentCmts = await page.evaluate(() => window.slidomingo.comments?.() ?? [])
+ok(agentCmts.some((c) => c.style?.name === 'Comic'), 'comments() names the style for agents')
+// the compare sheet marks the icon and opens it in that style
+await page.locator('.ed-lookbar button:text-is("Set style")').click()
+await page.waitForTimeout(150)
+ok((await view()).src === '', 'Set style shows the drawing again')
+await page.locator('button:has-text("Compare all styles…")').click()
+await page.waitForTimeout(250)
+const marked = await page.evaluate(() => document.querySelectorAll('dialog.ed-look-sheet .ed-look-cell.is-tweaked').length)
+ok(marked === 1, `the compare sheet marks the one icon with its own changes (${marked})`)
+await page.locator('dialog.ed-look-sheet .ed-look-cell.is-tweaked').click()
+await page.waitForTimeout(250)
+v = await view()
+ok(v.active === 'Comic •' && !(await page.locator('dialog.ed-look-sheet').count()), 'clicking it opens that icon in that style on the canvas')
+await page.locator('.ed-lookbar button:text-is("Set style")').click()
+await page.waitForTimeout(100)
+await page.locator('.ed-ribbon-tab:has-text("View"), [role="tab"]:has-text("View")').first().click()
 
 // the export: a folder per style, listed in icons.json
 await page.locator('[data-ui-tool="pdf"]:visible > button').first().click()

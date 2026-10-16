@@ -1631,6 +1631,9 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   background: var(--ink);
   color: var(--surface);
 }
+/* icon styles: which style the canvas shows (canvas.ts renderLookBar) —
+   bottom-left, clear of the docked quick bar (top) and the zoom bar (right) */
+.ed-setbar.ed-lookbar { top: auto; bottom: 14px; left: 16px; transform: none; max-width: calc(100% - 440px); }
 
 /* ————— slide surface (shared by canvas, thumbs, present) ————— */
 
@@ -3344,6 +3347,14 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   font-size: 12px; font-weight: 600; color: var(--muted);
 }
 .ed-comment-kind-icon { font-size: 13px; }
+/* icon sets: the style a comment is about (comments.ts openThread) */
+.ed-comment-look {
+  display: inline-block; margin: 0 0 8px; padding: 2px 10px;
+  font: inherit; font-size: 12px; color: var(--ink-2);
+  background: var(--chrome); border: 1px solid transparent; border-radius: 999px; cursor: pointer;
+}
+.ed-comment-look:hover:not(:disabled) { background: var(--chrome-2); }
+.ed-comment-look.is-shown { cursor: default; background: var(--ink); color: var(--surface); }
 .ed-comment-iconbtn {
   border: none; background: none; color: var(--muted);
   width: 26px; height: 26px; border-radius: 6px;
@@ -4140,6 +4151,18 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 .ed-keyline { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 28; }
 .ed-keyline svg { display: block; overflow: visible; }
 .ed-keyline rect, .ed-keyline circle { stroke: rgb(214 51 159 / 0.45); }
+/* an icon style shown on the canvas (canvas.ts updateLookView): the styled
+   picture over the slide, the drawn shapes invisible but still selectable —
+   shown again while dragging and for agent screenshots */
+.ed-lookview { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 27; }
+.ed-lookview img { display: block; }
+.ed-lookview-sel { position: absolute; left: 0; top: 0; overflow: visible; }
+.ed-lookview-sel path { fill: none; stroke: #2563eb; stroke-width: 1.5px; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.ed-look-cell { position: relative; display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px; }
+.ed-look-cell:hover, .ed-look-cell:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 1px; }
+.ed-look-cell.is-tweaked::after { content: ''; position: absolute; right: -2px; top: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent, #4f46e5); }
+html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-slide .slidomingo-el { opacity: 0 !important; }
+.ed-lookview-live > .ed-lookview, .ed-capturing .ed-lookview { visibility: hidden; }
 .ed-grid { position: absolute; left: 0; top: 0; pointer-events: none; }
 
 /* Grid & Snap (editor/gridsnap.ts, canvas.ts updateLayoutGrid/updateGuides).

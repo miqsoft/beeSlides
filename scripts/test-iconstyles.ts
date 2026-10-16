@@ -10,7 +10,8 @@ import { writeFileSync } from 'node:fs'
 import { newIconsetDoc, defaultShape, type ShapeElement, type SlidomingoDoc } from '../slides/src/model.ts'
 import { iconShapes, iconsetInfo } from '../slides/src/iconset.ts'
 import {
-  LOOK_PRESETS, iconLookSvg, iconParts, learnLookFromIcon, learnLookFromSvgStats, lookFromPreset, readLook, safeColor, sketchSegs,
+  LOOK_PRESETS, clearTweaks, iconLookSvg, iconParts, iconTweaks, learnLookFromIcon, learnLookFromSvgStats, lookFromPreset, lookRecipe, readLook, readTweak,
+  safeColor, setTweak, sketchSegs, tweakedIconCount, MAX_TWEAK_SHAPES,
 } from '../slides/src/iconstyles.ts'
 import { parsePath } from '../slides/src/svgpath.ts'
 import { sanitizeSlide } from '../slides/src/untrusted.ts'
@@ -145,6 +146,64 @@ console.log('-- learning a look')
   const solid = learnLookFromSvgStats([{ stroke: null, strokeWidth: 0, fill: '#333333', opacity: 1 }], base, '#000000')
   ok(solid?.knockout === true && solid.fill?.body?.color === '#333333', 'no strokes anywhere → a solid look', solid)
   ok(learnLookFromSvgStats([], base, '#000') === null, 'nothing read → null')
+}
+
+console.log('-- one icon its own way in a style (tweaks)')
+{
+  const color = lookFromPreset(LOOK_PRESETS.find((p) => p.id === 'color')!, '#000000', 'Color')
+  const [lens, handle, glint] = search.elements
+  const plain = iconLookSvg(doc, search, color).svg
+  const look = structuredClone(color)
+  setTweak(look, search.id, lens.id, { fill: { color: '#22c55e' } })
+  setTweak(look, search.id, handle.id, { stroke: '#dc2626' })
+  setTweak(look, search.id, glint.id, { hide: true })
+  const svg = iconLookSvg(doc, search, look).svg
+  ok(svg.includes('fill="#22c55e"') && !svg.includes('fill="#7dd3fc"'), 'the lens takes its own fill instead of the body colour', svg)
+  ok(svg.includes('stroke="#dc2626"') && svg.includes('stroke="#1e293b"'), 'the handle gets its own line colour, the rest keeps the style\'s')
+  ok(!svg.includes('fill="#fb923c"') && plain.includes('fill="#fb923c"'), 'the hidden glint (the accent) is left out of this style only')
+  ok(iconLookSvg(doc, document, look).svg === iconLookSvg(doc, document, color).svg, 'other icons are untouched')
+  ok(iconLookSvg(doc, search, color).svg === plain, 'the style itself is untouched (tweaks live on the copy)')
+  ok(tweakedIconCount(look) === 1 && Object.keys(iconTweaks(look, search.id)).length === 3, 'three shapes of one icon tweaked')
+
+  const none = structuredClone(color)
+  setTweak(none, search.id, lens.id, { fill: 'none' })
+  ok(!iconLookSvg(doc, search, none).svg.includes('fill="#7dd3fc"'), 'fill "none" leaves the body empty')
+
+  // hiding one shape keeps the others' parts and hand-drawn wobble
+  const sk = lookFromPreset(LOOK_PRESETS.find((p) => p.id === 'sketch')!, '#000000', 'Sketch')
+  const skHidden = structuredClone(sk)
+  setTweak(skHidden, search.id, glint.id, { hide: true })
+  const strokes = (look: typeof sk) => [...iconLookSvg(doc, search, look).svg.matchAll(/<path d="([^"]+)"[^>]*stroke=/g)].map((m) => m[1])
+  const [lensWob, handleWob] = strokes(sk), hidden = strokes(skHidden)
+  ok(!!lensWob && hidden[0] === lensWob && hidden.includes(handleWob), 'hiding a shape does not change how the others wobble')
+
+  // clearing
+  setTweak(look, search.id, lens.id, undefined)
+  ok(!iconTweaks(look, search.id)[lens.id] && tweakedIconCount(look) === 1, 'clearing one shape keeps the rest')
+  setTweak(look, search.id, handle.id, {})
+  ok(!iconTweaks(look, search.id)[handle.id], 'an empty tweak is removed')
+  clearTweaks(look, search.id)
+  ok(look.tweaks === undefined, 'no tweaks left → no tweaks key')
+  setTweak(look, search.id, lens.id, { hide: true })
+  setTweak(look, document.id, document.elements[0].id, { hide: true })
+  clearTweaks(look)
+  ok(look.tweaks === undefined, 'reset all icons')
+
+  // untrusted tweaks (a file, a paste, an agent)
+  const r = readLook({ ...color, tweaks: {
+    [search.id]: { [lens.id]: { fill: { color: '#123456', opacity: 0.5 }, stroke: 'red', hide: true, junk: 1 }, 'bad id!': { hide: true }, [handle.id]: { fill: 'url(#x)' } },
+    '<script>': { a: { hide: true } },
+    [document.id]: 'nope',
+  } }) as any
+  ok(typeof r !== 'string' && JSON.stringify(Object.keys(r.tweaks)) === JSON.stringify([search.id]), 'only well-formed icon ids are kept', r.tweaks)
+  ok(JSON.stringify(r.tweaks[search.id]) === JSON.stringify({ [lens.id]: { fill: { color: '#123456', opacity: 0.5 }, stroke: 'red', hide: true } }), 'bad shape ids and bad colours are dropped', r.tweaks)
+  ok(readTweak({ fill: 'none' })?.fill === 'none' && readTweak({ stroke: 'transparent' }) === undefined && readTweak({}) === undefined, 'readTweak: none fill kept, no-paint stroke dropped, empty → undefined')
+  const many = Object.fromEntries(Array.from({ length: MAX_TWEAK_SHAPES + 50 }, (_, i) => [`e${i}`, { hide: true }]))
+  const capped = readLook({ ...color, tweaks: { [search.id]: many } }) as any
+  ok(Object.keys(capped.tweaks[search.id]).length === MAX_TWEAK_SHAPES, 'shapes per icon are bounded')
+  const withT = structuredClone(color)
+  setTweak(withT, search.id, lens.id, { hide: true })
+  ok(lookRecipe(withT).tweaks === undefined && withT.tweaks !== undefined, 'the recipe (My styles, Copy style) leaves the set\'s tweaks behind')
 }
 
 console.log('-- paste safety')

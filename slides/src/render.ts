@@ -1462,9 +1462,11 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
   applyElementFrame(node, el)
   if (el.hidden) node.classList.add('slidomingo-el-hidden')
   // Editor: user-locked elements and unselected backdrops are click-through
-  // (canvas.ts selects them via the Select menu / plain-click fallback).
+  // (canvas.ts selects them via the Select menu / plain-click fallback). An
+  // icon set has no backdrops: its paths are drawn on the whole canvas, and
+  // a click must pick the line under the pointer, not the top path.
   const hitNone = !!opts.paintHit &&
-    (!!el.locked || ((el.type === 'shape' || el.type === 'image' || el.type === 'svg') && isBackdrop(el, opts.size ?? doc.size)))
+    (!!el.locked || ((el.type === 'shape' || el.type === 'image' || el.type === 'svg') && doc.kind !== 'iconset' && isBackdrop(el, opts.size ?? doc.size)))
   if (hitNone) node.dataset.hit = 'none'
 
   switch (el.type) {

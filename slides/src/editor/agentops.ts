@@ -23,7 +23,8 @@ import { checkLayout, guardLayout, snapshotSlide, type GuardResult, type LayoutF
 import { checkElementProp, isWholePictureCrop, REQUIRED_KEYS } from '../untrusted'
 import { agentSvgPatchViolation } from './agentsvg'
 import { applyIconPlan, readIconPlan } from '../iconset'
-import { readLook } from '../iconstyles'
+import { iconTweaks, readLook, readTweak, setTweak } from '../iconstyles'
+import type { IconShapeTweak } from '../model'
 import { defaultLayoutGrid, layoutTracks, normalizeLayoutGrid, parseSpan, spanRect } from '../layoutgrid'
 import { paletteOf, resolveThemeRefs } from '../palette'
 import { cssColor, sanitizeHtml } from '../render'
@@ -659,6 +660,45 @@ const ICONS: AreaHandlers['icons'] = {
       ok: true,
       summary: `${was ? 'Updated' : 'Added'} the style "${look.name}" (${ctx.store.doc.iconset!.variants!.length} extra styles in the set). Every icon is shown in it in the Styles section of the panel and exported into its own folder; nothing was redrawn.`,
       toast: t('AI added the style “{name}”', { name: look.name }),
+    }
+  },
+
+  tweak(ctx, a) {
+    const info = ctx.store.doc.kind === 'iconset' ? ctx.store.doc.iconset : undefined
+    if (!info) return fail('tweak works in an icon set only (doc_info kind "iconset").')
+    const key = typeof a.style === 'string' ? a.style.trim().toLowerCase() : ''
+    const look = info.variants?.find((l) => l.name.toLowerCase() === key)
+    if (!look) return fail(`No style "${String(a.style ?? '')}" in this set; doc_info iconset.variants lists them (op style adds one).`)
+    const slide = ctx.store.doc.slides.find((s) => s.id === a.slideId)
+    if (!slide) return fail(`No icon with slideId "${String(a.slideId ?? '')}" (outline lists them).`)
+    const ids = Array.isArray(a.elementIds) ? a.elementIds.filter((x): x is string => typeof x === 'string') : []
+    const missing = ids.filter((id) => !slide.elements.some((e) => e.id === id && e.type === 'shape'))
+    if (!ids.length) return fail('elementIds must name at least one shape of the icon (read_slide).')
+    if (missing.length) return fail(`Not shapes of this icon: ${missing.join(', ')}.`)
+    const color = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
+    const fill = color(a.fill), stroke = color(a.stroke)
+    if (fill && fill !== 'none' && fill !== 'style' && !readTweak({ fill })) return fail(`fill "${fill}" is not a colour, "none" or "style".`)
+    if (stroke && stroke !== 'style' && !readTweak({ stroke })) return fail(`stroke "${stroke}" is not a colour or "style".`)
+    let own = 0
+    ctx.store.commit(() => {
+      const l = ctx.store.doc.iconset!.variants!.find((v) => v.id === look.id)!
+      for (const id of ids) {
+        const tw: IconShapeTweak = a.reset ? {} : structuredClone(iconTweaks(l, slide.id)[id] ?? {})
+        if (fill === 'style') delete tw.fill
+        else if (fill === 'none') tw.fill = 'none'
+        else if (fill) tw.fill = typeof a.fillOpacity === 'number' && a.fillOpacity < 1 ? { color: fill, opacity: a.fillOpacity } : { color: fill }
+        if (stroke === 'style') delete tw.stroke
+        else if (stroke) tw.stroke = stroke
+        if (a.hide === true) tw.hide = true
+        else if (a.hide === false) delete tw.hide
+        setTweak(l, slide.id, id, tw)
+      }
+      own = Object.keys(iconTweaks(l, slide.id)).length
+    })
+    return {
+      ok: true,
+      summary: `"${slide.name ?? slide.id}" in the style "${look.name}": ${own} shape(s) now painted their own way there. The drawing and the other styles are unchanged.`,
+      toast: t('AI changed “{icon}” in the style “{name}”', { icon: slide.name ?? '', name: look.name }),
     }
   },
 

@@ -678,7 +678,10 @@ for the whole session. The details behind them:
   (`doc_info.iconset.variants` — solid, colour, comic, sticker, badge …)
   repaint the same drawings part by part. When the user describes a look,
   add it with ONE `icons` call, op `style` (name, weight, colour, part fills,
-  only the extras asked for); never redraw icons for a style.
+  only the extras asked for); never redraw icons for a style. A comment
+  carrying `style` (in `comments`) is about the icon as painted in that style:
+  change only that icon there with op `tweak` (its shapes' own fill, line
+  colour, or hidden in that style), every icon with op `style`.
 - **`update_element`** — shallow-merges `props` into one element. Each key is
   checked against that element type's known keys and value rules (the same
   checks a paste goes through); one bad key refuses the whole call. `null`

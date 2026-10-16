@@ -36,14 +36,14 @@ import { onSystemFontsReady, requestSystemFonts } from '../localfonts'
 import { ICONS } from '../icons'
 import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
-import { iconsetInfo } from '../iconset'
+import { iconShapes, iconsetInfo } from '../iconset'
 import {
   addLook, describeStyleWithAi, findLook, iconPreviewUrl, learnFromIcon, learnFromSvgFiles, lookPreviewUrl, moveLook, removeLook, restoreIconToSet,
   withStyle, writeIconsetInfo,
 } from './iconsetactions'
-import { ICON_PARTS, LOOK_PRESETS, lookFromPreset } from '../iconstyles'
+import { ICON_PARTS, LOOK_PRESETS, clearTweaks, iconParts, iconTweaks, lookFromPreset, setTweak, tweakedIconCount, type IconPart } from '../iconstyles'
 import { loadMyLooks, lookFromClipText, lookToClipText, removeMyLook, saveMyLook } from './iconlooklibrary'
-import type { IconLook, IconPaint, IconsetInfo, IconsetStyle } from '../model'
+import type { IconLook, IconPaint, IconShapeTweak, IconsetInfo, IconsetStyle } from '../model'
 import { loadGridPref, saveGridPref, FIGURE_GRID_STEPS_MM } from './gridpref'
 import { lsJson, lsSet } from '../../../kernel/src/storage.ts'
 import { LIMITS } from '../untrusted'
@@ -228,6 +228,7 @@ export class PropsPanel {
     store.on('selection', () => this.rebuild(true))
     store.on('current', () => this.rebuild(true))
     store.on('doc', () => this.rebuild())
+    store.on('look', () => this.rebuild(true))
     onSystemFontsReady(() => this.rebuild())
     this.host.addEventListener('focusout', () => {
       setTimeout(() => {
@@ -1004,8 +1005,9 @@ export class PropsPanel {
 
   // ---- icon styles (iconstyles.ts, DECISIONS "Icon styles") ----------------------------
 
-  /** The style picked in the Styles gallery ('' = the set's own style). */
-  private lookSel = ''
+  /** The style picked in the Styles gallery ('' = the set's own style): the
+   *  one the canvas shows the icons in (store.iconLook). */
+  private get lookSel(): string { return this.store.shownLook?.id ?? '' }
   /** The "add a style" drawer is open. */
   private lookDrawer = false
 
@@ -1048,14 +1050,13 @@ export class PropsPanel {
    *  picked look's settings. */
   private buildIconStyles(info: IconsetInfo) {
     const looks = info.variants ?? []
-    if (this.lookSel && !looks.some((l) => l.id === this.lookSel)) this.lookSel = ''
     const sid = this.lookPreviewSlideId()
     this.section('Styles')
     const grid = document.createElement('div')
     grid.className = 'ed-looks'
     // previews sit on the icons' own canvas colour, like the size strip above
     this.host.style.setProperty('--look-paper', this.store.slide.background || '#ffffff')
-    const pick = (id: string) => () => { this.lookSel = id; this.lookDrawer = false; this.rebuild(true) }
+    const pick = (id: string) => () => { this.lookDrawer = false; this.store.showLook(id || null) }
     grid.appendChild(this.lookCard(t('Set style'), lookPreviewUrl(this.store, sid, null), {
       active: !this.lookSel, title: t('The style the icons are drawn in — edit it under Icon set'), onClick: pick(''),
     }))
@@ -1103,10 +1104,9 @@ export class PropsPanel {
       drawer.appendChild(h)
     }
     const added = (id: string, name: string) => {
-      this.lookSel = id
       this.lookDrawer = false
       this.toast(t('Added the style “{name}”', { name }))
-      this.rebuild(true)
+      this.store.showLook(id)
     }
     head(t('Presets'))
     const presets = document.createElement('div')
@@ -1256,6 +1256,31 @@ export class PropsPanel {
     })))
     if (look.tile) row('Badge color', this.color(look.tile.color, (v, fin) => set((l) => { if (l.tile) l.tile.color = v }, fin)))
 
+    // single icons painted their own way in this style (buildIconShapeStyle)
+    const tweaked = tweakedIconCount(look)
+    const sid = this.store.slide.id
+    const note = document.createElement('p')
+    note.className = 'ed-hint'
+    note.textContent = tweaked
+      ? t('{n} icons have their own changes in this style (• on the canvas chips).', { n: tweaked })
+      : t('The canvas shows the icon in this style. Select a shape there to paint it its own way in this style.')
+    this.host.appendChild(note)
+    if (tweaked) {
+      const undo = document.createElement('div')
+      undo.className = 'ed-look-actions'
+      const b = (label: string, title: string, slideId?: string) => {
+        const btn = document.createElement('button')
+        btn.className = 'ed-btn'
+        btn.textContent = label
+        btn.title = title
+        btn.addEventListener('click', () => set((l) => clearTweaks(l, slideId)))
+        undo.appendChild(btn)
+      }
+      if (look.tweaks?.[sid]) b(t('Reset this icon'), t('This icon painted as the style again'), sid)
+      b(t('Reset all icons'), t('Every icon painted as the style again'))
+      this.host.appendChild(undo)
+    }
+
     const bar = document.createElement('div')
     bar.className = 'ed-look-actions'
     const act = (label: string, title: string, run: () => void, cls = '') => {
@@ -1279,14 +1304,107 @@ export class PropsPanel {
     act(t('Duplicate'), t('A copy of this style to vary'), () => {
       const cur = findLook(this.store.doc, id)
       if (!cur) return
-      this.lookSel = addLook(this.store, cur)
-      this.rebuild(true)
+      this.store.showLook(addLook(this.store, cur))
     })
     const at = looks.findIndex((l) => l.id === id)
     if (at > 0) act('↑', t('Move earlier'), () => moveLook(this.store, id, -1))
     if (at < looks.length - 1) act('↓', t('Move later'), () => moveLook(this.store, id, 1))
-    act(t('Delete'), t('Remove this style from the set (the icons stay)'), () => { removeLook(this.store, id); this.lookSel = '' }, 'ed-danger')
+    act(t('Delete'), t('Remove this style from the set (the icons stay)'), () => { this.store.showLook(null); removeLook(this.store, id) }, 'ed-danger')
     this.host.appendChild(bar)
+  }
+
+  /** Icon sets: what the selected shapes are in the icon (their part, the
+   *  same in every style) and, while a style is shown on the canvas, their own
+   *  paint in it (IconLook.tweaks) — the drawing itself stays shared. */
+  private buildIconShapeStyle(els: readonly SlideElement[]) {
+    const shapes = els.filter((e): e is ShapeElement => e.type === 'shape')
+    if (this.store.doc.kind !== 'iconset' || !shapes.length) return
+    const slide = this.store.slide
+    const look = this.store.shownLook
+    const ids = shapes.map((e) => e.id)
+    const drawn = iconShapes(this.store.doc, slide).shapes
+    const parts = iconParts(drawn)
+    const guessed = new Map(drawn.map((d, i) => [d.el.id, parts[i]] as const))
+    this.section('Icon style', { label: look ? t('In “{name}”', { name: look.name }) : t('Icon part') })
+
+    const PARTS: Record<string, IconPart | undefined> = { Guess: undefined, Body: 'body', Detail: 'detail', Accent: 'accent' }
+    const PART_NAME: Record<IconPart, string> = { body: 'Body', detail: 'Detail', accent: 'Accent' }
+    const own = shapes[0].iconPart
+    this.row('Part', this.select(Object.keys(PARTS), own ? PART_NAME[own] : 'Guess', (v) => this.edit(() => {
+      for (const e of this.store.slide.elements) {
+        if (!ids.includes(e.id) || e.type !== 'shape') continue
+        const part = PARTS[v]
+        if (part) e.iconPart = part; else delete e.iconPart
+      }
+    }, true)))
+    const hint = (text: string) => {
+      const p = document.createElement('p')
+      p.className = 'ed-hint'
+      p.textContent = text
+      this.host.appendChild(p)
+    }
+    const g = guessed.get(shapes[0].id)
+    if (!own && g) hint(t('Guessed: {part}. Every style paints body, detail and accent its own way — the part counts in all of them.', { part: t(PART_NAME[g]) }))
+    if (!look) {
+      if (this.store.doc.iconset?.variants?.length) hint(t('Show a style above the canvas to paint this shape its own way in it.'))
+      return
+    }
+
+    const lookId = look.id
+    const tweakOf = (id: string): IconShapeTweak => iconTweaks(look, slide.id)[id] ?? {}
+    const first = tweakOf(ids[0])
+    const tweak = (fn: (tw: IconShapeTweak) => void, final = true) => this.edit(() => {
+      const l = findLook(this.store.doc, lookId)
+      if (!l) return
+      for (const id of ids) {
+        const tw = structuredClone(iconTweaks(l, slide.id)[id] ?? {})
+        fn(tw)
+        setTweak(l, slide.id, id, tw)
+      }
+    }, final)
+
+    // what the style paints this shape with now — a starting colour for its own
+    const part = shapes[0].iconPart ?? g ?? 'detail'
+    const styleFill = look.fill?.[part]?.color ?? look.stroke.color
+    if (shapes.some((e) => !drawn.find((d) => d.el.id === e.id)?.open)) {
+      const FILL: Record<string, 'style' | 'none' | 'own'> = { 'As the style': 'style', 'No fill': 'none', 'Own color': 'own' }
+      const mode = first.fill === 'none' ? 'No fill' : first.fill ? 'Own color' : 'As the style'
+      const wrap = document.createElement('div')
+      wrap.className = 'ed-look-paint'
+      wrap.appendChild(this.select(Object.keys(FILL), mode, (v) => tweak((tw) => {
+        if (FILL[v] === 'none') tw.fill = 'none'
+        else if (FILL[v] === 'own') tw.fill = { color: typeof tw.fill === 'object' ? tw.fill.color : styleFill }
+        else delete tw.fill
+      })))
+      if (first.fill && first.fill !== 'none') {
+        const paint = first.fill
+        wrap.appendChild(this.color(paint.color, (v, fin) => tweak((tw) => { tw.fill = { ...(typeof tw.fill === 'object' ? tw.fill : {}), color: v } }, fin)))
+        const op = this.number(Math.round((paint.opacity ?? 1) * 100), 5, (v) => v >= 5 && v <= 100 && tweak((tw) => {
+          if (typeof tw.fill !== 'object') return
+          if (v >= 100) delete tw.fill.opacity; else tw.fill.opacity = v / 100
+        }))
+        op.title = t('Opacity (%)')
+        op.classList.add('ed-look-pct')
+        wrap.appendChild(op)
+      }
+      this.row('Fill here', wrap)
+    }
+    const line = document.createElement('div')
+    line.className = 'ed-look-paint'
+    line.appendChild(this.toggle(!!first.stroke, (on) => tweak((tw) => { if (on) tw.stroke = look.stroke.color; else delete tw.stroke })))
+    if (first.stroke) line.appendChild(this.color(first.stroke, (v, fin) => tweak((tw) => { tw.stroke = v }, fin)))
+    this.row('Own line color', line)
+    this.row('Show in this style', this.toggle(!first.hide, (on) => tweak((tw) => { if (on) delete tw.hide; else tw.hide = true })))
+    if (ids.some((id) => Object.keys(tweakOf(id)).length)) {
+      const reset = document.createElement('button')
+      reset.className = 'ed-btn ed-btn-block'
+      reset.textContent = t('Paint as the style again')
+      reset.title = t('Drop the own changes of the selected shapes in this style')
+      reset.addEventListener('click', () => tweak((tw) => { for (const k of Object.keys(tw)) delete tw[k as keyof IconShapeTweak] }))
+      this.host.appendChild(reset)
+    } else {
+      hint(t('Changes here apply to this icon in “{name}” only; the drawing and the other styles stay as they are.', { name: look.name }))
+    }
   }
 
   /** Two small numbers (x, y) that commit together. */
@@ -1346,15 +1464,27 @@ export class PropsPanel {
       name.scope = 'row'
       name.textContent = look ? look.name : t('Set style')
       tr.appendChild(name)
-      for (const s of doc.slides) {
+      doc.slides.forEach((s, index) => {
         const img = document.createElement('img')
         img.src = img.dataset.light = lookPreviewUrl(this.store, s.id, look)
         img.dataset.dark = lookPreviewUrl(this.store, s.id, look, '#f3f4f6')
         img.width = img.height = 40
         img.alt = s.name ?? ''
-        img.title = `${s.name ?? ''} · ${look ? look.name : t('Set style')}`
-        tr.insertCell().appendChild(img)
-      }
+        // a cell opens that icon in that style on the canvas, to look closer or change it
+        const open = document.createElement('button')
+        open.type = 'button'
+        open.className = 'ed-look-cell'
+        const tweaked = !!look?.tweaks?.[s.id]
+        if (tweaked) open.classList.add('is-tweaked')
+        open.title = `${s.name ?? ''} · ${look ? look.name : t('Set style')}` + (tweaked ? ` · ${t('own changes in this style')}` : '')
+        open.appendChild(img)
+        open.addEventListener('click', () => {
+          dlg.close()
+          this.store.goTo(index)
+          this.store.showLook(look?.id ?? null)
+        })
+        tr.insertCell().appendChild(open)
+      })
     }
     scroll.appendChild(table)
     dlg.append(top, scroll)
@@ -1377,6 +1507,7 @@ export class PropsPanel {
     // What every selected object can share — borders, fills, text, effects —
     // changed for all of them in ONE undo step; then the arrange kit.
     this.buildMultiStyle(els)
+    this.buildIconShapeStyle(els)
     this.section('multi:Arrange', { label: t('Arrange') })
     this.arrangeRows(els)
   }
@@ -2764,6 +2895,7 @@ export class PropsPanel {
         this.mutate(el.id, (e) => { (e as ShapeElement).lineStart = v === 'none' ? undefined : (v as LineEnding) }, true)))
       this.row('End tip', this.select(ENDINGS, el.lineEnd ?? 'none', (v) =>
         this.mutate(el.id, (e) => { (e as ShapeElement).lineEnd = v === 'none' ? undefined : (v as LineEnding) }, true)))
+      this.buildIconShapeStyle([el]) // after the basics: they belong to the fixed header
       this.section('Stroke', { modified: dashed || !!el.strokeCap })
       lineStyleRow()
       this.row('Cap style', this.select(['round', 'square', 'butt'], el.strokeCap ?? 'round', (v) =>
@@ -2780,6 +2912,7 @@ export class PropsPanel {
         this.mutate(el.id, (e) => { (e as ShapeElement).radius = Math.max(v, 0) }, fin)))
     }
 
+    this.buildIconShapeStyle([el]) // after the basics: they belong to the fixed header
     this.section('Fill & stroke', { modified: !!grad || dashed })
     this.row('Fill style', this.labeledSelect(fillStyles(), grad ? 'gradient' : 'solid', (v) =>
       this.mutate(el.id, (e) => {

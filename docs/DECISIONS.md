@@ -12703,3 +12703,59 @@ Rigs: `scripts/test-iconstyles.ts` (parts, looks, presets, readLook,
 learning, sketch), `scripts/test-iconset-e2e.mjs` (gallery, presets, editing,
 My styles, learn + restore + undo, paste, AI style op, compare, export),
 `scripts/test-agent-ops.ts` (op style), `scripts/test-desktop-agentprompts.ts`.
+
+## 2026-10-15 — Icon styles on the canvas: see a style, change one icon in it
+
+Styles were only 40 px cards and a compare dialog: you could not look at an
+icon in a style properly, comment on it, or change one icon in one style
+without changing the recipe for all of them. Making every styled icon its own
+drawing was rejected again (N icons × M styles drawings that drift apart; see
+"Icon styles"). Instead a style stays a recipe, and becomes something you look
+at and edit per icon, like an instance with overrides.
+
+- **Shown, not stored.** `store.iconLook` (editor-only, never saved, kept
+  across slides, read via `store.shownLook` so an undone style just turns the
+  view off; event `'look'`) picks the style the canvas, the slide-list
+  thumbnails and the panel's Styles gallery show. The panel's picked card IS
+  this value — one notion of "the style you are looking at".
+- **The canvas paints over the drawing.** `canvas.updateLookView` puts
+  `iconLookSvg` of the current icon (an `<img>` data URL: no id clashes, no
+  markup injected) right above the slide; the drawn shapes get `opacity: 0`
+  (still hit-testable, still the thing you move and edit). While a Moveable
+  gesture runs (`ed-lookview-live`) and for agent screenshots
+  (`.ed-capturing`) the drawing shows instead — the picture would lag behind a
+  drag, and Claude must see what it drew. The selection is outlined in a
+  dashed overlay (`updateLookSelection`), since the shapes themselves are
+  invisible.
+- **Tweaks.** `IconLook.tweaks: { [slideId]: { [elementId]: IconShapeTweak } }`
+  with `fill` (`IconPaint | 'none'`), `stroke`, `hide`. Keyed by slide THEN
+  element because element ids repeat across slides (duplicated slides keep
+  them for morph). Parts are guessed on the whole drawing and the sketch seed
+  uses the shape's index in the whole drawing, so hiding one shape changes no
+  other. Untrusted tweaks pass `readLook` (id regex, `MAX_TWEAK_ICONS` /
+  `MAX_TWEAK_SHAPES`, colours `safeColor`'d at render like the rest).
+  Tweaks name one set's icons, so My styles and Copy style keep only the
+  recipe (`lookRecipe`); Duplicate within the set keeps them. A tweak whose
+  shape is gone is ignored, not pruned. Additive, no `requires`.
+- **Part is not a tweak.** `iconPart` stays on the shape (one answer for every
+  style); the panel's "In “X”" section shows Part first and the tweak rows
+  only while a style is shown.
+- **Comments.** `Comment.look` = the style shown when it was written (canvas
+  composer and "Comment on icons"); the thread shows a chip that switches the
+  canvas to it; `commentEntries` adds `style {id,name}`; `SentComment.style`
+  puts "in the style “X”" in the fix-comments prompt, which then adds how to
+  answer: one icon in a style → `icons` op `tweak`, every icon → op `style`,
+  the drawing only when the drawing is wrong.
+- **Picking shapes.** Agent-drawn icon paths have the whole canvas as their
+  frame, so `render.ts` treated them as backdrops (click-through) and a click
+  always picked the top one. In an icon set nothing is a backdrop: shapes are
+  paint-hit (stroke, with the fat invisible twin).
+
+Not done: a fully separate drawing for one icon in one style ("detach") for
+styles that need new shapes; per-icon overrides of style-wide effects
+(shadow, badge); comment markers filtered by style.
+Rigs: `scripts/test-iconstyles.ts` (tweaks render/clear/read/bounds/recipe),
+`scripts/test-agent-ops.ts` (op tweak), `scripts/test-desktop-agentprompts.ts`
+(styled comment line), `scripts/test-iconset-e2e.mjs` (canvas view, invisible
+but selectable shapes, In “Comic” section, tweak + part, chip dot, comment
+look + Claude payload + comments(), compare-sheet jump).

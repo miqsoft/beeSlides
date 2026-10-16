@@ -101,7 +101,7 @@ import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
 import { askText, commentStats, sendCommentsToClaude } from './comments'
-import { addIcons, addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, planIconsWithAi } from './iconsetactions'
+import { addIcons, addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, lookPreviewUrl, planIconsWithAi } from './iconsetactions'
 import { iconsetInfo } from '../iconset'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
@@ -245,6 +245,7 @@ export class Editor {
     store.on('slides', () => { this.pruneSlideSel(); this.rebuildSidebar() })
     store.on('current', () => this.onCurrentSlide())
     store.on('doc', () => this.scheduleThumbs())
+    store.on('look', () => this.scheduleThumbs())
     // A desktop-bound window is protected by main's close/quit flush protocol
     // (desktop windows.ts) — an in-page beforeunload would only silently
     // block View ▸ Reload there.
@@ -2713,7 +2714,7 @@ export class Editor {
     // thumb width tracks the (resizable) sidebar; states and extras render smaller
     const base = Math.max(96, this.panelW.left - 52)
     const nested = isState || extraParent(this.store.doc, i) >= 0
-    const surface = renderThumbnail(slide, this.store.doc, nested ? Math.round(base * 0.84) : base)
+    const surface = this.thumbSurface(slide, nested ? Math.round(base * 0.84) : base)
     const cmtState = thumbCommentState(slide)
     if (cmtState) {
       const badge = div('ed-thumb-cmt' + (cmtState === 'check' ? ' check' : ''))
@@ -2743,6 +2744,26 @@ export class Editor {
     item.setAttribute('role', 'option')
     this.wireThumbDrag(item, i)
     return item
+  }
+
+  /** A slide-list thumbnail; in an icon set with a style shown, the icon in that style. */
+  private thumbSurface(slide: Slide, width: number): HTMLElement {
+    const look = this.store.shownLook
+    if (!look) return renderThumbnail(slide, this.store.doc, width)
+    const box = document.createElement('div')
+    box.className = 'slidomingo-thumb-surface'
+    const height = Math.round(width * this.store.doc.size.height / this.store.doc.size.width)
+    box.style.width = `${width}px`
+    box.style.height = `${height}px`
+    box.style.background = slide.background
+    const img = document.createElement('img')
+    img.src = lookPreviewUrl(this.store, slide.id, look)
+    img.alt = ''
+    img.width = width
+    img.height = height
+    img.style.display = 'block'
+    box.appendChild(img)
+    return box
   }
 
   /** 1-based position among non-state slides (what the audience counts). */
@@ -3381,7 +3402,7 @@ export class Editor {
         if (!slide) return
         const idx = Number(item.dataset.index)
         const w = slide.stateOf || extraParent(this.store.doc, idx) >= 0 ? Math.round(base * 0.84) : base
-        item.querySelector('.slidomingo-thumb-surface')?.replaceWith(renderThumbnail(slide, this.store.doc, w))
+        item.querySelector('.slidomingo-thumb-surface')?.replaceWith(this.thumbSurface(slide, w))
         // comment badge tracks doc-level changes too (comments emit 'doc')
         const cmtState = thumbCommentState(slide)
         const badge = item.querySelector('.ed-thumb-cmt')
@@ -5306,7 +5327,8 @@ export class Editor {
       },
       note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent. ' +
         'Add iconPart to every path (pathElement has none, so a copy is guessed): body = the main closed silhouette(s), detail = inner lines and dots, accent = at most one small closed highlight. ' +
-        'variants are the set\'s extra styles (icons op style adds one): they repaint the same drawings, so never redraw an icon for a style.',
+        'variants are the set\'s extra styles (icons op style adds one): they repaint the same drawings, so never redraw an icon for a style. ' +
+        'A variant\'s tweaks (slide id → element id → fill/stroke/hide) paint single icons their own way in it (icons op tweak).',
     }
   }
 

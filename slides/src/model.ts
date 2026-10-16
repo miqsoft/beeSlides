@@ -976,6 +976,10 @@ export interface Comment {
    */
   agentDone?: string
   replies?: Array<{ id: string; author: string; text: string; at: string }>
+  /** icon sets: the style (`IconLook.id`) the icon was shown in when the
+   *  comment was written — it is about the icon IN that style. Absent = the
+   *  drawing itself. Additive. */
+  look?: string
 }
 
 /**
@@ -3619,6 +3623,8 @@ export interface CommentEntry {
   resolved: boolean
   /** Claude marked it done and the user has not yet accepted/reopened it */
   awaitingCheck: boolean
+  /** icon sets: the style the comment is about (Comment.look), when it still exists */
+  style?: { id: string; name: string }
 }
 
 /**
@@ -3630,6 +3636,10 @@ export interface CommentEntry {
  */
 export function commentEntries(doc: SlidomingoDoc, filter: CommentFilter = {}): CommentEntry[] {
   const out: CommentEntry[] = []
+  const look = (id: string | undefined) => {
+    const l = id ? doc.iconset?.variants?.find((v) => v.id === id) : undefined
+    return l ? { id: l.id, name: l.name } : undefined
+  }
   doc.slides.forEach((s, slideIndex) => {
     if (filter.slideId && s.id !== filter.slideId) return
     for (const c of s.comments ?? []) {
@@ -3662,6 +3672,7 @@ export function commentEntries(doc: SlidomingoDoc, filter: CommentFilter = {}): 
         replies: c.replies ?? [],
         resolved: !!c.resolved,
         awaitingCheck: !!c.agentDone,
+        ...(look(c.look) ? { style: look(c.look)! } : {}),
       })
     }
   })
@@ -3799,6 +3810,20 @@ export interface IconLook {
   sketch?: number
   /** the icon sits on a badge */
   tile?: { shape: 'circle' | 'square' | 'rounded'; color: string; scale?: number }
+  /** single icons painted their own way in this style, over the recipe:
+   *  slide id → element id → that shape's own paint. The drawing stays shared;
+   *  a tweak whose shape is gone is ignored. Additive, no `requires`. */
+  tweaks?: Record<string, Record<string, IconShapeTweak>>
+}
+
+/** One shape's own paint in one icon style (IconLook.tweaks). */
+export interface IconShapeTweak {
+  /** its fill in this style; 'none' = not filled */
+  fill?: IconPaint | 'none'
+  /** its outline colour in this style */
+  stroke?: string
+  /** left out of this style */
+  hide?: true
 }
 
 export const ICONSET_STYLE_DEFAULTS: IconsetStyle = {

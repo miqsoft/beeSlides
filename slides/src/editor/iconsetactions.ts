@@ -100,7 +100,8 @@ export function drawIconsWithAi(store: Store, selectedIds: readonly string[]): n
 export async function commentOnIcons(store: Store, slideIds: readonly string[], send: boolean): Promise<number> {
   if (!slideIds.length) return 0
   const text = await askText({
-    title: slideIds.length === 1 ? t('Comment on this icon') : t('Comment on {n} icons', { n: slideIds.length }),
+    title: (slideIds.length === 1 ? t('Comment on this icon') : t('Comment on {n} icons', { n: slideIds.length }))
+      + (store.shownLook ? ` · ${t('In the style “{name}”', { name: store.shownLook.name })}` : ''),
     placeholder: t('e.g. thinner details, rounder corners, more like the others'),
     okLabel: send && window.slidomingoDesktop?.sendAgentPrompt ? t('Send to Claude') : t('Comment'),
   })
@@ -108,12 +109,14 @@ export async function commentOnIcons(store: Store, slideIds: readonly string[], 
   const ids = new Set<string>()
   const at = new Date().toISOString()
   const author = commentAuthor()
+  // with a style shown, the comment is about the icons in that style
+  const look = store.shownLook
   store.commit(() => {
     for (const s of store.doc.slides) {
       if (!slideIds.includes(s.id)) continue
       const id = uid('cmt')
       ids.add(id)
-      ;(s.comments ??= []).push({ id, author, text: text.trim(), at })
+      ;(s.comments ??= []).push({ id, author, text: text.trim(), at, ...(look ? { look: look.id } : {}) })
     }
   })
   if (send) sendCommentsToClaude(store, ids)

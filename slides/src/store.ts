@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 import { inLinearFlow, resolveAgentSlide, REUSABLE_OBJECT_CANVAS, syncContentRequires } from './model'
-import type { SlidomingoDoc, Slide, SlideElement } from './model'
+import type { IconLook, SlidomingoDoc, Slide, SlideElement } from './model'
 import { ActionLog, type ElementChange } from './actionlog'
 import { scheduleBlobSweep } from './bloburls'
 
@@ -12,6 +12,7 @@ export type StoreEvent =
   | 'selection'  // selected element ids changed
   | 'dirty'      // dirty flag changed
   | 'locks'      // MCP session lock table changed — sidebar/sorter badge refresh
+  | 'look'       // icon sets: the style the icons are shown in changed (iconLook)
 
 type Listener = () => void
 
@@ -51,6 +52,10 @@ export class Store {
   dirty = false
   /** editor-only: which showOnHover set the canvas previews (never saved) */
   hoverPreview: string | null = null
+  /** editor-only, icon sets: the style (`IconLook.id`) the canvas, the slide
+   *  list and the panel show the icons in; null = the drawing itself. Kept
+   *  across slides (never saved) — read it through `shownLook`. */
+  iconLook: string | null = null
   /** editor-only: the language the Layout Manager previews {{term:…}} and
    *  dates in (its EN | DE switch); null = the document's (never saved) */
   termPreview: string | null = null
@@ -123,6 +128,19 @@ export class Store {
     // so a file written by a tool that forgot it is declared before any save.
     syncContentRequires(doc)
     void this.actionLog.hydrate(doc.docId)
+  }
+
+  /** The icon style being shown, while it still exists (undo can remove it). */
+  get shownLook(): IconLook | undefined {
+    if (!this.iconLook || this.doc.kind !== 'iconset') return undefined
+    return this.doc.iconset?.variants?.find((l) => l.id === this.iconLook)
+  }
+
+  /** Show the icons in a style (null = the drawing itself). */
+  showLook(id: string | null) {
+    if (id === this.iconLook) return
+    this.iconLook = id
+    this.emit('look')
   }
 
   on(event: StoreEvent, fn: Listener): () => void {

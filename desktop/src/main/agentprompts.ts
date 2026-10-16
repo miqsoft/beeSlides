@@ -25,6 +25,13 @@ const FIX_COMMENTS_HOW =
   'When a fix removes content, rebalance what is left (elements arrange within space) unless the space is wanted. ' +
   'Verify every fix with review_slide, then close it with resolve_comment and a one-line reply: the user checks each one afterwards.'
 
+/** Icon sets: comments written while an icon was shown in one of the set's styles. */
+const FIX_STYLED_HOW =
+  'A comment marked in the style X is about the icon as painted in that style. ' +
+  'If it concerns only that icon there, use icons op tweak (own fill or line colour for its shapes, or hide them, in that style); ' +
+  'if it concerns every icon in that style, change the style itself with icons op style (same name); ' +
+  'redraw the shapes only when the drawing itself is wrong, because that changes every style.'
+
 /** At most this many comments are written out; the rest are named by count. */
 export const MAX_LISTED_COMMENTS = 40
 
@@ -52,7 +59,7 @@ export function fixCommentsPrompt(raw: unknown): string | null {
   let total = 0
   for (const c of raw) {
     if (!c || typeof c !== 'object') continue
-    const { id, slide, on, text, feedback } = c as Record<string, unknown>
+    const { id, slide, on, text, feedback, style } = c as Record<string, unknown>
     if (typeof id !== 'string' || !ID_RE.test(id)) continue
     if (typeof slide !== 'number' || !Number.isInteger(slide) || slide < 1 || slide > 100000) continue
     const body = cleanLine(text, 300)
@@ -61,7 +68,10 @@ export function fixCommentsPrompt(raw: unknown): string | null {
     if (items.length >= MAX_LISTED_COMMENTS) continue
     const where = cleanLine(on, 40)
     const anchor = where === 'area' ? ' · area' : where === 'point' ? ' · point' : where ? ` · on “${where}”` : ''
-    let line = `${items.length + 1}. Slide ${slide}${anchor}: ${body}  [${id}]`
+    // icon sets: the comment is about the icon as painted in this style
+    const look = cleanLine(style, 60)
+    const inStyle = look ? ` · in the style “${look}”` : ''
+    let line = `${items.length + 1}. Slide ${slide}${anchor}${inStyle}: ${body}  [${id}]`
     const fb = cleanLine(feedback, 200)
     if (fb) line += `\n   Feedback on your last attempt: ${fb}`
     items.push(line)
@@ -69,7 +79,8 @@ export function fixCommentsPrompt(raw: unknown): string | null {
   if (!total) return null
   const head = total === 1 ? 'Please fix this review comment:' : `Please fix these ${total} review comments:`
   const more = total > items.length ? `\n…and ${total - items.length} more (same query).` : ''
-  return `${head}\n\n${items.join('\n')}${more}\n\n${FIX_COMMENTS_HOW}`
+  const styled = items.some((l) => l.includes(' · in the style “')) ? `\n\n${FIX_STYLED_HOW}` : ''
+  return `${head}\n\n${items.join('\n')}${more}\n\n${FIX_COMMENTS_HOW}${styled}`
 }
 
 // --- "Plan with AI" in an icon set ----------------------------------------------

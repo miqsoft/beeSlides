@@ -330,6 +330,20 @@ console.log('-- icons --')
   const st2 = runAreaOp('icons', { op: 'style', name: 'comic', weight: 2, color: 'url(evil)' }, sctx) as any
   ok(st2.ok && set.doc.iconset!.variants!.length === 1 && set.doc.iconset!.variants![0].stroke.weight === 2 && set.doc.iconset!.variants![0].id === v[0].id, 'the same name replaces it, keeping its id')
   ok(set.doc.iconset!.variants![0].stroke.color === '#000000', 'a bad colour falls back, never reaches markup')
+
+  // tweak: one icon its own way in one style — the drawing stays
+  const icon = set.doc.slides[0]
+  const drawnNow = JSON.stringify(set.doc.slides.map((s) => s.elements))
+  const tw = runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['drawn'], fill: '#22c55e', fillOpacity: 0.5, stroke: '#dc2626' }, sctx) as any
+  const tweaks = () => set.doc.iconset!.variants![0].tweaks?.[icon.id]?.drawn
+  ok(tw.ok && tweaks()?.fill && typeof tweaks()!.fill === 'object' && (tweaks()!.fill as any).color === '#22c55e' && (tweaks()!.fill as any).opacity === 0.5 && tweaks()?.stroke === '#dc2626', `the shape's own paint is written into the style (${JSON.stringify(tweaks())})`)
+  ok(JSON.stringify(set.doc.slides.map((s) => s.elements)) === drawnNow, 'the drawing is untouched')
+  ok((runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['drawn'], hide: true, stroke: 'style' }, sctx) as any).ok && tweaks()?.hide === true && !tweaks()?.stroke && !!tweaks()?.fill, 'hide adds, "style" removes one paint, the rest stays')
+  ok((runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['drawn'], reset: true }, sctx) as any).ok && set.doc.iconset!.variants![0].tweaks === undefined, 'reset drops them all')
+  ok((runAreaOp('icons', { op: 'tweak', style: 'Nope', slideId: icon.id, elementIds: ['drawn'] }, sctx) as any).error.includes('No style "Nope"'), 'an unknown style is refused')
+  ok((runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['ghost'] }, sctx) as any).error.includes('Not shapes of this icon: ghost'), 'a shape of another icon is refused')
+  ok((runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['drawn'], fill: 'url(#x)' }, sctx) as any).error.includes('not a colour'), 'a bad colour is refused')
+  ok(!(runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: 'a', elementIds: ['x'] }, ctx) as any).ok, 'tweak in a deck is refused')
 }
 
 // ---- 3e. elements ------------------------------------------------------------------

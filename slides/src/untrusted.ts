@@ -698,7 +698,7 @@ const SLIDE_CHECKS: Record<string, Check> = {
   comments: list(LIMITS.comments, shape(MODEL_KEYS.comment, {
     id: cssValue(), elementId: cssValue(), x: num(-1e6, 1e6), y: num(-1e6, 1e6), w: num(0, 1e6), h: num(0, 1e6),
     author: str(LIMITS.prose), text: str(LIMITS.prose), at: str(LIMITS.scalar), resolved: bool,
-    forAgent: bool, agentDone: str(LIMITS.scalar),
+    forAgent: bool, agentDone: str(LIMITS.scalar), look: cssValue(),
     replies: list(LIMITS.comments, shape(['id', 'author', 'text', 'at'], {
       id: cssValue(), author: str(LIMITS.prose), text: str(LIMITS.prose), at: str(LIMITS.scalar),
     })),
