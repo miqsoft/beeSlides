@@ -103,8 +103,8 @@ import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
 import { commentStats, sendCommentsToClaude } from './comments'
 import { openPlanIcons } from './iconplan'
-import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, lookPreviewUrl, planIconsWithAi } from './iconsetactions'
-import { addIconNames, iconsetInfo } from '../iconset'
+import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, iconExportTip, lookPreviewUrl, planIconsWithAi, setIconCanvas } from './iconsetactions'
+import { ICON_CANVASES, addIconNames, iconCanvasId, iconCanvasUnits, iconsetInfo, type IconCanvasId } from '../iconset'
 import { exampleSvg, readIconExamples } from '../iconexamples'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
@@ -900,6 +900,7 @@ export class Editor {
         tagTool(btn(ICONS.plus, t('New slide'), (ev) => this.openLayoutPicker(ev.currentTarget as HTMLElement),
           t('Add a slide — pick a slide type')), 'new-slide'),
       ]),
+      ...(this.isIconset ? [this.iconsetLookGroup()] : []),
       ribbonGroup(t('Format Painter'), [formatPainterB]),
       ribbonGroup(t('Reapply Change'), [reapplyChangeB]),
       arrangeGroup,
@@ -2868,7 +2869,8 @@ export class Editor {
     if (this.isIconset && !slide.elements.length) {
       // an empty icon canvas: its keyline circle, and what it is meant to show if that is known
       const box = div('slidomingo-thumb-surface ed-icon-empty')
-      box.style.width = box.style.height = `${width}px`
+      box.style.width = `${width}px`
+      box.style.height = `${Math.round(width * this.store.doc.size.height / this.store.doc.size.width)}px`
       box.title = t('Not drawn yet')
       if (slide.icon?.prompt) {
         const text = document.createElement('span')
@@ -2920,6 +2922,7 @@ export class Editor {
       const { cols, size } = this.iconTiles()
       this.sidebar.style.setProperty('--icon-cols', String(cols))
       this.sidebar.style.setProperty('--icon-tile', `${size}px`)
+      this.sidebar.style.setProperty('--icon-tile-h', `${Math.round(size * doc.size.height / doc.size.width)}px`)
     }
     slides.forEach((slide, i) => {
       // hover gap = insert here; never between a parent and its states, and
@@ -3884,11 +3887,92 @@ export class Editor {
     return ribbonGroup(t('Icons'), items)
   }
 
+  /** The Home ribbon's Icon set group: the style the icons are shown in and
+   *  the canvas's aspect ratio, beside Plan with AI and Add icons. */
+  private iconsetLookGroup(): HTMLElement {
+    return ribbonGroup(t('Icon set'), [tagTool(this.iconLookMenu(), 'icon-look'), tagTool(this.iconCanvasMenu(), 'icon-canvas')])
+  }
+
+  /** A ribbon dropdown whose label follows the doc: `fill` rebuilds the menu
+   *  each time it opens, `label` runs on every look/doc change while the
+   *  dropdown is in the page. */
+  private liveDropdown(icon: string, tip: string, label: () => string, fill: (menu: HTMLElement, close: () => void) => void): HTMLElement {
+    const wrap = div('ed-dropdown')
+    const menu = div('ed-menu')
+    const close = () => wrap.classList.remove('open')
+    const trigger = btn(icon, ' ', () => {
+      if (!wrap.classList.toggle('open')) return
+      menu.replaceChildren()
+      fill(menu, close)
+    }, tip)
+    trigger.insertAdjacentHTML('beforeend', '<span class="ed-caret">▾</span>')
+    // a style's name is the user's: set as text, never markup
+    const text = trigger.querySelector('span')!
+    let seen = false
+    const relabel = () => {
+      if (!wrap.isConnected && seen) { off.forEach((f) => f()); return }
+      seen ||= wrap.isConnected
+      text.textContent = label()
+    }
+    text.textContent = label()
+    const off = [this.store.on('look', relabel), this.store.on('doc', relabel)]
+    wrap.append(trigger, menu)
+    document.addEventListener('pointerdown', (ev) => { if (!wrap.contains(ev.target as Node)) close() })
+    return wrap
+  }
+
+  /** Style ▾: show the icons as drawn or in one of the set's styles (store.iconLook). */
+  private iconLookMenu(): HTMLElement {
+    return this.liveDropdown(ICONS.eye, t('Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn'),
+      () => this.store.shownLook?.name ?? t('As drawn'),
+      (menu, close) => {
+        const shown = this.store.shownLook?.id ?? null
+        const variants = this.store.doc.iconset?.variants ?? []
+        for (const [name, id] of [[t('As drawn'), null], ...variants.map((l) => [l.name, l.id])] as Array<[string, string | null]>) {
+          const b = btn('', '', () => { close(); this.store.showLook(id) })
+          b.textContent = name // a style's name is the user's: never markup
+          if (id === shown) b.classList.add('ed-menu-on')
+          menu.appendChild(b)
+        }
+        menu.appendChild(div('ed-menu-sep'))
+        menu.appendChild(btn('', t('Add or edit styles…'), () => { close(); this.revealPanelSection('Styles') }))
+      })
+  }
+
+  /** Canvas ▾: the set's aspect ratio (iconset.ts ICON_CANVASES). */
+  private iconCanvasMenu(): HTMLElement {
+    const nameOf = (id: IconCanvasId) => id === '1:1' ? t('Square', undefined, 'canvas') : id === '3:4' ? `3:4 ${t('Portrait')}` : id
+    return this.liveDropdown(ICONS.rect, t('The icon canvas: square or another aspect ratio — every icon in the set shares it'),
+      () => {
+        const info = iconsetInfo(this.store.doc)
+        const id = info && iconCanvasId(info)
+        return id ? nameOf(id) : info ? `${info.grid} × ${info.gridH}` : ''
+      },
+      (menu, close) => {
+        const info = iconsetInfo(this.store.doc)
+        if (!info) return
+        const on = iconCanvasId(info)
+        for (const c of ICON_CANVASES) {
+          const u = iconCanvasUnits(info, c.id)
+          const b = btn('', `${nameOf(c.id)} — ${u.w} × ${u.h}`, () => { close(); this.setIconCanvas(c.id) })
+          if (c.id === on) b.classList.add('ed-menu-on')
+          menu.appendChild(b)
+        }
+      })
+  }
+
+  setIconCanvas(id: IconCanvasId) {
+    this.canvas.commitTextEdit()
+    if (!setIconCanvas(this.store, id)) return
+    const info = iconsetInfo(this.store.doc)
+    if (info) this.toast(t('Canvas: {w} × {h} units — the drawings stay centred', { w: info.grid, h: info.gridH }))
+  }
+
   /** The ribbon's Export dropdown in an icon set. */
   private iconsetExportMenu(labelled: boolean): HTMLElement {
     const wrap = div('ed-dropdown')
     const trigger = btn(ICONS.download, labelled ? t('Export set') : '', () => wrap.classList.toggle('open'),
-      t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries'))
+      iconExportTip(this.store.doc))
     const menu = div('ed-menu')
     menu.appendChild(btn(ICONS.download, t('Export icon set…'), () => { wrap.classList.remove('open'); this.exportIconSet() }))
     menu.appendChild(btn(ICONS.download, t('Export this icon as SVG…'), () => { wrap.classList.remove('open'); this.exportIconSvg() }))
@@ -5610,13 +5694,13 @@ export class Editor {
     return {
       ...info,
       examples: examples.length ? examples : undefined,
-      paddingBox: [st.padding, st.padding, info.grid - st.padding, info.grid - st.padding],
+      paddingBox: [st.padding, st.padding, info.grid - st.padding, info.gridH - st.padding],
       pathElement: {
         type: 'shape', shape: 'path', x: 0, y: 0, w: width, h: height, rotation: 0, opacity: 1, radius: 0,
-        pathBox: [0, 0, info.grid, info.grid], d: `M${st.padding} ${info.grid / 2} H${info.grid - st.padding}`,
+        pathBox: [0, 0, info.grid, info.gridH], d: `M${st.padding} ${info.gridH / 2} H${info.grid - st.padding}`,
         fill: 'transparent', stroke: st.color, strokeWidth: st.strokeWidth * info.scale, strokeCap: st.cap, strokeJoin: st.join,
       },
-      note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent. ' +
+      note: 'One icon per slide (slide name = icon name; slide.icon.prompt = what it shows). The canvas is grid units wide and gridH units high (not always square). Draw with path elements like pathElement only; a filled detail sets fill to the ink and stroke to transparent. ' +
         'Add iconPart to every path (pathElement has none, so a copy is guessed): body = the main closed silhouette(s), detail = inner lines and dots, accent = at most one small closed highlight. ' +
         'examples (when there) are icons the user likes, from other libraries: draw like them — the same line weight, corner rounding, amount of detail and proportions — but draw your own paths, never copy theirs. ' +
         'variants are the set\'s extra styles (icons op style adds one): they only repaint the same drawings, so never redraw an icon for a style. ' +

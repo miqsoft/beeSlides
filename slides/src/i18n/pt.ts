@@ -7,6 +7,12 @@
 import type { Catalog } from '../i18n'
 
 export const pt: Catalog = {
+  "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Mostra os ícones em um dos estilos do conjunto — um estilo apenas repinta, nada é redesenhado",
+  "Add or edit styles…": "Adicionar ou editar estilos…",
+  "The icon canvas: square or another aspect ratio — every icon in the set shares it": "A tela dos ícones: quadrada ou outra proporção — todos os ícones do conjunto a compartilham",
+  "Square (canvas)": "Quadrado",
+  "Portrait": "Retrato",
+  "Canvas: {w} × {h} units — the drawings stay centred": "Tela: {w} × {h} unidades — os desenhos ficam centralizados",
   "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "Diga ao Claude no chat para que serve o conjunto, ou use Planejar com IA em Início — o Claude planeja ícones vazios para você conferir, depois Desenhar.",
   "Drawing": "Desenho",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "Como cada ícone é desenhado — o Claude lê isto e seus ícones de exemplo antes de desenhar. Os estilos abaixo apenas repintam.",
@@ -2334,7 +2340,7 @@ export const pt: Catalog = {
   "Export failed: {m}": "Falha na exportação: {m}",
   "Export icon set…": "Exportar conjunto de ícones…",
   "Export set": "Exportar conjunto",
-  "Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries": "Exporta os ícones como arquivos SVG (24 × 24, currentColor) com um icons.json para bibliotecas de ícones",
+  "Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries": "Exporta os ícones como arquivos SVG ({w} × {h}, currentColor) com um icons.json para bibliotecas de ícones",
   "Export this icon as SVG…": "Exportar este ícone como SVG…",
   "Exported SVG": "SVG exportado",
   "Exported {n} icons": "{n} ícones exportados",

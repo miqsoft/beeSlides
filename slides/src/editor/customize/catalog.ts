@@ -63,6 +63,7 @@ export const RIBBON_LAYOUT: Record<string, Array<{ id: string; caption: string }
     { id: 'home:slides', caption: 'Slides' },
     // an icon set's Home tab shows this in place of Slides
     { id: 'home:icons', caption: 'Icons' },
+    { id: 'home:icon-set', caption: 'Icon set' },
     { id: 'home:format-painter', caption: 'Format Painter' },
     { id: 'home:reapply-change', caption: 'Reapply Change' },
     { id: 'home:arrange', caption: 'Arrange' },
@@ -313,6 +314,7 @@ export const TOOLBAR_ITEMS: readonly CatalogItem[] = [
   // an icon set's Home ▸ Icons group
   { id: 'icon-plan', label: 'Plan with AI' }, { id: 'icon-add', label: 'Add icons' }, { id: 'icon-draw', label: 'Draw with AI' },
   { id: 'icon-style', label: 'Apply set style' }, { id: 'icon-comment', label: 'Comment on icons' },
+  { id: 'icon-look', label: 'Style' }, { id: 'icon-canvas', label: 'Canvas' },
 ]
 /** Toolbar ids that no longer exist, still accepted (and dropped) in a saved
  *  profile: the globe became Settings ▸ General ▸ Language (2026-10-14). */

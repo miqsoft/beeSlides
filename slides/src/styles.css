@@ -4131,7 +4131,7 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 /* "+ Add icons" is the grid's last tile, the size of an icon (editor.ts iconAddTile) */
 .ed-iconset .ed-sidebar > .ed-add-slide {
   grid-column: auto; box-sizing: border-box;
-  width: calc(var(--icon-tile, 64px) + 4px); height: calc(var(--icon-tile, 64px) + 26px);
+  width: calc(var(--icon-tile, 64px) + 4px); height: calc(var(--icon-tile-h, var(--icon-tile, 64px)) + 26px);
   flex-direction: column; justify-content: center; gap: 4px; padding: 0;
   border-radius: 10px; font-size: 11px; text-align: center;
 }

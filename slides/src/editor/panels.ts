@@ -36,10 +36,10 @@ import { onSystemFontsReady, requestSystemFonts } from '../localfonts'
 import { ICONS } from '../icons'
 import { locale, t, tc } from '../i18n'
 import { convertSvgInPlace } from './svgtoobjects'
-import { iconShapes, iconsetInfo } from '../iconset'
+import { ICON_CANVASES, iconCanvasId, iconCanvasUnits, iconShapes, iconShortSide, iconsetInfo, type IconsetGrid } from '../iconset'
 import {
-  addExamplesFromFiles, addLook, describeStyleWithAi, examplePreviewUrl, findLook, iconExamples, iconPreviewUrl, learnFromIcon, lookPreviewUrl, moveLook, removeExample, removeLook, restoreIconToSet,
-  withStyle, writeIconsetInfo,
+  addExamplesFromFiles, addLook, describeStyleWithAi, examplePreviewUrl, findLook, iconExamples, iconExportTip, iconPreviewUrl, learnFromIcon, lookPreviewUrl, moveLook, removeExample, removeLook, restoreIconToSet,
+  setIconCanvas, withStyle, writeIconsetInfo,
 } from './iconsetactions'
 import { LOOK_PRESETS, clearTweaks, iconParts, iconTweaks, lookFromPreset, setTweak, tweakedIconCount, type IconPart } from '../iconstyles'
 import { loadMyLooks, lookFromClipText, lookToClipText, removeMyLook, saveMyLook } from './iconlooklibrary'
@@ -947,7 +947,9 @@ export class PropsPanel {
       for (const px of [16, 24, 32, 48]) {
         const img = document.createElement('img')
         img.src = url
-        img.width = img.height = px
+        // px is the icon's height; a wide canvas is wider
+        img.height = px
+        img.width = Math.round(px * info.grid / info.gridH)
         img.alt = ''
         img.style.background = slide.background // the icon on its own canvas
         strip.appendChild(img)
@@ -968,6 +970,24 @@ export class PropsPanel {
     this.section('Icon set')
     this.row('Set name', field(doc.title === 'Untitled icon set' ? '' : doc.title, false, t('e.g. Forensics'), (v) =>
       this.edit(() => { this.store.doc.title = v.trim() || 'Untitled icon set' }, true)))
+    // the canvas's aspect ratio: every icon shares it (the ribbon's Canvas ▾ too)
+    const canvasName = (id: string) => id === '1:1' ? t('Square', undefined, 'canvas') : id === '3:4' ? `3:4 ${t('Portrait')}` : id
+    const canvasOpts = ICON_CANVASES.map((c) => {
+      const u = iconCanvasUnits(info, c.id)
+      return { id: c.id, label: `${canvasName(c.id)} — ${u.w} × ${u.h}` }
+    })
+    const onCanvas = iconCanvasId(info)
+    const custom = onCanvas ? [] : [`${info.grid} × ${info.gridH}`]
+    const canvasSel = this.select([...custom, ...canvasOpts.map((o) => o.label)],
+      canvasOpts.find((o) => o.id === onCanvas)?.label ?? custom[0], (v) => {
+        const pick = canvasOpts.find((o) => o.label === v)
+        if (pick && setIconCanvas(this.store, pick.id)) {
+          const next = iconsetInfo(this.store.doc)
+          if (next) this.toast(t('Canvas: {w} × {h} units — the drawings stay centred', { w: next.grid, h: next.gridH }))
+        }
+      })
+    canvasSel.title = t('The icon canvas: square or another aspect ratio — every icon in the set shares it')
+    this.row('Canvas', canvasSel)
     this.row('License', field(info.license ?? '', false, t('e.g. CC-BY-4.0'), (v) => {
       const next = { ...info }
       if (v.trim()) next.license = v.trim(); else delete next.license
@@ -981,7 +1001,7 @@ export class PropsPanel {
     const exp = document.createElement('button')
     exp.className = 'ed-btn ed-btn-block'
     exp.textContent = t('Export icon set…')
-    exp.title = t('Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries')
+    exp.title = iconExportTip(doc)
     exp.addEventListener('click', act('export'))
     this.host.appendChild(exp)
   }
@@ -990,7 +1010,7 @@ export class PropsPanel {
    *  styles"): what Claude reads before it draws — the brief, example icons
    *  someone likes, and the line width, ends, corners, padding and ink. The
    *  Styles section below only repaints what is drawn. */
-  private buildIconDrawing(info: IconsetInfo, field: (value: string, multi: boolean, placeholder: string, onCommit: (v: string) => void) => HTMLElement) {
+  private buildIconDrawing(info: IconsetGrid, field: (value: string, multi: boolean, placeholder: string, onCommit: (v: string) => void) => HTMLElement) {
     const setInfo = (next: IconsetInfo) => this.edit(() => writeIconsetInfo(this.store.doc, next), true)
     const hint = (text: string) => {
       const p = document.createElement('p')
@@ -1047,7 +1067,8 @@ export class PropsPanel {
     this.host.appendChild(exRow)
 
     const st = info.style
-    this.row('Stroke (units)', this.number(st.strokeWidth, 0.25, (v) => v > 0 && v <= info.grid / 2 && setInfo(withStyle(info, { strokeWidth: v }))))
+    const side = iconShortSide(info)
+    this.row('Stroke (units)', this.number(st.strokeWidth, 0.25, (v) => v > 0 && v <= side / 2 && setInfo(withStyle(info, { strokeWidth: v }))))
     const CAPS: Record<string, IconsetStyle['cap']> = { Round: 'round', Square: 'square', Flat: 'butt' }
     const JOINS: Record<string, IconsetStyle['join']> = { Round: 'round', Bevel: 'bevel', Miter: 'miter' }
     // duotone is paint (a Style) now; a set drawn that way keeps the choice
@@ -1056,7 +1077,7 @@ export class PropsPanel {
     this.row('Line ends', this.select(Object.keys(CAPS), keyOf(CAPS, st.cap), (v) => setInfo(withStyle(info, { cap: CAPS[v] }))))
     this.row('Corners', this.select(Object.keys(JOINS), keyOf(JOINS, st.join), (v) => setInfo(withStyle(info, { join: JOINS[v] }))))
     this.row('Drawn as', this.select(Object.keys(FILLS), keyOf(FILLS, st.fill), (v) => setInfo(withStyle(info, { fill: FILLS[v] }))))
-    this.row('Padding (units)', this.number(st.padding, 0.5, (v) => v >= 0 && v < info.grid / 2 && setInfo(withStyle(info, { padding: v }))))
+    this.row('Padding (units)', this.number(st.padding, 0.5, (v) => v >= 0 && v < side / 2 && setInfo(withStyle(info, { padding: v }))))
     this.row('Ink', this.color(st.color, (v, fin) => fin && setInfo(withStyle(info, { color: v }))))
     const apply = document.createElement('button')
     apply.className = 'ed-btn ed-btn-block'

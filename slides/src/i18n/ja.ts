@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "アイコンをセットのスタイルのいずれかで表示します — スタイルは塗り直すだけで、描き直しはしません",
+  "Add or edit styles…": "スタイルを追加・編集…",
+  "The icon canvas: square or another aspect ratio — every icon in the set shares it": "アイコンのキャンバス: 正方形または別の縦横比 — セット内のすべてのアイコンで共通です",
+  "Square (canvas)": "正方形",
+  "Portrait": "縦長",
+  "Canvas: {w} × {h} units — the drawings stay centred": "キャンバス: {w} × {h} 単位 — 描画は中央に保たれます",
   "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "チャットで Claude にセットの用途を伝えるか、「ホーム」の「AI で計画」を使います。Claude が空のアイコンを計画し、確認後に描画します。",
   "Drawing": "描画",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "すべてのアイコンの描き方です — Claude は描く前にこれと例のアイコンを読みます。下のスタイルは塗り直すだけです。",
@@ -2336,7 +2342,7 @@ export const ja: Catalog = {
   "Export failed: {m}": "書き出しに失敗しました: {m}",
   "Export icon set…": "アイコンセットを書き出し…",
   "Export set": "セットを書き出し",
-  "Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries": "アイコンを SVG ファイル (24 × 24、currentColor) として、アイコンライブラリ用の icons.json と一緒に書き出します",
+  "Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries": "アイコンを SVG ファイル ({w} × {h}、currentColor) として、アイコンライブラリ用の icons.json と一緒に書き出します",
   "Export this icon as SVG…": "このアイコンを SVG として書き出し…",
   "Exported SVG": "SVG を書き出しました",
   "Exported {n} icons": "{n} 個のアイコンを書き出しました",

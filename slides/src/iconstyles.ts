@@ -315,14 +315,16 @@ function inside(a: { x: number; y: number; w: number; h: number }, b: { x: numbe
 }
 
 /**
- * One icon slide in one look → a standalone SVG, `grid` units square. A look
+ * One icon slide in one look → a standalone SVG, `grid × gridH` units. A look
  * that paints in one colour only writes it as `currentColor` (the icon takes
  * the text colour, like the plain export); a colourful one keeps its colours.
  */
 export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, opts: { title?: boolean } = {}): IconSvg {
-  const info = iconsetInfo(doc) ?? { grid: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
+  const info = iconsetInfo(doc) ?? { grid: 24, gridH: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
   const look = usableLook(lookIn, info.style.color)
-  const g = info.grid
+  const g = info.grid, gh = info.gridH
+  /** the margin a mask leaves around the canvas: shadows and halos reach past it */
+  const m = Math.max(g, gh)
   const all = iconShapes(doc, slide)
   const skipped = all.skipped
   // parts are guessed on the whole drawing, so hiding a shape in this look
@@ -428,8 +430,8 @@ export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, 
     }).join('')
     // unique per icon and look: two of these inlined in one page must not share a mask
     const mid = `ko-${(hashSeed(`${slide.id}|${look.id}`) % 0xffffff).toString(36)}`
-    layers.push(`<mask id="${mid}" maskUnits="userSpaceOnUse" x="${-g}" y="${-g}" width="${3 * g}" height="${3 * g}">` +
-      `<rect x="${-g}" y="${-g}" width="${3 * g}" height="${3 * g}" fill="#fff"/>${holes}</mask>`)
+    layers.push(`<mask id="${mid}" maskUnits="userSpaceOnUse" x="${-m}" y="${-m}" width="${g + 2 * m}" height="${gh + 2 * m}">` +
+      `<rect x="${-m}" y="${-m}" width="${g + 2 * m}" height="${gh + 2 * m}" fill="#fff"/>${holes}</mask>`)
     layers.push(`<g mask="url(#${mid})">${draw().join('')}</g>`)
   } else {
     layers.push(...draw())
@@ -437,18 +439,19 @@ export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, 
 
   let body = `<g fill="none" stroke-linecap="${escXml(cap)}" stroke-linejoin="${escXml(join)}">${layers.join('')}</g>`
   if (look.tile) {
+    // the badge fills the canvas (a circle: the shorter side), the icon shrinks into it
     const t = look.tile
-    const c = g / 2
+    const cx = g / 2, cy = gh / 2
     const k = t.scale ?? 0.62
-    const bg = t.shape === 'circle' ? `<circle cx="${n3(c)}" cy="${n3(c)}" r="${n3(c)}" fill="${col(t.color)}"/>`
-      : `<rect width="${n3(g)}" height="${n3(g)}" rx="${t.shape === 'rounded' ? n3(g * 0.22) : '0'}" fill="${col(t.color)}"/>`
-    body = `${bg}<g transform="translate(${n3(c)} ${n3(c)}) scale(${n3(k)}) translate(${n3(-c)} ${n3(-c)})">${body}</g>`
+    const bg = t.shape === 'circle' ? `<circle cx="${n3(cx)}" cy="${n3(cy)}" r="${n3(Math.min(cx, cy))}" fill="${col(t.color)}"/>`
+      : `<rect width="${n3(g)}" height="${n3(gh)}" rx="${t.shape === 'rounded' ? n3(Math.min(g, gh) * 0.22) : '0'}" fill="${col(t.color)}"/>`
+    body = `${bg}<g transform="translate(${n3(cx)} ${n3(cy)}) scale(${n3(k)}) translate(${n3(-cx)} ${n3(-cy)})">${body}</g>`
   }
   const mono = used.length === 1
   const finalBody = body.replace(/\u0000(\d+)\u0000/g, (_, k) => (mono ? 'currentColor' : escXml(used[Number(k)])))
-  const gs = n3(g)
+  const gs = n3(g), ghs = n3(gh)
   const title = opts.title && slide.name ? `<title>${escXml(slide.name)}</title>` : ''
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gs}" height="${gs}" viewBox="0 0 ${gs} ${gs}">${title}${finalBody}</svg>\n`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gs}" height="${ghs}" viewBox="0 0 ${gs} ${ghs}">${title}${finalBody}</svg>\n`
   return { svg, skipped: [...skipped] }
 }
 

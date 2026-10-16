@@ -12994,3 +12994,50 @@ looked like a second chat beside the real one.
 
 Rig: `scripts/test-iconset-e2e.mjs` (hint shown and no Plan box on an empty
 set, Plan through the Home card, hint gone once an icon is drawn).
+
+## 2026-10-16 — Icon sets: Style and Canvas in the ribbon; canvases other than square
+
+Two asks from using it: pick the style the icons are shown in from the top,
+next to Plan with AI and Add icons (it was only on the canvas's "Show in"
+bar, the panel's Styles gallery and All icons), and draw icons that are not
+square (a wide badge, a portrait glyph).
+
+- **Home ▸ Icon set group** (`Editor.iconsetLookGroup`, ribbon id
+  `home:icon-set`, tools `icon-look` / `icon-canvas`): **Style ▾** lists As
+  drawn plus the set's styles — the same `store.showLook` choice as the
+  canvas bar and All icons, never a second one — and "Add or edit styles…"
+  opens the panel's Styles section. **Canvas ▾** picks the aspect ratio. Both
+  rebuild their menu on open and relabel on `look`/`doc` (a style's name is
+  set as text).
+- **Format: `iconset.gridH?`**, grid units down; absent = `grid` (square).
+  `grid` stays the width. Additive, no `requires`: an older build opens the
+  file at its real `doc.size` and only its export says 24 × 24.
+  `iconsetInfo` always fills `gridH`; `writeIconsetInfo` drops it when equal.
+- **Presets, not free sizes** (`iconset.ts ICON_CANVASES`): 1:1 24 × 24,
+  4:3 32 × 24, 3:2 36 × 24, 16:9 48 × 27, 2:1 48 × 24, 3:4 24 × 32, scaled by
+  the set's short side for a set not on 24 (`iconCanvasUnits`). The short
+  side stays the unit the line style is measured in: stroke and padding
+  limits and example icons (`styleFromExamples`) use `iconShortSide`, so a
+  2-unit line looks the same in every ratio. Also a row in the panel's Icon
+  set section.
+- **Changing it keeps every drawing centred, one undo step**
+  (`resizeIconCanvas`): a path on the whole canvas in grid units (the
+  agent's way) stays that way — frame = the new canvas, `pathBox` = the new
+  grid, its `d` moved by `translatePathD`, which edits only absolute
+  coordinates so arcs survive; every other element, and pinned comments,
+  move by the centre's shift. Shrinking can leave parts outside; nothing is
+  scaled or clipped.
+- **Everything reads both sides:** export and style SVGs are `grid × gridH`
+  (`icons.json` gains `gridH` when not square); the keyline is a rectangle at
+  the padding plus a circle on the short side; a style's badge tile fills the
+  canvas (circle on the short side); the icon grid's tiles and the 16–48 px
+  preview take the ratio; `doc_info.iconset` hands agents `gridH`, a
+  `pathBox`/`paddingBox` on the whole canvas, and the draw prompt/skill say
+  the canvas is not always square.
+
+Not done: a per-icon size (doc.size is one per document); free width ×
+height entry.
+Rigs: `scripts/test-iconset.ts` (`translatePathD`, resize there and back,
+export, manifest, presets), `scripts/test-iconset-e2e.mjs` (Style ▾ and
+Canvas ▾ in Home, 4:3 canvas, keyline, tiles, doc_info, undo),
+`scripts/test-ui-profile.ts` (ribbon group id).

@@ -2,7 +2,8 @@
 // Copyright (c) 2026 The BeeSlides authors
 //
 // Icon sets (docs/DECISIONS.md, "Icon sets"): a doc with `kind: 'iconset'`,
-// one icon per slide on a `grid × grid` square. This module is the pure side:
+// one icon per slide on a `grid × gridH` canvas (square unless the set picked
+// another aspect ratio, `ICON_CANVASES`). This module is the pure side:
 //
 //   - `applyIconsetStyle`  the set's stroke/caps/ink onto an icon's shapes
 //                          (what "Apply set style" commits; fixes drift)
@@ -23,13 +24,139 @@ import type { IconsetInfo, ShapeElement, Slide, SlideElement, SlidomingoDoc } fr
 import { ICONSET_STYLE_DEFAULTS, newIconSlide } from './model.ts'
 import { IDENTITY, mul, parsePath, pointsSegs, rectSegs, ellipseSegs, rotateAbout, segsToD, transformSegs, translate, type Mat, type Seg } from './svgpath.ts'
 
+/** An icon set's settings with every field present, `gridH` too. */
+export type IconsetGrid = IconsetInfo & { gridH: number }
+
 /** The doc's icon-set settings with every field present, or null for any other doc. */
-export function iconsetInfo(doc: SlidomingoDoc): IconsetInfo | null {
+export function iconsetInfo(doc: SlidomingoDoc): IconsetGrid | null {
   if (doc.kind !== 'iconset') return null
   const raw = doc.iconset
   const grid = raw && raw.grid > 0 ? raw.grid : 24
+  const gridH = raw && typeof raw.gridH === 'number' && raw.gridH > 0 ? raw.gridH : grid
   const scale = raw && raw.scale > 0 ? raw.scale : Math.max(1, doc.size.width / grid)
-  return { ...raw, grid, scale, style: { ...ICONSET_STYLE_DEFAULTS, ...raw?.style } }
+  return { ...raw, grid, gridH, scale, style: { ...ICONSET_STYLE_DEFAULTS, ...raw?.style } }
+}
+
+/** `iconsetInfo`, or a 24-unit square over the doc's width for any other doc. */
+function gridOf(doc: SlidomingoDoc): IconsetGrid {
+  return iconsetInfo(doc) ?? { grid: 24, gridH: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
+}
+
+/** The set's shorter side in grid units: what a stroke width, the padding or
+ *  an example icon's size is measured against. */
+export const iconShortSide = (info: IconsetGrid): number => Math.min(info.grid, info.gridH)
+
+// ---- the canvas's aspect ratio ------------------------------------------------------------
+
+/** The canvases an icon set offers, in grid units for a 24-unit set (a set
+ *  drawn on another short side scales them, `iconCanvasUnits`). */
+export const ICON_CANVASES = [
+  { id: '1:1', w: 24, h: 24 },
+  { id: '4:3', w: 32, h: 24 },
+  { id: '3:2', w: 36, h: 24 },
+  { id: '16:9', w: 48, h: 27 },
+  { id: '2:1', w: 48, h: 24 },
+  { id: '3:4', w: 24, h: 32 },
+] as const
+
+export type IconCanvasId = (typeof ICON_CANVASES)[number]['id']
+
+/** A canvas preset in this set's units: the presets are for 24, a 16-unit set gets 16 × 16, 21 × 16 … */
+export function iconCanvasUnits(info: IconsetGrid, id: IconCanvasId): { w: number; h: number } {
+  const c = ICON_CANVASES.find((k) => k.id === id) ?? ICON_CANVASES[0]
+  const k = iconShortSide(info) / 24
+  return { w: Math.max(1, Math.round(c.w * k)), h: Math.max(1, Math.round(c.h * k)) }
+}
+
+/** Which preset the set is on, or null for a size none of them makes. */
+export function iconCanvasId(info: IconsetGrid): IconCanvasId | null {
+  return ICON_CANVASES.find((c) => {
+    const u = iconCanvasUnits(info, c.id)
+    return u.w === info.grid && u.h === info.gridH
+  })?.id ?? null
+}
+
+/** `d` moved by (dx, dy) in its own units, every command kept as written
+ *  (arcs stay arcs). Relative commands move with their start point, so only
+ *  absolute coordinates change — and a leading `m`, which is absolute. */
+export function translatePathD(d: string, dx: number, dy: number): string {
+  const tokens = d.match(/[a-df-zA-DF-Z]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []
+  // per command: which arguments are x (1) and y (2)
+  const AXES: Record<string, number[]> = {
+    M: [1, 2], L: [1, 2], T: [1, 2], H: [1], V: [2], C: [1, 2, 1, 2, 1, 2], S: [1, 2, 1, 2], Q: [1, 2, 1, 2], A: [0, 0, 0, 0, 0, 1, 2], Z: [],
+  }
+  const out: string[] = []
+  let cmd = ''
+  let argi = 0
+  let first = true
+  let firstPair = false
+  for (const tok of tokens) {
+    if (/^[a-zA-Z]$/.test(tok)) {
+      cmd = tok
+      argi = 0
+      firstPair = first && cmd === 'm'
+      first = false
+      out.push(tok)
+      continue
+    }
+    const up = cmd.toUpperCase()
+    const axes = AXES[up]
+    if (!axes || !axes.length) { out.push(tok); continue }
+    const axis = axes[argi % axes.length]
+    const abs = cmd === up || firstPair
+    let v = Number(tok)
+    if (abs && axis === 1) v += dx
+    else if (abs && axis === 2) v += dy
+    out.push(abs && axis ? n3(v) : tok)
+    argi++
+    // after a leading `m`'s first pair, its implicit linetos are relative
+    if (firstPair && argi >= 2) firstPair = false
+  }
+  return out.join(' ').replace(/ ?([a-zA-Z]) ?/g, '$1')
+}
+
+/**
+ * The icon canvas resized to `w × h` grid units, every drawing kept centred:
+ * a path drawn on the whole canvas in grid units (the agent's way) stays that
+ * way with its `d` moved, anything else moves by the centre's shift. Edits
+ * `doc` in place (call inside a commit); false when nothing changes.
+ */
+export function resizeIconCanvas(doc: SlidomingoDoc, w: number, h: number): boolean {
+  const info = iconsetInfo(doc)
+  if (!info || !(w > 0) || !(h > 0)) return false
+  if (w === info.grid && h === info.gridH) return false
+  const { scale } = info
+  const oldW = doc.size.width, oldH = doc.size.height
+  const dxU = (w - info.grid) / 2, dyU = (h - info.gridH) / 2
+  const dx = dxU * scale, dy = dyU * scale
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-6
+  for (const slide of doc.slides) {
+    for (const el of slide.elements) {
+      const pb = el.type === 'shape' && el.shape === 'path' ? el.pathBox : undefined
+      const onGrid = el.type === 'shape' && el.shape === 'path' && pb && !el.rotation && !el.flipH && !el.flipV &&
+        near(el.x, 0) && near(el.y, 0) && near(el.w, oldW) && near(el.h, oldH) &&
+        near(pb[0], 0) && near(pb[1], 0) && near(pb[2], info.grid) && near(pb[3], info.gridH)
+      if (onGrid && el.type === 'shape') {
+        el.w = w * scale
+        el.h = h * scale
+        el.pathBox = [0, 0, w, h]
+        el.d = translatePathD(el.d ?? '', dxU, dyU)
+      } else {
+        el.x += dx
+        el.y += dy
+      }
+    }
+    // a pinned comment stays on the spot it points at
+    for (const c of slide.comments ?? []) {
+      if (typeof c.x === 'number') c.x += dx
+      if (typeof c.y === 'number') c.y += dy
+    }
+  }
+  const next: IconsetInfo = { ...doc.iconset!, grid: w }
+  if (h === w) delete next.gridH; else next.gridH = h
+  doc.iconset = next
+  doc.size = { width: w * scale, height: h * scale }
+  return true
 }
 
 /** Everything written into an attribute or text goes through this: an opened
@@ -188,7 +315,7 @@ function isClosedOutline(segs: readonly Seg[]): boolean {
 
 /** Every visible shape of the icon, in grid units; anything else is named in `skipped`. */
 export function iconShapes(doc: SlidomingoDoc, slide: Slide): { shapes: IconShape[]; skipped: Set<string> } {
-  const info = iconsetInfo(doc) ?? { grid: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
+  const info = gridOf(doc)
   const toGrid: Mat = [1 / info.scale, 0, 0, 1 / info.scale, 0, 0]
   const skipped = new Set<string>()
   const shapes: IconShape[] = []
@@ -213,9 +340,9 @@ export function iconShapes(doc: SlidomingoDoc, slide: Slide): { shapes: IconShap
   return { shapes, skipped }
 }
 
-/** One icon slide → a standalone SVG, `grid` units square, ink as currentColor. */
+/** One icon slide → a standalone SVG, `grid × gridH` units, ink as currentColor. */
 export function iconSlideSvg(doc: SlidomingoDoc, slide: Slide, opts: { title?: boolean } = {}): IconSvg {
-  const info = iconsetInfo(doc) ?? { grid: 24, scale: doc.size.width / 24, style: ICONSET_STYLE_DEFAULTS }
+  const info = gridOf(doc)
   const ink = info.style.color
   const { shapes, skipped } = iconShapes(doc, slide)
   const body: string[] = []
@@ -246,10 +373,10 @@ export function iconSlideSvg(doc: SlidomingoDoc, slide: Slide, opts: { title?: b
     if (el.opacity < 1) attrs.push(`opacity="${n3(el.opacity)}"`)
     body.push(`  <path ${attrs.join(' ')}/>`)
   }
-  const g = n3(info.grid)
+  const g = n3(info.grid), gh = n3(info.gridH)
   const title = opts.title && slide.name ? `  <title>${escXml(slide.name)}</title>\n` : ''
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${g}" height="${g}" viewBox="0 0 ${g} ${g}" fill="none">\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${g}" height="${gh}" viewBox="0 0 ${g} ${gh}" fill="none">\n` +
     title + body.join('\n') + (body.length ? '\n' : '') + '</svg>\n'
   return { svg, skipped: [...skipped] }
 }
@@ -283,6 +410,8 @@ export interface IconManifest {
   license?: string
   author?: string
   grid: number
+  /** grid units down, when the icons are not square */
+  gridH?: number
   /** the set's extra styles, one folder each (iconstyles.ts); the plain icons stay at the top */
   styles?: Array<{ name: string; folder: string }>
   /** a style's file is `<folder>/<file>` and carries `style` */
@@ -306,6 +435,7 @@ export function styleFolderNames(names: readonly string[]): string[] {
 export function iconManifest(doc: SlidomingoDoc, files: readonly string[], styles: ReadonlyArray<{ name: string; folder: string }> = []): IconManifest {
   const info = iconsetInfo(doc)
   const out: IconManifest = { format: 'slidomingo-icons', version: 1, name: doc.title, grid: info?.grid ?? 24, icons: [] }
+  if (info && info.gridH !== info.grid) out.gridH = info.gridH
   if (info?.license) out.license = info.license
   if (info?.author) out.author = info.author
   doc.slides.forEach((s, i) => {

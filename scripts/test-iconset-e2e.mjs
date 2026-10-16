@@ -523,6 +523,55 @@ await page.locator('.ed-sorter-looks .ed-setchip:text-is("As drawn")').click()
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
 
+// --- Home ▸ Icon set: Style ▾ and Canvas ▾ beside Plan with AI ---------------------------------
+{
+  await page.locator('.ed-ribbon-tab:has-text("Home"), [data-ribbon-tab="home"]').first().click().catch(() => {})
+  const look = page.locator('[data-ui-tool="icon-look"]').first()
+  ok((await look.locator('button').first().textContent())?.includes('As drawn'), 'the ribbon shows the style the icons are shown in')
+  await look.locator('button').first().click()
+  const items = await look.locator('.ed-menu .ed-btn').allTextContents()
+  ok(items.slice(0, 5).join() === 'As drawn,Comic,Learned from “fingerprint”,Shared badge,Pastel' && /styles/.test(items.at(-1) ?? ''), `Style ▾ lists the set's styles (${items.join()})`)
+  await look.locator('.ed-menu .ed-btn:text-is("Comic")').click()
+  await page.waitForTimeout(200)
+  const shown = await page.evaluate(() => ({
+    label: document.querySelector('[data-ui-tool="icon-look"] > button')?.textContent,
+    canvas: document.querySelector('.ed-lookbar .ed-setchip.active')?.textContent,
+  }))
+  ok(/Comic/.test(shown.label ?? '') && /^Comic/.test(shown.canvas ?? ''), `picking Comic there shows the canvas in it, and the label follows (${JSON.stringify(shown)})`)
+  await look.locator('button').first().click()
+  await look.locator('.ed-menu .ed-btn:text-is("As drawn")').click()
+  await page.waitForTimeout(150)
+
+  const before = await doc()
+  const drawn = before.slides[0].elements.find((e) => e.shape === 'path' && e.pathBox)
+  const canvasDd = page.locator('[data-ui-tool="icon-canvas"]').first()
+  ok((await canvasDd.locator('button').first().textContent())?.includes('Square'), 'Canvas ▾ says Square')
+  await canvasDd.locator('button').first().click()
+  const sizes = await canvasDd.locator('.ed-menu .ed-btn').allTextContents()
+  ok(sizes.length === 6 && sizes[1] === '4:3 — 32 × 24', `Canvas ▾ offers the aspect ratios (${sizes.join(' | ')})`)
+  await canvasDd.locator('.ed-menu .ed-btn:has-text("4:3")').click()
+  await page.waitForTimeout(250)
+  d = await doc()
+  const moved = d.slides[0].elements.find((e) => e.id === drawn?.id)
+  ok(d.size.width === 512 && d.size.height === 384 && d.iconset.grid === 32 && d.iconset.gridH === 24, `4:3 makes every icon 32 × 24 units (${d.size.width} × ${d.size.height})`)
+  ok(!drawn || (moved.pathBox.join() === '0,0,32,24' && moved.w === 512), 'a drawn path stays on the whole canvas, centred')
+  const keyline = await page.evaluate(() => document.querySelector('.ed-keyline svg')?.getAttribute('viewBox'))
+  ok(keyline === '0 0 32 24', `the keyline follows the canvas (${keyline})`)
+  const ie = (await query('doc_info')).result.iconset
+  ok(ie.gridH === 24 && ie.pathElement.pathBox.join() === '0,0,32,24', 'doc_info hands Claude the 32 × 24 canvas')
+  await page.waitForTimeout(400)
+  const tiles = await page.evaluate(() => [...document.querySelectorAll('.ed-sidebar .ed-thumb .slidomingo-thumb-surface')].map((el) => {
+    const r = el.getBoundingClientRect()
+    return Math.round((r.width / r.height) * 100) / 100
+  }))
+  ok(tiles.length > 0 && tiles.every((k) => Math.abs(k - 4 / 3) < 0.05), `the icon grid's tiles are 4:3 too (${tiles.join()})`)
+  if (shots) await page.screenshot({ path: join(shots, 'iconset-canvas-4x3.png') })
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+  await page.waitForTimeout(200)
+  d = await doc()
+  ok(d.size.width === 384 && d.size.height === 384 && d.iconset.gridH === undefined, 'one undo makes it square again')
+}
+
 // --- the icon grid: drag to reorder, more columns when wider ---------------------------------
 const order = async () => page.evaluate(() => window.slidomingo.doc.slides.map((s) => s.name).join())
 const before = await order()

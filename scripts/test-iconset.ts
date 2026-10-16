@@ -9,7 +9,7 @@ import { newIconsetDoc, defaultShape, type ShapeElement, type SlidomingoDoc } fr
 import {
   addIconNames,
   iconFileNames, iconManifest, iconSlideSvg, iconStylePatch, iconsetInfo, iconsToDraw, iconSlug, isNoPaint,
-  manifestMatches, parseIconManifest,
+  manifestMatches, parseIconManifest, ICON_CANVASES, iconCanvasId, iconCanvasUnits, resizeIconCanvas, translatePathD,
 } from '../slides/src/iconset.ts'
 import { sanitizeSlide } from '../slides/src/untrusted.ts'
 
@@ -124,6 +124,45 @@ ok(JSON.stringify(pasted?.icon) === JSON.stringify({ keywords: ['x', 'y'], promp
   ok(r1.slideIds.length === 3 && r1.slideIds[2] === starter, 'every given name reports its icon, the existing one too', r1.slideIds)
   const r2 = addIconNames(d, ['lock', 'key'], 1)
   ok(d.slides.map((s) => s.name).join() === 'fingerprint,lock,key,hash' && r2.added === 2, 'new icons go in at `at`, in order', d.slides.map((s) => s.name))
+}
+
+console.log('-- the canvas aspect ratio')
+{
+  ok(translatePathD('M12 2a10 10 0 1 0 0 20', 4, 1) === 'M16 3a10 10 0 1 0 0 20', 'relative commands stay; the absolute start moves', translatePathD('M12 2a10 10 0 1 0 0 20', 4, 1))
+  ok(translatePathD('M2 2 H22 V10 L4 4 4 8 Z', 4, 0) === 'M6 2H26V10L8 4 8 8Z', 'H moves x, V keeps y, implicit L pairs move too', translatePathD('M2 2 H22 V10 L4 4 4 8 Z', 4, 0))
+  ok(translatePathD('M1 1A5 5 30 0 1 9 9', 2, 3) === 'M3 4A5 5 30 0 1 11 12', 'an arc keeps radii, rotation and flags; its end moves', translatePathD('M1 1A5 5 30 0 1 9 9', 2, 3))
+  ok(translatePathD('m2 2 l1 1 3 3', 1, 1) === 'm3 3l1 1 3 3', 'a leading m is absolute, its pairs after are not', translatePathD('m2 2 l1 1 3 3', 1, 1))
+  ok(translatePathD('M2 2 4 4', 1, 1) === 'M3 3 5 5', 'pairs after M are absolute linetos', translatePathD('M2 2 4 4', 1, 1))
+  ok(translatePathD('M0.5.5L1e1 2', 1, 0) === 'M1.5 0.5L11 2', 'packed numbers and exponents parse', translatePathD('M0.5.5L1e1 2', 1, 0))
+
+  const d = newIconsetDoc({ names: ['a'] })
+  const sq = iconsetInfo(d)!
+  ok(sq.gridH === 24 && d.iconset?.gridH === undefined && iconCanvasId(sq) === '1:1', 'a new set is square and stores no gridH')
+  const onGrid = path(d, 'M12 2a10 10 0 1 0 0 20', { id: 'g' })
+  const box = { ...(defaultShape('rect') as ShapeElement), id: 'r', x: 32, y: 48, w: 64, h: 64 }
+  d.slides[0].elements = [onGrid, box]
+  d.slides[0].comments = [{ id: 'c', author: '', text: 'x', at: '', x: 100, y: 100 } as never]
+  ok(resizeIconCanvas(d, 32, 24) && d.size.width === 512 && d.size.height === 384 && d.iconset?.grid === 32 && d.iconset?.gridH === 24,
+    '4:3 → 32 × 24 units, 512 × 384 px', { size: d.size, iconset: d.iconset })
+  const g = d.slides[0].elements[0] as ShapeElement
+  ok(g.x === 0 && g.w === 512 && g.h === 384 && g.pathBox?.join() === '0,0,32,24' && g.d === 'M16 2a10 10 0 1 0 0 20',
+    'a path on the whole canvas stays on it, its d moved 4 units (arcs kept)', g)
+  const r = d.slides[0].elements[1]
+  ok(r.x === 96 && r.y === 48 && r.w === 64, 'any other shape moves by the centre shift, same size', r)
+  ok(d.slides[0].comments![0].x === 164, 'a pinned comment moves with it')
+  const wide = iconSlideSvg(d, d.slides[0])
+  ok(wide.svg.includes('width="32" height="24" viewBox="0 0 32 24"') && wide.svg.includes('d="M16 2a10 10 0 1 0 0 20"'), 'the export is 32 × 24 and keeps the path', wide.svg)
+  const man = iconManifest(d, ['a.svg'])
+  ok(man.grid === 32 && man.gridH === 24, 'icons.json says the size', man)
+  ok(iconCanvasId(iconsetInfo(d)!) === '4:3', 'the preset is recognised')
+  ok(!resizeIconCanvas(d, 32, 24), 'the same size changes nothing')
+  ok(resizeIconCanvas(d, 24, 24) && d.iconset?.gridH === undefined && (d.slides[0].elements[0] as ShapeElement).d === 'M12 2a10 10 0 1 0 0 20' && d.slides[0].elements[1].x === 32,
+    'back to square: gridH dropped, everything back where it was', d.slides[0].elements)
+  ok(ICON_CANVASES.every((c) => { const u = iconCanvasUnits(sq, c.id); return u.w === c.w && u.h === c.h }), 'presets are for a 24-unit set')
+  const small = { ...sq, grid: 16, gridH: 16 }
+  ok(iconCanvasUnits(small, '4:3').w === 21 && iconCanvasUnits(small, '4:3').h === 16 && iconCanvasId(small) === '1:1', 'a 16-unit set scales the presets')
+  const tall = newIconsetDoc({ gridH: 32 })
+  ok(tall.size.width === 288 && tall.size.height === 384 && tall.iconset?.gridH === 32, 'a portrait set fits 384 px on its long side', tall.size)
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`)

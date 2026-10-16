@@ -3744,8 +3744,9 @@ export function newFigureDoc(width: number, height: number, unit: FigureUnit = '
 // ---- Icon sets -------------------------------------------------------------
 //
 // An icon set is a doc with `kind: 'iconset'`: one icon per slide, named by the
-// slide's `name`, drawn on a square `grid` (24 units) that is `grid * scale` px
-// on the canvas. Every icon shares `iconset.style`. Pure helpers (apply the
+// slide's `name`, drawn on a `grid` × `gridH` canvas (24 × 24 units unless
+// the set picked another aspect ratio) that is `grid * scale` px wide on the
+// canvas. Every icon shares `iconset.style`. Pure helpers (apply the
 // style, file names, the manifest) live in iconset.ts. See docs/DECISIONS.md
 // ("Icon sets").
 
@@ -3764,8 +3765,10 @@ export interface IconsetStyle {
 }
 
 export interface IconsetInfo {
-  /** grid units per side, 24 */
+  /** grid units across, 24 */
   grid: number
+  /** grid units down when the canvas is not square (absent = `grid`) */
+  gridH?: number
   /** canvas px per grid unit */
   scale: number
   /** what the whole set is for and how it should look, in words */
@@ -3865,15 +3868,17 @@ export function newIconSlide(name: string, prompt?: string): Slide {
 }
 
 /** A new icon set with one slide per name (one unnamed icon when none). */
-export function newIconsetDoc(opts: { names?: string[]; brief?: string; grid?: number } = {}): SlidomingoDoc {
+export function newIconsetDoc(opts: { names?: string[]; brief?: string; grid?: number; gridH?: number } = {}): SlidomingoDoc {
   const doc = newDoc()
   const grid = opts.grid ?? 24
-  const info: IconsetInfo = { grid, scale: Math.max(1, Math.round(384 / grid)), style: { ...ICONSET_STYLE_DEFAULTS } }
+  const gridH = opts.gridH ?? grid
+  const info: IconsetInfo = { grid, scale: Math.max(1, Math.round(384 / Math.max(grid, gridH))), style: { ...ICONSET_STYLE_DEFAULTS } }
+  if (gridH !== grid) info.gridH = gridH
   if (opts.brief) info.brief = opts.brief
   doc.title = 'Untitled icon set'
   doc.kind = 'iconset'
   doc.iconset = info
-  doc.size = { width: grid * info.scale, height: grid * info.scale }
+  doc.size = { width: grid * info.scale, height: gridH * info.scale }
   doc.theme.color = info.style.color
   doc.theme.styleDefaults = iconsetStyleDefaults(info)
   const names = (opts.names ?? []).map((n) => n.trim()).filter(Boolean)

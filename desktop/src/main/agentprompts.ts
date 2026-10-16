@@ -128,7 +128,7 @@ export function styleIconsPrompt(raw: unknown): string | null {
 export const MAX_LISTED_ICONS = 60
 
 const DRAW_ICONS_HOW =
-  'How to draw: read the set first with doc_info, whose iconset entry gives the grid, the style and pathElement, a ready path element in that style. ' +
+  'How to draw: read the set first with doc_info, whose iconset entry gives the grid (grid units wide, gridH units high: not always square, so use the whole canvas), the style and pathElement, a ready path element in that style. ' +
   'If it has examples, those are icons the user likes (SVG from other libraries): draw like them (the same line weight, corner rounding, amount of detail and proportions) but draw your own paths, never copy theirs. ' +
   'Each icon is the slide with that id. Build it ONLY from path elements like pathElement (shape path, the frame = the whole canvas, pathBox = the grid), so d is written in grid units: ' +
   'keep every point inside the padding square, use the set stroke width, caps, joins and ink, whole or half units where you can, and as few, simple shapes as say the idea. ' +

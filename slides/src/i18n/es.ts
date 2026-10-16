@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const es: Catalog = {
+  "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Muestra los iconos en uno de los estilos del conjunto: un estilo solo vuelve a pintar, no se redibuja nada",
+  "Add or edit styles…": "Añadir o editar estilos…",
+  "The icon canvas: square or another aspect ratio — every icon in the set shares it": "El lienzo de los iconos: cuadrado u otra proporción; todos los iconos del conjunto lo comparten",
+  "Square (canvas)": "Cuadrado",
+  "Portrait": "Vertical",
+  "Canvas: {w} × {h} units — the drawings stay centred": "Lienzo: {w} × {h} unidades; los dibujos quedan centrados",
   "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "Dile a Claude en el chat para qué es el conjunto, o usa Planificar con IA en Inicio: Claude planifica iconos vacíos para que los revises y luego Dibujar.",
   "Drawing": "Dibujo",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "Cómo se dibuja cada icono: Claude lo lee, junto con tus iconos de ejemplo, antes de dibujar. Los estilos de abajo solo vuelven a pintar.",
@@ -2336,7 +2342,7 @@ export const es: Catalog = {
   "Export failed: {m}": "Error al exportar: {m}",
   "Export icon set…": "Exportar conjunto de iconos…",
   "Export set": "Exportar conjunto",
-  "Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries": "Exporta los iconos como archivos SVG (24 × 24, currentColor) con un icons.json para bibliotecas de iconos",
+  "Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries": "Exporta los iconos como archivos SVG ({w} × {h}, currentColor) con un icons.json para bibliotecas de iconos",
   "Export this icon as SVG…": "Exportar este icono como SVG…",
   "Exported SVG": "SVG exportado",
   "Exported {n} icons": "Se exportaron {n} iconos",

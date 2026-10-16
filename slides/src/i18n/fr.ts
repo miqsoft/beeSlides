@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const fr: Catalog = {
+  "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Affiche les icônes dans l’un des styles du jeu — un style ne fait que repeindre, rien n’est redessiné",
+  "Add or edit styles…": "Ajouter ou modifier des styles…",
+  "The icon canvas: square or another aspect ratio — every icon in the set shares it": "Le plan de travail des icônes : carré ou autre format — toutes les icônes du jeu le partagent",
+  "Square (canvas)": "Carré",
+  "Portrait": "Portrait",
+  "Canvas: {w} × {h} units — the drawings stay centred": "Plan de travail : {w} × {h} unités — les dessins restent centrés",
   "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "Dites à Claude dans le chat à quoi sert le jeu, ou utilisez Prévoir avec l’IA dans Accueil — Claude prévoit des icônes vides à vérifier, puis Dessiner.",
   "Drawing": "Dessin",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "Comment chaque icône est dessinée — Claude lit ceci et vos icônes d’exemple avant de dessiner. Les styles ci-dessous ne font que repeindre.",
@@ -2336,7 +2342,7 @@ export const fr: Catalog = {
   "Export failed: {m}": "Échec de l’export : {m}",
   "Export icon set…": "Exporter le jeu d’icônes…",
   "Export set": "Exporter le jeu",
-  "Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries": "Exporte les icônes en fichiers SVG (24 × 24, currentColor) avec un icons.json pour les bibliothèques d’icônes",
+  "Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries": "Exporte les icônes en fichiers SVG ({w} × {h}, currentColor) avec un icons.json pour les bibliothèques d’icônes",
   "Export this icon as SVG…": "Exporter cette icône en SVG…",
   "Exported SVG": "SVG exporté",
   "Exported {n} icons": "{n} icônes exportées",

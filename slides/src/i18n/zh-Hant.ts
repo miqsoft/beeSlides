@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const zhHant: Catalog = {
+  "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "以這套圖示的某種樣式顯示圖示 — 樣式只重新上色，不會重新繪製",
+  "Add or edit styles…": "新增或編輯樣式…",
+  "The icon canvas: square or another aspect ratio — every icon in the set shares it": "圖示畫布：正方形或其他長寬比 — 整套圖示共用",
+  "Square (canvas)": "正方形",
+  "Portrait": "直向",
+  "Canvas: {w} × {h} units — the drawings stay centred": "畫布：{w} × {h} 單位 — 圖形保持置中",
   "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "在聊天中告訴 Claude 這套圖示的用途，或使用「常用」中的「用 AI 規劃」——Claude 先規劃空圖示供你檢查，然後繪製。",
   "Drawing": "繪製",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "每個圖示的繪製方式 — Claude 繪製前會讀取這些設定和你的範例圖示。下方的樣式只會重新上色。",
@@ -2336,7 +2342,7 @@ export const zhHant: Catalog = {
   "Export failed: {m}": "匯出失敗：{m}",
   "Export icon set…": "匯出圖示集…",
   "Export set": "匯出圖示集",
-  "Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries": "將圖示匯出為 SVG 檔（24 × 24，currentColor），並附上供圖示庫使用的 icons.json",
+  "Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries": "將圖示匯出為 SVG 檔（{w} × {h}，currentColor），並附上供圖示庫使用的 icons.json",
   "Export this icon as SVG…": "將此圖示匯出為 SVG…",
   "Exported SVG": "已匯出 SVG",
   "Exported {n} icons": "已匯出 {n} 個圖示",

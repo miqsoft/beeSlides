@@ -115,7 +115,7 @@ export function openGridSnapPanel(anchor: HTMLElement | DOMRect, host: GridSnapH
     }
     const hiddenWhy = t('Things snap only while they are shown')
     const gridOn = pref[onKey]
-    row(ICONS.grid, t('Grid'), !gridOn ? t('Off') : icon ? t('{n} × {m} cells', { n: icon.grid, m: icon.grid }) : formatLength(stepPx, unit),
+    row(ICONS.grid, t('Grid'), !gridOn ? t('Off') : icon ? t('{n} × {m} cells', { n: icon.grid, m: icon.gridH ?? icon.grid }) : formatLength(stepPx, unit),
       { on: gridOn, set: (v) => setPref({ [onKey]: v }) },
       { on: pref.snap.grid, set: (v) => setSnap('grid', v), disabled: !gridOn, why: !gridOn ? hiddenWhy : undefined })
     if (!iconGrid) row(ICONS.layoutColumns, t('Columns'), grid ? columnsLabel(grid) : t('None yet'),

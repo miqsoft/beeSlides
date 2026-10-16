@@ -1015,11 +1015,11 @@ export class SlideCanvas {
     }
     this.scaleHost.appendChild(this.keylineLayer)
     const { width, height } = this.store.doc.size
-    const g = info.grid, p = Math.min(Math.max(info.style.padding, 0), g / 2)
+    const g = info.grid, gh = info.gridH, p = Math.min(Math.max(info.style.padding, 0), Math.min(g, gh) / 2)
     const inv = 1 / (this.scale || 1)
     const svgNs = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(svgNs, 'svg')
-    svg.setAttribute('viewBox', `0 0 ${g} ${g}`)
+    svg.setAttribute('viewBox', `0 0 ${g} ${gh}`)
     svg.setAttribute('width', String(width))
     svg.setAttribute('height', String(height))
     const sw = String(inv / info.scale)
@@ -1030,8 +1030,8 @@ export class SlideCanvas {
       n.setAttribute('stroke-width', sw)
       svg.appendChild(n)
     }
-    add('rect', { x: p, y: p, width: g - 2 * p, height: g - 2 * p })
-    add('circle', { cx: g / 2, cy: g / 2, r: g / 2 - p })
+    add('rect', { x: p, y: p, width: g - 2 * p, height: gh - 2 * p })
+    add('circle', { cx: g / 2, cy: gh / 2, r: Math.min(g, gh) / 2 - p })
     this.keylineLayer.replaceChildren(svg)
   }
 
@@ -1866,7 +1866,7 @@ export class SlideCanvas {
     const ns = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(ns, 'svg')
     const { width, height } = this.store.doc.size
-    svg.setAttribute('viewBox', `0 0 ${info.grid} ${info.grid}`)
+    svg.setAttribute('viewBox', `0 0 ${info.grid} ${info.gridH}`)
     svg.setAttribute('width', String(width))
     svg.setAttribute('height', String(height))
     svg.setAttribute('class', 'ed-lookview-sel')

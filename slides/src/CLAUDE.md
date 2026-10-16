@@ -177,6 +177,9 @@ name entries there).
 - Pure side in `iconset.ts` (style patch, model → SVG, file names, `icons.json`); editor glue in
   `editor/iconsetactions.ts`. The export reads the MODEL, never the DOM: path strokes are
   non-scaling on the canvas, so stroke px ÷ `scale` = grid units.
+- The canvas is `grid × gridH` units (`gridH` absent = square; read both through `iconsetInfo`,
+  line limits through `iconShortSide`). Change it only via `resizeIconCanvas` (keeps drawings
+  centred; on-grid paths keep frame = canvas, `d` moved by `translatePathD`).
 - Agents draw icons only as path shapes (copies of `doc_info.iconset.pathElement`); svg stays
   refused. Rigs: `test-iconset.ts`, `test-iconset-e2e.mjs`.
 - Icon styles (`doc.iconset.variants`, DECISIONS "Icon styles") are recipes rendered by

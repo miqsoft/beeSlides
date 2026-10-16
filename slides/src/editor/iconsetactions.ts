@@ -8,7 +8,7 @@
 // in ../iconset.ts; this file is the editor glue.
 
 import { ICONSET_STYLE_DEFAULTS, iconsetStyleDefaults, newIconSlide, uid, type IconExample, type IconLook, type IconsetInfo, type IconsetStyle, type ShapeElement, type SlidomingoDoc } from '../model'
-import { ICON_MANIFEST_FILE, iconFileNames, iconManifest, iconSlideSvg, iconStylePatch, iconsetInfo, iconsToDraw, iconSlug, isNoPaint, styleFolderNames } from '../iconset'
+import { ICON_MANIFEST_FILE, iconCanvasUnits, iconFileNames, iconManifest, iconShortSide, iconSlideSvg, iconStylePatch, iconsetInfo, iconsToDraw, iconSlug, isNoPaint, resizeIconCanvas, styleFolderNames, type IconCanvasId } from '../iconset'
 import { iconLookSvg, learnLookFromIcon, safeColor } from '../iconstyles'
 import { EXAMPLE_ATTRS, MAX_EXAMPLES, MAX_EXAMPLE_SHAPES, exampleSvg, readIconExample, readIconExamples, styleFromExamples } from '../iconexamples'
 import { writeZip } from '../../../kernel/src/convert/zip.ts'
@@ -19,6 +19,8 @@ import type { Store } from '../store'
 /** The set's settings, written back whole (the theme's new-shape look follows).
  *  Call inside a commit. */
 export function writeIconsetInfo(doc: SlidomingoDoc, info: IconsetInfo): void {
+  // iconsetInfo fills gridH in; a square set does not store it
+  if (info.gridH === info.grid) { info = { ...info }; delete info.gridH }
   doc.iconset = info
   doc.theme.color = info.style.color
   doc.theme.styleDefaults = iconsetStyleDefaults(info)
@@ -27,6 +29,23 @@ export function writeIconsetInfo(doc: SlidomingoDoc, info: IconsetInfo): void {
 /** The set's info with `style` patched (ICONSET_STYLE_DEFAULTS fill the gaps). */
 export function withStyle(info: IconsetInfo, patch: Partial<IconsetStyle>): IconsetInfo {
   return { ...info, style: { ...ICONSET_STYLE_DEFAULTS, ...info.style, ...patch } }
+}
+
+/** The Export button's tooltip, with the set's real SVG size. */
+export function iconExportTip(doc: SlidomingoDoc): string {
+  const info = iconsetInfo(doc)
+  return t('Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries', { w: info?.grid ?? 24, h: info?.gridH ?? 24 })
+}
+
+/** The set's canvas on another aspect ratio (iconset.ts ICON_CANVASES), the
+ *  drawings kept centred. One undo step; false when it is already that one. */
+export function setIconCanvas(store: Store, id: IconCanvasId): boolean {
+  const info = iconsetInfo(store.doc)
+  if (!info) return false
+  const { w, h } = iconCanvasUnits(info, id)
+  if (w === info.grid && h === info.gridH) return false
+  store.commit(() => { resizeIconCanvas(store.doc, w, h) }, 'slides')
+  return true
 }
 
 function restyle(store: Store, info: IconsetInfo, slideIds: readonly string[]): number {
@@ -394,7 +413,7 @@ export function addExamples(store: Store, examples: readonly IconExample[]): Exa
   const info = iconsetInfo(store.doc)
   if (!info) return { added: 0, changed: {} }
   const all = readIconExamples([...iconExamples(store.doc), ...examples])
-  const patch = styleFromExamples(all, info.grid)
+  const patch = styleFromExamples(all, iconShortSide(info))
   const changed: Partial<IconsetStyle> = {}
   for (const [k, v] of Object.entries(patch) as Array<[keyof IconsetStyle, never]>) if (info.style[k] !== v) changed[k] = v
   store.commit(() => writeIconsetInfo(store.doc, { ...withStyle(info, patch), examples: all }))

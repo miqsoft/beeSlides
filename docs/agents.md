@@ -661,7 +661,8 @@ for the whole session. The details behind them:
 - **Icon sets** — when `doc_info` says `kind: "iconset"`, the document IS an
   icon set: one icon per slide, the slide `name` is the icon's name and
   `slide.icon.prompt` what it shows (`outline` lists both). `doc_info.iconset`
-  gives the grid (24 units), the one style every icon shares and
+  gives the grid (`grid` × `gridH` units, 24 × 24 unless the set picked
+  another aspect ratio), the one style every icon shares and
   `pathElement`, a complete path element in that style drawn on the whole
   canvas with the grid as its `pathBox` — so `d` is written in grid units.
   `doc_info.iconset.examples` (when there) are icons the user likes, as SVG

@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const de: Catalog = {
+  "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Die Icons in einem der Stile des Sets zeigen — ein Stil malt nur neu an, nichts wird neu gezeichnet",
+  "Add or edit styles…": "Stile hinzufügen oder bearbeiten…",
+  "The icon canvas: square or another aspect ratio — every icon in the set shares it": "Die Icon-Arbeitsfläche: quadratisch oder ein anderes Seitenverhältnis — alle Icons des Sets teilen sie",
+  "Square (canvas)": "Quadratisch",
+  "Portrait": "Hochformat",
+  "Canvas: {w} × {h} units — the drawings stay centred": "Arbeitsfläche: {w} × {h} Einheiten — die Zeichnungen bleiben zentriert",
   "Tell Claude in the chat what the set is for, or use Plan with AI in Home — Claude plans empty icons for you to check, then Draw.": "Sagen Sie Claude im Chat, wofür das Set ist, oder nutzen Sie „Mit KI planen“ unter Start — Claude plant leere Icons zum Prüfen, dann Zeichnen.",
   "Drawing": "Zeichnung",
   "How every icon is drawn — Claude reads this and your example icons before it draws. Styles below only repaint.": "Wie jedes Icon gezeichnet wird — Claude liest das und Ihre Beispiel-Icons vor dem Zeichnen. Die Stile darunter malen nur neu an.",
@@ -2336,7 +2342,7 @@ export const de: Catalog = {
   "Export failed: {m}": "Export fehlgeschlagen: {m}",
   "Export icon set…": "Icon-Set exportieren…",
   "Export set": "Set exportieren",
-  "Export the icons as SVG files (24 × 24, currentColor) with an icons.json for icon libraries": "Exportiert die Icons als SVG-Dateien (24 × 24, currentColor) mit einer icons.json für Icon-Bibliotheken",
+  "Export the icons as SVG files ({w} × {h}, currentColor) with an icons.json for icon libraries": "Exportiert die Icons als SVG-Dateien ({w} × {h}, currentColor) mit einer icons.json für Icon-Bibliotheken",
   "Export this icon as SVG…": "Dieses Icon als SVG exportieren…",
   "Exported SVG": "SVG exportiert",
   "Exported {n} icons": "{n} Icons exportiert",
