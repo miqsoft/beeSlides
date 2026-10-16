@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
+  "Name an icon, press Enter": "输入图标名称，按回车",
+  "Each Enter adds an icon. Paste a list to add them all.": "每按一次回车添加一个图标。粘贴列表可一次全部添加。",
+  "Added 1 icon": "已添加 1 个图标",
+  "Already in the set": "图标集中已有",
+  "or describe them, and Claude plans the list": "或描述它们，由 Claude 规划列表",
+  "Name new icons one after another — each Enter adds one": "依次为新图标命名——每按一次回车添加一个",
   "Relative to canvas": "相对于画布",
   "Comment (C) — click a shape or a spot on the icon": "评论（C）— 点击某个形状或图标上的位置",
   "Untitled icon": "未命名图标",
@@ -2289,7 +2295,6 @@ export const zhHans: Catalog = {
   "fits": "适合",
   "Actual size: 16, 24, 32 and 48 px": "实际大小：16、24、32 和 48 px",
   "Add icons": "添加图标",
-  "Add icons by name, one per line": "按名称添加图标，每行一个",
   "Add icons…": "添加图标…",
   "Added {n} icons": "已添加 {n} 个图标",
   "An icon set has nothing to present — export it as SVG": "图标集没有可放映的内容 — 请将其导出为 SVG",
@@ -2327,7 +2332,6 @@ export const zhHans: Catalog = {
   "Miter": "斜接",
   "New Icon Set…": "新建图标集…",
   "One comment on each icon selected in the icon list — sent to Claude to redraw them": "在图标列表中选中的每个图标上添加同一条评论 — 发送给 Claude 重绘",
-  "One name per line, e.g.\nfingerprint\nevidence bag\nhash": "每行一个名称，例如：\n指纹\n证物袋\n哈希",
   "Padding (units)": "内边距（单位）",
   "Restyled {n} shapes": "已重设 {n} 个形状的样式",
   "Round": "圆角",
@@ -2350,7 +2354,6 @@ export const zhHans: Catalog = {
   "AI planned {n} icons": "AI 已规划 {n} 个图标",
   "Claude is planning the icons — check the list, then press Draw with AI": "Claude 正在规划图标 — 检查列表后按“用 AI 绘制”",
   "Draw {n} empty icons": "绘制 {n} 个空图标",
-  "Plan icons with AI": "用 AI 规划图标",
   "Plan with AI": "用 AI 规划",
   "Plan with AI…": "用 AI 规划…",
   "Say which icons you need in your own words — Claude plans them as empty icons for you to check": "用自己的话说明需要哪些图标 — Claude 会把它们规划为空图标供你检查",

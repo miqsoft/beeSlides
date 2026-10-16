@@ -7,6 +7,7 @@
 //   slides/node_modules/.bin/esbuild scripts/test-iconset.ts --bundle --platform=node --format=esm --outfile=/tmp/t.mjs && node /tmp/t.mjs
 import { newIconsetDoc, defaultShape, type ShapeElement, type SlidomingoDoc } from '../slides/src/model.ts'
 import {
+  addIconNames,
   iconFileNames, iconManifest, iconSlideSvg, iconStylePatch, iconsetInfo, iconsToDraw, iconSlug, isNoPaint,
   manifestMatches, parseIconManifest,
 } from '../slides/src/iconset.ts'
@@ -112,6 +113,18 @@ ok(iconsToDraw(set, [set.slides[0].id, set.slides[1].id]).map((s) => s.name).joi
 console.log('-- paste keeps the per-icon fields')
 const pasted = sanitizeSlide({ id: 's1', elements: [], icon: { keywords: ['x', 'y'], prompt: 'a magnifier over a disk' } })
 ok(JSON.stringify(pasted?.icon) === JSON.stringify({ keywords: ['x', 'y'], prompt: 'a magnifier over a disk' }), 'icon survives untrusted.ts', pasted?.icon)
+
+// Add icons: a blank starter takes the first name, names are not added twice, the rest go in at `at`
+{
+  const d = newIconsetDoc()
+  const starter = d.slides[0].id
+  const r1 = addIconNames(d, ['fingerprint', ' hash ', '', 'Fingerprint'], 1)
+  ok(d.slides.map((s) => s.name).join() === 'fingerprint,hash' && d.slides[0].id === starter && r1.added === 2,
+    'the blank starter is named first; empty and same-name (any case) entries add nothing', d.slides.map((s) => s.name))
+  ok(r1.slideIds.length === 3 && r1.slideIds[2] === starter, 'every given name reports its icon, the existing one too', r1.slideIds)
+  const r2 = addIconNames(d, ['lock', 'key'], 1)
+  ok(d.slides.map((s) => s.name).join() === 'fingerprint,lock,key,hash' && r2.added === 2, 'new icons go in at `at`, in order', d.slides.map((s) => s.name))
+}
 
 console.log(`\n${checks - failures}/${checks} checks passed`)
 if (failures) process.exit(1)

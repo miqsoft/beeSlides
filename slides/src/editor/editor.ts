@@ -101,8 +101,9 @@ import { buildSaveIndicator, type SaveIndicator } from './saveindicator'
 import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
-import { askText, commentStats, sendCommentsToClaude } from './comments'
-import { addIcons, addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, lookPreviewUrl, planIconsWithAi } from './iconsetactions'
+import { commentStats, sendCommentsToClaude } from './comments'
+import { openAddIcons } from './iconadd'
+import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, lookPreviewUrl, planIconsWithAi } from './iconsetactions'
 import { iconsetInfo } from '../iconset'
 import {
   clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
@@ -2936,9 +2937,11 @@ export class Editor {
       this.sidebar.appendChild(item)
     })
     if (gaps) this.sidebar.appendChild(this.insertGap(slides.length))
-    const add = btn(ICONS.plus, this.isIconset ? t('Add icons') : t('New slide'), () => this.openLayoutPicker(add))
+    // an icon set's + is the grid's last tile: its icons go at the end
+    const add = btn(ICONS.plus, this.isIconset ? t('Add icons') : t('New slide'),
+      () => (this.isIconset ? this.addIcons(add, this.store.doc.slides.length) : this.openLayoutPicker(add)))
     add.classList.add('ed-add-slide')
-    add.title = this.isIconset ? t('Add icons by name, one per line') : t('New slide from a slide type')
+    add.title = this.isIconset ? t('Name new icons one after another — each Enter adds one') : t('New slide from a slide type')
     this.sidebar.appendChild(add)
     this.sidebar.scrollTop = scroll
     this.highlightSidebar()
@@ -2958,7 +2961,7 @@ export class Editor {
     document.querySelector('.ed-layoutpick')?.remove()
     // an icon set has no slide types: "New slide" (+, the ribbon) adds icons by name
     if (this.isIconset) {
-      if (action.kind !== 'change') void addIcons(this.store, action.at)
+      if (action.kind !== 'change') this.addIcons(anchor, action.at)
       return
     }
     const doc = this.store.doc
@@ -3704,26 +3707,34 @@ export class Editor {
     return sel.length > 1 ? sel : this.store.doc.slides.map((s) => s.id)
   }
 
-  addIcons() {
-    void addIcons(this.store, this.afterSlideBlock(this.store.currentIndex)).then((n) => {
-      if (n) this.toast(t('Added {n} icons', { n }))
+  /** Add icons (iconadd.ts): a popover by `anchor` — each Enter adds one,
+   *  shown and selected in the grid at once; with Claude, a description plans them. */
+  addIcons(anchor: HTMLElement | DOMRect = this.menuAnchor(), at = this.afterSlideBlock(this.store.currentIndex), focus: 'name' | 'plan' = 'name') {
+    this.canvas.commitTextEdit()
+    openAddIcons(this.store, anchor, {
+      at,
+      focus,
+      plan: window.slidomingoDesktop?.sendAgentPrompt ? (request) => void this.planIconsWithAi(request) : undefined,
+      reanchor: () => this.sidebar.querySelector('.ed-add-slide'),
+      onAdded: (ids) => {
+        const last = ids[ids.length - 1]
+        const i = this.store.doc.slides.findIndex((s) => s.id === last)
+        if (i >= 0) this.setSlideSel([last], i, last)
+        this.revealSlides([last])
+      },
     })
   }
 
-  /** "Plan with AI": a free-text request (asked for when not given) → Claude plans the icons. */
-  async planIconsWithAi(request?: string) {
+  /** "Plan with AI": a free-text request → Claude plans the icons. Without
+   *  one, the Add icons popover opens on its describe box. */
+  async planIconsWithAi(request?: string, anchor?: HTMLElement) {
     if (!window.slidomingoDesktop?.sendAgentPrompt) {
       this.toast(t('Drawing with AI needs the BeeSlides desktop app with Claude set up'))
       return
     }
-    const ask = request ?? await askText({
-      title: t('Plan icons with AI'),
-      placeholder: t('e.g. think about 12 icons for a digital forensics course: evidence handling, analysis tools, reporting'),
-      okLabel: t('Plan with AI'),
-    })
-    if (!ask?.trim()) return
+    if (!request?.trim()) { this.addIcons(anchor, undefined, 'plan'); return }
     this.canvas.commitTextEdit()
-    if (planIconsWithAi(this.store, ask)) this.toast(t('Claude is planning the icons — check the list, then press Draw with AI'))
+    if (planIconsWithAi(this.store, request)) this.toast(t('Claude is planning the icons — check the list, then press Draw with AI'))
   }
 
   drawIconsWithAi() {
@@ -3764,9 +3775,9 @@ export class Editor {
   private iconsetRibbonGroup(): HTMLElement {
     const ai = !!window.slidomingoDesktop?.sendAgentPrompt
     const items = [
-      ...(ai ? [tagTool(btn(ICONS.sparkle, t('Plan with AI'), () => void this.planIconsWithAi(),
+      ...(ai ? [tagTool(btn(ICONS.sparkle, t('Plan with AI'), (ev) => void this.planIconsWithAi(undefined, ev.currentTarget as HTMLElement),
         t('Say which icons you need in your own words — Claude plans them as empty icons for you to check')), 'icon-plan')] : []),
-      tagTool(btn(ICONS.plus, t('Add icons'), () => this.addIcons(), t('Add icons by name, one per line')), 'icon-add'),
+      tagTool(btn(ICONS.plus, t('Add icons'), (ev) => this.addIcons(ev.currentTarget as HTMLElement), t('Name new icons one after another — each Enter adds one')), 'icon-add'),
       ...(ai
         ? [tagTool(btn(ICONS.paintbrush, t('Draw with AI'), () => this.drawIconsWithAi(),
           t('Claude drafts every empty icon (or the icons selected in the icon list) from native shapes, in the set style')), 'icon-draw')]

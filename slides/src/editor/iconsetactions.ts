@@ -49,22 +49,7 @@ export function applyIconsetStyle(store: Store, slideIds: readonly string[]): nu
   return n
 }
 
-/** Ask for icon names (one per line) and add an empty icon for each after `at`. */
-export async function addIcons(store: Store, at: number): Promise<number> {
-  const raw = await askText({
-    title: t('Add icons'),
-    placeholder: t('One name per line, e.g.\nfingerprint\nevidence bag\nhash'),
-    okLabel: t('Add'),
-  })
-  const names = (raw ?? '').split(/\n|,/).map((s) => s.trim()).filter(Boolean).slice(0, 200)
-  if (!names.length) return 0
-  const slides = names.map((n) => newIconSlide(n))
-  store.commit(() => { store.doc.slides.splice(at, 0, ...slides) })
-  store.goTo(at)
-  return slides.length
-}
-
-/** One empty icon after `at` (Enter in the slide list, the + button). */
+/** One empty icon after `at` (Enter in the icon list). */
 export function addOneIcon(store: Store, at: number): void {
   const slide = newIconSlide(t('icon'))
   store.commit(() => { store.doc.slides.splice(at, 0, slide) })

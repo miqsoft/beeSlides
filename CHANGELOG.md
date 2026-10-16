@@ -57,6 +57,12 @@ preserved.
   set's own look is called "Plain", and slide wording ("To slide", "Slide
   Sorter", "slide list", "Check slides") is gone from icon sets, the menu bar
   included (its Slide menu is Icons there).
+- **Add icons the quick way:** the + tile at the end of the icon grid opens a
+  small box beside the list — type a name and press Enter, and the icon is
+  there; type the next one. Paste a list to add them all at once. With Claude
+  set up, describe what you need in the same box and Claude plans the list.
+  Text prompts (comments, names, Paste style) now look like the rest of the
+  app instead of a plain browser box.
 
 ## [1.1.0] — 2026-10-14
 

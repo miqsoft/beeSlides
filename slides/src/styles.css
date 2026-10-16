@@ -4118,7 +4118,6 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
   align-content: start;
   gap: 10px 8px;
 }
-.ed-iconset .ed-sidebar > .ed-add-slide,
 .ed-iconset .ed-sidebar > .ed-section-head { grid-column: 1 / -1; }
 .ed-iconset .ed-thumb { width: calc(var(--icon-tile, 64px) + 4px); border-radius: 10px; }
 .ed-iconset .ed-thumb-num {
@@ -4129,6 +4128,38 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 .ed-iconset .ed-thumb.active .ed-thumb-num { color: var(--ink); font-weight: 600; }
 /* the badges keep to the picture, clear of the name row */
 .ed-iconset .ed-thumb-cmt { bottom: auto; top: 5px; }
+/* "+ Add icons" is the grid's last tile, the size of an icon (opens iconadd.ts) */
+.ed-iconset .ed-sidebar > .ed-add-slide {
+  grid-column: auto; box-sizing: border-box;
+  width: calc(var(--icon-tile, 64px) + 4px); height: calc(var(--icon-tile, 64px) + 26px);
+  flex-direction: column; justify-content: center; gap: 4px; padding: 0;
+  border-radius: 10px; font-size: 11px; text-align: center;
+}
+.ed-iconset .ed-sidebar > .ed-add-slide svg { width: 20px; height: 20px; }
+.ed-iconset .ed-sidebar > .ed-add-slide:hover { color: var(--ink); border-color: var(--accent); background: var(--chrome); }
+/* Add icons (editor/iconadd.ts): a name per Enter, or a description for Claude */
+.ed-iconadd {
+  position: fixed; z-index: 200; width: 320px; max-width: calc(100vw - 16px);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: 0 12px 32px rgb(23 18 10 / 0.18);
+  padding: 12px 14px 14px; font-size: 13px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ed-iconadd-title { font-weight: 700; font-size: 13.5px; }
+.ed-iconadd input, .ed-iconadd textarea {
+  box-sizing: border-box; width: 100%; font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px;
+}
+.ed-iconadd input:focus, .ed-iconadd textarea:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 0; border-color: var(--accent); }
+.ed-iconadd textarea { resize: vertical; min-height: 64px; line-height: 1.4; }
+.ed-iconadd-status { font-size: 11.5px; color: var(--muted); min-height: 1.3em; }
+.ed-iconadd-status.is-done { color: var(--accent-text); font-weight: 600; }
+.ed-iconadd-or {
+  display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  font-size: 11.5px; color: var(--muted);
+}
+.ed-iconadd-or::before, .ed-iconadd-or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+.ed-iconadd-go { align-self: flex-end; }
 .ed-iconset .ed-thumb-lock { bottom: auto; top: 5px; }
 /* an icon not drawn yet: what it is meant to show, on a dashed tile */
 .ed-icon-empty {
@@ -5681,6 +5712,31 @@ dialog.ed-pwdialog input {
   font-size: 14px;
 }
 dialog.ed-pwdialog .ed-pwerr { color: #C33; }
+/* the shared text dialog (comments.ts askText: comments, names, Paste style…) */
+dialog.ed-dialog {
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgb(23 18 10 / 0.3);
+  padding: 20px 22px;
+  width: min(440px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+dialog.ed-dialog::backdrop { background: rgb(23 18 10 / 0.38); }
+dialog.ed-dialog h2 { font-size: 15px; font-weight: 700; margin: 0 0 12px; line-height: 1.35; }
+dialog.ed-dialog textarea,
+dialog.ed-dialog input {
+  display: block; box-sizing: border-box; width: 100%;
+  font: inherit; font-size: 13.5px; line-height: 1.45; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px;
+}
+dialog.ed-dialog textarea { min-height: 84px; resize: vertical; }
+dialog.ed-dialog textarea:focus,
+dialog.ed-dialog input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 0; border-color: var(--accent); }
+dialog.ed-dialog .ed-dialog-actions button:not(.ed-primary) { color: var(--ink); border-color: var(--line); }
 .ed-dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -6595,3 +6651,4 @@ dialog.ed-cz-picker:not([open]) { display: none; }
 
 /* "Use a different layout" (editor.ts pickImportLayout): one button per layout */
 .ed-import-layouts { flex-wrap: wrap; max-height: 50vh; overflow-y: auto; }
+.ed-iconadd .ed-btn.ed-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; border-radius: 999px; padding: 6px 14px; font-weight: 600; }

@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Name an icon, press Enter": "アイコン名を入力して Enter",
+  "Each Enter adds an icon. Paste a list to add them all.": "Enter ごとにアイコンが 1 つ追加されます。リストを貼り付けるとまとめて追加できます。",
+  "Added 1 icon": "アイコンを 1 個追加しました",
+  "Already in the set": "すでにセットにあります",
+  "or describe them, and Claude plans the list": "または説明すると Claude が一覧を考えます",
+  "Name new icons one after another — each Enter adds one": "新しいアイコンを順に名付けます — Enter ごとに 1 つ追加",
   "Relative to canvas": "キャンバスに合わせる",
   "Comment (C) — click a shape or a spot on the icon": "コメント (C) — 図形またはアイコン上の位置をクリック",
   "Untitled icon": "無題のアイコン",
@@ -2289,7 +2295,6 @@ export const ja: Catalog = {
   "fits": "収まる",
   "Actual size: 16, 24, 32 and 48 px": "実寸: 16・24・32・48 px",
   "Add icons": "アイコンを追加",
-  "Add icons by name, one per line": "アイコンを名前で追加 (1 行に 1 つ)",
   "Add icons…": "アイコンを追加…",
   "Added {n} icons": "{n} 個のアイコンを追加しました",
   "An icon set has nothing to present — export it as SVG": "アイコンセットには発表するものがありません — SVG として書き出してください",
@@ -2327,7 +2332,6 @@ export const ja: Catalog = {
   "Miter": "マイター",
   "New Icon Set…": "新規アイコンセット…",
   "One comment on each icon selected in the icon list — sent to Claude to redraw them": "アイコン一覧で選択した各アイコンに同じコメントを付け、Claude に描き直しを依頼します",
-  "One name per line, e.g.\nfingerprint\nevidence bag\nhash": "1 行に 1 つの名前。例:\n指紋\n証拠袋\nハッシュ",
   "Padding (units)": "余白 (単位)",
   "Restyled {n} shapes": "{n} 個の図形のスタイルを揃えました",
   "Round": "丸",
@@ -2350,7 +2354,6 @@ export const ja: Catalog = {
   "AI planned {n} icons": "AI が {n} 個のアイコンを計画しました",
   "Claude is planning the icons — check the list, then press Draw with AI": "Claude がアイコンを計画中です — 一覧を確認してから「AI で描く」を押してください",
   "Draw {n} empty icons": "空のアイコン {n} 個を描く",
-  "Plan icons with AI": "AI でアイコンを計画",
   "Plan with AI": "AI で計画",
   "Plan with AI…": "AI で計画…",
   "Say which icons you need in your own words — Claude plans them as empty icons for you to check": "必要なアイコンを自由に書くと、Claude が確認用の空のアイコンとして計画します",

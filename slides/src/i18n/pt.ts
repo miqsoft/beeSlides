@@ -7,6 +7,12 @@
 import type { Catalog } from '../i18n'
 
 export const pt: Catalog = {
+  "Name an icon, press Enter": "Dê um nome ao ícone e pressione Enter",
+  "Each Enter adds an icon. Paste a list to add them all.": "Cada Enter adiciona um ícone. Cole uma lista para adicionar todos.",
+  "Added 1 icon": "1 ícone adicionado",
+  "Already in the set": "Já está no conjunto",
+  "or describe them, and Claude plans the list": "ou descreva-os, e o Claude planeia a lista",
+  "Name new icons one after another — each Enter adds one": "Dê nome aos novos ícones um após o outro — cada Enter adiciona um",
   "Relative to canvas": "Relativo à tela",
   "Comment (C) — click a shape or a spot on the icon": "Comentário (C) — clique numa forma ou num ponto do ícone",
   "Untitled icon": "Ícone sem nome",
@@ -2287,7 +2293,6 @@ export const pt: Catalog = {
   "fits": "encaixa",
   "Actual size: 16, 24, 32 and 48 px": "Tamanho real: 16, 24, 32 e 48 px",
   "Add icons": "Adicionar ícones",
-  "Add icons by name, one per line": "Adicione ícones pelo nome, um por linha",
   "Add icons…": "Adicionar ícones…",
   "Added {n} icons": "{n} ícones adicionados",
   "An icon set has nothing to present — export it as SVG": "Um conjunto de ícones não tem nada para apresentar — exporte-o como SVG",
@@ -2325,7 +2330,6 @@ export const pt: Catalog = {
   "Miter": "Esquadria",
   "New Icon Set…": "Novo conjunto de ícones…",
   "One comment on each icon selected in the icon list — sent to Claude to redraw them": "Um comentário em cada ícone selecionado na lista de ícones — enviado ao Claude para redesenhá-los",
-  "One name per line, e.g.\nfingerprint\nevidence bag\nhash": "Um nome por linha, ex.:\nimpressão digital\nsaco de provas\nhash",
   "Padding (units)": "Margem interna (unidades)",
   "Restyled {n} shapes": "Estilo reaplicado em {n} formas",
   "Round": "Arredondado",
@@ -2348,7 +2352,6 @@ export const pt: Catalog = {
   "AI planned {n} icons": "A IA planejou {n} ícones",
   "Claude is planning the icons — check the list, then press Draw with AI": "O Claude está planejando os ícones — confira a lista e clique em Desenhar com IA",
   "Draw {n} empty icons": "Desenhar {n} ícones vazios",
-  "Plan icons with AI": "Planejar ícones com IA",
   "Plan with AI": "Planejar com IA",
   "Plan with AI…": "Planejar com IA…",
   "Say which icons you need in your own words — Claude plans them as empty icons for you to check": "Diga quais ícones precisa com suas palavras — o Claude os planeja como ícones vazios para você conferir",

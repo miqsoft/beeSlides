@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const de: Catalog = {
+  "Name an icon, press Enter": "Icon benennen, Enter drücken",
+  "Each Enter adds an icon. Paste a list to add them all.": "Jedes Enter fügt ein Icon hinzu. Fügen Sie eine Liste ein, um alle hinzuzufügen.",
+  "Added 1 icon": "1 Icon hinzugefügt",
+  "Already in the set": "Schon im Set",
+  "or describe them, and Claude plans the list": "oder beschreiben Sie sie, und Claude plant die Liste",
+  "Name new icons one after another — each Enter adds one": "Neue Icons nacheinander benennen — jedes Enter fügt eines hinzu",
   "Relative to canvas": "Relativ zur Arbeitsfläche",
   "Comment (C) — click a shape or a spot on the icon": "Kommentar (C) — klicken Sie auf eine Form oder eine Stelle im Icon",
   "Untitled icon": "Unbenanntes Icon",
@@ -2289,7 +2295,6 @@ export const de: Catalog = {
   "fits": "passt",
   "Actual size: 16, 24, 32 and 48 px": "Echte Größe: 16, 24, 32 und 48 px",
   "Add icons": "Icons hinzufügen",
-  "Add icons by name, one per line": "Icons nach Namen hinzufügen, einer pro Zeile",
   "Add icons…": "Icons hinzufügen…",
   "Added {n} icons": "{n} Icons hinzugefügt",
   "An icon set has nothing to present — export it as SVG": "Ein Icon-Set hat nichts zu präsentieren — exportieren Sie es als SVG",
@@ -2327,7 +2332,6 @@ export const de: Catalog = {
   "Miter": "Spitz",
   "New Icon Set…": "Neues Icon-Set…",
   "One comment on each icon selected in the icon list — sent to Claude to redraw them": "Ein Kommentar an jedem in der Icon-Liste ausgewählten Icon — an Claude gesendet, um sie neu zu zeichnen",
-  "One name per line, e.g.\nfingerprint\nevidence bag\nhash": "Ein Name pro Zeile, z. B.:\nFingerabdruck\nBeweismittelbeutel\nHash",
   "Padding (units)": "Innenabstand (Einheiten)",
   "Restyled {n} shapes": "{n} Formen neu gestaltet",
   "Round": "Rund",
@@ -2350,7 +2354,6 @@ export const de: Catalog = {
   "AI planned {n} icons": "KI hat {n} Icons geplant",
   "Claude is planning the icons — check the list, then press Draw with AI": "Claude plant die Icons — prüfen Sie die Liste und klicken Sie dann auf Mit KI zeichnen",
   "Draw {n} empty icons": "{n} leere Icons zeichnen",
-  "Plan icons with AI": "Icons mit KI planen",
   "Plan with AI": "Mit KI planen",
   "Plan with AI…": "Mit KI planen…",
   "Say which icons you need in your own words — Claude plans them as empty icons for you to check": "Sagen Sie in eigenen Worten, welche Icons Sie brauchen — Claude plant sie als leere Icons zum Prüfen",

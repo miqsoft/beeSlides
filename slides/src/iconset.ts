@@ -407,6 +407,35 @@ export function readIconPlan(raw: unknown): PlannedIcon[] | string {
 const isBlankIcon = (s: Slide): boolean => !s.elements.length && !s.comments?.length && (!s.name || s.name === 'icon') && !s.icon?.prompt
 
 /**
+ * Add icons by name (the Add icons popover): a blank starter icon takes the
+ * first new name, a name already in the set (any case) is not added twice,
+ * the rest are inserted at `at` in order. Returns the slide ids of every
+ * name, in order (existing ones too), and how many were new. Mutates `doc`;
+ * call inside a commit.
+ */
+export function addIconNames(doc: SlidomingoDoc, names: readonly string[], at: number): { slideIds: string[]; added: number } {
+  const byName = new Map(doc.slides.filter((s) => s.name).map((s) => [s.name!.toLowerCase(), s]))
+  const blanks = doc.slides.filter(isBlankIcon)
+  let pos = Math.max(0, Math.min(at, doc.slides.length))
+  let added = 0
+  const ids: string[] = []
+  for (const raw of names) {
+    const name = raw.trim().slice(0, 120)
+    if (!name) continue
+    let slide = byName.get(name.toLowerCase())
+    if (!slide) {
+      slide = blanks.shift()
+      if (slide) slide.name = name
+      else { slide = newIconSlide(name); doc.slides.splice(pos++, 0, slide) }
+      byName.set(name.toLowerCase(), slide)
+      added++
+    }
+    ids.push(slide.id)
+  }
+  return { slideIds: ids, added }
+}
+
+/**
  * Write a plan into the set: an icon already there BY NAME gets the new
  * prompt/keywords (its drawing stays), blank starter icons are filled first,
  * the rest are added at the end. With `replace`, still-empty icons the plan

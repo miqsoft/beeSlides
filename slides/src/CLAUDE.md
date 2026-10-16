@@ -190,6 +190,8 @@ name entries there).
 - The icon list is the slide list laid out as a grid (`.ed-iconset .ed-sidebar`,
   `Editor.iconTiles`, `thumbSurface` placeholder for empty icons) — never a second sidebar.
   `ed-not-iconset` hides a control in icon sets; the grid switch is `GridPref.iconOn`, not `on`.
+- Adding icons is `editor/iconadd.ts` (popover, one commit per name) over `iconset.addIconNames`
+  (blank starter first, no duplicate names); Plan with AI without a request opens it too.
 
 ## Rigs worth knowing (all in `scripts/`)
 

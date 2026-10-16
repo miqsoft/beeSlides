@@ -531,6 +531,44 @@ const wide = await page.evaluate(() => {
 })
 ok(Number(wide.cols) >= 3 && wide.oneRow, `a wider list holds more tiles in a row (${JSON.stringify(wide)})`)
 
+// --- Add icons: + tile → a name per Enter, live in the grid; Claude plans from a description ---
+await page.locator('.ed-sidebar .ed-add-slide').click()
+await page.waitForTimeout(200)
+const popAt = await page.evaluate(() => ({
+  open: !!document.querySelector('.ed-iconadd'),
+  beside: document.querySelector('.ed-iconadd')?.getBoundingClientRect().left >= document.querySelector('.ed-sidebar').getBoundingClientRect().right,
+  focus: document.activeElement?.className,
+}))
+ok(popAt.open && popAt.beside && popAt.focus === 'ed-iconadd-name', `the + tile opens Add icons beside the list, ready to type (${JSON.stringify(popAt)})`)
+for (const name of ['lock', 'hash', 'key']) { await page.locator('.ed-iconadd-name').fill(name); await page.locator('.ed-iconadd-name').press('Enter'); await page.waitForTimeout(150) }
+const added = await page.evaluate(() => ({
+  names: window.slidomingo.doc.slides.map((s) => s.name).join(),
+  status: document.querySelector('.ed-iconadd-status')?.textContent,
+  tiles: document.querySelectorAll('.ed-sidebar .ed-thumb').length,
+  active: document.querySelector('.ed-sidebar .ed-thumb.active .ed-thumb-num')?.textContent,
+}))
+ok(added.names === 'fingerprint,evidence bag,hash,lock,key' && added.tiles === 5, `each Enter adds an icon at the end of the set, a name already there is not added twice (${added.names})`)
+ok(added.active === 'key' && added.status === 'Added 2 icons', `the newest icon is selected; the popover counts what it added (${added.active}, ${added.status})`)
+await page.locator('.ed-iconadd-name').press('Enter')
+await page.waitForTimeout(150)
+ok(!(await page.locator('.ed-iconadd').count()), 'an empty Enter closes it')
+await page.locator('.ed-ribbon-tab:has-text("Home"), [role="tab"]:has-text("Home")').first().click()
+await page.locator('[data-ui-tool="icon-plan"]').first().click()
+await page.waitForTimeout(200)
+ok(await page.evaluate(() => document.activeElement?.className) === 'ed-iconadd-plan', 'Plan with AI opens the same popover on its describe box')
+await page.locator('.ed-iconadd-plan').fill('six icons for network forensics')
+await page.locator('.ed-iconadd-go').click()
+await page.waitForTimeout(200)
+const planned2 = await page.evaluate(() => window.__prompts.filter((p) => p.kind === 'plan-icons').at(-1)?.payload?.request)
+ok(planned2 === 'six icons for network forensics' && !(await page.locator('.ed-iconadd').count()), `a description goes to Claude as a plan request (${planned2})`)
+// the shared text dialog has a real card look (it had no styles of its own)
+await page.locator('[data-ui-tool="icon-comment"]').first().click()
+await page.waitForTimeout(200)
+const dlg = await page.evaluate(() => { const d = document.querySelector('dialog.ed-dialog'); const cs = d && getComputedStyle(d); const ta = d?.querySelector('textarea'); return d && { radius: cs.borderTopLeftRadius, border: cs.borderTopWidth, font: getComputedStyle(ta).fontFamily === getComputedStyle(document.body).fontFamily } })
+ok(dlg?.radius === '14px' && dlg.border === '0px' && dlg.font, `the text dialog is a styled card, its field in the UI font (${JSON.stringify(dlg)})`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(150)
+
 // --- no presenting --------------------------------------------------------------------------
 const hidden = await page.evaluate(() => [...document.querySelectorAll('[data-ui-tool="present"], [data-ui-tool="notes"]')].every((b) => getComputedStyle(b).display === 'none'))
 ok(hidden, 'present and notes buttons are hidden')

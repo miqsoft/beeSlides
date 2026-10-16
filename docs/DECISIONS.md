@@ -12860,3 +12860,36 @@ No new UI strings (every label already existed for desktop). Verified by
 the ad-hoc Playwright run in the PR, plus the e2e rigs updated for the
 ribbon (icons/math reach Insert via the ribbon tab; zoom/math present via
 Play ▸ Present in tab).
+
+## 2026-10-16 — Add icons: a name per Enter, in the grid at once
+
+"+ Add icons" opened the shared text dialog — which had no styles of its own
+(a browser-default box with a black frame and a monospace field) — and asked
+for "one name per line", added on OK. Neither looked nor worked like adding
+items to a grid.
+
+- **A popover, not a dialog** (`editor/iconadd.ts openAddIcons`). Type a
+  name, Enter: the icon is in the grid at once and selected; type the next.
+  A pasted list (lines or commas) adds every name. An empty Enter, Esc or a
+  click outside closes it. Each Enter is one commit (one undo step).
+- **Names, pure** (`iconset.ts addIconNames`): a blank starter icon takes the
+  first name (a new set starts with one), a name already in the set (any
+  case) is not added twice ("Already in the set", and that icon is selected),
+  the rest are inserted in order at `at`.
+- **Where.** The + is now the grid's last tile, the size of an icon; its
+  icons go at the END of the set, and the popover sits beside the list,
+  level with the tile (re-found after each rebuild, `reanchor`), never over
+  the icons being added. Home ▸ Add icons and the Icons menu add after the
+  current icon. Enter in the icon list still adds one unnamed icon.
+- **AI in the same place.** With Claude set up, the popover's lower half takes
+  a description ("or describe them, and Claude plans the list") — the same
+  `plan-icons` prompt. Plan with AI (ribbon, menu) opens this popover on that
+  box instead of its own dialog.
+- **The shared dialog gets a look** (`dialog.ed-dialog`: card, backdrop, UI
+  font, token colours for dark mode). It serves comments on icons, the
+  comment author name, Paste style, slide type and Customize names.
+
+Rigs: `scripts/test-iconset.ts` (addIconNames), `scripts/test-iconset-e2e.mjs`
+(+ tile → popover beside the list, Enter adds and selects, duplicate refused,
+empty Enter closes, Plan opens the describe box and sends `plan-icons`, the
+dialog's computed style).
