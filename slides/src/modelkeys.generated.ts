@@ -11,7 +11,7 @@
 
 export const MODEL_KEYS = {
     "doc": ["assets", "basedOn", "defaultLayoutId", "docId", "figure", "fonts", "format", "guides", "headerFooter", "iconset", "kind", "layoutGrid", "layouts", "meta", "modified", "present", "readonly", "requires", "reusableObjects", "rootFontLayoutId", "sections", "size", "slides", "template", "templateId", "templateSamples", "terms", "theme", "title", "version"],
-    "slide": ["advanceAfter", "autoBuild", "background", "comments", "elements", "excludeFromNumbering", "fontFamily", "footer", "headingFamily", "hidden", "hover", "icon", "id", "layoutId", "name", "notes", "parentId", "parentOnly", "stateOf", "styleDefaults", "themeRefs", "transition", "transitionDir"],
+    "slide": ["advanceAfter", "autoBuild", "background", "comments", "elements", "excludeFromNumbering", "fontFamily", "footer", "headingFamily", "hidden", "hover", "htmlSource", "icon", "id", "layoutId", "name", "notes", "parentId", "parentOnly", "stateOf", "styleDefaults", "themeRefs", "transition", "transitionDir"],
     "comment": ["agentDone", "at", "author", "elementId", "forAgent", "h", "id", "look", "replies", "resolved", "text", "w", "x", "y"],
     "element": {
       "text": ["align", "backdropFilter", "blend", "blur", "color", "colorGradient", "fontFamily", "fontSize", "fontWeight", "footerRole", "fx", "group", "groupId", "h", "hidden", "html", "id", "letterSpacing", "lineHeight", "link", "locked", "morphId", "opacity", "parentId", "parentOffset", "placeholder", "reflection", "role", "rotation", "shadow", "showOnHover", "textStroke", "themeRefs", "type", "valign", "w", "x", "y"],

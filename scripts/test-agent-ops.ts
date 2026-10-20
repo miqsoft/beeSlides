@@ -26,8 +26,9 @@ import { mkdtempSync, readFileSync, watch, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AGENT_AREAS, DECK_AREA, areaHelp, areaToolDef, checkArgs, type AreaSpec } from '../slides/src/agentops/spec.ts'
-import { runAreaOp, type AgentIcon, type IconLibraryAccess, type OpContext } from '../slides/src/editor/agentops.ts'
-import { defaultShape, defaultText, deriveChartPalette, emptySlide, newDoc, newIconsetDoc, sectionsInOrder, type SlidomingoDoc } from '../slides/src/model.ts'
+import { runAreaOp, type AgentIcon, type HtmlLayout, type IconLibraryAccess, type OpContext } from '../slides/src/editor/agentops.ts'
+import { htmlSignature, mergeCompiled } from '../slides/src/htmlslide.ts'
+import { defaultShape, defaultText, deriveChartPalette, emptySlide, newDoc, newIconsetDoc, sectionsInOrder, type SlideElement, type SlidomingoDoc } from '../slides/src/model.ts'
 import { Store } from '../slides/src/store.ts'
 import { agentSvgPatchViolation, agentSvgViolation } from '../slides/src/editor/agentsvg.ts'
 import { agentAreaTools, serverWithAgentAreas } from '../desktop/src/main/agenttools.ts'
@@ -502,6 +503,45 @@ console.log('-- no agent svg --')
   ok(v('not an array' as unknown) === null && v([null, 3, 'x']) === null, 'garbage specs are not this guard’s business (the sanitizer drops them)')
   ok(agentSvgPatchViolation(doc, own, { markup: MARK }) !== null && agentSvgPatchViolation(doc, own, { asset: 'new' }) !== null, 'update_element cannot swap an svg’s markup or asset')
   ok(agentSvgPatchViolation(doc, own, { asset: 'known' }) === null && agentSvgPatchViolation(doc, own, { alt: 'x', opacity: 0.5, css: 'a{}' }) === null, 'but everything else on it still works')
+}
+
+console.log('-- slide_html (merge, keep, fingerprint; layout faked — the browser rig is test-slide-html-e2e.mjs) --')
+{
+  const doc = newDoc()
+  const s = emptySlide({ id: 's1' })
+  s.elements.push(defaultText({ id: 't1', x: 10, y: 10, w: 100, h: 40, html: 'Old', fx: { enter: 'fade-up' }, link: 's2' }))
+  s.elements.push(defaultShape('rect', { id: 'gone', x: 0, y: 0, w: 10, h: 10 }))
+  doc.slides = [s, emptySlide({ id: 's2' })]
+  const store = new Store(doc)
+  const noLayout = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: '<p>x</p>' }, { store, created: new Set() })
+  ok(!noLayout.ok && /needs the app/.test((noLayout as { error: string }).error), 'without a browser layout: refused with a reason, nothing changed')
+  const compiled = [
+    defaultText({ id: 't1', x: 96, y: 72, w: 600, h: 60, html: 'New', fontSize: 48 }),
+    defaultShape('rect', { id: 'box', x: 96, y: 200, w: 300, h: 100, fill: '#123456' }),
+  ]
+  const html: HtmlLayout = {
+    compile: async () => ({ elements: compiled.map((e) => ({ ...e })), background: '#FBF7EF', notes: ['A note.'], remember: { html: '<h1 id="t1">New</h1>' } }),
+    read: async () => ({ html: '<h1 id="t1">New</h1>', source: 'remembered', flowGroups: 0, notes: [] }),
+  }
+  const ctx: OpContext = { store, created: new Set(), html }
+  const before = store.doc.slides[0].elements.length
+  const r = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: '<h1 id="t1">New</h1>' }, ctx) as { ok: boolean; summary: string }
+  const sl = store.doc.slides[0]
+  const t1 = sl.elements.find((e) => e.id === 't1') as SlideElement & { html: string }
+  ok(r.ok && /1 updated in place, 1 new, 1 removed \(gone\)/.test(r.summary) && /Note: A note\./.test(r.summary) && /review_slide/.test(r.summary), 'write reports updated / new / removed, the notes, and points at review_slide')
+  ok(t1.html === 'New' && t1.x === 96 && t1.fx?.enter === 'fade-up' && t1.link === 's2', 'same id: HTML-owned props replaced, fx and link kept')
+  ok(!sl.elements.some((e) => e.id === 'gone') && sl.background === '#FBF7EF', 'an id the HTML dropped is removed; the background is set')
+  ok(sl.htmlSource?.html === '<h1 id="t1">New</h1>' && sl.htmlSource.sig === htmlSignature(sl.elements, sl.background), 'the source is remembered with the slide\'s fingerprint')
+  store.undo()
+  ok(store.doc.slides[0].elements.length === before && !store.doc.slides[0].htmlSource, 'one undo step takes the whole write back')
+  const m = mergeCompiled([defaultText({ id: 'chrome', html: 'Logo' }), defaultText({ id: 'x', html: 'a' })], [defaultText({ id: 'x', html: 'b' })], new Set(['chrome']))
+  ok(m.elements.map((e) => e.id).join() === 'chrome,x' && m.removed.length === 0, 'inherited slide-type chrome survives a write that does not mention it, in its paint position')
+  const svg = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: '<p>x</p>' }, { ...ctx, html: { ...html, compile: async () => ({ elements: [{ id: 'v', type: 'svg', x: 0, y: 0, w: 10, h: 10, rotation: 0, opacity: 1, markup: '<svg/>' } as unknown as SlideElement], notes: [], remember: null }) } })
+  ok(!svg.ok, 'a compiled element that is new svg artwork is refused (agentsvg.ts)')
+  const read = await runAreaOp('slide_html', { op: 'read', slideId: 's1' }, ctx) as { ok: boolean; summary: string }
+  ok(read.ok && /the source it was written from/.test(read.summary) && read.summary.endsWith('<h1 id="t1">New</h1>'), 'read hands back the HTML')
+  const big = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: 'x'.repeat(4_000_001) }, ctx)
+  ok(!big.ok, 'an over-long source is refused before any layout')
 }
 
 // ---- 4. end to end through the filled-in MCP server ----------------------------

@@ -85,6 +85,8 @@ export const LIMITS = {
   provUrl: 2_000,
   /** rich text of one text element or table cell */
   html: 64 * 1024,
+  /** a slide's remembered slide_html source (htmlslide.ts MAX_REMEMBERED_HTML) */
+  htmlSource: 200_000,
   /** LaTeX source of one equation element — a page of aligned derivation
    *  is ~2KB; Temml's own macro-expansion cap bounds the work past that */
   tex: 16 * 1024,
@@ -678,6 +680,8 @@ const SLIDE_CHECKS: Record<string, Check> = {
   background: color(LIMITS.scalar), notes: str(LIMITS.html),
   hidden: bool,
   excludeFromNumbering: bool,
+  // the slide_html source: data only (never parsed into the page), bounded
+  htmlSource: shape(['html', 'css', 'sig'], { html: str(LIMITS.htmlSource), css: str(LIMITS.htmlSource), sig: cssValue() }, ['html', 'sig']),
   autoBuild: shape(['every', 'hold', 'loop'], { every: num(0.1, 3600), hold: num(0, 3600), loop: bool }, ['every']),
   advanceAfter: num(0.1, 86400),
   // an icon set's per-icon search words and drawing brief

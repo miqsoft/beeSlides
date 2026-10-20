@@ -7,6 +7,13 @@ carry features beyond this guide; unknown keys are ignored, never fatal.
 
 ## Quick reference (desktop terminal sessions: read only this section first)
 
+**Create or restructure a slide by writing HTML**: `slide_html({op:"write",
+slideId, html, css})`. The slide is the page body (1280×720): lay it out with
+ordinary CSS — flexbox, grid, padding, gap — and the app lays it out in the
+browser and turns every box into a slide element, so no frame is computed by
+hand. `slide_html({op:"read", slideId})` gives a slide back as HTML to edit and
+write again. See "Slides as HTML" below.
+
 Edit through the `beeslides` MCP tools. The smallest verb wins:
 `update_element({slideId, elementId, props})` for any property change,
 `set_frame` to move/resize one element, `insert_elements`/`delete_element` for
@@ -130,6 +137,64 @@ Two ways to work with it:
    pictures back.
    In the browser console: `window.beeslides.doc` (read) /
    `window.beeslides.loadDoc(json)` (write, undoable).
+
+---
+
+## Slides as HTML (`slide_html`)
+
+The fastest way to a well-laid-out slide is the one you already know: HTML and
+CSS. `slide_html` `write` lays your HTML out in the browser, at the slide's
+size, with the deck's theme, and turns what the browser drew into ordinary
+elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
+
+```json
+{ "op": "write", "slideId": "s3",
+  "css": ".slide{width:100%;height:100%;padding:72px var(--bs-margin);display:flex;flex-direction:column;gap:20px} .cards{display:flex;gap:28px;margin-top:32px} .card{flex:1;background:#fff;border-radius:18px;padding:28px;box-shadow:0 8px 24px rgba(0,0,0,.12)} h3{margin:0 0 12px;font-size:30px} p{margin:0;font-size:22px;line-height:1.4}",
+  "html": "<main class=\"slide\"><h1 id=\"title\">Three reasons</h1><div class=\"cards\"><div class=\"card\" id=\"c1\"><h3 id=\"c1h\">Flow</h3><p id=\"c1p\">…</p></div><div class=\"card\" id=\"c2\">…</div><div class=\"card\" id=\"c3\">…</div></div></main>" }
+```
+
+- **The page is the slide.** `body` is `doc.size` (usually 1280×720). Theme
+  variables: `--bs-bg`, `--bs-text`, `--bs-accent` … `--bs-accent6`,
+  `--bs-font`, `--bs-heading-font`, `--bs-margin` (96px). Defaults:
+  `box-sizing: border-box`, body text `var(--bs-font)` 24px/1.2.
+- **What becomes what.** A box with a background, border or shadow → a rect
+  (`border-radius: 50%` → ellipse; a one-sided border → its own bar, curved
+  under rounded corners). A block holding only text (inline `b i u s code a
+  span br`, or a `ul`/`ol`) → one text element on its content box; bold,
+  italics, colour and size of inline runs — even from CSS classes — are kept.
+  `<img>` → picture (`src`: a `data:` URI, `asset:<key>` or `element:<id>` of a
+  picture already in the deck; nothing is downloaded). `<table>` → table
+  (`thead`/`th` header, padding, borders, colours, zebra, `colspan`/`rowspan`
+  read from the CSS; its rows share the height evenly). `<pre>` → code. `<hr>`
+  → line. `<div data-chart='{"preset":"bar","option":{…}}'>` → chart. A root
+  box covering the slide (or `body`'s background) → the slide background.
+  `transform: rotate()` → rotation.
+- **Left out** (the result says so): `<svg>` (insert icons with `icons`
+  afterwards), scripts, iframes, video, forms, and every `url()` that is not a
+  `data:` URI. Nothing in the HTML runs or loads.
+- **Ids are identity.** Give every element an `id`: it becomes the element id.
+  Writing the slide again with the same ids updates those elements in place —
+  animations (`fx`), links, locks and comments stay — and removes the ones
+  whose id is gone. The same id on the next slide + `transition:"morph"`
+  morphs. A box with text in it becomes two elements, `<id>` (the box) and
+  `<id>-text`. `data-role="title|subtitle|body"` sets a role (the first `<h1>`
+  is the title); `data-valign="middle"` centres text vertically.
+- **`<div id="x" data-keep>`** keeps the existing element `x` (an icon, a
+  line, a video …) at the place this box takes in the new layout.
+- **Each write is one undo step**, followed by the layout guard like every
+  agent write. Then look at it: `review_slide`.
+
+**Reading a slide back.** `read` returns the HTML the slide was last written
+from, as long as the slide has not changed since. Otherwise it generates HTML
+from the slide: boxes that hold other elements become nested `<div>`s, items
+side by side become flex rows, stacks flex columns, rows of rows a grid; the
+rest keeps its exact position. Generated HTML is verified before you get it —
+laid out again it gives every element its current frame (within 1px) — so
+"read, change one thing, write" changes only that thing. Elements HTML cannot
+show appear as `data-keep` placeholders; pictures as `src="element:<id>"`.
+
+Use `slide_html` to create and restructure; use `update_element` /
+`elements` for small changes (a colour, one nudge, an animation).
 
 ---
 

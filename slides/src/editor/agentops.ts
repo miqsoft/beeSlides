@@ -9,7 +9,7 @@
 //
 // AREA_HANDLERS is typed from the spec: an op declared there without a
 // handler here, or an area without a handler map, does not compile.
-import { AGENT_AREAS, BUILTIN_SLIDE_TYPES, MAX_ELEMENT_CHANGES, MAX_ICON_RESULTS, MAX_SLIDES_PER_CALL, PAGE_SIZE_PRESETS, checkArgs, normalizeArgs } from '../agentops/spec'
+import { AGENT_AREAS, BUILTIN_SLIDE_TYPES, MAX_ELEMENT_CHANGES, MAX_ICON_RESULTS, MAX_SLIDE_HTML, MAX_SLIDES_PER_CALL, PAGE_SIZE_PRESETS, checkArgs, normalizeArgs } from '../agentops/spec'
 import { t } from '../i18n'
 import {
   builtinLayouts, deriveChartPalette, inLinearFlow, layoutElementIds, resolveAgentSlide, resyncLinkedSlides, sectionsInOrder, setSlideTransition, TRANSITION_DIRS,
@@ -21,13 +21,16 @@ import {
 } from '../arrange'
 import { checkLayout, guardLayout, snapshotSlide, type GuardResult, type LayoutFinding } from '../layoutguard'
 import { checkElementProp, isWholePictureCrop, REQUIRED_KEYS } from '../untrusted'
-import { agentSvgPatchViolation } from './agentsvg'
+import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
 import { applyIconPlan, readIconPlan } from '../iconset'
 import { iconTweaks, readLook, readTweak, setTweak } from '../iconstyles'
 import type { IconShapeTweak } from '../model'
 import { defaultLayoutGrid, layoutTracks, normalizeLayoutGrid, parseSpan, spanRect } from '../layoutgrid'
 import { paletteOf, resolveThemeRefs } from '../palette'
+import { ancestorElementIds } from '../model'
 import { cssColor, sanitizeHtml } from '../render'
+import { htmlSignature, mergeCompiled, type CompileResult, type HtmlSlideSource } from '../htmlslide'
+import type { SlideAsHtml } from '../htmlemit'
 import type { Store } from '../store'
 import { afterSlideBlock, deleteSection, deleteSlidesByIds, duplicateSlidesInStore, insertSectionBefore, insertSlidesFromLayout, renameSection, slidesDeleteImpact, survivesDeletion } from './slideops'
 import { applyTokens, moveSlidesTo, stepSlides, tokensOf } from './slideorder'
@@ -44,6 +47,18 @@ export interface OpContext {
    *  its agent-write path (text measured by the real renderer, linked slides
    *  resynced); without one, a plain store commit + layout guard. */
   writes?: SlideWrites
+  /** The browser layout behind the `slide_html` tool (htmlslide.ts,
+   *  htmlemit.ts); absent where there is no page to lay HTML out in. */
+  html?: HtmlLayout
+}
+
+/** HTML ⇄ slide, as the `slide_html` handlers need it. Both lay HTML out in
+ *  a script-less iframe, so they only exist in a browser. */
+export interface HtmlLayout {
+  compile(slide: Slide, src: HtmlSlideSource): Promise<CompileResult>
+  read(slide: Slide): Promise<SlideAsHtml>
+  /** Bring the written slide on screen, so a person watching sees it land. */
+  show?(slideId: string): void
 }
 
 /** One agent write on one slide, as the `elements` handlers need it. */
@@ -1030,7 +1045,69 @@ const ELEMENTS: AreaHandlers['elements'] = {
   },
 }
 
-const AREA_HANDLERS: AreaHandlers = { deck: DECK, deck_settings: SETTINGS, icons: ICONS, elements: ELEMENTS }
+/** Element ids a slide inherits from its slide type's ancestors: chrome a
+ *  slide_html write keeps even when the HTML does not mention it. */
+function inheritedIds(doc: SlidomingoDoc, slide: Slide): Set<string> {
+  const layout = slide.layoutId ? doc.layouts?.find((l) => l.id === slide.layoutId) : doc.layouts?.includes(slide) ? slide : undefined
+  return layout ? ancestorElementIds(doc, layout) : new Set()
+}
+
+const SLIDE_HTML: AreaHandlers['slide_html'] = {
+  async write(ctx, a) {
+    if (!ctx.html) return fail('slide_html needs the app: HTML is laid out by the browser the deck is open in.')
+    const first = targetSlide(ctx, a.slideId as string)
+    if (typeof first === 'string') return fail(first)
+    const src: HtmlSlideSource = { html: a.html as string, ...(typeof a.css === 'string' && a.css ? { css: a.css } : {}) }
+    if (src.html.length + (src.css?.length ?? 0) > MAX_SLIDE_HTML) return fail(`The HTML is too long (at most ${MAX_SLIDE_HTML} characters, pictures included).`)
+    if (!src.html.trim()) return fail('html is empty. To clear a slide, delete its elements with elements delete.')
+    const compiled = await ctx.html.compile(first, src)
+    // the slide may have changed (or gone) while the HTML was laid out
+    const slide = targetSlide(ctx, first.id)
+    if (typeof slide === 'string') return fail(slide)
+    const keep = inheritedIds(ctx.store.doc, slide)
+    const plan = mergeCompiled(slide.elements, compiled.elements, keep)
+    const svg = agentSvgViolation(ctx.store.doc, plan.elements, { existing: slide.elements })
+    if (svg) return fail(svg)
+    const guard = writes(ctx).commit(slide.id, (s) => {
+      const merged = mergeCompiled(s.elements, compiled.elements, keep).elements
+      s.elements = merged
+      if (compiled.background) s.background = compiled.background
+      // fingerprinted BEFORE the layout guard: if it has to move anything,
+      // the source no longer describes the slide and read regenerates
+      if (compiled.remember) s.htmlSource = { ...compiled.remember, sig: htmlSignature(merged, s.background) }
+      else delete s.htmlSource
+    }, { reflow: a.reflow !== false, placed: true })
+    ctx.html.show?.(slide.id)
+    const count = (k: string) => compiled.elements.filter((e) => e.type === k).length
+    const kinds = ['text', 'shape', 'image', 'table', 'chart', 'code'].map((k) => [k, count(k)] as const).filter(([, n]) => n).map(([k, n]) => plural(n, k)).join(', ')
+    const did = [
+      `Wrote ${slide.id} from HTML as one undo step: ${compiled.elements.length} elements (${kinds || 'none'}) — ${plan.updated.length} updated in place, ${plan.added.length} new, ${plan.removed.length} removed${plan.removed.length ? ` (${plan.removed.slice(0, 12).join(', ')}${plan.removed.length > 12 ? ', …' : ''})` : ''}.`,
+      ...(compiled.background ? [`Slide background: ${compiled.background}.`] : []),
+      ...(plan.added.length ? [`New ids: ${plan.added.slice(0, 40).join(', ')}${plan.added.length > 40 ? ', …' : ''}.`] : []),
+      ...compiled.notes.map((n) => `Note: ${n}`),
+    ]
+    const summary = writeReport(ctx, slide.id, did, guard, compiled.elements.map((e) => e.id))
+    return {
+      ok: true,
+      summary: `${summary}\nLook at it: review_slide {slideId:"${slide.id}"} shows the slide as drawn.`,
+      toast: t('AI wrote a slide from HTML ({n} elements)', { n: String(compiled.elements.length) }),
+    }
+  },
+
+  async read(ctx, a) {
+    if (!ctx.html) return fail('slide_html needs the app: HTML is laid out by the browser the deck is open in.')
+    const slide = targetSlide(ctx, a.slideId as string)
+    if (typeof slide === 'string') return fail(slide)
+    const r = await ctx.html.read(slide)
+    const head = r.source === 'remembered'
+      ? `Slide ${slide.id} as HTML — the source it was written from (the slide has not changed since).`
+      : `Slide ${slide.id} as HTML — generated from the slide (${r.flowGroups} flex row/column group${r.flowGroups === 1 ? '' : 's'}, the rest absolutely positioned); laid out again it gives the slide's exact frames.`
+    const parts = [head, ...r.notes.map((n) => `Note: ${n}`), '', '<style>', r.css ?? '', '</style>', r.html]
+    return { ok: true, summary: parts.join('\n'), toast: '' }
+  },
+}
+
+const AREA_HANDLERS: AreaHandlers = { deck: DECK, deck_settings: SETTINGS, icons: ICONS, elements: ELEMENTS, slide_html: SLIDE_HTML }
 
 /** Whether `verb` names an op area (a grouped tool such as `deck`). */
 export const isAreaTool = (verb: string | undefined): boolean => AGENT_AREAS.some((a) => a.tool === verb)

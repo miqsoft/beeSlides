@@ -13130,3 +13130,40 @@ media attribute, preview and static markers through every reader). Checked
 by hand in Chromium: three old example decks and two real user decks with
 store refs open in the new shell, save under the new names only, and reopen
 with every picture.
+
+## 2026-10-20 — Slides from HTML: the `slide_html` agent tool (HTML in, scene graph out)
+
+**Decision.** Agents may write a slide as ordinary HTML/CSS. The app lays it
+out in the browser (an offscreen iframe sandboxed WITHOUT `allow-scripts`,
+CSP `default-src 'none'`, `data:` pictures and fonts only) at the slide's
+size with the theme as CSS variables, reads `getBoundingClientRect` +
+`getComputedStyle`, and turns the boxes into ORDINARY elements
+(`slides/src/htmlslide.ts`). The JSON scene graph stays the only truth; HTML
+is a way of writing into it, never a second document kind, and the format
+gains no element type. `read` goes back (`slides/src/htmlemit.ts`):
+the remembered source while the slide's fingerprint still matches
+(`Slide.htmlSource`, the one format addition — optional, data only, bounded,
+ignorable), else HTML generated from the slide — nested boxes, flex
+rows/columns/grids where they reproduce the frames exactly, absolute
+positions elsewhere — and VERIFIED by compiling it again (every frame within
+1px, overlapping paint order kept) before it is handed out.
+
+**Why.** Models write CSS layout well and coordinate arithmetic badly; the
+layout guard, `measure`, `check_layout` and `arrange` all exist to make up
+for hand-computed frames. Here the browser computes them, with the same text
+engine the slide is drawn with, so text measured at compile time wraps the
+same way on the slide.
+
+**Rules.** Ids in the HTML are element ids; a rewrite merges by id
+(`mergeCompiled`: what HTML says is replaced, fx/links/locks/comments kept,
+inherited slide-type chrome never removed). Everything compiled goes through
+`untrusted.ts sanitizeElement` and `sanitizeHtml`, as a paste does; no svg is
+ever created (`agentSvgViolation` runs). Pictures are `data:`, `asset:` or
+`element:<id>` — never downloaded. Elements HTML cannot express come back as
+`<div data-keep>` placeholders that keep the element and take a new frame.
+Known model limits, reported in the result rather than hidden: table rows
+share the table height evenly; table borders are one style for every cell;
+a one-sided CSS border is a bar of its own (a curved path under rounded
+corners). Rig: `scripts/test-slide-html-e2e.mjs` (screenshots HTML vs slide,
+round-trips every slide of the example decks and the starter library).
+

@@ -33,6 +33,9 @@ process.stderr.on('error', () => {})
 const TIMEOUT_MS = 5000
 // The icons tool waits on the user's icon server (or a first folder walk).
 const NETWORK_TIMEOUT_MS = 20000
+// area tools that may take longer than a round trip: icons wait on the
+// network, slide_html lays HTML out (fonts, pictures) and checks it
+const SLOW_AREAS = new Set(['icons', 'slide_html'])
 
 function send(message) {
   process.stdout.write(JSON.stringify(message) + '\n')
@@ -664,7 +667,7 @@ async function callTool(name, args) {
       const about = typeof args.about === 'string' ? args.about : ''
       return { content: [{ type: 'text', text: area.help[about] ?? `${about ? `No op "${about}".\n\n` : ''}${area.help['*']}` }] }
     }
-    const result = await roundTrip('agent-action', 'agent-action-result', { verb: name, args: args ?? {} }, name === 'icons' ? NETWORK_TIMEOUT_MS : TIMEOUT_MS)
+    const result = await roundTrip('agent-action', 'agent-action-result', { verb: name, args: args ?? {} }, SLOW_AREAS.has(name) ? NETWORK_TIMEOUT_MS : TIMEOUT_MS)
     if (!result.ok) return { content: [{ type: 'text', text: `Error: ${result.error ?? 'unknown error'}` }], isError: true }
     return { content: [{ type: 'text', text: result.summary ?? 'Done.' }] }
   }
