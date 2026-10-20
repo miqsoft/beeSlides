@@ -896,7 +896,25 @@ function openInNewWindow(r: Resolved): BrowserWindow {
 
   // Registered ONCE per window: each looks up the window's CURRENT deck, which
   // replaceDocument may have swapped since.
-  win.on('resize', () => layoutWindow(win))
+  // Linux (GTK, X11 and Wayland): maximize, restore and full screen often fire
+  // 'resize' before getContentBounds has the new size, or not at all — the doc
+  // view stayed at its old width with the rest of the window white. Lay out
+  // on those events too, and again once the window manager has settled.
+  let relayoutTimer: ReturnType<typeof setTimeout> | null = null
+  const relayout = () => {
+    layoutWindow(win)
+    if (process.platform === 'darwin') return
+    if (relayoutTimer) clearTimeout(relayoutTimer)
+    relayoutTimer = setTimeout(() => { relayoutTimer = null; if (!win.isDestroyed()) layoutWindow(win) }, 120)
+  }
+  win.on('resize', relayout)
+  win.on('maximize', relayout)
+  win.on('unmaximize', relayout)
+  win.on('restore', relayout)
+  win.on('enter-full-screen', relayout)
+  win.on('leave-full-screen', relayout)
+  win.on('show', relayout)
+  win.on('closed', () => { if (relayoutTimer) clearTimeout(relayoutTimer) })
   let stateTimer: ReturnType<typeof setTimeout> | null = null
   const rememberState = () => {
     if (stateTimer) clearTimeout(stateTimer)
