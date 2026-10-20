@@ -77,6 +77,7 @@ const base = `http://127.0.0.1:${server.address().port}/lib`
 const tokens = new Map() // id → { root, token }
 const calls = { set: [], adopt: [], prefs: [] }
 let unreachable = false
+let refusal = ''
 const rootOf = (u) => { try { const x = new URL(u); return x.origin + x.pathname.replace(/\/+$/, '') } catch { return null } }
 
 let checks = 0, failures = 0
@@ -88,6 +89,7 @@ const pageErrors = []
 page.on('pageerror', (e) => { pageErrors.push(e.message); console.error('pageerror', e.message) })
 await page.exposeFunction('__mainIconFetch', async (id, u) => {
   if (unreachable) return { ok: false, error: 'unreachable' }
+  if (refusal) return { ok: false, error: refusal }
   const t = tokens.get(id)
   const authed = !!t && t.root === rootOf(base) && u.startsWith(base)
   const res = await fetch(u, { headers: authed ? { Authorization: `Bearer ${t.token}` } : {} })
@@ -210,6 +212,13 @@ try {
   const v5 = await runTest()
   ok(/is the server running/.test(v5) && !/CORS/.test(v5), `"unreachable" from main reads as such, not as CORS (${v5})`)
   unreachable = false
+
+  // ---- main refused the answer (a library sending 51 MB for an empty query)
+  refusal = 'the response is too large'
+  await openSettings()
+  const v6 = await runTest()
+  ok(/the response is too large/.test(v6) && !/is the server running/.test(v6), `a refusal from main says what it was (${v6})`)
+  refusal = ''
 
   ok(!(await pageHas('t-good')) && !(await pageHas('t-typed')), 'at the end, no token anywhere in the page')
   ok(pageErrors.length === 0, `no page errors${pageErrors.length ? `: ${pageErrors.join(' | ')}` : ''}`)

@@ -11,9 +11,12 @@
 //   (a) a remote icon SERVER — any server implementing this generic contract
 //       (a small Flask icon server is one such server, not a dependency; we
 //       do not ship a reference implementation — see docs/DECISIONS.md 2026-09-02):
-//         GET {base}/api/search?q=...
+//         GET {base}/api/search?q=...&limit=60
 //           -> { results: [{ relative_path, display_name, description?,
 //                             category?, score?, ... }] }
+//           (`limit` may be ignored — only the first 60 are used — but a
+//           large library answering an empty query in full can pass the
+//           desktop app's 25 MB response cap)
 //         GET {base}/files/{relative_path}
 //           -> raw bytes (svg or a raster image)
 //       Unknown/extra fields in a result are ignored, so any compatible
@@ -363,6 +366,14 @@ const objectUrls: string[] = []
 /** Thrown when the desktop app's request (made by main) never got an answer. */
 class UnreachableError extends Error {}
 
+/** What to show for main's refusal: "can't reach" only when the network
+ *  failed — a refusal (too large, too many redirects, …) says what it was. */
+function unreachableMessage(err: UnreachableError, root: string): string {
+  return err.message === 'unreachable' || err.message === 'timed out'
+    ? t("can't reach {base} — is the server running and the URL right?", { base: root })
+    : `${root}: ${err.message}`
+}
+
 /** One GET to a server source. In a browser: `netFetch` with the token in
  *  the header. In the desktop app: main makes the request and adds the
  *  token it keeps (the page never holds it); `authed` says whether it did. */
@@ -391,11 +402,11 @@ async function searchServer(src: Extract<IconSource, { kind: 'server' }>, source
   let res: Response
   let authed: boolean
   try {
-    ({ res, authed } = await serverFetch(src, `${root}/api/search?q=${encodeURIComponent(q)}`))
+    ({ res, authed } = await serverFetch(src, `${root}/api/search?q=${encodeURIComponent(q)}&limit=60`))
   } catch (err) {
     if (err instanceof OfflineError) throw new Error(t('Offline mode is on — nothing leaves this computer.'))
     // desktop: main made the request, so CORS is not the reason
-    if (err instanceof UnreachableError) throw new Error(t("can't reach {base} — is the server running and the URL right?", { base: root }))
+    if (err instanceof UnreachableError) throw new Error(unreachableMessage(err, root))
     // A browser `fetch` failure here is indistinguishable between "server is
     // down" and "server is up but sends no Access-Control-Allow-Origin
     // header" (CORS) — both throw the same generic TypeError. The latter is
@@ -456,7 +467,7 @@ async function searchServer(src: Extract<IconSource, { kind: 'server' }>, source
           ;({ res: bytes } = await serverFetch(src, fileUrl))
         } catch (err) {
           if (err instanceof OfflineError) throw new Error(t('Offline mode is on — nothing leaves this computer.'))
-          if (err instanceof UnreachableError) throw new Error(t("can't reach {base} — is the server running and the URL right?", { base: root }))
+          if (err instanceof UnreachableError) throw new Error(unreachableMessage(err, root))
           throw new Error(t("can't fetch that icon's bytes — likely the same cross-origin/CORS issue as search (see the server's Access-Control-Allow-Origin header)"))
         }
         if (!bytes.ok) throw new Error(`fetch failed: HTTP ${bytes.status}`)
