@@ -25,7 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const readDoc = (p) => JSON.parse(readFileSync(p, 'utf8').match(BLOCK_RE)[2].trim())
 const items = (p) => readDoc(p).slides.filter((s) => s.elements.length).map((s) => s.name)
@@ -87,7 +87,7 @@ async function driver() {
       return null
     }, ms)
   }
-  const EDITOR = 'window.slidomingo && window.slidomingo.doc && document.querySelector("button[title^=\\"Your library\\"]")'
+  const EDITOR = 'window.beeslides && window.beeslides.doc && document.querySelector("button[title^=\\"Your library\\"]")'
   function report() { try { console.log(`E2E_RESULT ${checks} ${failures}`) } catch { /* */ } }
   const quit = () => { report(); clearTimeout(hardStop); app.quit() }
   const panelNames = (wc) => js(wc, () => [...document.querySelectorAll('.ed-library-panel .ed-library-item-name')].map((e) => e.textContent))

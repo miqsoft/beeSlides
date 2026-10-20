@@ -20,7 +20,7 @@ const ACCENT = '#1F6FB2'
 
 function doc(title, slides) {
   return {
-    format: 'slidomingo/slides',
+    format: 'beeslides/slides',
     version: 1,
     // a fixed uuid per title: parseDoc wants a uuid-shaped docId
     docId: `be0c0000-0000-4000-8000-${createHash('sha1').update(title).digest('hex').slice(0, 12)}`,

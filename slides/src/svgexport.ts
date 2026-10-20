@@ -263,7 +263,7 @@ export async function exportFigureSvg(doc: SlidomingoDoc, slide: Slide, opts: Fi
     if (bg) body.push(`<rect width="${num(W)}" height="${num(H)}"${fillAttr(getComputedStyle(surface).backgroundColor)}/>`)
     if (getComputedStyle(surface).backgroundImage !== 'none') warnings.add(t('A background image/gradient is not exported — only its colour'))
     for (const node of Array.from(surface.children) as HTMLElement[]) {
-      if (!node.classList.contains('slidomingo-el') || node.style.display === 'none') continue
+      if (!node.classList.contains('beeslides-el') || node.style.display === 'none') continue
       const g = await elementToSvg(node, slide, ctx, defs)
       if (g) body.push(g)
     }
@@ -298,7 +298,7 @@ async function elementToSvg(node: HTMLElement, slide: Slide, ctx: Ctx, defs: str
   if (model && canFlip(model)) for (const c of Array.from(node.children)) (c as HTMLElement).style.transform = ''
   const origin = node.getBoundingClientRect()
 
-  const type = Array.from(node.classList).find((c) => c.startsWith('slidomingo-el-'))?.slice('slidomingo-el-'.length) ?? ''
+  const type = Array.from(node.classList).find((c) => c.startsWith('beeslides-el-'))?.slice('beeslides-el-'.length) ?? ''
   let inner = ''
   switch (type) {
     case 'shape':
@@ -366,7 +366,7 @@ async function zoomToSvg(node: HTMLElement, model: ZoomElement | undefined, w: n
       const body: string[] = [`<rect width="${num(W)}" height="${num(H)}"${fillAttr(getComputedStyle(surface).backgroundColor)}/>`]
       ctx.inZoom = true
       for (const child of Array.from(surface.children) as HTMLElement[]) {
-        if (!child.classList.contains('slidomingo-el') || child.style.display === 'none') continue
+        if (!child.classList.contains('beeslides-el') || child.style.display === 'none') continue
         const g = await elementToSvg(child, cover, ctx, defs)
         if (g) body.push(g)
       }
@@ -376,7 +376,7 @@ async function zoomToSvg(node: HTMLElement, model: ZoomElement | undefined, w: n
       host.remove()
     }
   }
-  const frame = node.querySelector<HTMLElement>(':scope > .slidomingo-zoom-frame')
+  const frame = node.querySelector<HTMLElement>(':scope > .beeslides-zoom-frame')
   if (frame) {
     const cs = getComputedStyle(frame)
     const sw = parseFloat(cs.borderTopWidth) || 0
@@ -486,7 +486,7 @@ function imageToSvg(node: HTMLElement, w: number, h: number, ctx: Ctx): string {
   const fit = img.style.objectFit
   const par = fit === 'cover' ? 'xMidYMid slice' : fit === 'fill' ? 'none' : 'xMidYMid meet'
   // cropped (render.ts): the whole picture placed by % inside a clipping box
-  const cropBox = img.parentElement?.classList.contains('slidomingo-crop') ? img.parentElement : null
+  const cropBox = img.parentElement?.classList.contains('beeslides-crop') ? img.parentElement : null
   const radius = parseFloat((cropBox ?? img).style.borderRadius) || 0
   let clip = ''
   let open = ''
@@ -570,7 +570,7 @@ async function textToSvg(node: HTMLElement, origin: DOMRect, ctx: Ctx): Promise<
     if (tn.parentElement?.closest('math,style,script')) continue
     texts.push(tn)
   }
-  const gradient = node.querySelector<HTMLElement>('.slidomingo-text-inner')?.style.backgroundImage
+  const gradient = node.querySelector<HTMLElement>('.beeslides-text-inner')?.style.backgroundImage
   if (gradient) ctx.warnings.add(t('Gradient text is exported with a solid colour'))
 
   for (const tn of texts) {
@@ -633,7 +633,7 @@ async function textToSvg(node: HTMLElement, origin: DOMRect, ctx: Ctx): Promise<
   }
   out += await listMarkers(node, origin, ctx)
 
-  for (const img of Array.from(node.querySelectorAll('img')).filter((i) => i.closest('.slidomingo-text-inner,.slidomingo-cell-inner'))) {
+  for (const img of Array.from(node.querySelectorAll('img')).filter((i) => i.closest('.beeslides-text-inner,.beeslides-cell-inner'))) {
     const r = img.getBoundingClientRect()
     out += `<image href="${esc(img.src)}" xlink:href="${esc(img.src)}" x="${num(r.left - origin.left)}" y="${num(r.top - origin.top)}" width="${num(r.width)}" height="${num(r.height)}"/>`
   }
@@ -698,7 +698,7 @@ const SYMBOL_MARKERS: Record<string, 'disc' | 'circle' | 'square'> = { disc: 'di
 async function listMarkers(node: HTMLElement, origin: DOMRect, ctx: Ctx): Promise<string> {
   let out = ''
   for (const li of Array.from(node.querySelectorAll('li'))) {
-    if (!li.closest('.slidomingo-text-inner,.slidomingo-cell-inner')) continue
+    if (!li.closest('.beeslides-text-inner,.beeslides-cell-inner')) continue
     const cs = getComputedStyle(li)
     // (not visibility: the whole export host is visibility:hidden)
     if (cs.display !== 'list-item') continue

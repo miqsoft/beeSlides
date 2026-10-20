@@ -53,8 +53,8 @@ export function startPresentation(
   MORPH_DURATION = Math.min(6, Math.max(0.1, doc.present?.morphSeconds ?? MORPH_DURATION_DEFAULT))
 
   const overlay = document.createElement('div')
-  overlay.className = 'slidomingo-present-overlay'
-  overlay.style.setProperty('--slidomingo-accent', doc.theme.accent)
+  overlay.className = 'beeslides-present-overlay'
+  overlay.style.setProperty('--beeslides-accent', doc.theme.accent)
   // Reveal ignores key events originating from form fields. If focus is still
   // on an editor input (title, notes…) when the show starts, arrows go dead.
   ;(document.activeElement as HTMLElement | null)?.blur?.()
@@ -101,7 +101,7 @@ export function startPresentation(
     // well as out. That is the deliberate trade: an instant cut into the
     // "before" frame costs less than a dissolve painted over the morph itself.
     section.dataset.transition = staticTransition(i)
-    if (!inLinearFlow(slide)) section.dataset.slidomingoState = '1' // dimmed in overview
+    if (!inLinearFlow(slide)) section.dataset.beeslidesState = '1' // dimmed in overview
     const surface = renderSlide(slide, doc, { hidePlaceholders: true, liveMedia: true })
     markZoomTiles(doc, slide, surface)
     // click builds: the slide opens at click 0, so what only arrives later stays hidden
@@ -186,7 +186,7 @@ export function startPresentation(
     const slide = doc.slides[i]
     if (!section || !slide) return
     clearMorphGhosts(section)
-    anim.killTweensOf(section.querySelectorAll('.slidomingo-el'))
+    anim.killTweensOf(section.querySelectorAll('.beeslides-el'))
     for (const el of slide.elements) {
       const node = section.querySelector<HTMLElement>(`[data-el-id="${CSS.escape(el.id)}"]`)
       if (node) { stopLoops(node); applyElementFrame(node, el); resetXform(node) }
@@ -445,7 +445,7 @@ export function startPresentation(
   // ——— black-screen (audience blackout; presenter keeps notes) ———
   let blacked = false
   const blackout = document.createElement('div')
-  blackout.className = 'slidomingo-blackout'
+  blackout.className = 'beeslides-blackout'
   blackout.hidden = true
   overlay.appendChild(blackout)
 
@@ -455,18 +455,18 @@ export function startPresentation(
   // and media therefore keep receiving their normal pointer events. Blackout
   // and toasts intentionally paint above the laser visuals.
   const laserLayer = document.createElement('div')
-  laserLayer.className = 'slidomingo-laser-layer'
+  laserLayer.className = 'beeslides-laser-layer'
   laserLayer.setAttribute('aria-hidden', 'true')
   // Until a real pointer event supplies screen coordinates, let the browser
   // paint the laser at the OS cursor. The DOM dot and trail take over on the
   // first move, when `laser-over-slide` hides this native cursor.
   const laserCursorStyle = document.createElement('style')
   laserCursorStyle.textContent =
-    `.slidomingo-present-overlay.laser-enabled:not(.laser-over-slide) .slidomingo-slide,` +
-    `.slidomingo-present-overlay.laser-enabled:not(.laser-over-slide) .slidomingo-slide *{` +
+    `.beeslides-present-overlay.laser-enabled:not(.laser-over-slide) .beeslides-slide,` +
+    `.beeslides-present-overlay.laser-enabled:not(.laser-over-slide) .beeslides-slide *{` +
     `cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23000' fill-opacity='.55'/%3E%3Ccircle cx='8' cy='8' r='6' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='4' fill='%23ef252f'/%3E%3C/svg%3E") 8 8,crosshair!important}`
   const laserTrail = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  laserTrail.classList.add('slidomingo-laser-trail')
+  laserTrail.classList.add('beeslides-laser-trail')
   laserTrail.setAttribute('width', '100%')
   laserTrail.setAttribute('height', '100%')
   laserTrail.setAttribute('focusable', 'false')
@@ -474,7 +474,7 @@ export function startPresentation(
   const laserTrailCore = document.createElementNS('http://www.w3.org/2000/svg', 'g')
   laserTrail.append(laserTrailHalo, laserTrailCore)
   const laserDot = document.createElement('div')
-  laserDot.className = 'slidomingo-laser-dot'
+  laserDot.className = 'beeslides-laser-dot'
   laserLayer.append(laserTrail, laserDot)
 
   const LASER_TRAIL_LIFETIME = 275
@@ -497,9 +497,9 @@ export function startPresentation(
     overlay.insertBefore(laserLayer, blackout)
     for (let i = 0; i < LASER_TRAIL_SEGMENTS; i++) {
       const halo = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-      halo.classList.add('slidomingo-laser-trail-segment', 'halo')
+      halo.classList.add('beeslides-laser-trail-segment', 'halo')
       const core = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-      core.classList.add('slidomingo-laser-trail-segment', 'core')
+      core.classList.add('beeslides-laser-trail-segment', 'core')
       if (i === 0) {
         halo.classList.add('tail-tip')
         core.classList.add('tail-tip')
@@ -679,7 +679,7 @@ export function startPresentation(
       return
     }
     const section = deck.getCurrentSlide() as HTMLElement | null
-    const surface = section?.querySelector<HTMLElement>('.slidomingo-slide')
+    const surface = section?.querySelector<HTMLElement>('.beeslides-slide')
     if (!surface) {
       resetLaserPointer()
       return
@@ -822,7 +822,7 @@ export function startPresentation(
     slidesEl,
     size: doc.size,
     currentSurface: () => (deckReady
-      ? (deck.getCurrentSlide() as HTMLElement | null)?.querySelector<HTMLElement>(':scope > .slidomingo-slide') ?? null
+      ? (deck.getCurrentSlide() as HTMLElement | null)?.querySelector<HTMLElement>(':scope > .beeslides-slide') ?? null
       : null),
     onTool: (tool) => { if (tool) setLaserEnabled(false, false) },
     onActivity: () => armKiosk(), // drawing holds a timed slide, like a click does
@@ -993,8 +993,8 @@ export function startPresentation(
   // audience overlay otherwise changes silently.
   let toastTimer = 0
   const flashPresentMsg = (text: string, ms = 1400) => {
-    let el = overlay.querySelector<HTMLElement>('.slidomingo-present-toast')
-    if (!el) { el = document.createElement('div'); el.className = 'slidomingo-present-toast'; overlay.appendChild(el) }
+    let el = overlay.querySelector<HTMLElement>('.beeslides-present-toast')
+    if (!el) { el = document.createElement('div'); el.className = 'beeslides-present-toast'; overlay.appendChild(el) }
     el.textContent = text
     el.classList.remove('show'); void el.offsetWidth; el.classList.add('show') // restart the fade
     clearTimeout(toastTimer)
@@ -1002,7 +1002,7 @@ export function startPresentation(
   }
   const hidePresentMsg = () => {
     clearTimeout(toastTimer)
-    overlay.querySelector('.slidomingo-present-toast')?.classList.remove('show')
+    overlay.querySelector('.beeslides-present-toast')?.classList.remove('show')
   }
 
   const setReduceMotion = (on: boolean, persist = true) => {
@@ -1098,10 +1098,10 @@ export function startPresentation(
       // identical class of bug for `<video src="">`). Under file://, relying
       // on it here is an unnecessary risk for zero benefit — 'about:blank'
       // is unambiguous and behaves identically whenever the spec case holds.
-      speaker = window.open('about:blank', 'slidomingo-speaker', 'width=1200,height=800')
+      speaker = window.open('about:blank', 'beeslides-speaker', 'width=1200,height=800')
       speakerAdopted = false
     }
-    if (!speaker) { openingSpeaker = false; console.warn('[slidomingo-speaker] popup blocked — allow pop-ups for this site'); return }
+    if (!speaker) { openingSpeaker = false; console.warn('[beeslides-speaker] popup blocked — allow pop-ups for this site'); return }
     setSpeakerWindow(speaker)
     ;(window as unknown as Record<string, unknown>).__slidomingoSpeaker = speaker // diagnostics
     const d = speaker.document
@@ -1109,7 +1109,7 @@ export function startPresentation(
     if (!d.head.querySelector('style')) { // already styled when adopting an editor window
       for (const st of document.querySelectorAll('style')) d.head.appendChild(d.importNode(st, true))
     }
-    d.body.className = 'slidomingo-speaker'
+    d.body.className = 'beeslides-speaker'
     const navBtn = (k: string, glyph: string, label: string, pressed = false) =>
       `<button class="sv-btn" data-nav="${k}" title="${label}" aria-label="${label}"${pressed ? ' aria-pressed="false"' : ''}>${glyph}</button>`
     d.body.innerHTML =
@@ -1603,7 +1603,7 @@ export function startPresentation(
       // a tween killed during its delay would otherwise leave the element
       // stuck at its "from" state (invisible) for every future visit.
       clearMorphGhosts(from)
-      anim.killTweensOf(from.querySelectorAll('.slidomingo-el'))
+      anim.killTweensOf(from.querySelectorAll('.beeslides-el'))
       sweepSymbolSpans(from)
       const fromSlide = doc.slides[fromIdx]
       for (const el of fromSlide?.elements ?? []) {
@@ -1843,7 +1843,7 @@ function disposeLiveCharts(_slide: Slide, section: HTMLElement) {
 // (visibility, so layout never shifts); a click removes it and tweens it in
 // with the same enterSpec every other entrance uses.
 
-const BUILD_HIDDEN = 'slidomingo-build-hidden'
+const BUILD_HIDDEN = 'beeslides-build-hidden'
 
 /**
  * Per-node generation counter. A step that is undone (or re-applied) while an
@@ -1856,7 +1856,7 @@ const bumpGen = (n: Element) => { const g = (buildGen.get(n) ?? 0) + 1; buildGen
 /** Mark the paragraphs of every paragraph-built text element in `root`. Idempotent. */
 export function tagBuilds(root: HTMLElement, plan: BuildPlan) {
   for (const elId of plan.paragraphs.keys()) {
-    const inner = root.querySelector<HTMLElement>(`[data-el-id="${CSS.escape(elId)}"] .slidomingo-text-inner`)
+    const inner = root.querySelector<HTMLElement>(`[data-el-id="${CSS.escape(elId)}"] .beeslides-text-inner`)
     if (inner && !inner.querySelector('[data-para]')) tagParagraphs(inner)
   }
 }
@@ -1882,7 +1882,7 @@ export function applyBuildState(root: HTMLElement, plan: BuildPlan, vis: Set<str
     if (!node) continue
     bumpGen(node)
     if (t.para !== undefined) {
-      // paragraphs are not `.slidomingo-el`s, so nothing else clears a tween
+      // paragraphs are not `.beeslides-el`s, so nothing else clears a tween
       // an interrupted visit left on them
       anim.killTweensOf(node)
       node.style.opacity = ''
@@ -2107,7 +2107,7 @@ export function previewBuilds(slide: Slide, root: HTMLElement, onChange?: (step:
       return true
     },
     stop() {
-      anim.killTweensOf(root.querySelectorAll('.slidomingo-el, [data-para]'))
+      anim.killTweensOf(root.querySelectorAll('.beeslides-el, [data-para]'))
     },
   }
   return api
@@ -2256,7 +2256,7 @@ function writeNumber(value: number, shape: NumberShape): string {
 }
 
 function runCountUp(node: HTMLElement) {
-  const inner = node.querySelector<HTMLElement>('.slidomingo-text-inner') ?? node
+  const inner = node.querySelector<HTMLElement>('.beeslides-text-inner') ?? node
   const final = inner.textContent ?? ''
   // Separators only count BETWEEN digits, so a sentence ending in a number
   // ("grew 25.") keeps its full stop instead of having it swallowed and
@@ -2292,7 +2292,7 @@ function runCountUp(node: HTMLElement) {
  * running an onerror on every slide entry (2026-10-08 review).
  */
 function restartSvgAnimations(section: HTMLElement, fresh = false) {
-  for (const host of section.querySelectorAll<HTMLElement>('.slidomingo-el-svg')) {
+  for (const host of section.querySelectorAll<HTMLElement>('.beeslides-el-svg')) {
     if (!host.querySelector('animate, animateTransform, animateMotion, set, [style*="animation"], style')) continue
     // Only a drawing with something to REPLAY (SMIL, a finite CSS animation)
     // needs the clone. One that only loops forever keeps its nodes and is just
@@ -2324,13 +2324,13 @@ function restartSvgAnimations(section: HTMLElement, fresh = false) {
  * and each startTime write dirties it again, so interleaving them restyled
  * the drawing once per animation.
  */
-const SVG_PARKED = 'slidomingo-svg-parked'
+const SVG_PARKED = 'beeslides-svg-parked'
 /** longer than Reveal's slowest section transition (1.2 s), so a slide is never parked while it fades out */
 const PARK_AFTER_MS = 1600
 
 /**
  * Take the svg animations off every slide but `current` once none of them can
- * still be on screen (styles.css `.slidomingo-svg-parked`). Paused animations
+ * still be on screen (styles.css `.beeslides-svg-parked`). Paused animations
  * keep a compositor layer each — the seasons show carried 730 such layers and
  * dropped to 97 fps standing still. Returns a cancel for the pending park.
  */
@@ -3086,7 +3086,7 @@ function runMorph(
   // below it. Incoming elements then land on top of the fading ones.
   const fromSlide = fromView
   const fromSet = fromSlide?.hover?.type === 'reveal' ? (fromSlide.hover.default ?? null) : null
-  const surface = toSection.querySelector<HTMLElement>('.slidomingo-slide')
+  const surface = toSection.querySelector<HTMLElement>('.beeslides-slide')
   if (surface) {
     let anchor: HTMLElement | null = null
     for (const [id, n] of fromEls) {
@@ -3199,13 +3199,13 @@ function runMorph(
       if (target) morphShapeFill(target, a, b)
     }
     if (a.type === 'text' && b.type === 'text' && a.color !== b.color) {
-      const inner = to.querySelector<HTMLElement>('.slidomingo-text-inner')
+      const inner = to.querySelector<HTMLElement>('.beeslides-text-inner')
       if (inner) {
         anim.fromTo(inner, { color: a.color }, { color: b.color, duration: MORPH_DURATION, ease: MORPH_EASE })
       }
     }
     if (a.type === 'math' && b.type === 'math' && a.color !== b.color) {
-      const inner = to.querySelector<HTMLElement>('.slidomingo-math-inner')
+      const inner = to.querySelector<HTMLElement>('.beeslides-math-inner')
       if (inner) anim.fromTo(inner, { color: a.color }, { color: b.color, duration: MORPH_DURATION, ease: MORPH_EASE })
     }
     // same drawing, another state: blend its vars (content changes crossfaded above)
@@ -3333,7 +3333,7 @@ function morphShapeFill(target: SVGElement, a: ShapeElement, b: ShapeElement) {
     // destination is solid — fabricate a gradient shaped like the source so
     // there is something to tween through, then collapse it to b.fill
     lin = document.createElementNS(SVG_NS, 'linearGradient')
-    lin.id = `slidomingo-morph-grad-${morphGradSeq++}`
+    lin.id = `beeslides-morph-grad-${morphGradSeq++}`
     for (const s of ag!.stops) {
       const stop = document.createElementNS(SVG_NS, 'stop')
       stop.setAttribute('offset', String(s.at))

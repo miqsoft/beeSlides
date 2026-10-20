@@ -42,7 +42,7 @@ export function figurePrintHtml(doc: SlidomingoDoc): string {
     `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">` +
     `<style>${allCss()}</style>` +
     `<style>@page{size:${w}px ${h}px;margin:0}html,body{margin:0;padding:0;width:${w}px;height:${h}px;overflow:hidden;background:transparent}` +
-    `.slidomingo-slide{position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>` +
+    `.beeslides-slide{position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>` +
     `<body>${surface.outerHTML}`
 }
 

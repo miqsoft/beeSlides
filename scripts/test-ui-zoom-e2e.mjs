@@ -49,9 +49,9 @@ async function boot(width, height) {
   const p = await browser.newPage({ viewport: { width, height } })
   p.on('pageerror', (e) => check(false, 'no page errors', e.message))
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForSelector('.ed-stage-scale', { timeout: 30_000 })
-  await p.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 15_000 }).catch(() => {})
+  await p.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 15_000 }).catch(() => {})
   await p.waitForTimeout(500)
   return p
 }

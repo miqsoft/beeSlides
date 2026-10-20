@@ -61,7 +61,7 @@ capturePristine()
 // Whether the page we just cloned is a real built shell. The desktop app in
 // dev mode runs Vite's index.html, which carries no runtime payload and must
 // never be spliced into a user's deck (main.ts → adoptPristineHtml below).
-const liveIsBuiltShell = !!document.getElementById('slidomingo-rt')
+const liveIsBuiltShell = !!document.getElementById('beeslides-rt')
 
 // Theme: after capturePristine, before the first paint.
 //
@@ -209,7 +209,7 @@ function bootWith(doc: SlidomingoDoc, docIsFresh = false, intent?: BootIntent) {
   // replace-never-append spirit as the preview: a smarter swap timed to the
   // live app's own first frame (avoiding even a brief static→live flash) is
   // a later phase, not this one.
-  document.getElementById('slidomingo-static')?.remove()
+  document.getElementById('beeslides-static')?.remove()
 
   // Derive palette-referenced colours once before anything renders. A file
   // saved by this app already carries correct literals, so this is normally a
@@ -260,7 +260,7 @@ if (location.hash === '#present') {
 // land inside this hold) reads as a brand moment instead of a flicker; the pristine capture ran before this,
 // so saved files keep the splash for their own next boot.
 {
-  const splash = document.getElementById('slidomingo-splash')
+  const splash = document.getElementById('beeslides-splash')
   if (splash) {
     const wait = Math.max(0, 1250 - performance.now())
     setTimeout(() => {
@@ -272,7 +272,9 @@ if (location.hash === '#present') {
 
 // Small scripting surface for tooling and automation: read/replace the
 // document model and serialize the full .beeslides.html file.
-;(window as any).slidomingo = {
+// `window.beeslides`; `window.slidomingo` is the same object, kept for the
+// scripts and agents written before the 2026-10-20 rename.
+;(window as any).beeslides = (window as any).slidomingo = {
   format: doc.format,
   get doc() {
     return store.doc
@@ -299,17 +301,17 @@ if (location.hash === '#present') {
   i18n: i18nApi,
   /**
    * AI/tooling round-trip: replace the whole document from a JSON string
-   * (the contents of #slidomingo-doc). Validates via parseDoc; returns false and
+   * (the contents of #beeslides-doc). Validates via parseDoc; returns false and
    * changes nothing on invalid input. Undoable in the editor.
    */
   loadDoc(json: string): boolean {
     const parsed = parseDoc(json)
     if (!parsed) return false
-    if (refuseNewerDoc(parsed, null, (m) => console.warn('slidomingo.loadDoc:', m))) return false
+    if (refuseNewerDoc(parsed, null, (m) => console.warn('beeslides.loadDoc:', m))) return false
     // asset-store refs (a light copy, a file's own block) resolve from the
     // open document; any it does not hold are kept and reported
     const { doc: next, missing } = resolveStoreRefs(parsed, store.doc)
-    if (missing.length) console.warn(`slidomingo.loadDoc: ${missing.length} stored asset(s) not in this document, kept as references`, missing)
+    if (missing.length) console.warn(`beeslides.loadDoc: ${missing.length} stored asset(s) not in this document, kept as references`, missing)
     store.replaceDoc(next)
     return true
   },

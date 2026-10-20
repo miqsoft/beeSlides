@@ -46,9 +46,9 @@ ok(ids.every((id) => /^[a-z0-9-]+$/.test(id) && id.length <= 32),
 
 // ------------------------------------------------- every app announces itself
 // A host must know whether a document predates `pickerIdFor` (#213), because
-// before it every save sent `slidomingo-doc` and acting on that overwrites the open
-// document. The signal used to live in `window.slidomingo.updates.version`, which
-// each app assembles by hand — and slidomingo/dash never included `updates`, so
+// before it every save sent `beeslides-doc` and acting on that overwrites the open
+// document. The signal used to live in `window.beeslides.updates.version`, which
+// each app assembles by hand — and beeslides/dash never included `updates`, so
 // every Cmd-S in Dash fell through to a destination prompt. The fix is that the
 // signal cannot live in a per-app object at all: `configureApp` is the one call
 // every app makes, so it announces the version and the next app inherits it.

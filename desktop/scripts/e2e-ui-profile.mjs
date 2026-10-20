@@ -38,7 +38,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let failures = 0
@@ -81,7 +81,7 @@ async function startMock(port) {
       const system = JSON.stringify(body.system ?? '')
       const toolNames = (body.tools ?? []).map((t) => t.name)
       let s = { text: 'ok' }
-      if (system.includes('You customize the slidomingo/slides editor') && lastUser.includes('CUSTOMIZE=1')) {
+      if (system.includes('You customize the beeslides/slides editor') && lastUser.includes('CUSTOMIZE=1')) {
         s = results === 0
           ? { text: '', tools: [{ id: 'cz1', name: 'ui_profile', args: { op: 'patch', patch: { chrome: { density: 'compact' } }, summary: 'Compact chrome' } }] }
           : { text: `Done (tools: ${toolNames.join(',')}).` }
@@ -167,7 +167,7 @@ async function driver() {
     const out = []
     for (const wc of webContents.getAllWebContents()) {
       if (wc.isDestroyed() || wc.isLoading() || !/BeeSlides\.beeslides\.html/.test(wc.getURL())) continue
-      if (await wc.executeJavaScript('!!(window.slidomingo && window.slidomingo.uiProfile && document.querySelector(".ed-ribbon"))')) out.push(wc)
+      if (await wc.executeJavaScript('!!(window.beeslides && window.beeslides.uiProfile && document.querySelector(".ed-ribbon"))')) out.push(wc)
     }
     return out
   })
@@ -176,7 +176,7 @@ async function driver() {
   if (!a) {
     for (const wc of webContents.getAllWebContents()) {
       let probe = ''
-      try { probe = await wc.executeJavaScript(`JSON.stringify({ s: !!window.slidomingo, ui: !!window.slidomingo?.uiProfile, ribbon: !!document.querySelector('.ed-ribbon'), root: !!document.querySelector('.ed-root'), body: document.body?.className, h: document.body?.innerText?.slice(0, 120) })`) } catch (e) { probe = String(e) }
+      try { probe = await wc.executeJavaScript(`JSON.stringify({ s: !!window.beeslides, ui: !!window.beeslides?.uiProfile, ribbon: !!document.querySelector('.ed-ribbon'), root: !!document.querySelector('.ed-root'), body: document.body?.className, h: document.body?.innerText?.slice(0, 120) })`) } catch (e) { probe = String(e) }
       try { console.log(`  debug ${wc.getURL().slice(0, 100)} loading=${wc.isLoading()} ${probe}`) } catch { /* */ }
     }
     report(); app.exit(1); return
@@ -192,7 +192,7 @@ async function driver() {
   const groupHidden = (wc, id) => js(wc, `document.querySelector('.ed-ribbon-group[data-group-id="${id}"]')?.hidden ?? null`)
   const accent = (wc) => js(wc, `getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().toLowerCase()`)
   const density = (wc) => js(wc, `document.documentElement.dataset.uiDensity ?? ''`)
-  const text = (wc) => js(wc, `(() => { const e = window.slidomingo.doc.slides[0].elements.find((x) => x.id === 't1'); return [e.fontSize, e.color, e.fontWeight].join() })()`)
+  const text = (wc) => js(wc, `(() => { const e = window.beeslides.doc.slides[0].elements.find((x) => x.id === 't1'); return [e.fontSize, e.color, e.fontWeight].join() })()`)
   const mac = process.platform === 'darwin'
   const key = (wc, code, k, shift = false) => js(wc, `document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(k)}, code: ${JSON.stringify(code)}, ${mac ? 'metaKey' : 'ctrlKey'}: true, shiftKey: ${shift}, bubbles: true, cancelable: true }))`)
 
@@ -201,43 +201,43 @@ async function driver() {
   ok((await accent(b)) === '#ffc233', `the default accent (${await accent(b)})`)
 
   // ---- 2. a profile written in A is live in B, without a reload
-  const w = await js(a, `window.slidomingo.uiProfile.write(${JSON.stringify(PROFILE)}, 'E2E profile')`)
+  const w = await js(a, `window.beeslides.uiProfile.write(${JSON.stringify(PROFILE)}, 'E2E profile')`)
   ok(w?.ok === true && w.rev === 1, `the write is revision 1 (${JSON.stringify(w)?.slice(0, 120)})`)
   const live = await waitFor(async () => ((await customTabs(b)).join() === 'Brand' ? true : null), 8000)
   ok(!!live, 'window B shows the custom Brand tab live')
   ok((await customTabs(a)).join() === 'Brand', '…and so does window A')
   ok((await groupHidden(a, 'home:reapply-change')) === true && (await groupHidden(b, 'home:reapply-change')) === true, 'the hidden group is hidden in both windows')
   ok((await accent(b)) === '#0f766e', `--accent is the profile's in B (${await accent(b)})`)
-  ok(await js(b, `[...document.querySelectorAll('head style[data-slidomingo-transient]')].some((s) => s.id === 'slidomingo-ui-profile-tokens')`), 'the token stylesheet is marked transient (never saved into a file)')
+  ok(await js(b, `[...document.querySelectorAll('head style[data-beeslides-transient]')].some((s) => s.id === 'beeslides-ui-profile-tokens')`), 'the token stylesheet is marked transient (never saved into a file)')
   const store = JSON.parse(readFileSync(join(userData, 'ui-customization.json'), 'utf8'))
   ok(store.rev === 1 && store.current?.name === 'E2E' && store.history.length === 1, 'main stored it in userData/ui-customization.json with one revision')
-  const menu = await js(b, `JSON.stringify(window.slidomingo.menu.model())`)
+  const menu = await js(b, `JSON.stringify(window.beeslides.menu.model())`)
   ok(menu.includes('"My commands"') && menu.includes('"custom.apply-heading"') && menu.includes('"Heading look"'), 'View ▸ My commands lists the profile\'s command in the native menu model')
 
   // ---- 3. the shortcut runs the style as ONE undo step; the button too
   ok((await text(a)) === '24,#111111,400', 'before: the text is 24px, near-black, regular')
   await key(a, 'KeyA', 'a')
-  ok((await js(a, 'window.slidomingo.selection.join()')) === 't1', '⌘A selected the text')
+  ok((await js(a, 'window.beeslides.selection.join()')) === 't1', '⌘A selected the text')
   await key(a, 'KeyB', 'B', true)
   ok((await text(a)) === '50,#0f766e,700', `⌘⇧B applied the heading style (${await text(a)})`)
-  await js(a, 'window.slidomingo.undo()')
+  await js(a, 'window.beeslides.undo()')
   ok((await text(a)) === '24,#111111,400', 'one undo restores everything the style changed')
   await js(a, `[...document.querySelectorAll('.ed-ribbon-tab-custom')][0].click(); document.querySelector('.ed-btn-custom[data-target="apply-heading"]').click()`)
   ok((await text(a)) === '50,#0f766e,700', 'the Brand tab\'s button applies it too')
-  await js(a, 'window.slidomingo.undo()')
+  await js(a, 'window.beeslides.undo()')
   ok((await text(a)) === '24,#111111,400', '…also one undo step')
   await key(a, 'KeyS', 's', true)
   ok(true, 'a reserved chord (⌘⇧S) is never bound (validated away) — built-ins win')
 
   // ---- 4. revert / reset from History
-  await js(b, 'window.slidomingo.uiProfile.revert(0)')
+  await js(b, 'window.beeslides.uiProfile.revert(0)')
   ok(!!(await waitFor(async () => ((await customTabs(a)).length === 0 ? true : null), 8000)), 'revert to before any change removes the tab in A')
   ok((await accent(a)) === '#ffc233' && (await groupHidden(a, 'home:reapply-change')) === false, '…and the accent and the hidden group are back to normal')
-  await js(b, 'window.slidomingo.uiProfile.revert(1)')
+  await js(b, 'window.beeslides.uiProfile.revert(1)')
   ok(!!(await waitFor(async () => ((await customTabs(a)).join() === 'Brand' ? true : null), 8000)), 'revert to #1 brings it back')
-  await js(a, 'window.slidomingo.uiProfile.reset()')
+  await js(a, 'window.beeslides.uiProfile.reset()')
   ok(!!(await waitFor(async () => ((await customTabs(b)).length === 0 ? true : null), 8000)), 'reset clears it in every window')
-  const hist = await js(b, 'window.slidomingo.uiProfile.history()')
+  const hist = await js(b, 'window.beeslides.uiProfile.history()')
   ok(hist.length === 4 && hist[0].source === 'reset', `every write is a revision in History (${hist.map((h) => h.source).join(',')})`)
 
   // ---- 5. the Customize chat (mock model) applies a patch; B shows the toast with Undo

@@ -32,12 +32,12 @@ function ok(cond: boolean, msg: string) {
 }
 
 const block = (json: unknown | string) =>
-  `<script type="application/slidomingo+json" id="slidomingo-doc">\n${typeof json === 'string' ? json : JSON.stringify(json).replace(/</g, '\\u003c')}\n</script>`
+  `<script type="application/beeslides+json" id="beeslides-doc">\n${typeof json === 'string' ? json : JSON.stringify(json).replace(/</g, '\\u003c')}\n</script>`
 const shell = (body: string, pad = 120_000) =>
   `<!DOCTYPE html>\n<html><head><title>Deck — BeeSlides</title>${body}</head><body>` +
-  `<script id="slidomingo-rt" type="application/octet-stream">${'x'.repeat(pad)}</script></body>\n</html>\n`
+  `<script id="beeslides-rt" type="application/octet-stream">${'x'.repeat(pad)}</script></body>\n</html>\n`
 
-const deck = { format: 'slidomingo/slides', title: 'Quarterly <review>', slides: [{ id: 's1', elements: [] }] }
+const deck = { format: 'beeslides/slides', title: 'Quarterly <review>', slides: [{ id: 's1', elements: [] }] }
 
 // ---- extraction ----------------------------------------------------------------
 ok(extractDocBlockText(shell(block(''))) === '', 'a pristine shell has an EMPTY block, not a missing one')
@@ -46,8 +46,8 @@ ok((extractDocBlock(shell(block(deck))) as any)?.title === 'Quarterly <review>',
 
 // ---- format detection ------------------------------------------------------------
 ok(detectFormat(shell(block(deck))) === 'slides', 'a slides deck is "slides"')
-ok(detectFormat(shell(block({ format: 'slidomingo/enc', v: 1, data: 'x' }))) === 'enc', 'an envelope is "enc"')
-ok(detectFormat(shell(block({ format: 'slidomingo/spaces', pages: [] }))) === 'other', 'another app\'s file is "other" (served by its own old shell, never rewritten)')
+ok(detectFormat(shell(block({ format: 'beeslides/enc', v: 1, data: 'x' }))) === 'enc', 'an envelope is "enc"')
+ok(detectFormat(shell(block({ format: 'beeslides/spaces', pages: [] }))) === 'other', 'another app\'s file is "other" (served by its own old shell, never rewritten)')
 ok(detectFormat(shell(block(''))) === 'empty', 'a pristine shell is "empty"')
 ok(detectFormat(shell(block('{not json'))) === 'none', 'an unparseable block is "none"')
 ok(isTemplateHtml(shell(block({ ...deck, template: true }))), 'a template file is recognized')
@@ -61,16 +61,16 @@ ok(!isTemplateHtml(shell(block(deck))), 'an ordinary deck is not a template')
   ok(openAsFor(shell(block(deck)), { editTemplate: true }) === 'template',
     'Edit Template on a flag-less file in the folder binds it as a template (the first save stamps it)')
   ok(openAsFor(shell(block(deck))) === 'deck', 'a deck is bound as a deck')
-  ok(openAsFor(shell(block({ format: 'slidomingo/enc', v: 1, data: 'x' })), { editTemplate: true }) === 'deck',
+  ok(openAsFor(shell(block({ format: 'beeslides/enc', v: 1, data: 'x' })), { editTemplate: true }) === 'deck',
     'an encrypted file is never a template window')
   ok(openAsFor(shell(block(''))) === 'blank' && openAsFor(shell(block('')), { editTemplate: true }) === 'blank', 'a pristine shell is a blank draft')
-  ok(openAsFor(shell(block({ format: 'slidomingo/spaces', pages: [] })), { editTemplate: true }) === 'legacy',
+  ok(openAsFor(shell(block({ format: 'beeslides/spaces', pages: [] })), { editTemplate: true }) === 'legacy',
     'another app\'s file is loaded as-is either way')
 }
 
 // ---- title ------------------------------------------------------------------------
 ok(readTitle(shell(block(deck))) === 'Quarterly <review>', 'the title comes from the JSON')
-ok(readTitle(shell(block({ format: 'slidomingo/enc', v: 1 }))) === 'Deck', 'an encrypted deck falls back to <title> minus the app suffix')
+ok(readTitle(shell(block({ format: 'beeslides/enc', v: 1 }))) === 'Deck', 'an encrypted deck falls back to <title> minus the app suffix')
 
 // ---- containment ------------------------------------------------------------------
 ok(isInside('/a/b/c.html', '/a/b'), 'a file in the folder is inside')
@@ -80,15 +80,15 @@ ok(!isInside('/a/bc/x.html', '/a/b'), 'a sibling folder sharing a prefix is not 
 
 // ---- shell sanity check before any write ------------------------------------------
 ok(looksLikeShell(shell(block(deck))), 'a complete shell carrying a deck passes')
-ok(looksLikeShell(shell(block({ format: 'slidomingo/enc', v: 1, data: 'x' }))), 'a complete shell carrying an envelope passes')
+ok(looksLikeShell(shell(block({ format: 'beeslides/enc', v: 1, data: 'x' }))), 'a complete shell carrying an envelope passes')
 {
   const full = shell(block(deck))
   ok(!looksLikeShell(full.slice(0, full.length - 40)), 'a truncated shell (no </html>) is refused')
 }
 ok(!looksLikeShell(shell(block(''))), 'an empty shell is refused — writing it would erase the deck')
 ok(!looksLikeShell(shell(block(deck), 10)), 'an implausibly small file is refused')
-ok(!looksLikeShell(shell(block(deck)).replace('slidomingo-rt', 'vite-dev')), 'a page without the runtime payload (Vite dev index.html) is refused')
-ok(!looksLikeShell(shell(block({ format: 'slidomingo/spaces' }))), 'another app\'s document is refused')
+ok(!looksLikeShell(shell(block(deck)).replace('beeslides-rt', 'vite-dev')), 'a page without the runtime payload (Vite dev index.html) is refused')
+ok(!looksLikeShell(shell(block({ format: 'beeslides/spaces' }))), 'another app\'s document is refused')
 
 // ---- conflict decision --------------------------------------------------------------
 ok(decideWrite(1000, { mtimeMs: 1000 }) === 'ok', 'unchanged mtime → write')
@@ -149,7 +149,7 @@ ok(decideWrite(null, { mtimeMs: 1 }) === 'ok', 'a path never stat-ed before is w
 }
 
 // --- doc kind (recent list / drafts: figures and icon sets go to the Figure column)
-ok(docKindOfText('{"format":"slidomingo/slides","kind":"figure"}') === 'figure', 'a figure is recognised from the raw block')
+ok(docKindOfText('{"format":"beeslides/slides","kind":"figure"}') === 'figure', 'a figure is recognised from the raw block')
 ok(docKindOfText('{"kind" : "iconset","iconset":{"grid":24}}') === 'iconset', 'an icon set too')
 ok(docKindOfText('{"title":"kind: iconset"}') === null && docKindOfText('{"kind":"deck"}') === null, 'anything else is a deck')
 

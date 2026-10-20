@@ -36,7 +36,7 @@ function ok(cond: boolean, msg: string) {
 }
 
 const deck = (): SlidomingoDoc => ({
-  format: 'slidomingo/slides', version: '1.0.0', docId: 'theme-test', title: 'palette',
+  format: 'beeslides/slides', version: '1.0.0', docId: 'theme-test', title: 'palette',
   size: { width: 1280, height: 720 },
   theme: {
     background: '#FFFFFF', color: '#1E2A3A', accent: '#F7A600',

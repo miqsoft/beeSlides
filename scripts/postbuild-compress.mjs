@@ -10,7 +10,7 @@
 // stylesheet, deflates them (raw) into base64 payload blocks, and restructures
 // the document into the canonical byte order:
 //
-//   head chrome → NOTICE → tooling comment → #slidomingo-doc (PLAINTEXT, always)
+//   head chrome → NOTICE → tooling comment → #beeslides-doc (PLAINTEXT, always)
 //   → splash (paints while the payload parses) → payloads + 1KB loader last
 //
 // The loader inflates via the native DecompressionStream and boots the module
@@ -18,7 +18,7 @@
 // a plain-HTML message instead of a blank page.
 //
 // COMPATIBILITY CONTRACT (老 updaters are frozen code — we conform to them):
-//   - #slidomingo-doc stays plaintext with the same id.
+//   - #beeslides-doc stays plaintext with the same id.
 //   - The whole file survives DOMParser → splice → outerHTML round-trips.
 //   - No literal "</script>" anywhere (base64 alphabet can't produce one;
 //     the loader is checked below).
@@ -39,8 +39,8 @@ import { join } from 'node:path'
  * `DecompressionStream('deflate-raw')` inflated to a byte-identical result,
  * SHA-256 matched, in 2.2 ms.
  *
- * Measured on the shipped shells: 172,470 -> 165,398 B for slidomingo/spaces and
- * 690,060 -> 663,760 B for slidomingo/slides. About 4% off every file anyone saves,
+ * Measured on the shipped shells: 172,470 -> 165,398 B for beeslides/spaces and
+ * 690,060 -> 663,760 B for beeslides/slides. About 4% off every file anyone saves,
  * for a second of build time.
  *
  * RESOLVED FROM THE CALLER, not from this file. This script lives in scripts/
@@ -104,11 +104,11 @@ const flag = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`)
   return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback
 }
-const generator = flag('generator', 'slidomingo-slides')
-const titleFallback = flag('title', 'slidomingo/slides')
+const generator = flag('generator', 'beeslides-slides')
+const titleFallback = flag('title', 'beeslides/slides')
 
 const html = readFileSync(path, 'utf8')
-if (html.includes('id="slidomingo-rt"')) {
+if (html.includes('id="beeslides-rt"')) {
   console.log('already compressed — skipping')
   process.exit(0)
 }
@@ -134,7 +134,7 @@ const linkedRe = /<style[^>]*\brel="stylesheet"[^>]*>([\s\S]*?)<\/style>/
 // when slidomingo/type grew a preview. The module script is inlined into <head>
 // ABOVE the real stylesheet, so the fallback matched a JS literal at offset
 // 2923 instead of the stylesheet at 296275, packed 293KB of JavaScript into
-// the #slidomingo-rt-css payload, and left the real CSS uncompressed inside the JS
+// the #beeslides-rt-css payload, and left the real CSS uncompressed inside the JS
 // — shipping every document 147KB larger with the app still working, so
 // nothing looked wrong. A real tag is `<style>` or `<style …>`; a string
 // constant is not.
@@ -162,11 +162,11 @@ const cssB64 = await b64(css)
 
 // --- other parts ------------------------------------------------------------
 const notice = html.match(/<!--\s*NOTICE[\s\S]*?-->/)?.[0] ?? ''
-const docBlock = html.match(/<script type="application\/slidomingo\+json" id="slidomingo-doc">[\s\S]*?<\/script>/)?.[0]
-if (!docBlock) throw new Error('#slidomingo-doc not found')
+const docBlock = html.match(/<script type="application\/beeslides\+json" id="beeslides-doc">[\s\S]*?<\/script>/)?.[0]
+if (!docBlock) throw new Error('#beeslides-doc not found')
 const favicon = html.match(/<link rel="icon"[^>]*\/?>/)?.[0] ?? ''
 const title = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? `<title>${titleFallback}</title>`
-const splashDiv = html.match(/<div id="slidomingo-splash"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? ''
+const splashDiv = html.match(/<div id="beeslides-splash"[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? ''
 const splashCss = (() => {
   const bodyPart = html.slice(html.indexOf('<body'))
   // The first <style> in the body is USUALLY the splash's own few rules — but
@@ -183,10 +183,10 @@ const splashCss = (() => {
   // in the body too, and holds `<style>${VP()}</style>` as a string constant
   // (print.ts's page template) — the "first style" was that 22-byte literal,
   // so the editor shell shipped with NO splash CSS at all. The splash's own
-  // rules are the one block that styles #slidomingo-splash; require that.
+  // rules are the one block that styles #beeslides-splash; require that.
   for (const m of bodyPart.matchAll(/<style(?=[\s>])([^>]*)>([\s\S]*?)<\/style>/g)) {
     if (/\brel="stylesheet"/.test(m[1])) continue
-    if (!m[2].includes('#slidomingo-splash')) continue
+    if (!m[2].includes('#beeslides-splash')) continue
     return m[2]
   }
   return ''
@@ -200,17 +200,17 @@ const SLIDES_TOOLING = `<!--
   project source repo.
 
   THE MECHANICS
-  · The document is the ONE script block of type "application/slidomingo+json",
-    id "slidomingo-doc", below — plain readable JSON. Edit THAT block in place;
+  · The document is the ONE script block of type "application/beeslides+json",
+    id "beeslides-doc", below — plain readable JSON. Edit THAT block in place;
     never regenerate the whole file. Escape every "<" in the JSON as \\u003c.
   · Pictures, fonts and clips are stored ONCE, in the <style> with id
-    "slidomingo-assets" right after it; the JSON refers to them as
-    "slidomingo-store:sha256-…". Keep those refs, "requires" and that style
+    "beeslides-assets" right after it; the JSON refers to them as
+    "beeslides-store:sha256-…". Keep those refs, "requires" and that style
     exactly as they are (never invent a ref). Add NEW pictures inline as
     data: URIs — the next save stores them.
   · The base64 blocks near the end are the DEFLATE-compressed app runtime
     (open source) — no user content, leave them alone.
-  · In a running file, window.slidomingo exposes { doc, serialize(), loadDoc(json),
+  · In a running file, window.beeslides exposes { doc, serialize(), loadDoc(json),
     comments(), updates, i18n }. In the app UI: Save → Copy / Replace JSON.
 
   MAKE A GREAT DECK, NOT JUST A CORRECT ONE
@@ -254,21 +254,21 @@ const GENERIC_TOOLING = `<!--
   ════════════════════════════════════════════════════════════════════════
   AI AGENTS / TOOLING — READ THIS BEFORE EDITING THIS FILE
   ════════════════════════════════════════════════════════════════════════
-  · The document is the ONE script block of type "application/slidomingo+json",
-    id "slidomingo-doc", below — plain readable JSON. Edit THAT block in place;
+  · The document is the ONE script block of type "application/beeslides+json",
+    id "beeslides-doc", below — plain readable JSON. Edit THAT block in place;
     never regenerate the whole file. Escape every "<" in the JSON as \\u003c.
   · Pictures, fonts and clips are stored ONCE, in the <style> with id
-    "slidomingo-assets" right after it; the JSON refers to them as
-    "slidomingo-store:sha256-…". Keep those refs, "requires" and that style
+    "beeslides-assets" right after it; the JSON refers to them as
+    "beeslides-store:sha256-…". Keep those refs, "requires" and that style
     exactly as they are (never invent a ref). Add NEW pictures inline as
     data: URIs — the next save stores them.
   · The base64 blocks near the end are the DEFLATE-compressed app runtime
     (open source) — no user content, leave them alone.
-  · In a running file, window.slidomingo exposes { doc, serialize(), loadDoc(json) }.
+  · In a running file, window.beeslides exposes { doc, serialize(), loadDoc(json) }.
   ════════════════════════════════════════════════════════════════════════
 -->`
 
-const TOOLING_COMMENT = generator === 'slidomingo-slides' ? SLIDES_TOOLING : GENERIC_TOOLING
+const TOOLING_COMMENT = generator === 'beeslides-slides' ? SLIDES_TOOLING : GENERIC_TOOLING
 
 // --- loader (plain script, runs at end of body; no "</script>" literal) -----
 // Keep the loader small: unlike the payloads it ships as PLAINTEXT in every
@@ -279,8 +279,8 @@ const TOOLING_COMMENT = generator === 'slidomingo-slides' ? SLIDES_TOOLING : GEN
 // without the two guards below every save wrote this ~100KB of CSS back as
 // plaintext, the next boot inflated the payload and appended another copy, and
 // the file grew by 100KB per save without bound:
-//   1. `data-slidomingo-transient` — serializeBody() strips marked nodes from the
-//      clone, so the CSS lives in the deflated #slidomingo-rt-css payload (27KB)
+//   1. `data-beeslides-transient` — serializeBody() strips marked nodes from the
+//      clone, so the CSS lives in the deflated #beeslides-rt-css payload (27KB)
 //      and nowhere else in the file.
 //   2. the sweep — a file written before guard 1 existed already carries N
 //      plaintext copies of exactly this CSS; dropping them before injecting
@@ -292,7 +292,7 @@ const loader = `
     d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0D1B2E;color:#F2F0EA;font:16px/1.6 sans-serif;text-align:center;padding:40px;z-index:99999'
     d.innerHTML = msg
     document.body.appendChild(d)
-    var s = document.getElementById('slidomingo-splash'); if (s) s.remove()
+    var s = document.getElementById('beeslides-splash'); if (s) s.remove()
   }
   if (typeof DecompressionStream === 'undefined') {
     // The old text said "2023 or later" and then listed Chrome 80, which is
@@ -300,7 +300,7 @@ const loader = `
     // never said what kind of file this is, and never mentioned that the data
     // is plain readable JSON in this same file, which is the one route out that
     // works with no capable browser at all.
-    fail('<b>This is a slidomingo/dash spreadsheet.</b><br>Opening it needs a browser released in 2023 or later \\u2014 Safari 16.4+, Firefox 113+, or a current Chrome or Edge.<br><br>Nothing is lost: your data is stored as plain readable JSON inside this same file. Open it in a newer browser, or open it in a text editor and look for the block marked "slidomingo-doc".')
+    fail('<b>This is a beeslides/dash spreadsheet.</b><br>Opening it needs a browser released in 2023 or later \\u2014 Safari 16.4+, Firefox 113+, or a current Chrome or Edge.<br><br>Nothing is lost: your data is stored as plain readable JSON inside this same file. Open it in a newer browser, or open it in a text editor and look for the block marked "beeslides-doc".')
     return
   }
   var inflate = async function (id) {
@@ -311,18 +311,18 @@ const loader = `
     return await new Response(stream).text()
   }
   try {
-    var css = await inflate('slidomingo-rt-css')
+    var css = await inflate('beeslides-rt-css')
     // drop stale plaintext copies (see TRANSIENT DOM above), then inject ours
     var old = document.querySelectorAll('style')
     for (var i = 0; i < old.length; i++) {
-      if (old[i].hasAttribute('data-slidomingo-transient') || old[i].textContent === css) old[i].remove()
+      if (old[i].hasAttribute('data-beeslides-transient') || old[i].textContent === css) old[i].remove()
     }
     var st = document.createElement('style')
-    st.id = 'slidomingo-rt-style'
-    st.setAttribute('data-slidomingo-transient', '')
+    st.id = 'beeslides-rt-style'
+    st.setAttribute('data-beeslides-transient', '')
     st.textContent = css
     document.head.appendChild(st)
-    var js = await inflate('slidomingo-rt')
+    var js = await inflate('beeslides-rt')
     var url = URL.createObjectURL(new Blob([js], { type: 'text/javascript' }))
     await import(url)
   } catch (e) {
@@ -350,8 +350,8 @@ const out = `<!DOCTYPE html>
   <body>
     ${splashDiv}
     <div id="app"></div>
-    <script id="slidomingo-rt-css" type="slidomingo/deflate-b64">${cssB64}</script>
-    <script id="slidomingo-rt" type="slidomingo/deflate-b64">${jsB64}</script>
+    <script id="beeslides-rt-css" type="beeslides/deflate-b64">${cssB64}</script>
+    <script id="beeslides-rt" type="beeslides/deflate-b64">${jsB64}</script>
     <script>${loader}</script>
   </body>
 </html>

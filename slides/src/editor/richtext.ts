@@ -40,7 +40,7 @@ const PX_PER_PT = 4 / 3
 
 /** The live text edit's editable root, if any (text box or table cell). */
 export function editRoot(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('.slidomingo-editing [contenteditable="true"]')
+  return document.querySelector<HTMLElement>('.beeslides-editing [contenteditable="true"]')
 }
 
 /** The selection's range when it lies inside `root`. */

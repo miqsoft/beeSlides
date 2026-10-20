@@ -6,11 +6,11 @@
 // is node-testable (scripts/test-desktop-thumbs.ts).
 //
 // A saved deck's layout, in file order (kernel/src/save.ts):
-//   <head> … #slidomingo-doc (the whole document, often most of the file) …
+//   <head> … #beeslides-doc (the whole document, often most of the file) …
 //   <body> splash, then the static first-page preview host
-//   `<div data-slidomingo-preview="1">` and its remover script, then the
-//   optional static layer, then the compressed runtime (#slidomingo-rt).
-// Older builds parked the preview in a `<noscript data-slidomingo-preview>`.
+//   `<div data-beeslides-preview="1">` and its remover script, then the
+//   optional static layer, then the compressed runtime (#beeslides-rt).
+// Older builds parked the preview in a `<noscript data-beeslides-preview>`.
 //
 // So we read forward in chunks and stop as soon as we know: after the doc
 // block for an encrypted deck, after the static layer's opening tag (or the
@@ -21,7 +21,7 @@
 // WHY THE STATIC LAYER. The preview is capped at 64 KB (PREVIEW_BUDGET), so an
 // image-heavy first page comes out with its pictures swapped for tinted
 // boxes. The same file carries every slide at full fidelity in
-// `#slidomingo-static` (kernel/src/save.ts writeStaticLayer); thumbs.ts shows
+// `#beeslides-static` (kernel/src/save.ts writeStaticLayer); thumbs.ts shows
 // that layer's first slide instead whenever it is there.
 import { open } from 'node:fs/promises'
 import { detectFormat } from './docfile.ts'
@@ -45,17 +45,30 @@ const OVERLAP = 256
  *  size-bearing transform sits near the top, after the hoisted <style>. */
 const PREVIEW_SCAN = 96 * 1024
 
-// Attribute-shaped, not bare names: the shell's own head comment mentions
-// `id "slidomingo-doc"` in prose. A DOM serializer always writes double quotes.
-const DOC_ID = Buffer.from('id="slidomingo-doc"')
 const SCRIPT_CLOSE = Buffer.from('</script')
-const PREVIEW_ATTR = Buffer.from('data-slidomingo-preview')
-/** Start of the compressed runtime (`slidomingo-rt-css`, then `slidomingo-rt`):
- *  past every place a preview is ever written. */
-const RUNTIME_ID = Buffer.from('id="slidomingo-rt')
-/** The static layer's host (writeStaticLayer): never inside the preview, and
- *  distinct from its per-slide `data-slidomingo-static-slide`. */
-const STATIC_MARK = Buffer.from('data-slidomingo-static="1"')
+
+/** The markers a file is scanned for. A file saved before 2026-10-20 spells
+ *  every one `slidomingo` (kernel/src/legacynames.ts), and one file never
+ *  mixes the two, so the doc block's spelling picks the set. */
+interface Markers {
+  // Attribute-shaped, not bare names: the shell's own head comment mentions
+  // `id "beeslides-doc"` in prose. A DOM serializer always writes double quotes.
+  docId: Buffer
+  preview: Buffer
+  /** Start of the compressed runtime (`beeslides-rt-css`, then `beeslides-rt`):
+   *  past every place a preview is ever written. */
+  runtime: Buffer
+  /** The static layer's host (writeStaticLayer): never inside the preview, and
+   *  distinct from its per-slide `data-beeslides-static-slide`. */
+  staticMark: Buffer
+}
+const markersFor = (prefix: string): Markers => ({
+  docId: Buffer.from(`id="${prefix}-doc"`),
+  preview: Buffer.from(`data-${prefix}-preview`),
+  runtime: Buffer.from(`id="${prefix}-rt`),
+  staticMark: Buffer.from(`data-${prefix}-static="1"`),
+})
+const MARKER_SETS = [markersFor('beeslides'), markersFor('slidomingo')]
 
 /** Bump when a thumbnail's look changes, so cached PNGs from an older
  *  renderer regenerate (v2: the static layer's first slide, not the preview). */
@@ -73,7 +86,7 @@ const FIT_RE = /scale\(calc\(min\(100vw,\s*([\d.]+)vh\)\s*\/\s*([\d.]+)px\)\)/
 /** The default page size, for a preview whose fit transform we can't read. */
 const DEFAULT_SIZE = { width: 1280, height: 720 }
 
-/** Whether the `data-slidomingo-preview` at `at` is an attribute of an opening
+/** Whether the `data-beeslides-preview` at `at` is an attribute of an opening
  *  `<div` or `<noscript` tag (the host), rather than the remover `<script`, or
  *  stray text. */
 function isHostAt(buf: Buffer, at: number): boolean {
@@ -109,6 +122,7 @@ export async function scanThumbSource(path: string): Promise<ThumbSource> {
     let docEnd = -1          // end of the doc block, once found
     let hostAt = -1          // the preview host's attribute, once found
     let pageSize: { width: number; height: number } | null = null
+    let mk = MARKER_SETS[0]   // the set the doc block was found under
 
     const readMore = async (): Promise<boolean> => {
       if (filled >= size) return false
@@ -124,8 +138,12 @@ export async function scanThumbSource(path: string): Promise<ThumbSource> {
       const from = Math.max(0, scanned - OVERLAP)
 
       if (docAt < 0) {
-        docAt = view.indexOf(DOC_ID, from)
-        if (docAt < 0 && (view.indexOf(RUNTIME_ID, from) >= 0 || !more)) return { kind: 'none' } // no doc block
+        for (const set of MARKER_SETS) {
+          const at = view.indexOf(set.docId, from)
+          if (at >= 0 && (docAt < 0 || at < docAt)) { docAt = at; mk = set }
+        }
+        const runtimeSeen = MARKER_SETS.some((set) => view.indexOf(set.runtime, from) >= 0)
+        if (docAt < 0 && (runtimeSeen || !more)) return { kind: 'none' } // no doc block
       }
       if (docAt >= 0 && docEnd < 0) {
         const close = view.indexOf(SCRIPT_CLOSE, Math.max(from, docAt))
@@ -143,10 +161,10 @@ export async function scanThumbSource(path: string): Promise<ThumbSource> {
       }
 
       if (docEnd >= 0 && hostAt < 0) {
-        let at = view.indexOf(PREVIEW_ATTR, Math.max(from, docEnd))
-        while (at >= 0 && !isHostAt(view, at)) at = view.indexOf(PREVIEW_ATTR, at + PREVIEW_ATTR.length)
+        let at = view.indexOf(mk.preview, Math.max(from, docEnd))
+        while (at >= 0 && !isHostAt(view, at)) at = view.indexOf(mk.preview, at + mk.preview.length)
         if (at >= 0) hostAt = at
-        else if (view.indexOf(RUNTIME_ID, Math.max(from, docEnd)) >= 0 || !more) return { kind: 'none' }
+        else if (view.indexOf(mk.runtime, Math.max(from, docEnd)) >= 0 || !more) return { kind: 'none' }
       }
 
       if (hostAt >= 0 && !pageSize && (filled - hostAt >= PREVIEW_SCAN || !more)) {
@@ -157,8 +175,8 @@ export async function scanThumbSource(path: string): Promise<ThumbSource> {
         // From the host, not `from`: the page size may have needed a later
         // chunk than the one the layer's tag arrived in. Either marker sits
         // right after the preview, so this stays cheap.
-        if (view.indexOf(STATIC_MARK, hostAt) >= 0) return { kind: 'preview', ...pageSize, hasStatic: true }
-        if (view.indexOf(RUNTIME_ID, hostAt) >= 0 || !more) return { kind: 'preview', ...pageSize, hasStatic: false }
+        if (view.indexOf(mk.staticMark, hostAt) >= 0) return { kind: 'preview', ...pageSize, hasStatic: true }
+        if (view.indexOf(mk.runtime, hostAt) >= 0 || !more) return { kind: 'preview', ...pageSize, hasStatic: false }
       }
 
       scanned = filled

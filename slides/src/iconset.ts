@@ -404,7 +404,7 @@ export function iconFileNames(slides: readonly Slide[]): string[] {
 
 /** The `icons.json` an exported set carries (format 1). */
 export interface IconManifest {
-  format: 'slidomingo-icons'
+  format: 'beeslides-icons'
   version: 1
   name: string
   license?: string
@@ -434,7 +434,7 @@ export function styleFolderNames(names: readonly string[]): string[] {
 
 export function iconManifest(doc: SlidomingoDoc, files: readonly string[], styles: ReadonlyArray<{ name: string; folder: string }> = []): IconManifest {
   const info = iconsetInfo(doc)
-  const out: IconManifest = { format: 'slidomingo-icons', version: 1, name: doc.title, grid: info?.grid ?? 24, icons: [] }
+  const out: IconManifest = { format: 'beeslides-icons', version: 1, name: doc.title, grid: info?.grid ?? 24, icons: [] }
   if (info && info.gridH !== info.grid) out.gridH = info.gridH
   if (info?.license) out.license = info.license
   if (info?.author) out.author = info.author

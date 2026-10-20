@@ -68,7 +68,7 @@ function fixture(): SlidomingoDoc {
     text('t-sub', '', { role: 'subtitle', placeholder: 'Subtitle' }),
   ], { parentId: 'M' })
   const doc: SlidomingoDoc = {
-    format: 'slidomingo/slides', version: 1, docId: 'd', title: 'Deck', modified: '',
+    format: 'beeslides/slides', version: 1, docId: 'd', title: 'Deck', modified: '',
     size: { width: 1280, height: 720 }, theme: { background: '#fff', color: '#000', accent: '#f60', fontFamily: 'system-ui' },
     layouts: [master, content, comparison, title], slides: [],
   }

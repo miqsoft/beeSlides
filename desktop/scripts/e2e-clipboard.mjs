@@ -28,7 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0, checks = 0
 function ok(cond, msg) { checks++; if (!cond) failures++; try { console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${msg}`) } catch {} }
@@ -70,11 +70,11 @@ async function driver() {
   const deckPage = (title) => waitFor(async () => {
     for (const wc of docWcs()) {
       if (wc.isLoading()) continue
-      if (await wc.executeJavaScript(`!!(window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === ${JSON.stringify(title)} && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
+      if (await wc.executeJavaScript(`!!(window.beeslides && window.beeslides.doc && window.beeslides.doc.title === ${JSON.stringify(title)} && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
     }
     return null
   })
-  const els = (wc) => js(wc, () => JSON.parse(JSON.stringify(window.slidomingo.doc.slides[0].elements)))
+  const els = (wc) => js(wc, () => JSON.parse(JSON.stringify(window.beeslides.doc.slides[0].elements)))
   const toasts = (wc) => js(wc, () => [...document.querySelectorAll('[class*=toast]')].map((n) => n.textContent).join(' | '))
   const center = (wc, sel) => js(wc, (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) } }, sel)
   async function focus(wc) {

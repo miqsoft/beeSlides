@@ -11,7 +11,7 @@
 // A local mock server speaks the Anthropic AND the OpenAI streaming wire; its
 // scripted "model" calls get_slide, then update_element, then answers. Two
 // profiles (one per wire) each recolour a different slide's text; the script
-// asserts the deck changed (window.slidomingo.doc), the chat shows the tool
+// asserts the deck changed (window.beeslides.doc), the chat shows the tool
 // rows, tab labels carry the profile names, and a chat resumed from the
 // history menu rebuilds its transcript. Same two-mode shape as
 // e2e-chat-history.mjs — node runs the ORCHESTRATOR, Electron the DRIVER.
@@ -28,7 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const DOC_ID = '0a0a0a0a-0000-4000-8000-00000000a1c1'
 
@@ -165,10 +165,10 @@ async function driver() {
     }
     return null
   })
-  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root"))')
+  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-root"))')
   ok(!!wc, 'the deck opened')
   if (!wc) { report(); app.exit(1); return }
-  const colorOf = (slide, el) => wc.executeJavaScript(`window.slidomingo.doc.slides[${slide}].elements.find((e) => e.id === ${JSON.stringify(el)}).color`)
+  const colorOf = (slide, el) => wc.executeJavaScript(`window.beeslides.doc.slides[${slide}].elements.find((e) => e.id === ${JSON.stringify(el)}).color`)
 
   // ---- the default profile is the Anthropic-wire API profile: the panel opens a chat tab
   await wc.executeJavaScript('window.slidomingoDesktop.toggleTerminal()')

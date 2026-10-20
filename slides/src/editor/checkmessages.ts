@@ -3,7 +3,7 @@
 //
 // The user-facing face of validateDoc(). `validate.ts` is the AGENT API — its
 // codes and English messages are written for someone authoring the JSON, and
-// `window.slidomingo.validate()`, the MCP verbs and scripts/test-validate.ts all
+// `window.beeslides.validate()`, the MCP verbs and scripts/test-validate.ts all
 // depend on them staying put. The Check slides dialog is for a person editing
 // slides, so it maps each code to plain wording and a group here instead.
 //

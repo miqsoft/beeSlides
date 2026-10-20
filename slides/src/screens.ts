@@ -63,7 +63,7 @@ export function paintSpeaker(w: Window, title: string, bodyHtml: string): void {
   if (!d.head.querySelector('style')) {
     for (const st of document.querySelectorAll('style')) d.head.appendChild(d.importNode(st, true))
   }
-  d.body.className = 'slidomingo-speaker'
+  d.body.className = 'beeslides-speaker'
   d.body.innerHTML = bodyHtml
 }
 
@@ -88,7 +88,7 @@ export function openSpeakerWindow(title: string, bodyHtml: string): Window | nul
   // for exactly this bug class (see render.ts assetSrc's doc comment on
   // `<video src="">` resolving against the page under file://). Explicit
   // costs nothing and removes any doubt.
-  const w = window.open('about:blank', 'slidomingo-speaker', speakerFeatures())
+  const w = window.open('about:blank', 'beeslides-speaker', speakerFeatures())
   if (!w) return null
   paintSpeaker(w, title, bodyHtml)
   speakerWin = w

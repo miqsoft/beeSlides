@@ -144,9 +144,9 @@ export async function openEditor(browser, { url, launchText, viewport, dpr, sess
   await page.exposeFunction('__benchSend', (channel, result) => relay.onResponse(channel, result))
   await page.addInitScript(bridgeInit, launchText)
   await page.goto(url)
-  await page.waitForFunction(() => !!window.slidomingo?.doc && !!window.__benchCbs?.agentQuery, null, { timeout: 60_000 })
+  await page.waitForFunction(() => !!window.beeslides?.doc && !!window.__benchCbs?.agentQuery, null, { timeout: 60_000 })
   // the boot splash holds ~1.25s, then fades
-  await page.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 10_000 }).catch(() => {})
+  await page.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 10_000 }).catch(() => {})
   return { context, page, relay, pageErrors, close: async () => { relay.stop(); await context.close() } }
 }
 
@@ -160,8 +160,8 @@ export async function blankDoc(browser, url) {
   await page.goto(url)
   const blank = page.locator('button:visible, [role=button]:visible, .ed-sp-tile:visible').filter({ hasText: /^\s*Blank/i }).first()
   await blank.click({ timeout: 30_000 })
-  await page.waitForFunction(() => !!window.slidomingo?.doc, null, { timeout: 30_000 })
-  const doc = await page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+  await page.waitForFunction(() => !!window.beeslides?.doc, null, { timeout: 30_000 })
+  const doc = await page.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
   await context.close()
   return doc
 }

@@ -57,22 +57,22 @@ try {
 // Same extraction as postbuild-compress.mjs: the splash div ends at its
 // loading bar's `</div></div>`, and its CSS is the next <style>.
 const indexHtml = readFileSync(join(root, 'slides/index.html'), 'utf8')
-const splashMatch = indexHtml.match(/<div id="slidomingo-splash"[\s\S]*?<\/div>\s*<\/div>/)
+const splashMatch = indexHtml.match(/<div id="beeslides-splash"[\s\S]*?<\/div>\s*<\/div>/)
 if (!splashMatch) throw new Error('slides/index.html: splash div not found')
 const splashDiv = splashMatch[0]
 const splashCss = indexHtml.slice(splashMatch.index + splashDiv.length).match(/<style>([\s\S]*?)<\/style>/)?.[1]
-if (!splashCss || !splashCss.includes('#slidomingo-splash')) throw new Error('slides/index.html: splash <style> not found')
+if (!splashCss || !splashCss.includes('#beeslides-splash')) throw new Error('slides/index.html: splash <style> not found')
 
 const DURATION = 5, FADE = 0.5 // seconds: the intro, then a fade back to the
 // splash background so the GIF (and a looped MP4) restarts seamlessly
-const splashBg = splashCss.match(/#slidomingo-splash\{[^}]*?background:([^;}]+)/)?.[1]
+const splashBg = splashCss.match(/#beeslides-splash\{[^}]*?background:([^;}]+)/)?.[1]
 if (!splashBg) throw new Error('slides/index.html: splash background not found')
 
 // For sharing, the loading bar goes (nothing is loading) and so does the
 // splash's 9s self-dismiss; the rest plays exactly as at start-up.
 const splashPage = `<!doctype html><html><head><meta charset="utf-8"><style>${splashCss}
 .bs-bar{display:none}
-#slidomingo-splash{animation:none}
+#beeslides-splash{animation:none}
 #fade{position:fixed;inset:0;z-index:10000;background:${splashBg};opacity:0;animation:fade ${FADE}s linear ${DURATION - FADE}s both}
 @keyframes fade{to{opacity:1}}
 </style></head><body style="margin:0">${splashDiv}<div id="fade"></div></body></html>`

@@ -30,7 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const PROMPT = 'Review the current slide with review_slide and polish its layout; keep content unchanged.'
 
@@ -78,7 +78,7 @@ async function driver() {
   const docWc = () => waitFor(async () => {
     for (const wc of webContents.getAllWebContents()) {
       if (wc.isDestroyed() || wc.isLoading() || !/BeeSlides\.beeslides\.html/.test(wc.getURL())) continue
-      if (await wc.executeJavaScript('!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root"))')) return wc
+      if (await wc.executeJavaScript('!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-root"))')) return wc
     }
     return null
   })
@@ -96,7 +96,7 @@ async function driver() {
   // by trusted input: Selecto ignores synthetic DOM clicks here)
   const at = await wc.executeJavaScript(`(() => { const r = document.querySelector('.ed-stage [data-el-id]').getBoundingClientRect(); return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) } })()`)
   const shown = await waitFor(async () => {
-    if (!(await wc.executeJavaScript('window.slidomingo.selection.length'))) {
+    if (!(await wc.executeJavaScript('window.beeslides.selection.length'))) {
       wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 })
       await sleep(80)
       wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 })
@@ -105,7 +105,7 @@ async function driver() {
     return wc.executeJavaScript(`[...document.querySelectorAll('button')].some((b) => b.textContent.includes('Polish with Claude'))`)
   }, 10000)
   ok(!!shown, '"Polish with Claude" is offered while a session runs')
-  if (!shown) console.log('        debug ' + await wc.executeJavaScript(`JSON.stringify({ sel: window.slidomingo.selection, els: document.querySelectorAll('.ed-stage [data-el-id]').length, tidy: [...document.querySelectorAll('button')].filter((b) => b.textContent.includes('Tidy')).length, panel: document.querySelector('.ed-props, .ed-panel')?.textContent?.slice(0, 120) })`))
+  if (!shown) console.log('        debug ' + await wc.executeJavaScript(`JSON.stringify({ sel: window.beeslides.selection, els: document.querySelectorAll('.ed-stage [data-el-id]').length, tidy: [...document.querySelectorAll('button')].filter((b) => b.textContent.includes('Tidy')).length, panel: document.querySelector('.ed-props, .ed-panel')?.textContent?.slice(0, 120) })`))
   await wc.executeJavaScript(`(() => { const b = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Polish with Claude')); if (b) b.click(); else window.slidomingoDesktop.sendAgentPrompt('polish') })()`)
   // a prompt name main does not know is dropped
   await wc.executeJavaScript(`window.slidomingoDesktop.sendAgentPrompt('rm -rf ~')`)
@@ -139,7 +139,7 @@ async function driver() {
   ok(!msg.includes('cmt_done') && !msg.includes('Old note'), 'not the resolved one')
   ok(/subagent/.test(msg), 'with the alone-or-subagents instructions')
   ok(await waitFor(async () => /\x1b\[201~\n/.test(readFileSync(log, 'utf8'))), 'and submitted with Enter after the paste')
-  ok(await wc.executeJavaScript(`window.slidomingo.doc.slides[0].comments.find((c) => c.id === 'cmt_open').forAgent === true`), 'the sent comment is marked as sent')
+  ok(await wc.executeJavaScript(`window.beeslides.doc.slides[0].comments.find((c) => c.id === 'cmt_open').forAgent === true`), 'the sent comment is marked as sent')
 
   // review_slide through main's real capture: the agent-query file the MCP
   // server would write → the editor → capturePage cropped to the slide

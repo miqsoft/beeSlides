@@ -11,6 +11,7 @@
 // demand (`loadTemplateIn`) — the one real template in use is a 24MB PPTX
 // import, and shipping it over IPC on every picker open was the old cost.
 import { DOC_EXT, DOC_EXT_RE } from '../../../kernel/src/docext.ts'
+import { currentFormat } from '../../../kernel/src/legacynames.ts'
 import { readFileSync, readdirSync, statSync, existsSync, renameSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { extractDocBlockText, isInside, isTemplateHtml, looksLikeShell, rawDocBlockText } from './docfile.ts'
@@ -67,7 +68,7 @@ export function readTemplateMeta(path: string): TemplateMeta | null {
     // counts and flags only: no need to resolve the asset store
     const text = rawDocBlockText(readFileSync(path, 'utf8'))
     const json = text ? (JSON.parse(text) as Record<string, unknown>) : null
-    if (json && json.format === 'slidomingo/slides' && Array.isArray(json.slides) && json.slides.length) {
+    if (json && currentFormat(json.format) === 'beeslides/slides' && Array.isArray(json.slides) && json.slides.length) {
       meta = {
         path,
         templateId: typeof json.templateId === 'string' && json.templateId ? json.templateId : null,

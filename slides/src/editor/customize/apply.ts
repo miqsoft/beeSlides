@@ -47,7 +47,7 @@ export interface CustomizerHost {
   openCustomize(): void
 }
 
-const STYLE_ID = 'slidomingo-ui-profile-tokens'
+const STYLE_ID = 'beeslides-ui-profile-tokens'
 
 /** One pinned item of a menu, ready to show: the menus build it themselves
  *  (contextmenu.ts, minitoolbar.ts) and call `run`. */
@@ -217,7 +217,7 @@ export class UiCustomizer implements MenuCustomization {
         style = document.createElement('style')
         style.id = STYLE_ID
         // never written into a saved file (PLATFORM.md §4)
-        style.setAttribute('data-slidomingo-transient', '')
+        style.setAttribute('data-beeslides-transient', '')
         document.head.appendChild(style)
       }
       style.textContent = css

@@ -14,7 +14,7 @@ rules exist to keep N parallel workstreams from dissolving into merge hell.
   different apps must not touch each other's app directories. Each app owns
   its own `package.json`, `vite.config.ts`, `index.html`, `src/model.ts` and
   `src/i18n.ts` facade.
-- **Kernel zone — `kernel/src/`** — `save.ts` (splice + slidomingo/enc),
+- **Kernel zone — `kernel/src/`** — `save.ts` (splice + beeslides/enc),
   `autosave.ts`, `net.ts` (the network chokepoint + offline switch),
   `anim.ts`, `charts.ts`, the `i18n.ts` engine, `app.ts`, `doc.ts`. See
   `docs/PLATFORM.md` §7.

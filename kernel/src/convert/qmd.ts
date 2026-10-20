@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// The .qmd / .md orchestrator — markdown in, ONE slidomingo/slides document +
+// The .qmd / .md orchestrator — markdown in, ONE beeslides/slides document +
 // fidelity report out. Same contract as pptx.ts: pure `source → { doc, report }`,
 // no DOM, no app imports, zero dependencies.
 //
@@ -331,7 +331,7 @@ function takeNotes(blocks: MdBlock[], into: string[]): MdBlock[] {
 // --- conversion ----------------------------------------------------------------
 
 /**
- * Convert one markdown / Quarto source to a slidomingo/slides document.
+ * Convert one markdown / Quarto source to a beeslides/slides document.
  *
  * Never throws for content reasons: an empty source still yields a loadable
  * one-slide document, and everything questionable lands in the report.
@@ -403,7 +403,7 @@ export function convertMarkdown(source: string, opts: ConvertMarkdownOpts = {}):
   const author = asText(at(meta, 'author'))
   const layouts = [...usedLayouts.values()]
   const doc: OutDoc = {
-    format: 'slidomingo/slides',
+    format: 'beeslides/slides',
     version: '1.0.0',
     title: title || firstHeading(chunks) || opts.name?.replace(/\.[^.]+$/, '') || 'Imported deck',
     size,

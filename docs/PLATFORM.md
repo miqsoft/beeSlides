@@ -31,20 +31,20 @@ to open, edit, present, or save. Anything that adds a runtime network
 dependency to the core document lifecycle is off-platform.
 
 Byte order of a shipped shell (postbuild-compress):
-`chrome → NOTICE → tooling comment → plaintext #slidomingo-doc → splash → compressed payloads`.
-A saved plaintext file adds `#slidomingo-assets` right after the doc block, and
+`chrome → NOTICE → tooling comment → plaintext #beeslides-doc → splash → compressed payloads`.
+A saved plaintext file adds `#beeslides-assets` right after the doc block, and
 the preview and static layer after the splash.
 
 **Self-contained does not mean "all in the JSON".** In a plaintext file,
-`#slidomingo-doc` may refer to embedded bytes stored ONCE elsewhere in the
+`#beeslides-doc` may refer to embedded bytes stored ONCE elsewhere in the
 same file — the asset store (`kernel/src/assetstore.ts`): a
-`<style id="slidomingo-assets">` of CSS rules, plus the static layer's own
-media elements — as `"slidomingo-store:sha256-<16hex>"` strings, and says so in
+`<style id="beeslides-assets">` of CSS rules, plus the static layer's own
+media elements — as `"beeslides-store:sha256-<16hex>"` strings, and says so in
 `requires: ["asset-store"]`. Nothing is fetched; the file is still one file.
 Every reader resolves the refs from the file it read (the kernel's
 `resolveDocText`/`readEmbeddedDoc`), so the in-memory document always holds
 the bytes. An encrypted file never has a store.
-Runtime JS/CSS ship deflated in `slidomingo/deflate-b64` script blocks with a ~1KB
+Runtime JS/CSS ship deflated in `beeslides/deflate-b64` script blocks with a ~1KB
 loader (DecompressionStream → blob import).
 
 ## 2. The splice contract (FROZEN)
@@ -53,15 +53,20 @@ Self-save works by re-splicing the document block into the shell. Files
 already on users' disks depend on this shape staying exactly as it is, so
 every future build of every app must keep:
 
-- a `<script type="application/slidomingo+json" id="slidomingo-doc">` block that is
-  **plaintext** (never inside the compressed payloads), same id, forever;
+- a `<script type="application/beeslides+json" id="beeslides-doc">` block that is
+  **plaintext** (never inside the compressed payloads), same id from now on.
+  Files saved before 2026-10-20 carry `<script type="application/slidomingo+json"
+  id="slidomingo-doc">`; every reader accepts that block too, and a file takes
+  the new names on its next save — except a file whose OWN shell is old (a
+  library file written back in place), which keeps the names its runtime
+  reads (`kernel/src/legacynames.ts`, DECISIONS 2026-10-20);
 - block content that is JSON with `<` escaped as `<` — it can never
   contain `</script>`;
 - the SAME escaping on every other plaintext data block the shell carries
-  (`application/slidomingo+*`, written by `registerShellBlocks` in kernel
+  (`application/beeslides+*`, written by `registerShellBlocks` in kernel
   `save.ts` — generic machinery kept for any future block type, unused by
   any app today): their bodies are not authored by us, so an unescaped one
-  could close its own block or forge a second `#slidomingo-doc` opening tag;
+  could close its own block or forge a second `#beeslides-doc` opening tag;
 - a file that survives `DOMParser → splice → outerHTML` round-trips, with
   balanced script tags and a v0.1.0-style *text* splice still producing a
   well-formed document.
@@ -72,10 +77,12 @@ equivalent with identical checks) before any release.
 
 ## 3. Document identity & format
 
-- `doc.format` names the format (`slidomingo/slides`, `slidomingo/spaces`; `slidomingo/dash`
+- `doc.format` names the format (`beeslides/slides`, `beeslides/spaces`; `beeslides/dash`
   to come) with an integer format version in `doc.version`. The field is
-  `format` — `slides/src/model.ts` exports `FORMAT = 'slidomingo/slides'` and writes
-  it as `format`, and every reader keys off that.
+  `format` — `slides/src/model.ts` exports `FORMAT = 'beeslides/slides'` and writes
+  it as `format`, and every reader keys off that. A file saved before
+  2026-10-20 says `slidomingo/slides` (and `slidomingo/enc`); `parseDoc`
+  renames it on read (`currentFormat`, `kernel/src/legacynames.ts`).
 - **Formats are additive.** Every version opens files from every earlier
   version; unknown fields are preserved, not stripped. A change that an older
   reader would silently lose on save (the asset store's refs are the first)
@@ -97,9 +104,9 @@ equivalent with identical checks) before any release.
 
 ## 4. Save, autosave, encryption
 
-- Self-save: capture the pristine shell at boot, swap the `#slidomingo-doc` block,
+- Self-save: capture the pristine shell at boot, swap the `#beeslides-doc` block,
   re-serialize. File System Access API first, download fallback.
-- **Runtime-injected DOM must be marked `data-slidomingo-transient`.** The pristine
+- **Runtime-injected DOM must be marked `data-beeslides-transient`.** The pristine
   capture clones the LIVE document, so anything the runtime adds before it —
   the compressed shell's inflated stylesheet, first of all — would otherwise be
   written into the saved file, then re-injected on the next boot and saved
@@ -119,7 +126,7 @@ equivalent with identical checks) before any release.
 - A host whose live page is not a shippable shell (the desktop app's Vite dev
   page) must hand the kernel a real built shell via `adoptPristineHtml(html)`
   before any save — splicing a dev page into a user's deck would brick it.
-- Password-protected docs use the `slidomingo/enc` envelope (PBKDF2-SHA-256 300k →
+- Password-protected docs use the `beeslides/enc` envelope (PBKDF2-SHA-256 300k →
   AES-GCM-256 over the doc JSON) *inside* the plaintext block — the splice
   contract still holds. **Encrypted docs are never snapshotted to IndexedDB in
   plaintext**, and every write-back path stays encrypted while the password is
@@ -129,16 +136,16 @@ equivalent with identical checks) before any release.
 
 The **document JSON** is the interchange unit for AI tooling — chat models
 can't emit multi-MB files. In a saved file the JSON may hold asset-store refs
-(`slidomingo-store:…`) instead of picture bytes; a tool editing the file in
-place leaves refs and `#slidomingo-assets` alone, and may always write new
+(`beeslides-store:…`) instead of picture bytes; a tool editing the file in
+place leaves refs and `#beeslides-assets` alone, and may always write new
 pictures inline as `data:` URIs (the next save stores them). The block is
 written readable (`canonicalJson`: indented, content-ordered keys). "Copy
 document JSON" has a light variant with every embedded byte as a ref;
 Replace from JSON / `loadDoc` resolve refs by content hash against the open
 document and keep (and report) any they cannot. Every app exposes: copy document JSON / replace
-document from JSON (undoable), plus a scripting surface on `window.slidomingo`
+document from JSON (undoable), plus a scripting surface on `window.beeslides`
 (`doc`, `serialize()`, `loadDoc(json)`, …). The shell carries a tooling
-comment pointing agents at `#slidomingo-doc` and this API. Keep model JSON pure
+comment pointing agents at `#beeslides-doc` and this API. Keep model JSON pure
 data — template strings over functions (see charts: formatters are `{b}/{c}`
 templates, never code).
 
@@ -188,7 +195,7 @@ direction in their SHAPE need flipping by hand.
 ## 7. What is kernel vs what is app
 
 Shared — **`kernel/src/`**, extracted and in use (evolve carefully, serialize
-changes — see `docs/PARALLEL-WORK.md`): `save.ts` (splice + slidomingo/enc
+changes — see `docs/PARALLEL-WORK.md`): `save.ts` (splice + beeslides/enc
 encryption), `autosave.ts`, `net.ts` (the one network chokepoint + the
 offline switch), `anim.ts`, `charts.ts`, the `i18n.ts` engine, `app.ts`
 (per-app identity via `configureApp`), `doc.ts` (the `KernelDoc` envelope).
@@ -208,7 +215,7 @@ A new BeeSlides app is on-platform when it:
 - [ ] declares `doc.format` + `doc.version`; opens its own older files
 - [ ] mints and preserves `docId` per §3
 - [ ] self-saves (FSA + download) and autosaves per §4
-- [ ] supports the `slidomingo/enc` envelope per §4 (or explicitly documents why not yet)
+- [ ] supports the `beeslides/enc` envelope per §4 (or explicitly documents why not yet)
 - [ ] exposes the AI round-trip surface per §5
 - [ ] uses the shared i18n runtime per §6
 - [ ] has a starter document that demos the app honestly

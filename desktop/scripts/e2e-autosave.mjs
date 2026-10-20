@@ -32,8 +32,8 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const rtOf = (h) => h.match(/id="slidomingo-rt"[^>]*>([\s\S]*?)<\/script>/)?.[1]
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const rtOf = (h) => h.match(/id="beeslides-rt"[^>]*>([\s\S]*?)<\/script>/)?.[1]
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let failures = 0
@@ -113,7 +113,7 @@ async function driver() {
     }
   }
   const js = (wc, fn, a) => wc.executeJavaScript(`(${fn})(${JSON.stringify(a ?? null)})`)
-  async function page(pred = 'window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root")') {
+  async function page(pred = 'window.beeslides && window.beeslides.doc && document.querySelector(".ed-root")') {
     return waitFor(async () => {
       for (const wc of docWcs()) {
         if (wc.isLoading()) continue
@@ -123,8 +123,8 @@ async function driver() {
     })
   }
   const setTitle = (wc, title) => js(wc, (t) => {
-    const d = JSON.parse(JSON.stringify(window.slidomingo.doc)); d.title = t
-    window.slidomingo.loadDoc(JSON.stringify(d))
+    const d = JSON.parse(JSON.stringify(window.beeslides.doc)); d.title = t
+    window.beeslides.loadDoc(JSON.stringify(d))
   }, title)
   const status = (wc) => js(wc, () => document.querySelector('.ed-savestatus')?.textContent ?? null)
   const readDoc = (p) => JSON.parse(readFileSync(p, 'utf8').match(BLOCK_RE)[2].trim())
@@ -173,9 +173,9 @@ async function driver() {
     const wc = await page()
     ok(!!wc, 'the deck window boots')
     ok(/\/slides\/dist-single\/BeeSlides\.beeslides\.html$/.test(wc.getURL()), 'it runs the CURRENT app shell, not the file')
-    ok(await js(wc, () => window.slidomingo.doc.title) === 'Alpha', 'the deck came over IPC')
+    ok(await js(wc, () => window.beeslides.doc.title) === 'Alpha', 'the deck came over IPC')
     ok(await status(wc) === 'Saved', 'the indicator says Saved')
-    ok(!!await waitFor(() => js(wc, () => !document.getElementById('slidomingo-splash')), 6000), 'the boot splash goes away over a loaded deck')
+    ok(!!await waitFor(() => js(wc, () => !document.getElementById('beeslides-splash')), 6000), 'the boot splash goes away over a loaded deck')
     await shot(wc, 'editor-saved')
     await sleep(3500)
     ok(statSync(p).mtimeMs === before, 'an untouched open never rewrites the file')
@@ -200,7 +200,7 @@ async function driver() {
     const p = arg.path
     const wc = await page()
     ok(!!wc, 'a saved file opens in the editor window')
-    ok(await js(wc, () => window.slidomingo.doc.title) === 'Alpha closing', 'with its deck')
+    ok(await js(wc, () => window.beeslides.doc.title) === 'Alpha closing', 'with its deck')
     await setTitle(wc, 'Alpha reopened')
     await sleep(3500)
     ok(readDoc(p).title === 'Alpha reopened', 'an edit reaches the disk')
@@ -221,7 +221,7 @@ async function driver() {
     ok(await js(wc, () => /Read-only/.test(document.querySelector('.ed-toast')?.textContent ?? '')), '⌘S says it is read-only')
     globalThis.__nextSavePath = arg.copyPath
     for (const id of ['file.saveCopy', 'file.duplicate', 'file.saveLayout']) wc.send('slidomingo:menu-command', id)
-    const replaced = await js(wc, () => { const d = JSON.parse(JSON.stringify(window.slidomingo.doc)); d.title = 'Changed'; return window.slidomingo.loadDoc(JSON.stringify(d)) })
+    const replaced = await js(wc, () => { const d = JSON.parse(JSON.stringify(window.beeslides.doc)); d.title = 'Changed'; return window.beeslides.loadDoc(JSON.stringify(d)) })
     ok(replaced === false, 'loadDoc refuses to replace it')
     await sleep(3500)
     ok(!existsSync(arg.copyPath), 'Save a copy… / Duplicate wrote nothing')
@@ -237,7 +237,7 @@ async function driver() {
     // refs in the JSON; reopening gives back the identical assets.
     const wc = await page()
     ok(!!wc, 'a picture deck boots')
-    const assets = await js(wc, () => window.slidomingo.doc.assets)
+    const assets = await js(wc, () => window.beeslides.doc.assets)
     const keys = Object.keys(arg.assets)
     ok(keys.length === Object.keys(assets).length && keys.every((k) => assets[k] === arg.assets[k]), 'with every asset byte-equal to the file it was opened from')
     await setTitle(wc, arg.title)
@@ -249,7 +249,7 @@ async function driver() {
     // Document properties ▸ Clean up ▸ Optimize pictures (lossless)…, clicked
     // for real: smaller files, reported, one undo restores every byte.
     const wc = await page()
-    const before = await js(wc, () => JSON.stringify(window.slidomingo.doc.assets))
+    const before = await js(wc, () => JSON.stringify(window.beeslides.doc.assets))
     await js(wc, () => {
       window.confirm = () => true
       document.dispatchEvent(new CustomEvent('slidomingo:open-layout-manager', { detail: { tab: 'meta', force: true } }))
@@ -265,13 +265,13 @@ async function driver() {
       return t ?? null
     }), 80000)
     ok(!!note, `it reports what it saved (${note})`)
-    const after = await js(wc, () => window.slidomingo.doc.assets)
+    const after = await js(wc, () => window.beeslides.doc.assets)
     const orig = JSON.parse(before)
     const changed = Object.keys(orig).filter((k) => after[k] !== orig[k])
     ok(changed.length >= 2 && changed.every((k) => after[k].length < orig[k].length), `the JPEG and PNG assets got smaller (${changed.join(', ')})`)
     ok(Object.keys(orig).every((k) => changed.includes(k) || after[k] === orig[k]), 'everything else is untouched')
-    await js(wc, () => window.slidomingo.undo())
-    ok(await js(wc, () => JSON.stringify(window.slidomingo.doc.assets)) === before, 'one undo restores the original bytes')
+    await js(wc, () => window.beeslides.undo())
+    ok(await js(wc, () => JSON.stringify(window.beeslides.doc.assets)) === before, 'one undo restores the original bytes')
     quit()
   }
 
@@ -287,7 +287,7 @@ async function driver() {
     await sleep(600)
     const ext = readDoc(p); ext.title = 'Gamma theirs'
     writeFileSync(p, deckHtml(ext))
-    ok(!!await waitFor(() => js(wc, () => window.slidomingo.doc.title === 'Gamma theirs'), 5000), 'a clean deck follows an external change by itself')
+    ok(!!await waitFor(() => js(wc, () => window.beeslides.doc.title === 'Gamma theirs'), 5000), 'a clean deck follows an external change by itself')
     await setTitle(wc, 'Gamma mine')
     const ext2 = readDoc(p); ext2.title = 'Gamma theirs again'
     writeFileSync(p, deckHtml(ext2))
@@ -324,7 +324,7 @@ async function driver() {
     // not awaited: this page is replaced by the draft, so its
     // executeJavaScript promise may never settle
     void js(blank, (p) => { void window.slidomingoDesktop.openDocument(p); return true }, drafts[0].path).catch(() => {})
-    const wc = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "My draft"')
+    const wc = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "My draft"')
     ok(!!wc, 'the draft reopens with its content')
     await sleep(800)
     ok(docWcs().length === 1 && BrowserWindow.getAllWindows().length === 1, 'in the start page’s own window')
@@ -354,17 +354,17 @@ async function driver() {
     const pick = await page('document.querySelector(".ed-sp-row .ed-sp-tile")')
     await js(pick, () => document.querySelector('.ed-sp-row .ed-sp-tile').click()) // Blank
     let wc = await page()
-    ok(await js(wc, () => window.slidomingo.doc.title) === 'Untitled', 'a blank deck starts as Untitled')
+    ok(await js(wc, () => window.beeslides.doc.title) === 'Untitled', 'a blank deck starts as Untitled')
     if (arg.title) {
       await setTitle(wc, arg.title)
-      wc = await page(`window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === ${JSON.stringify(arg.title)}`)
+      wc = await page(`window.beeslides && window.beeslides.doc && window.beeslides.doc.title === ${JSON.stringify(arg.title)}`)
     }
     await js(wc, () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true })))
     ok(!!await waitFor(async () => existsSync(arg.savePath)), '⌘S saved the draft as the chosen file')
     const offered = basename(globalThis.__saveDefaults[0] ?? '')
     ok(offered === arg.offered, `the dialog offered ${JSON.stringify(arg.offered)} (got ${JSON.stringify(offered)})`)
-    ok(!!await waitFor(() => js(wc, (t) => window.slidomingo.doc.title === t, arg.expectTitle), 3000),
-      `the title is ${JSON.stringify(arg.expectTitle)} (got ${JSON.stringify(await js(wc, () => window.slidomingo.doc.title))})`)
+    ok(!!await waitFor(() => js(wc, (t) => window.beeslides.doc.title === t, arg.expectTitle), 3000),
+      `the title is ${JSON.stringify(arg.expectTitle)} (got ${JSON.stringify(await js(wc, () => window.beeslides.doc.title))})`)
     const shown = await named(wc)
     ok(shown === (arg.expectFile ?? null), arg.expectFile ? `the window names the file apart from the title (${shown})` : `title and file match, so no file is named (${shown})`)
     await shot(wc, `title-saveas-${basename(arg.savePath, '.beeslides.html')}`)
@@ -378,7 +378,7 @@ async function driver() {
       wc.send('slidomingo:menu-command', 'file.saveCopy')
       ok(!!await waitFor(async () => existsSync(arg.copyPath)), 'Save a copy… wrote the copy')
       await sleep(500)
-      ok(await js(wc, () => window.slidomingo.doc.title) === arg.expectTitle, 'a copy leaves the title alone')
+      ok(await js(wc, () => window.beeslides.doc.title) === arg.expectTitle, 'a copy leaves the title alone')
       await setTitle(wc, 'After copy')
       await sleep(3500)
       ok(readDoc(arg.savePath).title === 'After copy' && readDoc(arg.copyPath).title === arg.expectTitle,
@@ -399,10 +399,10 @@ async function driver() {
   if (step === 'import-replace') {
     const wc = await page()
     const winId = BrowserWindow.getAllWindows()[0].id
-    const doc = JSON.parse(JSON.stringify(await js(wc, () => window.slidomingo.doc)))
+    const doc = JSON.parse(JSON.stringify(await js(wc, () => window.beeslides.doc)))
     doc.title = 'Imported'; doc.docId = 'imported-1'
     void js(wc, (t) => { void window.slidomingoDesktop.openAsDraft(t); return true }, JSON.stringify(doc)).catch(() => {})
-    const imp = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Imported"')
+    const imp = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Imported"')
     ok(!!imp, 'open-as-draft boots the imported deck')
     await sleep(3500)
     const wins = BrowserWindow.getAllWindows()
@@ -420,7 +420,7 @@ async function driver() {
     await setTitle(wc, 'Alpha2 pending')
     // not awaited: this page goes away
     void js(wc, (p) => { void window.slidomingoDesktop.openDocument(p); return true }, arg.other).catch(() => {})
-    const next = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Beta2"')
+    const next = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Beta2"')
     ok(!!next, 'the doc view now shows the other deck')
     ok(readDoc(arg.path).title === 'Alpha2 pending', 'the pending edit was flushed to disk first')
     await sleep(500)
@@ -444,12 +444,12 @@ async function driver() {
     const a = await page()
     const aWin = BrowserWindow.getAllWindows()[0]
     await js(a, (p) => window.slidomingoDesktop.openDocument(p, { newWindow: true }), arg.other)
-    const b = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Beta2 edited"')
+    const b = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Beta2 edited"')
     ok(!!b && BrowserWindow.getAllWindows().length === 2, `newWindow: true opens a second window (${BrowserWindow.getAllWindows().length})`)
-    ok(!a.isDestroyed() && await js(a, () => window.slidomingo.doc.title) === 'Alpha2 pending', 'the first keeps its deck')
+    ok(!a.isDestroyed() && await js(a, () => window.beeslides.doc.title) === 'Alpha2 pending', 'the first keeps its deck')
     await js(b, (p) => window.slidomingoDesktop.openDocument(p), arg.path)
     await sleep(1500)
-    ok(!b.isDestroyed() && await js(b, () => window.slidomingo.doc.title) === 'Beta2 edited', 'opening a deck open elsewhere does not swap this window')
+    ok(!b.isDestroyed() && await js(b, () => window.beeslides.doc.title) === 'Beta2 edited', 'opening a deck open elsewhere does not swap this window')
     ok(!a.isDestroyed() && BrowserWindow.getAllWindows().length === 2 && docWcs().length === 2, 'nor opens a third — it focuses the window that has it')
     ok(!aWin.isDestroyed(), 'that window is still there')
     quit()
@@ -464,7 +464,7 @@ async function driver() {
     const [partition] = Object.entries(reg).find(([, p]) => !existsSync(p)) ?? []
     const partDir = partition && join(app.getPath('userData'), 'Partitions', partition.replace(/^persist:/, ''))
     void js(blank, (p) => { void window.slidomingoDesktop.openDocument(p); return true }, arg.path).catch(() => {})
-    const wc = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Alpha2 pending"')
+    const wc = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Alpha2 pending"')
     ok(!!wc, 'a Recent tile from the start page opens the deck')
     ok(docWins().length === 1 && docWins()[0].id === win.id, `in the same window (${docWins().map((w) => w.id)} vs ${win.id})`)
     ok(!!partDir && !!await waitFor(async () => !existsSync(partDir), 5000), `the blank’s never-written draft partition is dropped (${partition})`)
@@ -514,9 +514,9 @@ async function driver() {
     ok(dragged.lit && dragged.off, 'dragging a file over the page highlights it, dropping clears it')
     ok(dragged.busy === 'Importing…', `the From a file… button shows it is importing (${dragged.busy})`)
     ok(dragged.prevented, 'the drop is preventDefault()ed (the window never navigates to the file)')
-    const wc = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Dropped Deck"')
+    const wc = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Dropped Deck"')
     ok(!!wc, 'a dropped .pptx becomes the deck')
-    ok(await js(wc, () => window.slidomingo.doc.slides.length) === 2, 'with its slides')
+    ok(await js(wc, () => window.beeslides.doc.slides.length) === 2, 'with its slides')
     ok(!!await waitFor(() => js(wc, () => /Import report/.test(document.querySelector('.ed-about-overlay')?.textContent ?? '')), 4000), 'the import report is shown')
     await sleep(3500)
     ok(await status(wc) === 'Draft', `as a Draft (got ${await status(wc)})`)
@@ -532,10 +532,10 @@ async function driver() {
       document.querySelector('.ed-startpick').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }))
       return true
     }).catch(() => {})
-    const wc = await page('window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-about-overlay")')
+    const wc = await page('window.beeslides && window.beeslides.doc && document.querySelector(".ed-about-overlay")')
     const d = wc && await js(wc, () => ({
-      n: window.slidomingo.doc.slides.length,
-      img: JSON.stringify(window.slidomingo.doc).includes('data:image/png'),
+      n: window.beeslides.doc.slides.length,
+      img: JSON.stringify(window.beeslides.doc).includes('data:image/png'),
       report: document.querySelector('.ed-about-overlay')?.textContent ?? '',
     }))
     ok(!!d && d.n >= 2, `a dropped .md becomes a deck with its slides (${d?.n})`)
@@ -548,9 +548,9 @@ async function driver() {
     const sp = await page('window.slidomingoDesktop && document.querySelector(".ed-startpick .ed-sp-tile")')
     await answerFilePick(sp, [arg.pptx])
     void clickLine(sp, 'Import', 'From a file…').catch(() => {})
-    const wc = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Dropped Deck"')
+    const wc = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Dropped Deck"')
     ok(!!wc, 'Import › From a file… turns a picked .pptx into the deck')
-    ok(!!wc && await js(wc, () => window.slidomingo.doc.slides.length) === 2, 'with its slides')
+    ok(!!wc && await js(wc, () => window.beeslides.doc.slides.length) === 2, 'with its slides')
     ok(!!wc && !!await waitFor(() => js(wc, () => /Import report/.test(document.querySelector('.ed-about-overlay')?.textContent ?? '')), 4000), 'and the import report')
     quit()
   }
@@ -613,8 +613,8 @@ async function driver() {
     await shot(sp, `ai-flow-${arg.target}`)
     void js(sp, () => { document.querySelector('.ed-startpick-flow-actions .ed-startpick-btn').click(); return true }).catch(() => {})
     if (deck) {
-      const wc = await page(`window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === ${JSON.stringify(arg.result.title)}`)
-      ok(!!wc && await js(wc, () => window.slidomingo.doc.slides.length) === arg.result.slides.length, 'Use this deck opens it')
+      const wc = await page(`window.beeslides && window.beeslides.doc && window.beeslides.doc.title === ${JSON.stringify(arg.result.title)}`)
+      ok(!!wc && await js(wc, () => window.beeslides.doc.slides.length) === arg.result.slides.length, 'Use this deck opens it')
     } else {
       const added = await waitFor(async () => readdirSync(arg.templatesDir).find((n) => !before.includes(n)) ?? null, 15000)
       const t = added && readDoc(join(arg.templatesDir, added))
@@ -638,7 +638,7 @@ async function driver() {
       ok(!!await waitFor(async () => globalThis.__dialogs.length > 0, 20000), `a failing flush asks (${JSON.stringify(globalThis.__dialogs)})`)
       await sleep(800)
       ok(!wc.isDestroyed() && wc.id === docWcId, 'Cancel keeps the same doc view')
-      ok(await js(wc, () => window.slidomingo.doc.title) === 'Zeta unsaveable', 'with the unsaved edit still in it')
+      ok(await js(wc, () => window.beeslides.doc.title) === 'Zeta unsaveable', 'with the unsaved edit still in it')
       ok(docWcs().length === 1 && BrowserWindow.getAllWindows().length === 1, 'and opens nothing else')
     } finally {
       chmodSync(dir, 0o755)
@@ -662,13 +662,13 @@ async function driver() {
     ok(!!await waitFor(async () => existsSync(tmplPath), 5000), 'Save as layout writes into the templates folder')
     const t1 = readDoc(tmplPath)
     ok(t1.template === true && t1.templateSamples === false && t1.slides.length === 1 && !!t1.templateId, 'a design-only template: 1 starter slide, templateId minted')
-    ok(await js(wc, () => window.slidomingo.doc.basedOn?.templateId) === t1.templateId, 'the deck now records basedOn')
+    ok(await js(wc, () => window.beeslides.doc.basedOn?.templateId) === t1.templateId, 'the deck now records basedOn')
     // edit a slide type in the Layout Manager, then Update "House Style"
     await js(wc, () => {
-      const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+      const d = JSON.parse(JSON.stringify(window.beeslides.doc))
       d.layouts = d.layouts?.length ? d.layouts : [{ id: 'ly-e2e', name: 'E2E', background: '#fff', transition: 'none', notes: '', elements: [] }]
       d.layouts[0].background = '#abcdef'
-      window.slidomingo.loadDoc(JSON.stringify(d))
+      window.beeslides.loadDoc(JSON.stringify(d))
       document.dispatchEvent(new CustomEvent('slidomingo:open-layout-manager', { detail: { tab: 'types', force: true } }))
     })
     ok(!!await waitFor(() => js(wc, () => document.querySelector('.ed-layoutmgr-scope')?.textContent === 'Changes apply to this deck')), 'the Layout Manager says edits apply to this deck')
@@ -764,7 +764,7 @@ async function driver() {
     ok(await js(wc, () => document.querySelector('.ed-sp-panel').hidden), '✕ closes it')
     void js(wc, `() => { (${houseTile})().click(); return true }`).catch(() => {})
     const ed = await page()
-    const d = await js(ed, () => ({ n: window.slidomingo.doc.slides.length, based: window.slidomingo.doc.basedOn, title: window.slidomingo.doc.title, bg: window.slidomingo.doc.layouts?.[0]?.background }))
+    const d = await js(ed, () => ({ n: window.beeslides.doc.slides.length, based: window.beeslides.doc.basedOn, title: window.beeslides.doc.title, bg: window.beeslides.doc.layouts?.[0]?.background }))
     ok(d.n === 1 && d.based?.name === 'House Style' && !!d.based?.templateId, `one click on the tile gives one slide, basedOn set (${JSON.stringify(d)})`)
     ok(d.title === 'Untitled' && d.bg === '#abcdef', 'titled Untitled, with the template’s (updated) slide types')
     quit()
@@ -793,7 +793,7 @@ async function driver() {
     await js(sp, () => { document.activeElement?.blur?.(); document.querySelector('.ed-startpick').focus() })
     void js(sp, () => { document.querySelector('.ed-startpick').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return true }).catch(() => {})
     const ed = await page()
-    const d = ed && await js(ed, () => ({ based: window.slidomingo.doc.basedOn, n: window.slidomingo.doc.slides.length }))
+    const d = ed && await js(ed, () => ({ based: window.beeslides.doc.basedOn, n: window.beeslides.doc.slides.length }))
     ok(d?.based?.name === 'House Style' && !!d?.based?.templateId && d.n === 1, `Enter creates a deck from it (${JSON.stringify(d)})`)
     quit()
   }
@@ -809,12 +809,12 @@ async function driver() {
     const wc = await waitFor(async () => {
       for (const w of docWcs()) {
         if (before.includes(w.id) || w.isLoading()) continue
-        if (await js(w, () => !!(window.slidomingo && window.slidomingo.doc && document.querySelector('.ed-root'))).catch(() => false)) return w
+        if (await js(w, () => !!(window.beeslides && window.beeslides.doc && document.querySelector('.ed-root'))).catch(() => false)) return w
       }
       return null
     })
     ok(!!wc, 'it opens a new window straight into a deck')
-    const d = wc && await js(wc, () => ({ based: window.slidomingo.doc.basedOn, picker: !!document.querySelector('.ed-startpick') }))
+    const d = wc && await js(wc, () => ({ based: window.beeslides.doc.basedOn, picker: !!document.querySelector('.ed-startpick') }))
     ok(d?.based?.name === 'House Style' && !d.picker, `from the default template, with no start page (${JSON.stringify(d)})`)
     ok(docWcs().length === 2, 'the first window keeps its start page')
     quit()
@@ -835,7 +835,7 @@ async function driver() {
     await shot(sp, 'startpage-panel-pick')
     void js(sp, () => { document.querySelector('.ed-sp-panel .ed-startpick-btn').click(); return true }).catch(() => {})
     const ed = await page()
-    const lid = ed && await js(ed, () => window.slidomingo.doc.slides.map((s) => s.layoutId))
+    const lid = ed && await js(ed, () => window.beeslides.doc.slides.map((s) => s.layoutId))
     ok(JSON.stringify(lid) === '["ly-b"]', `the deck's slide is the picked slide type (${JSON.stringify(lid)})`)
     quit()
   }
@@ -961,7 +961,7 @@ async function driver() {
     await setTitle(wc, 'Big edited')
     const done = await waitFor(async () => { try { return readDoc(arg.path).title === 'Big edited' } catch { return false } }, 60000)
     ok(!!done, `the big deck autosaved (${Date.now() - t0}ms from edit to disk, incl. the 2.5s debounce)`)
-    const ser = await js(wc, async () => { const t = performance.now(); await window.slidomingo.serialize(); return Math.round(performance.now() - t) })
+    const ser = await js(wc, async () => { const t = performance.now(); await window.beeslides.serialize(); return Math.round(performance.now() - t) })
     try { console.log(`        serializeFile on this deck: ${ser}ms`) } catch { /* */ }
     quit()
   }
@@ -1066,7 +1066,7 @@ async function orchestrator() {
   {
     const saved = readFileSync(alpha, 'utf8')
     ok(rtOf(saved) === rtOf(shell), 'a saved deck carries the EDITOR runtime')
-    ok(/data-slidomingo-preview/.test(saved) && /id="slidomingo-static"/.test(saved), 'with its first-page preview and static layer')
+    ok(/data-beeslides-preview/.test(saved) && /id="beeslides-static"/.test(saved), 'with its first-page preview and static layer')
     run('reopen-edited', { open: alpha, arg: { path: alpha } })
   }
 
@@ -1094,7 +1094,7 @@ async function orchestrator() {
   const once = (html) => [...Object.values(pics), clip].every((u) => html.split(u.slice(3000, 3200)).length === 2)
   run('store-roundtrip', { open: pictures, arg: { path: pictures, assets: pics, title: 'Pictures edited' } })
   const stored = readFileSync(pictures, 'utf8')
-  ok(/id="slidomingo-assets"/.test(stored) && readDoc(pictures).requires?.includes('asset-store'), 'the autosave wrote an asset store and declared it')
+  ok(/id="beeslides-assets"/.test(stored) && readDoc(pictures).requires?.includes('asset-store'), 'the autosave wrote an asset store and declared it')
   ok(once(stored), 'every picture and the video are in the file exactly once')
   ok(!JSON.stringify(readDoc(pictures)).includes(pics.photo.slice(3000, 3200)), 'the JSON refers to them instead of carrying them')
   run('store-roundtrip', { open: pictures, arg: { path: pictures, assets: pics, title: 'Pictures reopened' } })
@@ -1217,11 +1217,11 @@ async function orchestrator() {
       return `${a}\n${JSON.stringify(d).replace(/</g, '\\u003c')}\n${c}`
     })
     writeFileSync(big, html)
-    const rt = (h) => h.match(/id="slidomingo-rt"[^>]*>([\s\S]{0,400})/)?.[1]
+    const rt = (h) => h.match(/id="beeslides-rt"[^>]*>([\s\S]{0,400})/)?.[1]
     const oldRt = rt(html)
     run('big', { open: big, arg: { path: big } })
     const after = readFileSync(big, 'utf8')
-    ok(/data-slidomingo-preview/.test(after), 'the old-build deck gained a fresh first-page preview')
+    ok(/data-beeslides-preview/.test(after), 'the old-build deck gained a fresh first-page preview')
     const current = shell
     ok(rt(after) === rt(current), `it now carries the current build's runtime (it had ${oldRt === rt(current) ? 'the same' : 'an older'} one)`)
   }

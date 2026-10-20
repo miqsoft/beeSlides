@@ -6,7 +6,7 @@
 // STRUCTURAL OUTPUT TYPES, NOT AN IMPORT FROM slides/. The kernel is shared
 // code and must not depend on an app; the same inversion the charts engine
 // uses (kernel/src/charts.ts declares its own option shape, slides satisfies
-// it structurally). These types describe the SUBSET of slidomingo/slides the
+// it structurally). These types describe the SUBSET of beeslides/slides the
 // importer emits — slides' parseDoc validates the real thing on load, and the
 // e2e rig asserts the emitted JSON loads there. Field names and semantics must
 // match slides/src/model.ts exactly; when in doubt, that file wins.
@@ -14,7 +14,7 @@
 import type { Report } from './report.ts'
 import type { XElem } from './xml.ts'
 
-// --- the emitted document (slidomingo/slides subset) ------------------------------
+// --- the emitted document (beeslides/slides subset) ------------------------------
 
 export interface OutShadow { x?: number; y?: number; blur: number; color: string }
 
@@ -200,7 +200,7 @@ export interface OutSlide {
 }
 
 export interface OutDoc {
-  format: 'slidomingo/slides'
+  format: 'beeslides/slides'
   version: '1.0.0'
   /** Reader-gate feature names a reader must understand to write the file
    *  back (docs/format.md; kernel/src/doc.ts, model.ts KNOWN_FEATURES). The

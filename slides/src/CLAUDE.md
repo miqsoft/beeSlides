@@ -6,7 +6,7 @@ name entries there).
 
 ## Save, load, file shell
 
-- Every path that reads a `#slidomingo-doc` out of a FILE must resolve asset-store
+- Every path that reads a `#beeslides-doc` out of a FILE must resolve asset-store
   refs (`resolveDocText`, live DOM: `readEmbeddedDoc`, desktop `docfile.extractDocBlockText`)
   or the deck opens without pictures.
 - Every new write or merge path must call `refuseGatedWrite` (writes) or `refuseNewerDoc`
@@ -22,21 +22,21 @@ name entries there).
 - Encrypted decks: no asset store, no IndexedDB autosave snapshots, no preview.
   `serializeAuto`/`serializeDocInto` are the encryption-aware paths; `serializeFile` is plain.
 - Anything injected into the DOM before `capturePristine()` must carry
-  `data-slidomingo-transient`, or it is saved back into the shell on every save.
+  `data-beeslides-transient`, or it is saved back into the shell on every save.
 - Compressed shell byte order: chrome → NOTICE → tooling comment → plaintext
-  `#slidomingo-doc` → splash → payloads. `scripts/shell-gate.mjs` is the splice-contract gate.
+  `#beeslides-doc` → splash → payloads. `scripts/shell-gate.mjs` is the splice-contract gate.
 - `ZOPFLI=0` (zlib fallback) is for local builds only, never a release. `@gfx/zopfli` resolves
   from the app's cwd (scripts/ has no package.json).
 - Library writes splice into the library file's own HTML (`spliceForeignDoc`), never via save.ts.
 
 ## Preview (file-manager thumbnail)
 
-- Preview = plain `[data-slidomingo-preview]` element followed IMMEDIATELY by a
-  parser-blocking remover `<script data-slidomingo-preview>`. Not `<noscript>` (iOS ignores it).
+- Preview = plain `[data-beeslides-preview]` element followed IMMEDIATELY by a
+  parser-blocking remover `<script data-beeslides-preview>`. Not `<noscript>` (iOS ignores it).
   Nothing paintable may sit between them.
 - Removing the old preview on save is UNCONDITIONAL (replace, never append).
 - Never strip `id` from the preview render (svg `url(#…)` refs). `staticize()` inlines the
-  needed `.slidomingo-*` rules — runtime CSS is not inflated there.
+  needed `.beeslides-*` rules — runtime CSS is not inflated there.
 - Verify with `qlmanage -t`, not Chrome alone; no `<svg><foreignObject>` (QuickLook mangles it).
   Headless Chrome JS-off: CDP `Emulation.setScriptExecutionDisabled`.
 - Rig: `scripts/test-preview.ts` (+ shell-gate preview invariant).
@@ -92,7 +92,7 @@ name entries there).
 - `builds.splitParagraphs` and `tagParagraphs` are twins — keep them in step.
 - Merged cells: read spans ONLY through `tablespans.ts` (`tableLayout`); covered cells stay in
   the grid and are derived, never stored.
-- Image crop: read ONLY via `model.normalizeCrop`. The img sits inside `div.slidomingo-crop`;
+- Image crop: read ONLY via `model.normalizeCrop`. The img sits inside `div.beeslides-crop`;
   code that looks for an image's `<img>` must allow that wrapper.
 - Math: `math.ts` is the one Temml path. A cell edit holding `$` swaps in raw html
   (`editingShowedRaw`) — never commit rendered MathML. Frames fit via `measure.fitMathFrame`.
@@ -100,7 +100,7 @@ name entries there).
   parsing, morph). svgexport clears it and wraps in SVG `scale` instead.
 - svg-element CSS must be scoped (`render.ts scopeCss`) or it leaks document-wide.
 - Zoom covers render nested with ALL `data-*` and hrefs stripped; canvas queries use
-  `.slidomingo-el[data-el-id]` for that reason.
+  `.beeslides-el[data-el-id]` for that reason.
 - Any new insert path for third-party artwork sets `el.provenance` (origin + license).
 - Diagrams are ordinary elements + groups (interactivity = linked state slides + morph,
   motion = `fx.loop`); opaque `svg` is only for geography/static artwork.
@@ -149,7 +149,7 @@ name entries there).
 - Prompts typed into the terminal must stay free of `'`, `$`, backtick and backslash
   (pty.ts quotes unescaped).
 - `commentAuthor()` is sync and never prompts; empty author is valid.
-- `window.slidomingo.comments()` = typed-anchor list for agents.
+- `window.beeslides.comments()` = typed-anchor list for agents.
 - Agent writes go through `editor.commitAgentWrite` (layout guard).
 - Import repair: a converter code a model could restore goes in `importrepair.ts REPAIRABLE`;
   one the format cannot express never does.

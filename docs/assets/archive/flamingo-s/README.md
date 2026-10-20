@@ -44,9 +44,9 @@ full set.
 1. Copy `brand.flamingo-s.ts` over `slides/src/brand.ts` and delete its first
    (archival) line.
 2. Put the splash CSS back: the `<style>` block in `splash.flamingo-s.html`
-   replaces the one after `#slidomingo-splash` in `slides/index.html` (it is
+   replaces the one after `#beeslides-splash` in `slides/index.html` (it is
    hand-written and targets `.sm-r1..3`, `.sm-head`, `.sm-eye`), and restore
-   the 9s `bsAuto` auto-hide on `#slidomingo-splash` that the archive copy
+   the 9s `bsAuto` auto-hide on `#beeslides-splash` that the archive copy
    drops. The word becomes `Slido<b>mingo</b>` again.
 3. Run `node scripts/build-brand-assets.mjs` to regenerate the favicon, the
    splash SVG and `docs/assets/beeslides-logo.svg`.

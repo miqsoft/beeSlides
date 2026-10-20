@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// Document validation — `window.slidomingo.validate()`.
+// Document validation — `window.beeslides.validate()`.
 //
 // WHY THIS EXISTS. Almost everything that goes wrong in a generated deck fails
 // SILENTLY. A typo'd property is ignored, so the styling just does not apply. A
@@ -16,7 +16,7 @@
 // whether a document is loadable at all.
 //
 // Text overflow needs real layout, so it goes through measure.ts — the same
-// path `window.slidomingo.measure()` uses, which renders off-screen with the SAME
+// path `window.beeslides.measure()` uses, which renders off-screen with the SAME
 // renderer the editor and present mode use. One path means the validator and
 // the measuring tool cannot disagree about whether a box fits its text. Without
 // a DOM (node tooling) the measured checks are skipped and `measured` reports
@@ -877,7 +877,7 @@ function validateChart(
 /**
  * Measure every text element and report the ones that do not fit.
  *
- * Goes through measure.ts, the same path `window.slidomingo.measure()` uses, so the
+ * Goes through measure.ts, the same path `window.beeslides.measure()` uses, so the
  * validator and the measuring tool can never disagree about whether a given
  * box fits its text — which they would within a release if each had its own
  * copy of the arithmetic.

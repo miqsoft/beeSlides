@@ -64,8 +64,9 @@ const STATIC_SETTLE_MS = 400
  *  (its natural size, which zoomFactor fits to the window), over neither the
  *  splash nor the 64 KB preview. */
 const STATIC_FIRST_SLIDE_CSS =
-  '[data-slidomingo-preview],#slidomingo-splash{display:none!important}' +
-  ' [data-slidomingo-static-slide]:not(:first-of-type){display:none}' +
+  // both spellings: files saved before 2026-10-20 say `slidomingo` (kernel/src/legacynames.ts)
+  '[data-beeslides-preview],#beeslides-splash,[data-slidomingo-preview],#slidomingo-splash{display:none!important}' +
+  ' [data-beeslides-static-slide]:not(:first-of-type),[data-slidomingo-static-slide]:not(:first-of-type){display:none}' +
   ' body{margin:0}'
 
 function warn(...args: unknown[]): void {

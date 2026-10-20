@@ -6,6 +6,7 @@ import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, openSync, readSync, closeSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { docKindOfText } from './docfile.ts'
+import { LEGACY_DOC_BLOCK_ID } from '../../../kernel/src/legacynames.ts'
 
 interface RecentEntry {
   path: string
@@ -50,7 +51,7 @@ function writeAll(entries: RecentEntry[]): void {
 
 const kindCache = new Map<string, { mtimeMs: number; kind: 'figure' | 'iconset' | null }>()
 
-/** Is this file a figure or an icon set (doc.kind)? Reads the #slidomingo-doc
+/** Is this file a figure or an icon set (doc.kind)? Reads the #beeslides-doc
  *  block only — the first thing in a saved file's head — and stops at its
  *  closing tag; an encrypted or unreadable file is simply a deck. */
 function fileDocKind(path: string): 'figure' | 'iconset' | null {
@@ -69,7 +70,8 @@ function fileDocKind(path: string): 'figure' | 'iconset' | null {
         if (got <= 0) break
         pos += got
         text = (text + buf.toString('utf8', 0, got)).slice(-(buf.length + 64))
-        const start = text.indexOf('id="slidomingo-doc"')
+        const at = (id: string) => text.indexOf(`id="${id}"`)
+        const start = Math.max(at('beeslides-doc'), at(LEGACY_DOC_BLOCK_ID)) // a file has one or the other
         if (start < 0) continue
         const end = text.indexOf('</script', start)
         kind = docKindOfText(text.slice(start, end < 0 ? undefined : end))

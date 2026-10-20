@@ -3,7 +3,7 @@
 // Copyright (c) 2026 The BeeSlides authors
 //
 // Generates slides/src/modelkeys.generated.ts — the set of property names the
-// slidomingo/slides format defines, read straight off the interfaces in model.ts.
+// beeslides/slides format defines, read straight off the interfaces in model.ts.
 //
 //   node scripts/build-modelkeys.mjs           write the file
 //   node scripts/build-modelkeys.mjs --check   fail if it is out of date (CI)
@@ -136,7 +136,7 @@ const body = `// SPDX-License-Identifier: AGPL-3.0-or-later
 // edit. Run \`node scripts/build-modelkeys.mjs\` after changing the format's
 // interfaces; CI fails if this file is out of date.
 //
-// The property names the slidomingo/slides format defines. \`validate()\` reports
+// The property names the beeslides/slides format defines. \`validate()\` reports
 // anything outside these sets, because an unknown key is ignored silently and
 // a typo just means the styling does not apply.
 

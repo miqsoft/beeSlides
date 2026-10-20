@@ -7,7 +7,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 
 - Moveable's control box mounts INSIDE `.ed-stage-scale` with `rootContainer: document.body` and `moveable.zoom = 1/scale` on relayout; mounted outside, its coordinates are garbage.
 - Never reset `moveable.target` to an identical array: listeners re-attach a frame later and a drag started in that frame is swallowed (`syncTargets` checks).
-- `[data-el-id=…]` also matches sidebar thumbnails; scope queries to the surface (`.ed-stage-scale …`, `.slidomingo-el[data-el-id]`).
+- `[data-el-id=…]` also matches sidebar thumbnails; scope queries to the surface (`.ed-stage-scale …`, `.beeslides-el[data-el-id]`).
 - Small interactive labels get a padded transparent `link` hit-rect; never put `link` on both a rect and its label text.
 - `.ed-topbar` / `.ed-titlebar` / `.ed-ribbon` z-index is a CEILING (a flex item opens a stacking context even when static). Raising a child menu never escapes it; diagnose with `document.elementsFromPoint()`.
 - `overflow-y: auto` also clips horizontally. Popovers demoted into a scrolling menu (phone ⋯ menu) must render `position: static` inside it.
@@ -23,7 +23,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 - `canvas.hitStack(px,py,{includeHidden})` is THE stack query (rotated boxes, skips inherited-locked); Alt-click deep-select and the right-click "Select" block use it; menu rows select without `expandGroups`.
 - Click-through is CSS on `data-hit` (render.ts `paintHit`); selected nodes get `data-sel` so Moveable keeps the whole box. `selectEnd` re-resolves plain clicks via `resolveClickTarget` (DOM stack) because Selecto hit-tests geometrically; don't "simplify" it away.
 - `el.locked` (user) is not `lockedIds()` (inherited from a slide type): user-locked stays in `hitStack`; gestures/handles/line editors are disabled when any selected element is locked.
-- `el.hidden` renders as `.slidomingo-el-hidden` only on the canvas (`showHidden`); every other output omits it.
+- `el.hidden` renders as `.beeslides-el-hidden` only on the canvas (`showHidden`); every other output omits it.
 - Group (`groupId`, G/⇧G) is distinct from presentation `group`; ⌘G is the grid toggle.
 
 ## Containers (live-drag cascade)

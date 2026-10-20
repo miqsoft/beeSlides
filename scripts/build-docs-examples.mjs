@@ -68,8 +68,8 @@ try {
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
   await page.goto(pathToFileURL(editor).href)
-  await page.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
-  const base = await page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+  await page.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
+  const base = await page.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
   // the export's two seams: the viewer shell comes from the "desktop" (as in
   // the app), and with no file picker the browser path hands the file to a
   // download, which is where it is caught
@@ -79,24 +79,24 @@ try {
   }, viewerHtml)
   for (const ex of EXAMPLES) {
     const deck = { ...ex.build(base), docId: ex.docId }
-    const ok = await page.evaluate((json) => window.slidomingo.loadDoc(json), JSON.stringify(deck))
+    const ok = await page.evaluate((json) => window.beeslides.loadDoc(json), JSON.stringify(deck))
     if (ok === false) throw new Error(`${ex.file}: the editor refused the deck`)
     await page.waitForTimeout(500)
     // an example is held to the app's own checks: warnings and errors fail
     // the build (contrast, cut-off text, overflow…); notes (margins, a
     // deliberate bleed) are printed and allowed
-    const { findings } = await page.evaluate(() => window.slidomingo.validate())
+    const { findings } = await page.evaluate(() => window.beeslides.validate())
     const serious = findings.filter((f) => f.severity !== 'info')
     for (const f of serious) console.error(`  ${f.severity} ${f.code} ${f.slide ?? ''} ${f.element ?? ''}: ${f.message}`)
     if (serious.length) throw new Error(`${ex.file}: ${serious.length} validator finding(s) above`)
     const [download] = await Promise.all([
       page.waitForEvent('download', { timeout: 30_000 }),
-      page.evaluate(() => window.slidomingo.menu.run('file.presentOnly')),
+      page.evaluate(() => window.beeslides.menu.run('file.presentOnly')),
     ])
     const target = join(outDir, ex.file)
     await download.saveAs(target)
     const html = readFileSync(target, 'utf8')
-    if (!html.includes('id="slidomingo-doc"') || html.includes('slidomingo-editor')) throw new Error(`${ex.file}: not a viewer file`)
+    if (!html.includes('id="beeslides-doc"') || html.includes('slidomingo-editor')) throw new Error(`${ex.file}: not a viewer file`)
     console.log(`${ex.file} — ${deck.slides.length} slides, ${Math.round(html.length / 1024)} KB, ${findings.length} note(s)`)
   }
   if (errors.length) throw new Error(`page errors: ${errors.join(' | ')}`)

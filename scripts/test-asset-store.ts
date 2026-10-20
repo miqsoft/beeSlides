@@ -6,8 +6,8 @@
 //   node scripts/test-asset-store.ts
 //
 // WHAT THIS PROVES. A plaintext file stores every embedded byte once, in
-// `#slidomingo-assets` (kernel/src/assetstore.ts), and its JSON refers to it
-// as `slidomingo-store:<id>`. Everything that reads a file WITHOUT a DOM —
+// `#beeslides-assets` (kernel/src/assetstore.ts), and its JSON refers to it
+// as `beeslides-store:<id>`. Everything that reads a file WITHOUT a DOM —
 // the desktop main process, templates, node tooling — resolves those refs
 // with the pure-string half checked here. A bug in it does not crash
 // anything: it silently opens a deck without its pictures, and the next save
@@ -75,7 +75,7 @@ console.log('\nresolve / externalize')
 {
   const photo = 'data:image/jpeg;base64,' + 'A'.repeat(4000)
   const clip = 'data:video/mp4;base64,' + 'B'.repeat(3000)
-  const doc = { format: 'slidomingo/slides', assets: { photo }, slides: [{ elements: [{ src: photo }, { src: clip }, { src: 'asset:photo' }] }] }
+  const doc = { format: 'beeslides/slides', assets: { photo }, slides: [{ elements: [{ src: photo }, { src: clip }, { src: 'asset:photo' }] }] }
   const stored = new Map([[photo, assetId(photo)], [clip, assetId(clip)]])
   const { doc: ext, refs } = externalizeAssets(doc, stored)
   const text = JSON.stringify(ext)
@@ -86,7 +86,7 @@ console.log('\nresolve / externalize')
   const back = resolveAssets(ext, store)
   ok(JSON.stringify(back.doc) === JSON.stringify(doc) && back.dangling.length === 0, 'resolveAssets restores the exact document and drops asset-store from requires')
   const partial = resolveAssets(ext, new Map([[assetId(photo), photo]]))
-  ok(partial.dangling.length === 1 && JSON.stringify(partial.doc).includes('slidomingo-store:' + assetId(clip)), 'a ref the store lacks is kept verbatim and reported')
+  ok(partial.dangling.length === 1 && JSON.stringify(partial.doc).includes('beeslides-store:' + assetId(clip)), 'a ref the store lacks is kept verbatim and reported')
   ok((partial.doc as { requires?: string[] }).requires?.includes(ASSET_STORE_FEATURE) === true, '…and asset-store stays declared while any ref remains')
   ok(storeRefsIn(ext).size === 2, 'storeRefsIn counts distinct refs')
   const other = { requires: ['x-other'], a: photo }
@@ -102,16 +102,16 @@ console.log('\nfiles (no DOM)')
   const amp = 'data:image/svg+xml,%3Csvg%3E&amp;%3C/svg%3E'
   const clip = 'data:video/mp4;base64,' + 'D'.repeat(3000)
   const poster = 'data:image/jpeg;base64,' + 'E'.repeat(2500)
-  const raw = { format: 'slidomingo/slides', title: 'Store <deck>', template: true, requires: ['asset-store'], assets: { photo, amp },
-    slides: [{ id: 's1', elements: [{ id: 'v', type: 'media', src: `slidomingo-store:${assetId(clip)}`, poster: `slidomingo-store:${assetId(poster)}` }, { src: 'slidomingo-store:sha256-00000000deadbeef' }] }] }
+  const raw = { format: 'beeslides/slides', title: 'Store <deck>', template: true, requires: ['asset-store'], assets: { photo, amp },
+    slides: [{ id: 's1', elements: [{ id: 'v', type: 'media', src: `beeslides-store:${assetId(clip)}`, poster: `beeslides-store:${assetId(poster)}` }, { src: 'beeslides-store:sha256-00000000deadbeef' }] }] }
   const body = JSON.stringify(externalizeAssets(raw, new Map([[photo, assetId(photo)], [amp, assetId(amp)]])).doc).replace(/</g, '\\u003c')
   // how a DOM serializer writes attribute values: & → &amp;, " → &quot;
   const attr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
   const html = `<!DOCTYPE html>\n<html><head><title>Store — BeeSlides</title>` +
-    `<script type="application/slidomingo+json" id="slidomingo-doc">\n${body}\n</script>` +
-    `<style id="slidomingo-assets" data-slidomingo-assets="1">\n${imageRule(assetId(photo), photo)}\n${imageRule(assetId(amp), amp)}\n</style></head><body>` +
-    `<div id="slidomingo-static" data-slidomingo-static="1"><video controls="" data-slidomingo-store="${assetId(clip)}" data-slidomingo-poster="${assetId(poster)}" src="${attr(clip)}" poster="${attr(poster)}"></video></div>` +
-    `<script id="slidomingo-rt" type="application/octet-stream">x</script></body>\n</html>\n`
+    `<script type="application/beeslides+json" id="beeslides-doc">\n${body}\n</script>` +
+    `<style id="beeslides-assets" data-beeslides-assets="1">\n${imageRule(assetId(photo), photo)}\n${imageRule(assetId(amp), amp)}\n</style></head><body>` +
+    `<div id="beeslides-static" data-beeslides-static="1"><video controls="" data-beeslides-store="${assetId(clip)}" data-beeslides-poster="${assetId(poster)}" src="${attr(clip)}" poster="${attr(poster)}"></video></div>` +
+    `<script id="beeslides-rt" type="application/octet-stream">x</script></body>\n</html>\n`
   ok(decodeEntities('a&amp;b&quot;c&#39;d&#x3c;&nbsp;') === 'a&b"c\'d<\u00a0', 'decodeEntities undoes what a serializer writes')
   const store = parseStoreHtml(html)
   ok(store.get(assetId(photo)) === photo && store.get(assetId(amp)) === amp, 'parseStoreHtml reads the <style> store')
@@ -120,17 +120,17 @@ console.log('\nfiles (no DOM)')
   const j = JSON.parse(text)
   ok(j.assets.photo === photo && j.assets.amp === amp && j.slides[0].elements[0].src === clip && j.slides[0].elements[0].poster === poster,
     'docfile.extractDocBlockText hands the renderer a resolved document')
-  ok(j.slides[0].elements[1].src === 'slidomingo-store:sha256-00000000deadbeef', 'a dangling ref survives resolution')
+  ok(j.slides[0].elements[1].src === 'beeslides-store:sha256-00000000deadbeef', 'a dangling ref survives resolution')
   ok((extractDocBlock(html) as { title: string }).title === 'Store <deck>', 'extractDocBlock is resolved too, and keeps escaping semantics')
   ok(detectFormat(html) === 'slides' && isTemplateHtml(html) && readTitle(html) === 'Store <deck>', 'format/template/title checks read the raw block unchanged')
 
-  const plain = `<script type="application/slidomingo+json" id="slidomingo-doc">\n${JSON.stringify({ format: 'slidomingo/slides', a: photo }).replace(/</g, '\\u003c')}\n</script>`
+  const plain = `<script type="application/beeslides+json" id="beeslides-doc">\n${JSON.stringify({ format: 'beeslides/slides', a: photo }).replace(/</g, '\\u003c')}\n</script>`
   const plainText = plain.match(/>\n([\s\S]*)\n</)![1]
   ok(resolveDocText(plainText, plain) === plainText, 'a file with no refs passes through byte for byte')
-  const envText = JSON.stringify({ format: 'slidomingo/enc', v: 1, data: 'slidomingo-store:x' })
+  const envText = JSON.stringify({ format: 'beeslides/enc', v: 1, data: 'beeslides-store:x' })
   ok(resolveDocText(envText, html) === envText, 'an encryption envelope is never touched')
 
-  const dir = mkdtempSync(join(tmpdir(), 'slidomingo-store-'))
+  const dir = mkdtempSync(join(tmpdir(), 'beeslides-store-'))
   const tp = join(dir, 'Store.beeslides.html')
   writeFileSync(tp, html)
   const t = loadTemplateIn(dir, tp)
@@ -140,16 +140,16 @@ console.log('\nfiles (no DOM)')
 console.log('\nreadable JSON + light copies')
 {
   const photo = 'data:image/png;base64,' + 'F'.repeat(3000)
-  const a = { slides: [{ y: 2, x: 1, type: 'image', id: 'e1', src: photo }], title: 'T', docId: 'd', version: 1, format: 'slidomingo/slides', assets: { z: photo, a: 'x' } }
-  const b = { format: 'slidomingo/slides', assets: { a: 'x', z: photo }, version: 1, docId: 'd', title: 'T', slides: [{ id: 'e1', src: photo, type: 'image', x: 1, y: 2 }] }
+  const a = { slides: [{ y: 2, x: 1, type: 'image', id: 'e1', src: photo }], title: 'T', docId: 'd', version: 1, format: 'beeslides/slides', assets: { z: photo, a: 'x' } }
+  const b = { format: 'beeslides/slides', assets: { a: 'x', z: photo }, version: 1, docId: 'd', title: 'T', slides: [{ id: 'e1', src: photo, type: 'image', x: 1, y: 2 }] }
   const ca = canonicalJson(a)
   ok(ca === canonicalJson(b), 'canonicalJson depends on content only, never on key insertion order')
-  ok(ca.startsWith('{\n  "format": "slidomingo/slides",\n  "version": 1,\n  "docId": "d",\n  "title": "T",'), 'identity keys lead, two-space indent')
+  ok(ca.startsWith('{\n  "format": "beeslides/slides",\n  "version": 1,\n  "docId": "d",\n  "title": "T",'), 'identity keys lead, two-space indent')
   ok(/"id": "e1",\n\s+"type": "image",\n\s+"src"/.test(ca), 'elements lead with id, type; the rest alphabetical')
   ok(JSON.stringify(JSON.parse(ca)) === JSON.stringify(JSON.parse(canonicalJson(JSON.parse(ca)))), 'parses back and is a fixed point')
   const light = lightDoc(a)
   const lt = JSON.stringify(light)
-  ok(!lt.includes('FFFF') && lt.includes('slidomingo-store:' + assetId(photo)) && (light as { requires?: string[] }).requires?.[0] === ASSET_STORE_FEATURE,
+  ok(!lt.includes('FFFF') && lt.includes('beeslides-store:' + assetId(photo)) && (light as { requires?: string[] }).requires?.[0] === ASSET_STORE_FEATURE,
     'lightDoc: every data: string becomes its hash ref, declared')
   const back = resolveAssets(light, storeOf(b))
   ok(canonicalJson(back.doc) === ca && back.dangling.length === 0, 'a light copy resolves by hash against any doc holding the bytes')

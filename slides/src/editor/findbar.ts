@@ -58,8 +58,8 @@ export function findChord(ev: KeyboardEvent): 'find' | 'replace' | null {
 }
 
 /** Highlight names (styled with `::highlight()` in styles.css). */
-const HL_ALL = 'slidomingo-find'
-const HL_CUR = 'slidomingo-find-current'
+const HL_ALL = 'beeslides-find'
+const HL_CUR = 'beeslides-find-current'
 
 export interface FindBarHost {
   toast(msg: string): void
@@ -432,8 +432,8 @@ export class FindBar {
       if (ref.kind === 'notes') continue
       const node = stage.querySelector(`[data-el-id="${CSS.escape(ref.elId)}"]`)
       const root = ref.kind === 'cell'
-        ? node?.querySelector(`td[data-r="${ref.row}"][data-c="${ref.col}"] .slidomingo-cell-inner`)
-        : node?.querySelector('.slidomingo-text-inner')
+        ? node?.querySelector(`td[data-r="${ref.row}"][data-c="${ref.col}"] .beeslides-cell-inner`)
+        : node?.querySelector('.beeslides-text-inner')
       const src = fieldSource(this.store.doc, ms[0])
       if (!root || !src) continue
       const dom = renderedText(root)

@@ -31,7 +31,7 @@ export function passwordGate(envelope: EncEnvelope, onDoc: (doc: SlidomingoDoc) 
     `<input type="password" autocomplete="current-password">` +
     `<button>${t('Unlock')}</button><div class="ed-pwerr"></div></div>`
   document.body.appendChild(gate)
-  document.getElementById('slidomingo-splash')?.remove()
+  document.getElementById('beeslides-splash')?.remove()
   const input = gate.querySelector('input')!
   const button = gate.querySelector('button')!
   const err = gate.querySelector<HTMLElement>('.ed-pwerr')!
@@ -101,7 +101,7 @@ const PLAY_GLYPH = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" 
 export function playerMode(doc: SlidomingoDoc) {
   document.title = `${doc.title} — ${appConfig().appName}`
   if (doc.fonts?.length) injectFonts(doc)
-  document.getElementById('slidomingo-splash')?.remove()
+  document.getElementById('beeslides-splash')?.remove()
   const modeInfo: Record<PlayMode, [string, string]> = {
     fullscreen: [t('Full screen'), t('One window, slides only')],
     presenter: [t('Presenter view'), t('Notes window + audience window')],
@@ -195,7 +195,7 @@ export function playerMode(doc: SlidomingoDoc) {
     if (refuseGatedWrite((m) => alert(m))) return
     void serializeAuto(doc).then((html) => downloadFile(html, suggestedFileName(doc)))
   })
-  ;(window as any).slidomingo = { format: doc.format, doc, readonly: true }
+  ;(window as any).beeslides = (window as any).slidomingo = { format: doc.format, doc, readonly: true }
   showFormatGateBanner()
   sync()
   if (location.hash === '#present') start('fullscreen') // a link that asks for the show; fullscreen degrades to the tab without a click

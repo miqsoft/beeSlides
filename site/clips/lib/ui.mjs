@@ -15,7 +15,7 @@
 export const OVERLAY = `(() => {
   if (window.__beeOverlay) return; window.__beeOverlay = true
   const host = document.createElement('div')
-  host.setAttribute('data-slidomingo-transient', '')
+  host.setAttribute('data-beeslides-transient', '')
   host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647'
   const root = host.attachShadow({ mode: 'open' })
   root.innerHTML = \`<style>
@@ -150,8 +150,8 @@ export function makeUi(cdp, { pace = 1, app, platform = process.platform, attach
     app, evaluate, waitFor, wait,
     /** Load a document into the open editor (setup, before recording). */
     async loadDoc(doc) {
-      const ok = await evaluate((d) => window.slidomingo.loadDoc(JSON.stringify(d)), doc)
-      if (!ok) throw new Error('window.slidomingo.loadDoc refused the scenario doc')
+      const ok = await evaluate((d) => window.beeslides.loadDoc(JSON.stringify(d)), doc)
+      if (!ok) throw new Error('window.beeslides.loadDoc refused the scenario doc')
       await sleep(300)
     },
     async overlay() { await evaluate(`() => ${OVERLAY}`); await glide(x, y) },
@@ -199,7 +199,7 @@ export function makeUi(cdp, { pace = 1, app, platform = process.platform, attach
     async command(id, path, { hold = 600 } = {}) {
       if (pace) await evaluate((l) => window.__beeKeys?.(l), path)
       await wait(400)
-      const ok = await evaluate((c) => window.slidomingo.menu.has(c) && (window.slidomingo.menu.run(c), true), id)
+      const ok = await evaluate((c) => window.beeslides.menu.has(c) && (window.beeslides.menu.run(c), true), id)
       if (!ok) throw new Error(`ui.command: no menu command ${id}`)
       await wait(hold)
     },

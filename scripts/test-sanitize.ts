@@ -127,10 +127,10 @@ for (const attr of ['action', 'formaction', 'http-equiv', 'srcdoc', 'onclick', '
   ok(!svgAttrAllowed(attr), `${attr} is not permitted`)
 }
 // data-slidomingo is reserved as a PREFIX. The shell's own marks are the full names:
-// kernel serializeBody DELETES every [data-slidomingo-transient] node from the clone
-// it saves, and save.ts removes [data-slidomingo-preview] unconditionally. Reserving
+// kernel serializeBody DELETES every [data-beeslides-transient] node from the clone
+// it saves, and save.ts removes [data-beeslides-preview] unconditionally. Reserving
 // the bare string would have left an author element answering either query.
-for (const attr of ['data-slidomingo', 'data-slidomingo-transient', 'data-slidomingo-preview', 'data-slidomingo-state']) {
+for (const attr of ['data-slidomingo', 'data-beeslides-transient', 'data-beeslides-preview', 'data-beeslides-state']) {
   ok(!svgAttrAllowed(attr), `${attr} is reserved to the shell, not lent to a diagram`)
 }
 
@@ -183,15 +183,15 @@ ok(!sanitizeSvgCss('@font-face{src:url(https://evil.example/f.woff2)}').includes
 // escapes. The bare-string form has no `url(` in it either, so the url() rewrite
 // above never saw it.
 const escaped = sanitizeSvgCss('@\\69mport "https://evil.example/t.css";\n.p{fill:red}')
-ok(!/@\\?[\\\w]*import/i.test(escaped) && escaped.includes('@slidomingo-refused'),
+ok(!/@\\?[\\\w]*import/i.test(escaped) && escaped.includes('@beeslides-refused'),
   'an at-keyword written with a CSS escape is refused — @\\69mport is @import')
 ok(escaped.includes('.p{fill:red}'), 'and the sheet around it still parses')
-ok(sanitizeSvgCss('@im\\port url(x);').includes('@slidomingo-refused'), 'so is @im\\port')
-ok(sanitizeSvgCss('@\\49MPORT "x";').includes('@slidomingo-refused'), 'and @\\49MPORT')
+ok(sanitizeSvgCss('@im\\port url(x);').includes('@beeslides-refused'), 'so is @im\\port')
+ok(sanitizeSvgCss('@\\49MPORT "x";').includes('@beeslides-refused'), 'and @\\49MPORT')
 ok(!sanitizeSvgCss('@import "https://evil.example/t.css";').includes('evil.example')
-  || sanitizeSvgCss('@import "https://evil.example/t.css";').startsWith('@slidomingo-refused'),
+  || sanitizeSvgCss('@import "https://evil.example/t.css";').startsWith('@beeslides-refused'),
   'the bare-STRING import is refused too — the url() rewrite cannot see that one')
-ok(sanitizeSvgCss('@import "https://evil.example/t.css"\n.p{fill:red}').includes('@slidomingo-refused'),
+ok(sanitizeSvgCss('@import "https://evil.example/t.css"\n.p{fill:red}').includes('@beeslides-refused'),
   'and so is the form with no semicolon, which the old regex required')
 ok(!sanitizeSvgCss('@document url-prefix();.p{fill:red}').includes('@document'),
   'an at-rule nobody asked for is refused by default, which is the point of a list')
@@ -213,7 +213,7 @@ for (const [css, what] of [
   ['svg{background-image:image-set("https://evil.example/a.png" 1x)}', 'image-set("…")'],
   ["svg{background-image:-webkit-image-set('https://evil.example/a.png' 1x)}", "-webkit-image-set('…')"],
 ]) {
-  ok(sanitizeSvgCss(css).includes('slidomingo-refused(') && !svgUrlRefsAllowed(css),
+  ok(sanitizeSvgCss(css).includes('beeslides-refused(') && !svgUrlRefsAllowed(css),
     `${what} is refused in a sheet and in an attribute`)
 }
 ok(sanitizeSvgCss('.q:not(.r){transform:translate(1px,2px) rotate(3deg)}') === '.q:not(.r){transform:translate(1px,2px) rotate(3deg)}'
@@ -692,7 +692,7 @@ if (location.pathname === '/meta.html') {
     // be the same nodes after a round trip, whoever serializes it next.
     const mx = draw('x<style>a </style{}x>y<img src="data:,x" onerror="window.__pwn(211)">{}</style>' +
       '<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>')
-    const mxHost = mx.querySelector('.slidomingo-el-svg') as HTMLElement
+    const mxHost = mx.querySelector('.beeslides-el-svg') as HTMLElement
     mxHost.innerHTML = mxHost.innerHTML
     check('11 — a sanitized svg re-parses to no new elements (no html <style> breakout)',
       mxHost.querySelectorAll('img').length === 0 && mxHost.querySelectorAll('style').length === 1)
@@ -846,7 +846,7 @@ if (location.pathname === '/meta.html') {
     ] as any
     for (const [label, opts] of [['live', {}], ['still', { svgAsImage: true, hidePlaceholders: true }]] as const) {
       const s = renderSlide(hdSlide, hdDoc, opts as any)
-      const inner = (id) => s.querySelector('[data-el-id="' + id + '"] .slidomingo-text-inner')
+      const inner = (id) => s.querySelector('[data-el-id="' + id + '"] .beeslides-text-inner')
       check('heading (' + label + ') — the title text is role=heading aria-level=2',
         inner('ht')?.getAttribute('role') === 'heading' && inner('ht')?.getAttribute('aria-level') === '2' &&
         inner('ht')?.textContent === 'Quarterly results')
@@ -870,7 +870,7 @@ if (location.pathname === '/meta.html') {
       } as any]
       const surface = renderSlide(slide, doc)
       document.body.appendChild(surface)
-      return surface.querySelector('.slidomingo-text-inner') as HTMLElement
+      return surface.querySelector('.beeslides-text-inner') as HTMLElement
     }
     const allowedAttrs: Record<string, string[]> = { A: ['href', 'target', 'rel'], SPAN: ['style'] }
     const onlyAllowed = (root: Element) => Array.from(root.querySelectorAll('*')).every((e) =>
@@ -1005,7 +1005,7 @@ if (location.pathname === '/meta.html') {
       } as any]
       const surface = renderSlide(slide, doc)
       document.body.appendChild(surface)
-      return surface.querySelector('.slidomingo-math-box') as HTMLElement
+      return surface.querySelector('.beeslides-math-box') as HTMLElement
     }
     const cellDraw = (html: string): HTMLElement => {
       const doc = newDoc()
@@ -1017,7 +1017,7 @@ if (location.pathname === '/meta.html') {
       } as any]
       const surface = renderSlide(slide, doc)
       document.body.appendChild(surface)
-      return surface.querySelector('.slidomingo-cell-inner') as HTMLElement
+      return surface.querySelector('.beeslides-cell-inner') as HTMLElement
     }
     const noHandlers = (root: Element) => Array.from(root.querySelectorAll('*')).every((e) =>
       Array.from(e.attributes).every((a) => !a.name.startsWith('on') && !/javascript:/i.test(a.value)))
@@ -1025,7 +1025,7 @@ if (location.pathname === '/meta.html') {
     check('math — an equation typesets to MathML carrying its source', !!okEq.querySelector('math[data-tex]') && noHandlers(okEq))
     const hrefEq = eqDraw(BS + 'href{javascript:window.__pwn(301)}{click}')
     check('math — ' + BS + 'href is refused (trust off): source shown as text, no link',
-      !hrefEq.querySelector('a, [href]') && hrefEq.classList.contains('slidomingo-math-error') && (hrefEq.textContent ?? '').includes('javascript'))
+      !hrefEq.querySelector('a, [href]') && hrefEq.classList.contains('beeslides-math-error') && (hrefEq.textContent ?? '').includes('javascript'))
     const tagEq = eqDraw('x</math><img src="data:,x" onerror="window.__pwn(302)"><svg onload="window.__pwn(303)">')
     check('math — markup in TeX never becomes a tag', !tagEq.querySelector('img, svg, script') && noHandlers(tagEq))
     const quoteEq = eqDraw('a < b " onmouseover="window.__pwn(304)" & c')
@@ -1070,7 +1070,7 @@ if (location.pathname === '/meta.html') {
   setTimeout(() => {
     check('nothing executed: ' + (pwned.length ? pwned.join(',') : 'clean'), pwned.length === 0)
     const pre = document.createElement('pre')
-    pre.id = 'slidomingo-results'
+    pre.id = 'beeslides-results'
     // btoa is Latin-1 only and every check name here has an em dash in it:
     // encode to utf-8 bytes first or this throws and the rig reports nothing.
     const utf8 = new TextEncoder().encode(JSON.stringify(results))

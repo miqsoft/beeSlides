@@ -7,7 +7,7 @@
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
 export const deck = (slides, title = 'Demo') => ({
-  format: 'slidomingo/slides', version: 1, title,
+  format: 'beeslides/slides', version: 1, title,
   size: { width: 1280, height: 720 },
   theme: { background: '#17120A', color: '#FFF6E0', accent: '#FFC233', fontFamily: FONT },
   slides: slides.map((elements, i) => ({ id: `s${i + 1}`, background: '#17120A', transition: 'fade', notes: '', elements })),

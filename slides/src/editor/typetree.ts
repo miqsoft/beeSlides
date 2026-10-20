@@ -52,7 +52,7 @@ import { t } from '../i18n'
 import { lsJson, lsSet } from '../../../kernel/src/storage.ts'
 
 /** dataTransfer key for a dragged slide-type row — carries the layout ID
- *  (never an index), same idea as editor.ts's `text/slidomingo-slide`. */
+ *  (never an index), same idea as editor.ts's `text/beeslides-slide`. */
 const DRAG_TYPE = 'text/slidomingo-slidetype'
 /** dataTransfer key for a dragged slide LEAF — carries the slide id. */
 const LEAF_DRAG_TYPE = 'text/slidomingo-slide-leaf'
@@ -747,7 +747,7 @@ export function buildTypeTree(opts: TypeTreeOptions): TypeTree {
         const effective = effectiveLayout(doc(), ly)
         const sig = JSON.stringify([effective.elements, effective.background, depth, fieldSig()])
         if (thumbSig.get(ly.id) === sig) continue
-        host.querySelector('.slidomingo-thumb-surface')?.replaceWith(renderThumbFor(ly, depth))
+        host.querySelector('.beeslides-thumb-surface')?.replaceWith(renderThumbFor(ly, depth))
       }
       // Leaves: a linked slide changes whenever its type is edited (resync).
       for (const leaf of list.querySelectorAll<HTMLElement>('.ed-typetree-leaf')) {
@@ -755,7 +755,7 @@ export function buildTypeTree(opts: TypeTreeOptions): TypeTree {
         const host = leaf.querySelector<HTMLElement>('.ed-typetree-leafthumb')
         if (!slide || !host) continue
         if (thumbSig.get(`slide:${slide.id}`) === leafSig(slide)) continue
-        host.querySelector('.slidomingo-thumb-surface')?.replaceWith(leafThumb(slide))
+        host.querySelector('.beeslides-thumb-surface')?.replaceWith(leafThumb(slide))
       }
     }, 150)
   }

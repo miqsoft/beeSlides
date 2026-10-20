@@ -26,7 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const DOC_ID = '0a0a0a0a-0000-4000-8000-00000000f01d'
 
@@ -84,7 +84,7 @@ async function driver() {
   let pick = extraB
   dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [pick] })
 
-  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root"))')
+  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-root"))')
   ok(!!wc, 'the deck opened')
   if (!wc) { report(); app.exit(1); return }
 
@@ -120,7 +120,7 @@ async function driver() {
 
   // ---- it never reaches the deck
   const deckFile = readFileSync(env.E2E_DECK, 'utf8')
-  const live = await wc.executeJavaScript('window.slidomingo.serialize()')
+  const live = await wc.executeJavaScript('window.beeslides.serialize()')
   ok(!deckFile.includes(extraA) && !deckFile.includes(extraB) && !String(live).includes(extraA) && !String(live).includes(extraB), 'no attached path is in the deck file or its serialized form')
   ok(store().length === 1 && store()[0].docId === DOC_ID && store()[0].folders.length === 2, 'it is kept in userData, keyed by the deck\'s docId')
 

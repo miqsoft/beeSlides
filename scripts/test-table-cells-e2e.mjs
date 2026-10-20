@@ -66,28 +66,28 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForTimeout(800)
 
   const load = () => p.evaluate(() => {
-    const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+    const d = JSON.parse(JSON.stringify(window.beeslides.doc))
     const rows = Array.from({ length: 3 }, (_, r) => ({ cells: Array.from({ length: 3 }, (_, c) => ({ html: `r${r}c${c}` })) }))
     d.slides = [d.slides[0]]
     d.slides[0].elements = [{
       id: 'tb1', type: 'table', x: 200, y: 150, w: 800, h: 300, header: true, columns: [{ w: 1 }, { w: 1 }, { w: 1 }], rows,
       style: { headerBg: '#333', headerColor: '#fff', borderColor: '#999', borderWidth: 1, cellPadX: 8, cellPadY: 6, fontSize: 20, color: '#111', radius: 0 },
     }]
-    window.slidomingo.loadDoc(JSON.stringify(d))
+    window.beeslides.loadDoc(JSON.stringify(d))
   })
   // near a cell's top-left: a merged cell's middle has a column-resize handle over it
   const AT = { x: 12, y: 12 }
   const td = (r, c) => p.locator(`.ed-stage [data-el-id="tb1"] td[data-r="${r}"][data-c="${c}"]`)
   const state = () => p.evaluate(() => {
-    const els = window.slidomingo.doc.slides[0].elements
+    const els = window.beeslides.doc.slides[0].elements
     const tb = els.find((e) => e.id === 'tb1')
     return {
-      sel: [...window.slidomingo.selection],
-      cells: [...document.querySelectorAll('.ed-stage .slidomingo-cell-sel')].map((t) => `${t.dataset.r},${t.dataset.c}`),
+      sel: [...window.beeslides.selection],
+      cells: [...document.querySelectorAll('.ed-stage .beeslides-cell-sel')].map((t) => `${t.dataset.r},${t.dataset.c}`),
       n: els.length,
       types: els.map((e) => e.type),
       x: tb?.x,
@@ -150,7 +150,7 @@ try {
     return { cs: t?.getAttribute('colspan'), rs: t?.getAttribute('rowspan'), n: document.querySelectorAll('.ed-stage [data-el-id="tb1"] td').length }
   })
   check(dom.cs === '2' && dom.rs === '2' && dom.n === 6, 'the canvas draws a real colspan/rowspan', dom)
-  check(await p.evaluate(() => (window.slidomingo.doc.requires ?? []).includes('table-merge')), "doc requires 'table-merge'")
+  check(await p.evaluate(() => (window.beeslides.doc.requires ?? []).includes('table-merge')), "doc requires 'table-merge'")
   await p.keyboard.press('Meta+z'); await settle()
   s = await state()
   check(s.spans.length === 0 && s.html[1][1] === 'r1c1', 'one undo restores the table', s)
@@ -160,7 +160,7 @@ try {
   check(s.cells.length === 0 && s.sel[0] === 'tb1', 'Esc drops the cells, keeps the table', s)
   await p.keyboard.press('ArrowDown'); await settle()
   s = await state()
-  check(s.cells.length === 0 && (await p.evaluate(() => window.slidomingo.doc.slides[0].elements[0].y)) !== 150, 'after Esc the arrows nudge again')
+  check(s.cells.length === 0 && (await p.evaluate(() => window.beeslides.doc.slides[0].elements[0].y)) !== 150, 'after Esc the arrows nudge again')
 
   // 4) cells: Backspace clears, ⌘C/⌘V copy cells with their spans
   await load(); await settle(); await blank()
@@ -202,7 +202,7 @@ try {
     await td(0, 0).click({ button: 'right', position: AT }); await settle()
     const t0 = Date.now()
     await menuItem('Paste')
-    await p.waitForFunction(() => window.slidomingo.doc.slides[0].elements[0].rows.length > 3, null, { timeout: 30_000 })
+    await p.waitForFunction(() => window.beeslides.doc.slides[0].elements[0].rows.length > 3, null, { timeout: 30_000 })
     s = await state()
     check(s.rows === 2000 && s.cols === 200, 'a huge paste stops at 2000×200', { rows: s.rows, cols: s.cols, ms: Date.now() - t0 })
   } else console.log('test-table-cells-e2e: no clipboard permission — context-menu clipboard checks skipped')

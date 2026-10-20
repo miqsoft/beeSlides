@@ -73,19 +73,19 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForSelector('.ed-stage-scale', { timeout: 30_000 })
   // the boot splash sits in the flow above the editor until it is removed
-  await p.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 15_000 }).catch(() => {})
+  await p.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 15_000 }).catch(() => {})
   await p.waitForTimeout(500)
   const settle = (ms = 250) => p.waitForTimeout(ms)
   const load = (slides) => p.evaluate((slides) => {
-    const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+    const d = JSON.parse(JSON.stringify(window.beeslides.doc))
     const base = d.slides[0]
     d.slides = slides.map((s, i) => ({ ...base, id: `s${i + 1}`, ...s }))
-    window.slidomingo.loadDoc(JSON.stringify(d))
+    window.beeslides.loadDoc(JSON.stringify(d))
   }, slides)
-  const els = () => p.evaluate(() => window.slidomingo.doc.slides[0].elements.map((e) => ({ id: e.id, type: e.type, tex: e.tex, html: e.html, h: e.h, w: e.w })))
+  const els = () => p.evaluate(() => window.beeslides.doc.slides[0].elements.map((e) => ({ id: e.id, type: e.type, tex: e.tex, html: e.html, h: e.h, w: e.w })))
   const blank = async () => {
     const box = await p.locator('.ed-stage').boundingBox()
     await p.mouse.click(box.x + 8, box.y + 8, { delay: 80 })
@@ -107,18 +107,18 @@ try {
   await settle(400)
   const geo = await p.evaluate(() => Object.fromEntries(['m1', 'm2', 'm3', 'm4'].map((id) => {
     const n = document.querySelector(`.ed-stage-scale [data-el-id="${id}"]`)
-    const b = n?.querySelector('.slidomingo-math-box')
+    const b = n?.querySelector('.beeslides-math-box')
     const m = b?.querySelector('math')
     const nr = n.getBoundingClientRect(), br = b.getBoundingClientRect()
     return [id, { nl: nr.left, nr: nr.right, nc: (nr.left + nr.right) / 2, bl: br.left, br: br.right, bc: (br.left + br.right) / 2, bw: br.width,
-      math: !!m, display: m ? getComputedStyle(m).display : null, block: m?.getAttribute('display'), err: b.classList.contains('slidomingo-math-error'), text: b.textContent }]
+      math: !!m, display: m ? getComputedStyle(m).display : null, block: m?.getAttribute('display'), err: b.classList.contains('beeslides-math-error'), text: b.textContent }]
   })))
   check(geo.m1.math && geo.m1.block === 'block' && (geo.m1.display === 'math' || /inline/.test(geo.m1.display)), 'a display formula typesets, display style kept, laid out inline', geo.m1)
   check(Math.abs(geo.m1.bc - geo.m1.nc) < 2 && geo.m1.bw < (geo.m1.nr - geo.m1.nl) - 50, 'align center: the formula is centred, not stretched', geo.m1)
   check(geo.m2.math && !geo.m2.block && Math.abs(geo.m2.bl - geo.m2.nl) < 2, 'align left + inline style', geo.m2)
   check(geo.m4.math && Math.abs(geo.m4.br - geo.m4.nr) < 2, 'align right', geo.m4)
   check(geo.m3.err && geo.m3.text === '\\frac{a', 'invalid TeX shows its source', geo.m3)
-  const v = await p.evaluate(() => window.slidomingo.validate().findings.filter((f) => f.code.startsWith('math-')).map((f) => `${f.code}@${f.element}`))
+  const v = await p.evaluate(() => window.beeslides.validate().findings.filter((f) => f.code.startsWith('math-')).map((f) => `${f.code}@${f.element}`))
   check(v.length === 1 && v[0] === 'math-parse-error@m3', 'validate() reports exactly the broken equation', v)
   if (shots) await p.screenshot({ path: join(shots, 'equations-on-slide.png') })
 
@@ -156,21 +156,21 @@ try {
   check(list.length === 1 && list[0].type === 'math' && list[0].tex === '\\frac{a+b}{c}' && !(await p.locator('.ed-math-pop').count()),
     '⌘↵ inserts one equation', list)
   check(list[0]?.h >= 56 && list[0]?.h < 200, 'the box was fitted to the formula', list[0])
-  await p.evaluate(() => window.slidomingo.undo())
+  await p.evaluate(() => window.beeslides.undo())
   await settle()
   check((await els()).length === 0, 'ONE undo removes the inserted equation')
-  await p.evaluate(() => window.slidomingo.redo())
+  await p.evaluate(() => window.beeslides.redo())
   await settle()
 
   // 3) edit: double-click, one step; undo while open only cancels ---------------
   console.log('\nedit')
-  const node = p.locator('.ed-stage-scale .slidomingo-el-math').first()
+  const node = p.locator('.ed-stage-scale .beeslides-el-math').first()
   await node.click({ delay: 80 }); await settle(150)
   await node.dblclick({ delay: 80 })
   await p.waitForSelector('.ed-math-pop')
   await p.locator('.ed-math-pop textarea').fill('\\frac{a+b}{c} = d')
   await settle(200)
-  const live = await p.evaluate(() => (document.querySelector('.ed-stage-scale .slidomingo-el-math math')?.getAttribute('data-tex')))
+  const live = await p.evaluate(() => (document.querySelector('.ed-stage-scale .beeslides-el-math math')?.getAttribute('data-tex')))
   check(live === '\\frac{a+b}{c} = d', 'typing previews live on the canvas', live)
   // the toolbar's undo button: cancels the session, the deck is untouched
   await p.locator('button:visible[title^="Undo"]').first().click()
@@ -178,7 +178,7 @@ try {
   list = await els()
   check(list.length === 1 && list[0].tex === '\\frac{a+b}{c}' && !(await p.locator('.ed-math-pop').count()),
     'undo while the popover is open cancels it and undoes nothing else', list)
-  check(await p.evaluate(() => document.querySelector('.ed-stage-scale .slidomingo-el-math math')?.getAttribute('data-tex')) === '\\frac{a+b}{c}',
+  check(await p.evaluate(() => document.querySelector('.ed-stage-scale .beeslides-el-math math')?.getAttribute('data-tex')) === '\\frac{a+b}{c}',
     'and the canvas shows the committed formula again')
   await node.dblclick({ delay: 80 })
   await p.waitForSelector('.ed-math-pop')
@@ -186,7 +186,7 @@ try {
   await p.locator('.ed-math-pop .ed-btn-primary').click()
   await settle(300)
   check((await els())[0].tex === '\\frac{a+b}{c} = d', 'Done applies the edit')
-  await p.evaluate(() => window.slidomingo.undo())
+  await p.evaluate(() => window.beeslides.undo())
   await settle()
   check((await els())[0].tex === '\\frac{a+b}{c}', 'one undo restores the previous TeX')
 
@@ -202,7 +202,7 @@ try {
   await p.evaluate(() => document.activeElement.blur())
   await settle(300)
   check((await els())[0].tex === '\\frac{a+b}{c} + 1', 'the panel commits the TeX on blur', (await els())[0])
-  await p.evaluate(() => window.slidomingo.undo())
+  await p.evaluate(() => window.beeslides.undo())
   await settle()
   check((await els())[0].tex === '\\frac{a+b}{c}', 'one undo takes the panel edit back')
 
@@ -239,9 +239,9 @@ try {
   const cell = p.locator('.ed-stage-scale [data-el-id="tb"] td[data-r="0"][data-c="1"]')
   await cell.click({ delay: 80, position: { x: 12, y: 12 } }); await settle(150)
   await cell.dblclick({ delay: 80, position: { x: 12, y: 12 } }); await settle(250)
-  check(await p.evaluate(() => document.querySelector('.slidomingo-editing [contenteditable="true"]')?.textContent) === '$\\pi r^2$', 'editing the cell shows its TeX source')
+  check(await p.evaluate(() => document.querySelector('.beeslides-editing [contenteditable="true"]')?.textContent) === '$\\pi r^2$', 'editing the cell shows its TeX source')
   await p.keyboard.press('Escape'); await settle(300)
-  const cellHtml = () => p.evaluate(() => window.slidomingo.doc.slides[0].elements[0].rows[0].cells[1].html)
+  const cellHtml = () => p.evaluate(() => window.beeslides.doc.slides[0].elements[0].rows[0].cells[1].html)
   check(await cellHtml() === '$\\pi r^2$' && await cellMath(), 'an unchanged edit keeps the source and typesets again')
   await cell.dblclick({ delay: 80, position: { x: 12, y: 12 } }); await settle(250)
   await p.keyboard.press('Meta+ArrowDown'); await p.keyboard.press('End')
@@ -254,7 +254,7 @@ try {
   const m = (tex) => eq('mm', { x: 240, y: 260, w: 800, h: 160, fontSize: 72, tex })
   await load([{ elements: [m('a + b = c')], transition: 'fade' }, { elements: [m('b + a = c')], transition: 'morph' }])
   await settle()
-  await p.evaluate(() => window.slidomingo.anim.setManual(true))
+  await p.evaluate(() => window.beeslides.anim.setManual(true))
   // a desktop-width tab: Play ▸ Present in tab (menu bar, DECISIONS 2026-10-13)
   await p.click('.ed-menubar-top[data-menu="play"]')
   await p.click('.ed-menubar-row[data-command="play.inTab"]')
@@ -269,9 +269,9 @@ try {
   await settle(350)
   // MORPH_DURATION is 0.65 s (power2.inOut): just under half way through,
   // a travelling symbol sits strictly between its two places
-  await p.evaluate(() => window.slidomingo.anim.tick(0.3))
+  await p.evaluate(() => window.beeslides.anim.tick(0.3))
   const aMid = await symX()
-  await p.evaluate(() => { for (let i = 0; i < 40; i++) window.slidomingo.anim.tick(0.1) })
+  await p.evaluate(() => { for (let i = 0; i < 40; i++) window.beeslides.anim.tick(0.1) })
   await settle(100)
   const aEnd = await symX()
   check(a0 !== null && aEnd !== null && aEnd > a0 + 20, '"a" ends right of where it started (it moved past "+ b")', { a0, aEnd })
@@ -279,7 +279,7 @@ try {
   console.log('        a.x: start', Math.round(a0), 'mid', Math.round(aMid), 'end', Math.round(aEnd))
   await p.keyboard.press('Escape')
   await settle(300)
-  await p.evaluate(() => window.slidomingo.anim.setManual(false))
+  await p.evaluate(() => window.beeslides.anim.setManual(false))
 
   check(errors.length === 0, 'no page errors', errors)
 } catch (e) {

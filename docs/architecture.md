@@ -15,7 +15,7 @@ trick, modernized with the File System Access API).
 
 > **v0.7.0 update**: the runtime now ships DEFLATE-compressed (shell ≈373KB,
 > was 1.33MB) — byte order: chrome → NOTICE → tooling comment → **plaintext
-> `#slidomingo-doc`** → splash → compressed payloads + 1KB loader last. The
+> `#beeslides-doc`** → splash → compressed payloads + 1KB loader last. The
 > document block stays plaintext forever (AI/tooling + old-updater splice
 > contract; scripts/shell-gate.mjs checks it). Charts are now in-house
 > (`charts-lite`, MIT) — ECharts/zrender removed. Diagrams below describe the
@@ -39,7 +39,7 @@ block-beta
   columns 56
   chrome["hdr"]:3
   notice["NOTICE"]:4
-  doc["#slidomingo-doc — THE DOCUMENT (0 → n MB)"]:14
+  doc["#beeslides-doc — THE DOCUMENT (0 → n MB)"]:14
   js["runtime JS — app + Reveal + Moveable/Selecto + charts-lite (~560 KB)"]:26
   css["CSS (62 KB)"]:6
   splash["splash"]:3
@@ -68,8 +68,8 @@ else is the fixed *shell*. Skeleton of the actual markup
        (license notices; part of the shell, so they travel with every copy) -->
 
   <!-- ═══ THE DOCUMENT ═══ (empty in a fresh shell → boots one blank slide) -->
-  <script type="application/slidomingo+json" id="slidomingo-doc">
-    {"format":"slidomingo/slides","title":"…","size":{…},"slides":[…]}
+  <script type="application/beeslides+json" id="beeslides-doc">
+    {"format":"beeslides/slides","title":"…","size":{…},"slides":[…]}
   </script>
 
   <!-- ═══ THE RUNTIME ═══ viewer + presenter + editor, one inlined bundle -->
@@ -78,7 +78,7 @@ else is the fixed *shell*. Skeleton of the actual markup
   <style>/* splash CSS — paints before the bundle parses */</style>
 </head>
 <body>
-  <div id="slidomingo-splash">…</div>   <!-- pure-CSS boot splash -->
+  <div id="beeslides-splash">…</div>   <!-- pure-CSS boot splash -->
   <div id="app"></div>             <!-- the runtime mounts the editor here -->
 </body>
 </html>
@@ -92,7 +92,7 @@ runtime (the shipped shell is DEFLATE-compressed, see the v0.7.0 note above; the
 |---|---|---|---|
 | 1 | Head chrome | 0.7 KB | doctype, metas, favicon, title |
 | 2 | NOTICE comment | 2 KB | bundled-library license notices |
-| 3 | **`#slidomingo-doc` data block** | **0 → *n* MB** | **the document** — JSON, `<` escaped; assets are data URIs, so image-heavy decks dominate the file |
+| 3 | **`#beeslides-doc` data block** | **0 → *n* MB** | **the document** — JSON, `<` escaped; assets are data URIs, so image-heavy decks dominate the file |
 | 4 | Runtime JS | ~560 KB | app (~120 KB) + Reveal.js + Moveable/Selecto family + charts-lite (in-house SVG charts, replaced ECharts in v0.7.0) |
 | 5 | Runtime CSS | 62 KB | editor + present + print styles |
 | 6 | Splash CSS + body mounts | 2 KB | splash `<style>`/`<div>`, `#app` mount |
@@ -126,7 +126,7 @@ flowchart LR
         SF --> SHELL["BeeSlides.beeslides.html<br/>(data block EMPTY → boots a blank deck)"]
     end
     SHELL -->|"user edits + saves"| DOC1[".beeslides.html<br/>(data block filled)"]
-    SHELL -->|"generator splices JSON<br/>into #slidomingo-doc"| DOC2["generated deck<br/>.beeslides.html"]
+    SHELL -->|"generator splices JSON<br/>into #beeslides-doc"| DOC2["generated deck<br/>.beeslides.html"]
     DOC1 -->|"opened anywhere,<br/>edited, saved again"| DOC1
 ```
 
@@ -146,13 +146,13 @@ sequenceDiagram
     Disk->>Browser: open .beeslides.html
     Browser->>Boot: parse + run inline bundle
     Boot->>Save: capturePristine()  — deep-clone document BEFORE any DOM mutation
-    Boot->>Save: readEmbeddedDoc()  — #slidomingo-doc textContent
+    Boot->>Save: readEmbeddedDoc()  — #beeslides-doc textContent
     Save-->>Boot: JSON string (or null → newDoc)
     Boot->>Store: new Store(parseDoc(json))
     Note over Browser: editor mounts, DOM mutates freely —<br/>the pristine clone still holds the original bytes
 
     Browser->>Save: ⌘S / Save button
-    Save->>Save: clone pristine → swap #slidomingo-doc content<br/>with JSON.stringify(doc), "<" → "\u003c"
+    Save->>Save: clone pristine → swap #beeslides-doc content<br/>with JSON.stringify(doc), "<" → "\u003c"
     Save->>Save: sync <title> · sanity-check script-close count
     alt File System Access API (Chromium)
         Save->>Disk: rewrite the SAME file in place (persistent handle)
@@ -172,14 +172,14 @@ Consequences of the pristine-clone design:
 - Editor state (selection, zoom, panel widths) never leaks into the file;
   only the model JSON changes between saves. UI prefs live in `localStorage`.
 
-## 4. The document model (`format: "slidomingo/slides"`)
+## 4. The document model (`format: "beeslides/slides"`)
 
 The data block holds one JSON object. Sketch of the current shape — see
 `src/model.ts` for the authoritative types:
 
 ```
 SlidomingoDoc
-├─ format: "slidomingo/slides"
+├─ format: "beeslides/slides"
 ├─ title
 ├─ size: { width: 1280, height: 720 }   ← canonical 16:9; per-doc, presets in the slide panel
 ├─ theme: { fontFamily, … }
@@ -193,7 +193,7 @@ SlidomingoDoc
    ├─ name? · notes
    ├─ stateOf?                     ← marks a hidden interactive state of another slide
    ├─ hover?                       ← { type:'focus-group', dim } | { type:'reveal', default }
-   ├─ comments?                       ← review threads, anchored to element/point/slide (editor-only; window.slidomingo.comments() for tooling)
+   ├─ comments?                       ← review threads, anchored to element/point/slide (editor-only; window.beeslides.comments() for tooling)
    └─ elements: SlideElement[]     ← array order = paint order (z)
       ├─ common: id · x y w h · rotation · opacity
       │          fx? · link? · group? · groupId? · showOnHover? · role?
@@ -269,7 +269,7 @@ everywhere, which is what keeps WYSIWYG honest:
 | Editor canvas | `.ed-stage-scale` (CSS-scaled) | static SVG snapshot | Moveable control box mounts *inside* the scale wrapper (see CLAUDE.md gotcha #1) |
 | Sidebar thumbnails | per-slide mini surface | snapshot | `svg` elements collapse to `<img>` for cheapness |
 | Present | Reveal.js sections | **live instance** (tooltips, dataZoom) | fx/morph/states run here only |
-| PDF export | `#slidomingo-print`, `@page` 1600×900 | snapshot | state slides excluded |
+| PDF export | `#beeslides-print`, `@page` 1600×900 | snapshot | state slides excluded |
 
 Animation is fully in-house (`anim.ts`, no GSAP): tween channels for
 opacity/transform/colors/SVG attributes/motion paths, a per-element transform
@@ -282,7 +282,7 @@ measures the DOM.
 
 Things generators and future format revisions must not break:
 
-1. `format: "slidomingo/slides"` plus additive, optional fields — old files must
+1. `format: "beeslides/slides"` plus additive, optional fields — old files must
    open in newer shells (unknown fields are preserved by parse → serialize).
 2. Element **ids are identity**: morphs match on them across slides, states
    sync from parents by id lineage, links point at slide ids. Generators must

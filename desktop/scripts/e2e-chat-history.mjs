@@ -25,7 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const DOC_ID = '0a0a0a0a-0000-4000-8000-00000000d0c1'
 const FOREIGN = '0f0f0f0f-0000-4000-8000-0000000f0e19'
@@ -85,7 +85,7 @@ async function driver() {
       [{ type: 'user', message: { content: 'hello' } }, { type: 'ai-title', aiTitle: title }].map((o) => JSON.stringify(o)).join('\n') + '\n')
   }
 
-  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root"))')
+  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-root"))')
   ok(!!wc, 'the deck opened')
   if (!wc) { report(); app.exit(1); return }
 

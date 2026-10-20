@@ -51,7 +51,7 @@ function build(): SlidomingoDoc {
   const loose = slideOf('s-loose', [img('hero')])           // same id, but not linked
   const dangling = slideOf('s-dangling', [img('hero')], { layoutId: 'ly-gone' })
   return {
-    format: 'slidomingo/slides', version: 1, title: 't', size: { width: 1280, height: 720 },
+    format: 'beeslides/slides', version: 1, title: 't', size: { width: 1280, height: 720 },
     theme: { background: '#ffffff', fontFamily: 'sans-serif', accent: '#0055ff' },
     slides: [linked, loose, dangling], layouts: [master, child], assets: {},
   } as unknown as SlidomingoDoc

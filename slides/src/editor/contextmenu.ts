@@ -56,7 +56,7 @@ export class ContextMenu {
     private custom: () => MenuCustomization | null = () => null,
   ) {}
 
-  /** elId is the .slidomingo-el hit (already selected by canvas.ts before this
+  /** elId is the .beeslides-el hit (already selected by canvas.ts before this
    *  fires), or null for an empty-canvas right-click. */
   open(elId: string | null, clientX: number, clientY: number, stack: SlideElement[] = []) {
     document.querySelector('.ed-ctx-menu')?.remove()

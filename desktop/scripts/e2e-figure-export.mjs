@@ -29,7 +29,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const INKSCAPE = '/Applications/Inkscape.app/Contents/MacOS/inkscape'
 const SCALE = 3 // raster pixels per CSS px
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -94,7 +94,7 @@ async function driver() {
     const wc = await waitFor(async () => {
       for (const w of webContents.getAllWebContents()) {
         if (w.isDestroyed() || w.isLoading() || !/BeeSlides\.beeslides\.html/.test(w.getURL())) continue
-        if (await w.executeJavaScript('!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-dropdown .ed-menu"))').catch(() => false)) return w
+        if (await w.executeJavaScript('!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-dropdown .ed-menu"))').catch(() => false)) return w
       }
       return null
     })

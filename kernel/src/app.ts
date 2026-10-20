@@ -40,7 +40,7 @@ export const APP_VERSION: string = typeof __APP_VERSION__ !== 'undefined' ? __AP
  *
  * A host that polyfills `showSaveFilePicker` (home/webext) must know whether
  * this document is old enough to predate `pickerIdFor` (#213). Before that,
- * every save — including "Save a copy…" — sent `slidomingo-doc`, so acting on the id
+ * every save — including "Save a copy…" — sent `beeslides-doc`, so acting on the id
  * there overwrites the open document. The host therefore refuses to write in
  * place unless the runtime says it is at least 1.0.15.
  *

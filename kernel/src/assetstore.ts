@@ -4,15 +4,15 @@
 // The asset store: every embedded byte in a saved file, written ONCE.
 //
 // A plaintext file used to carry each picture twice or more: base64 inside
-// `#slidomingo-doc`, and again (once per use) in the no-JS static layer. A
+// `#beeslides-doc`, and again (once per use) in the no-JS static layer. A
 // 22.8 KB document structure travelled with 13.7 MB of repeated bytes. Now the
 // bytes live in one place in the file, and the JSON refers to them:
 //
-//   #slidomingo-doc         "src": "slidomingo-store:sha256-0123456789abcdef"
-//   #slidomingo-assets      /*sha256-0123…*/.sa-0123…{content:url("data:…")}
+//   #beeslides-doc         "src": "beeslides-store:sha256-0123456789abcdef"
+//   #beeslides-assets      /*sha256-0123…*/.sa-0123…{content:url("data:…")}
 //                           /*sha256-…*/@font-face{…src:url("data:font/…")…}
-//   #slidomingo-static      <div class="sa-0123…" role="img" …>   (uses)
-//                           <video data-slidomingo-store="sha256-…" src="data:…">
+//   #beeslides-static      <div class="sa-0123…" role="img" …>   (uses)
+//                           <video data-beeslides-store="sha256-…" src="data:…">
 //
 // The store is a <style>, so the static layer draws straight from it with no
 // script at all, and the file stays self-contained: nothing is fetched, the
@@ -24,18 +24,26 @@
 //
 // PURE STRINGS, no DOM: the desktop main process and node scripts resolve a
 // file with the same code the renderer uses.
+//
+// Files saved before 2026-10-20 spell these `slidomingo-store:`,
+// `#slidomingo-assets` and `data-slidomingo-*` (legacynames.ts). Every reader
+// here accepts both; refs come out under the new prefix.
+
+import {
+  LEGACY_MEDIA_POSTER_ATTR, LEGACY_MEDIA_SRC_ATTR, LEGACY_STORE_REF_PREFIX, isEncFormat,
+} from './legacynames.ts'
 
 /** The `requires` name a file with store refs declares. */
 export const ASSET_STORE_FEATURE = 'asset-store'
 /** What a doc string holding a ref starts with. */
-export const STORE_REF_PREFIX = 'slidomingo-store:'
-/** The store element's id (a <style> directly after #slidomingo-doc). */
-export const STORE_ID = 'slidomingo-assets'
-export const STORE_ATTR = 'data-slidomingo-assets'
+export const STORE_REF_PREFIX = 'beeslides-store:'
+/** The store element's id (a <style> directly after #beeslides-doc). */
+export const STORE_ID = 'beeslides-assets'
+export const STORE_ATTR = 'data-beeslides-assets'
 /** On a static-layer <video>/<audio> whose `src` carries the bytes of an id. */
-export const MEDIA_SRC_ATTR = 'data-slidomingo-store'
+export const MEDIA_SRC_ATTR = 'data-beeslides-store'
 /** On a static-layer <video> whose `poster` carries the bytes of an id. */
-export const MEDIA_POSTER_ATTR = 'data-slidomingo-poster'
+export const MEDIA_POSTER_ATTR = 'data-beeslides-poster'
 
 // --- SHA-256 (synchronous: save is synchronous) -----------------------------
 
@@ -111,7 +119,14 @@ export function pruneIdMemo(keep: Set<string>): void {
 }
 
 export const refFor = (id: string): string => STORE_REF_PREFIX + id
-export const isStoreRef = (v: unknown): boolean => typeof v === 'string' && v.startsWith(STORE_REF_PREFIX)
+export const isStoreRef = (v: unknown): boolean =>
+  typeof v === 'string' && (v.startsWith(STORE_REF_PREFIX) || v.startsWith(LEGACY_STORE_REF_PREFIX))
+/** The id a ref names, under either prefix. Only call on an `isStoreRef` string. */
+const refId = (ref: string): string =>
+  ref.slice((ref.startsWith(STORE_REF_PREFIX) ? STORE_REF_PREFIX : LEGACY_STORE_REF_PREFIX).length)
+/** Whether a doc block's text may hold a ref — the cheap pre-check before parsing. */
+export const mayHoldStoreRefs = (text: string): boolean =>
+  text.includes(STORE_REF_PREFIX) || text.includes(LEGACY_STORE_REF_PREFIX)
 const ID_RE = /^sha256-[0-9a-f]{16}$/
 export const isStoreId = (v: string): boolean => ID_RE.test(v)
 /** The CSS class that draws an id's picture: `.sa-<16 hex>`. */
@@ -203,12 +218,12 @@ const attrOf = (tag: string, name: string): string | null => {
  */
 export function parseStoreHtml(html: string): Map<string, string> {
   const store = new Map<string, string>()
-  const style = html.match(/<style\b[^>]*\bid="slidomingo-assets"[^>]*>([\s\S]*?)<\/style>/i)
+  const style = html.match(/<style\b[^>]*\bid="(?:beeslides|slidomingo)-assets"[^>]*>([\s\S]*?)<\/style>/i)
   if (style) parseStoreCss(style[1], store)
-  for (const m of html.matchAll(/<(?:video|audio)\b[^>]*\sdata-slidomingo-(?:store|poster)="sha256-[0-9a-f]{16}"[^>]*>/gi)) {
+  for (const m of html.matchAll(/<(?:video|audio)\b[^>]*\sdata-(?:beeslides|slidomingo)-(?:store|poster)="sha256-[0-9a-f]{16}"[^>]*>/gi)) {
     const tag = m[0]
-    const srcId = attrOf(tag, MEDIA_SRC_ATTR)
-    const posterId = attrOf(tag, MEDIA_POSTER_ATTR)
+    const srcId = attrOf(tag, MEDIA_SRC_ATTR) ?? attrOf(tag, LEGACY_MEDIA_SRC_ATTR)
+    const posterId = attrOf(tag, MEDIA_POSTER_ATTR) ?? attrOf(tag, LEGACY_MEDIA_POSTER_ATTR)
     const src = attrOf(tag, 'src')
     const poster = attrOf(tag, 'poster')
     if (srcId && src && !store.has(srcId)) store.set(srcId, src)
@@ -247,7 +262,7 @@ function mapStrings(v: Json, fn: (s: string) => string): Json {
 
 /** Every distinct store ref in `v`. */
 export function storeRefsIn(v: Json, into = new Set<string>()): Set<string> {
-  mapStrings(v, (s) => { if (isStoreRef(s)) into.add(s.slice(STORE_REF_PREFIX.length)); return s })
+  mapStrings(v, (s) => { if (isStoreRef(s)) into.add(refId(s)); return s })
   return into
 }
 
@@ -265,7 +280,7 @@ function withRequires<T>(doc: T, on: boolean): T {
 }
 
 /**
- * Put the bytes back: every `slidomingo-store:<id>` string in `doc` that
+ * Put the bytes back: every `beeslides-store:<id>` string in `doc` that
  * `store` knows becomes its `data:` URI again. The in-memory document is
  * always resolved — the editor, validate, the clipboard and Copy JSON never
  * see a ref for bytes the file holds. A ref the store does NOT know stays
@@ -277,9 +292,9 @@ export function resolveAssets<T>(doc: T, store: Map<string, string>): { doc: T; 
   const dangling = new Set<string>()
   const out = mapStrings(doc, (s) => {
     if (!isStoreRef(s)) return s
-    const id = s.slice(STORE_REF_PREFIX.length)
+    const id = refId(s)
     const uri = store.get(id)
-    if (uri === undefined) { dangling.add(id); return s }
+    if (uri === undefined) { dangling.add(id); return refFor(id) }
     return uri
   }) as T
   return { doc: withRequires(out, dangling.size > 0), dangling: [...dangling] }
@@ -294,7 +309,7 @@ export function resolveAssets<T>(doc: T, store: Map<string, string>): { doc: T; 
 export function externalizeAssets<T>(doc: T, stored: Map<string, string>): { doc: T; refs: number } {
   let refs = 0
   const out = mapStrings(doc, (s) => {
-    if (isStoreRef(s)) { refs++; return s }
+    if (isStoreRef(s)) { refs++; return refFor(refId(s)) }
     if (!s.startsWith('data:')) return s
     const id = stored.get(s)
     if (!id) return s
@@ -311,10 +326,10 @@ export function externalizeAssets<T>(doc: T, stored: Map<string, string>): { doc
  * files cost one substring search.
  */
 export function resolveDocText(docText: string, html: string): string {
-  if (!docText.includes(STORE_REF_PREFIX)) return docText
+  if (!mayHoldStoreRefs(docText)) return docText
   let json: Json
   try { json = JSON.parse(docText) } catch { return docText }
-  if ((json as { format?: unknown } | null)?.format === 'slidomingo/enc') return docText
+  if (isEncFormat((json as { format?: unknown } | null)?.format)) return docText
   return JSON.stringify(resolveAssets(json, parseStoreHtml(html)).doc)
 }
 

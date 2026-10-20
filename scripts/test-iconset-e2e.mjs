@@ -94,10 +94,10 @@ await page.goto(url)
 
 // --- the start page: Icon set → straight into the editor, an empty set ----------------
 await page.locator('button.ed-sp-tile:has-text("Icon set")').first().click({ timeout: 15000 })
-await page.waitForFunction(() => !!window.__agent && window.slidomingo?.doc?.kind === 'iconset', null, { timeout: 15000 })
+await page.waitForFunction(() => !!window.__agent && window.beeslides?.doc?.kind === 'iconset', null, { timeout: 15000 })
 await page.waitForTimeout(400)
 
-const doc = () => page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+const doc = () => page.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
 let d = await doc()
 ok(d.slides.length === 1 && !d.slides[0].elements.length && d.size.width === 384, 'the tile opens the editor on a new, empty icon set (24 units at 384 px)')
 
@@ -174,7 +174,7 @@ const native = await page.evaluate(() => {
     grid: getComputedStyle(document.querySelector('.ed-sidebar')).display === 'grid',
     sameRow: Math.abs(box(thumbs[0]).top - box(thumbs[1]).top) < 2 && box(thumbs[1]).left > box(thumbs[0]).right,
     names: thumbs.map((th) => th.querySelector('.ed-thumb-num')?.textContent).join(),
-    nameUnder: box(thumbs[0].querySelector('.ed-thumb-num')).top > box(thumbs[0].querySelector('.slidomingo-thumb-surface')).bottom - 1,
+    nameUnder: box(thumbs[0].querySelector('.ed-thumb-num')).top > box(thumbs[0].querySelector('.beeslides-thumb-surface')).bottom - 1,
     placeholder: thumbs[1].querySelector('.ed-icon-empty')?.textContent,
     gaps: [...document.querySelectorAll('.ed-sidebar .ed-insertgap')].filter(vis).length,
     unitGrid: !!document.querySelector('.ed-stage-scale .ed-grid'),
@@ -226,7 +226,7 @@ ok(preview === '16,24,32,48', `the panel previews the icon at 16, 24, 32 and 48 
 
 // --- Apply set style: drift corrected, one undo step -----------------------------------
 await page.evaluate(() => {
-  const el = window.slidomingo.doc.slides[0].elements[0]
+  const el = window.beeslides.doc.slides[0].elements[0]
   el.strokeWidth = 20
   el.stroke = '#555555'
 })
@@ -281,7 +281,7 @@ ok(names.join() === 'fingerprint.svg,evidence-bag.svg,hash.svg,icons.json', `one
 const svg = exp.files[0].text
 ok(svg.includes('viewBox="0 0 24 24"') && svg.includes('stroke="currentColor"') && svg.includes('stroke-width="2"') && svg.includes('d="M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18"'), 'the SVG is on the 24 grid, ink as currentColor, the agent’s d kept')
 const man = JSON.parse(exp.files.at(-1).text)
-ok(man.format === 'slidomingo-icons' && man.icons.length === 3 && man.name === 'Forensics', 'icons.json names the set and its icons')
+ok(man.format === 'beeslides-icons' && man.icons.length === 3 && man.name === 'Forensics', 'icons.json names the set and its icons')
 // the exported file renders: no stray stroke widths (it is a 24 px icon)
 const rendered = await page.evaluate(async (svg) => {
   const img = new Image()
@@ -354,7 +354,7 @@ ok(mineCards.includes('Comic'), 'and the drawer offers it under My styles')
 
 // learn from a hand-painted icon
 await page.evaluate(() => {
-  const s = window.slidomingo.doc.slides[0]
+  const s = window.beeslides.doc.slides[0]
   s.elements[0].fill = '#22c55e'
   s.elements.forEach((e) => { e.stroke = '#14532d'; e.strokeWidth = 40 })
 })
@@ -422,7 +422,7 @@ await showStyle('Comic')
 await page.waitForTimeout(250)
 const view = () => page.evaluate(() => {
   const img = document.querySelector('.ed-stage-scale .ed-lookview img')
-  const el = document.querySelector('.ed-stage-scale .slidomingo-el[data-el-id="bag"]')
+  const el = document.querySelector('.ed-stage-scale .beeslides-el[data-el-id="bag"]')
   return { src: img ? decodeURIComponent(img.getAttribute('src') ?? '') : '', shapeOpacity: el ? getComputedStyle(el).opacity : null, active: document.querySelector('[data-ui-tool="icon-look"] > button > span')?.textContent, thumb: !!document.querySelector('.ed-sidebar .ed-thumb.active img, .ed-sidebar .ed-thumb img') }
 })
 let v = await view()
@@ -431,7 +431,7 @@ ok(v.shapeOpacity === '0' && v.active === 'Comic', `the drawn shapes stay undern
 ok(v.thumb, 'the slide list shows the icons in the style too')
 if (shots) await page.screenshot({ path: join(shots, 'iconstyles-canvas.png') })
 // pick the bag's top edge (12, 8 in grid units): the only stroke there
-const box = await page.locator('.ed-stage-scale .slidomingo-slide').boundingBox()
+const box = await page.locator('.ed-stage-scale .beeslides-slide').boundingBox()
 await page.mouse.click(box.x + box.width * 12 / 24, box.y + box.height * 8 / 24)
 await page.waitForTimeout(250)
 const head = await page.evaluate(() => [...document.querySelectorAll('.ed-section')].map((h) => h.textContent))
@@ -475,7 +475,7 @@ const styledCmt = d.slides[1].comments?.find((c) => c.text === 'the bag should s
 ok(styledCmt?.look === comic.id, 'the comment remembers the style it was written in')
 const sentStyled = await page.evaluate(() => window.__prompts.filter((p) => p.kind === 'fix-comments').at(-1))
 ok(sentStyled?.payload?.[0]?.style === 'Comic', 'and Claude is told the style', sentStyled?.payload)
-const agentCmts = await page.evaluate(() => window.slidomingo.comments?.() ?? [])
+const agentCmts = await page.evaluate(() => window.beeslides.comments?.() ?? [])
 ok(agentCmts.some((c) => c.style?.name === 'Comic'), 'comments() names the style for agents')
 // the compare sheet marks the icon and opens it in that style
 await showStyle('As drawn')
@@ -529,7 +529,7 @@ await page.locator('.ed-sorter-looks .ed-setchip:text-is("Comic")').click()
 await page.waitForTimeout(250)
 const inComic = await page.evaluate(() => ({
   active: document.querySelector('.ed-sorter-looks .ed-setchip.active')?.textContent,
-  imgs: document.querySelectorAll('.ed-sorter-item .slidomingo-thumb-surface img').length,
+  imgs: document.querySelectorAll('.ed-sorter-item .beeslides-thumb-surface img').length,
   canvas: document.querySelector('[data-ui-tool="icon-look"] > button > span')?.textContent,
 }))
 ok(inComic.active === 'Comic' && inComic.imgs === 3 && inComic.canvas === 'Comic', `a style picked there shows every icon in it, and the canvas follows (${JSON.stringify(inComic)})`)
@@ -577,7 +577,7 @@ await page.waitForTimeout(150)
   const ie = (await query('doc_info')).result.iconset
   ok(ie.gridH === 24 && ie.pathElement.pathBox.join() === '0,0,32,24', 'doc_info hands Claude the 32 × 24 canvas')
   await page.waitForTimeout(400)
-  const tiles = await page.evaluate(() => [...document.querySelectorAll('.ed-sidebar .ed-thumb .slidomingo-thumb-surface')].map((el) => {
+  const tiles = await page.evaluate(() => [...document.querySelectorAll('.ed-sidebar .ed-thumb .beeslides-thumb-surface')].map((el) => {
     const r = el.getBoundingClientRect()
     return Math.round((r.width / r.height) * 100) / 100
   }))
@@ -590,7 +590,7 @@ await page.waitForTimeout(150)
 }
 
 // --- the icon grid: drag to reorder, more columns when wider ---------------------------------
-const order = async () => page.evaluate(() => window.slidomingo.doc.slides.map((s) => s.name).join())
+const order = async () => page.evaluate(() => window.beeslides.doc.slides.map((s) => s.name).join())
 const before = await order()
 await page.locator('.ed-sidebar .ed-thumb').nth(2).dragTo(page.locator('.ed-sidebar .ed-thumb').nth(0), { targetPosition: { x: 3, y: 30 } })
 await page.waitForTimeout(250)
@@ -631,7 +631,7 @@ for (const name of ['lock', 'Hash', 'key']) {
   }
 }
 const added = await page.evaluate(() => ({
-  names: window.slidomingo.doc.slides.map((s) => s.name).join(),
+  names: window.beeslides.doc.slides.map((s) => s.name).join(),
   tiles: document.querySelectorAll('.ed-sidebar .ed-thumb').length,
   active: document.querySelector('.ed-sidebar .ed-thumb.active .ed-thumb-num')?.textContent,
   still: document.activeElement?.className,
@@ -647,11 +647,11 @@ await page.waitForTimeout(150)
 await page.keyboard.type('cloud')
 await page.mouse.click(700, 520)
 await page.waitForTimeout(250)
-const away = await page.evaluate(() => ({ last: window.slidomingo.doc.slides.at(-1).name, adding: !!document.querySelector('.ed-icon-adding') }))
+const away = await page.evaluate(() => ({ last: window.beeslides.doc.slides.at(-1).name, adding: !!document.querySelector('.ed-icon-adding') }))
 ok(away.last === 'cloud' && !away.adding, `Home ▸ Add icons starts the same; clicking away keeps a typed name and stops (${JSON.stringify(away)})`)
 await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
 await page.waitForTimeout(200)
-ok(await page.evaluate(() => window.slidomingo.doc.slides.length) === 5, 'one undo removes the last icon added (one step per name)')
+ok(await page.evaluate(() => window.beeslides.doc.slides.length) === 5, 'one undo removes the last icon added (one step per name)')
 await page.locator('.ed-ribbon-tab:has-text("Home"), [role="tab"]:has-text("Home")').first().click()
 await page.locator('[data-ui-tool="icon-plan"]').first().click()
 await page.waitForTimeout(200)

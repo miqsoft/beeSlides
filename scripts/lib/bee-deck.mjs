@@ -464,7 +464,7 @@ export function beeDeck({ fontFamily = 'system-ui, sans-serif' } = {}) {
   font = fontFamily
   seq = 0
   return {
-    format: 'slidomingo/slides', version: 1, title: 'How Does a Honeybee Fly?',
+    format: 'beeslides/slides', version: 1, title: 'How Does a Honeybee Fly?',
     size: { width: 1280, height: 720 },
     theme: { background: CREAM, color: INK, accent: AMBER, fontFamily },
     present: { morphSeconds: 1.2, slideNumber: false },

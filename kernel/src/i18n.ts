@@ -149,6 +149,6 @@ export function t(en: string, vars?: Record<string, string | number> | null, con
   return out
 }
 
-// dev convenience: window.slidomingo.i18n exposes locale switching for testing;
+// dev convenience: window.beeslides.i18n exposes locale switching for testing;
 // the pseudo locale is reachable by setLocale('x-pseudo') in any build.
 export const i18nApi = { t, locale, setLocale, choices: localeChoices }

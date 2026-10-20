@@ -37,7 +37,7 @@ const title = (id) => ({
 })
 
 const oldDoc = {
-  format: 'slidomingo/slides',
+  format: 'beeslides/slides',
   version: 1,
   docId: 'doc-1',
   title: 'Old multi-master file',

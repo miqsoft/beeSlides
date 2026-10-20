@@ -11,7 +11,7 @@
 // that is the whole element selection; anything else (another selection, the
 // table gone, an undo that shrank it) clears or clamps it in `paint`, which
 // the canvas calls after every render/syncTargets. Highlights are a class on
-// the canvas's own <td>s (`.slidomingo-cell-sel`), so no output path can see
+// the canvas's own <td>s (`.beeslides-cell-sel`), so no output path can see
 // them. Every command is ONE store.commit (one undo step), and is checked
 // before committing so a no-op never leaves an empty undo step. The table
 // logic itself is pure, in ../tablespans.ts.
@@ -137,7 +137,7 @@ export class TableRange {
   /** Keep the highlight in step with the canvas DOM and the model. */
   paint() {
     const surface = this.host.surface()
-    surface?.querySelectorAll('.slidomingo-cell-sel').forEach((td) => td.classList.remove('slidomingo-cell-sel'))
+    surface?.querySelectorAll('.beeslides-cell-sel').forEach((td) => td.classList.remove('beeslides-cell-sel'))
     const el = this.table()
     if (!el) {
       this.sel = null
@@ -155,7 +155,7 @@ export class TableRange {
     node?.querySelectorAll<HTMLElement>('td[data-r][data-c]').forEach((td) => {
       const r = Number(td.dataset.r)
       const c = Number(td.dataset.c)
-      if (r >= rect.r0 && r <= rect.r1 && c >= rect.c0 && c <= rect.c1) td.classList.add('slidomingo-cell-sel')
+      if (r >= rect.r0 && r <= rect.r1 && c >= rect.c0 && c <= rect.c1) td.classList.add('beeslides-cell-sel')
     })
   }
 
@@ -251,7 +251,7 @@ export class TableRange {
     const onMove = (ev: PointerEvent) => {
       const hit = document.elementFromPoint(ev.clientX, ev.clientY)
       const td = hit?.closest<HTMLElement>('td[data-r][data-c]')
-      const owner = td?.closest<HTMLElement>('.slidomingo-el-table')
+      const owner = td?.closest<HTMLElement>('.beeslides-el-table')
       if (!td || owner?.dataset.elId !== id || !owner.closest('.ed-stage-scale')) return
       const tr = Number(td.dataset.r)
       const tc = Number(td.dataset.c)

@@ -3,7 +3,7 @@
 //
 // Real lists in imported text — the one block structure both importers emit.
 //
-// slidomingo/slides rich text (render.ts sanitizeHtml, DECISIONS 2026-10-08)
+// beeslides/slides rich text (render.ts sanitizeHtml, DECISIONS 2026-10-08)
 // holds lists as plain `<ul>`/`<ol>`/`<li>`, a nested list INSIDE the item it
 // indents under, never inside a line div, at most MAX_LIST_DEPTH deep, and no
 // attribute on any of them (the sanitizer strips `start`, `type`, classes).

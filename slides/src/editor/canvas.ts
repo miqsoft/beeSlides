@@ -206,7 +206,7 @@ export class SlideCanvas {
     // window.open, so cancelling the default there costs it nothing.
     const inertLinks = (ev: MouseEvent) => {
       const a = (ev.target as Element | null)?.closest?.('a[href]')
-      if (a && a.closest('.slidomingo-slide, .slidomingo-el')) ev.preventDefault()
+      if (a && a.closest('.beeslides-slide, .beeslides-el')) ev.preventDefault()
     }
     document.addEventListener('click', inertLinks, true)
     document.addEventListener('auxclick', inertLinks, true)
@@ -254,7 +254,7 @@ export class SlideCanvas {
     this.selecto = new Selecto({
       container: this.scroller,
       dragContainer: this.scroller,
-      selectableTargets: ['.slidomingo-el[data-el-id]'], // not a zoom tile's nested picture
+      selectableTargets: ['.beeslides-el[data-el-id]'], // not a zoom tile's nested picture
       selectByClick: true,
       selectFromInside: false,
       // Shift, Ctrl or Cmd (+click / +marquee) adds to / toggles the selection.
@@ -385,7 +385,7 @@ export class SlideCanvas {
 
     // Right-click: same target-filtering idiom as the Alt-click block above
     // (capture phase, bounded to the stage, sidebar/props/topbar excluded).
-    // The .slidomingo-el hit is selected here so the menu built by editor/
+    // The .beeslides-el hit is selected here so the menu built by editor/
     // contextmenu.ts always sees an up-to-date selection; the menu itself
     // has no opinion on what's clickable — that stays in this filter.
     // --- contextmenu block begin (editor/contextmenu.ts hooks in via onContextMenu) ---
@@ -401,7 +401,7 @@ export class SlideCanvas {
       if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome')) return
       if (!this.onContextMenu) return
       ev.preventDefault()
-      // resolveClickTarget (not a raw '.slidomingo-el' hit) so a right-click
+      // resolveClickTarget (not a raw '.beeslides-el' hit) so a right-click
       // that lands only on locked building-block chrome falls through to
       // whatever real content is behind it, or the empty-canvas menu.
       const elId = this.resolveClickTarget(ev.clientX, ev.clientY)
@@ -414,7 +414,7 @@ export class SlideCanvas {
     // --- contextmenu block end ---
 
     // --- format painter block begin (editor/formatpainter.ts owns capture/apply) ---
-    // Same capture-phase, .slidomingo-el-hit, sidebar/props/topbar-excluded idiom as
+    // Same capture-phase, .beeslides-el-hit, sidebar/props/topbar-excluded idiom as
     // the Alt-click and context-menu blocks above — but unlike the one-shot
     // comment tool, this STAYS ARMED across clicks (PowerPoint's paint-many
     // feel): only Esc or arming/disarming again ends it. This class owns the
@@ -427,7 +427,7 @@ export class SlideCanvas {
       const r = this.wrap.getBoundingClientRect()
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
       if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome')) return
-      const hitEl = ev.target instanceof Element ? ev.target.closest<HTMLElement>('.slidomingo-el') : null
+      const hitEl = ev.target instanceof Element ? ev.target.closest<HTMLElement>('.beeslides-el') : null
       if (!hitEl?.dataset.elId) return
       ev.preventDefault()
       ev.stopPropagation()
@@ -441,7 +441,7 @@ export class SlideCanvas {
     // --- format painter block end ---
 
     // --- reapply-change block begin (editor/reapplychange.ts owns capture/apply) ---
-    // Same capture-phase, .slidomingo-el-hit, sidebar/props/topbar-excluded,
+    // Same capture-phase, .beeslides-el-hit, sidebar/props/topbar-excluded,
     // stay-armed-across-clicks idiom as the format painter block above — a
     // separate armed mode (its own cleanup flag) so the two tools never fight
     // over the same click.
@@ -452,7 +452,7 @@ export class SlideCanvas {
       const r = this.wrap.getBoundingClientRect()
       if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
       if (ev.target instanceof Element && ev.target.closest('.ed-sidebar, .ed-props, .ed-topbar, .ed-desktop-chrome')) return
-      const hitEl = ev.target instanceof Element ? ev.target.closest<HTMLElement>('.slidomingo-el') : null
+      const hitEl = ev.target instanceof Element ? ev.target.closest<HTMLElement>('.beeslides-el') : null
       if (!hitEl?.dataset.elId) return
       ev.preventDefault()
       ev.stopPropagation()
@@ -463,8 +463,8 @@ export class SlideCanvas {
     this.stage.addEventListener('dblclick', (ev) => {
       // Look for TextElement, and then CodeElement
       const selectors = [
-        '.slidomingo-el-text',
-        '.slidomingo-el-code'
+        '.beeslides-el-text',
+        '.beeslides-el-code'
       ]
       var textEl: HTMLElement | null = null
       for (const selector of selectors) {
@@ -472,11 +472,11 @@ export class SlideCanvas {
         if (textEl) break
       }
       if (textEl) { this.startTextEdit(textEl); return }
-      const eq = (ev.target as HTMLElement).closest<HTMLElement>('.slidomingo-el-math')
+      const eq = (ev.target as HTMLElement).closest<HTMLElement>('.beeslides-el-math')
       if (eq?.dataset.elId && eq.closest('.ed-stage-scale')) { this.startMathEdit(eq.dataset.elId); return }
-      const td = (ev.target as HTMLElement).closest<HTMLElement>('.slidomingo-el-table td[data-c]')
+      const td = (ev.target as HTMLElement).closest<HTMLElement>('.beeslides-el-table td[data-c]')
       if (td) { this.editCellFromTd(td); return }
-      const pic = (ev.target as HTMLElement).closest<HTMLElement>('.slidomingo-el-image')
+      const pic = (ev.target as HTMLElement).closest<HTMLElement>('.beeslides-el-image')
       if (pic?.dataset.elId && !this.cropMode.engaged) this.startCrop(pic.dataset.elId)
     })
 
@@ -641,7 +641,7 @@ export class SlideCanvas {
     const ids = new Set(this.store.selection)
     if (!ids.size) return null
     let l = Infinity, tp = Infinity, r = -Infinity, b = -Infinity
-    for (const n of this.surface.querySelectorAll<HTMLElement>('.slidomingo-el[data-el-id]')) {
+    for (const n of this.surface.querySelectorAll<HTMLElement>('.beeslides-el[data-el-id]')) {
       if (!n.dataset.elId || !ids.has(n.dataset.elId)) continue
       const rc = n.getBoundingClientRect()
       if (!rc.width && !rc.height) continue // display:none (another hover set)
@@ -1086,7 +1086,7 @@ export class SlideCanvas {
   /** notified when the comment tool arms/disarms (topbar button state) */
   onCommentModeChange: ((on: boolean) => void) | null = null
   onSlideNav: ((dir: 1 | -1) => void) | null = null
-  /** right-click inside the canvas: elId is the .slidomingo-el hit (already
+  /** right-click inside the canvas: elId is the .beeslides-el hit (already
    *  selected before this fires), or null for an empty-canvas click. Client
    *  coords, same as every other pointer callback here. */
   /** `stack` = every element under the pointer, top first (hidden and
@@ -1474,7 +1474,7 @@ export class SlideCanvas {
   private resolveClickTarget(clientX: number, clientY: number): string | null {
     const locked = this.lockedIds()
     for (const node of document.elementsFromPoint(clientX, clientY)) {
-      const hit = node instanceof Element ? node.closest<HTMLElement>('.slidomingo-el[data-el-id]') : null
+      const hit = node instanceof Element ? node.closest<HTMLElement>('.beeslides-el[data-el-id]') : null
       const id = hit?.dataset.elId
       if (id && !locked.has(id)) return id
     }
@@ -1933,7 +1933,7 @@ export class SlideCanvas {
     if (!el || el.type !== 'shape' || !(el as ShapeElement).container) return []
     const childIds = new Set(this.store.slide.elements.filter((e) => e.parentId === sel[0]).map((e) => e.id))
     if (!childIds.size) return []
-    return Array.from(this.surface.querySelectorAll<HTMLElement>('.slidomingo-el[data-el-id]')).filter(
+    return Array.from(this.surface.querySelectorAll<HTMLElement>('.beeslides-el[data-el-id]')).filter(
       (n) => n.dataset.elId && childIds.has(n.dataset.elId),
     )
   }
@@ -1975,7 +1975,7 @@ export class SlideCanvas {
     const others = this.surface
       ? [
           ...(slideLines && !this.pageless ? [this.surface] : []),
-          ...(objects ? Array.from(this.surface.querySelectorAll<HTMLElement>('.slidomingo-el[data-el-id]')) : []),
+          ...(objects ? Array.from(this.surface.querySelectorAll<HTMLElement>('.beeslides-el[data-el-id]')) : []),
         ].filter((n) => !targets.includes(n))
       : []
     this.moveable.elementGuidelines = others
@@ -2005,7 +2005,7 @@ export class SlideCanvas {
   /** Show draggable dividers on the boundaries of a lone selected table. */
   private updateTableHandles() {
     this.tableRange.paint()
-    this.surface?.querySelectorAll('.slidomingo-col-handle').forEach((h) => h.remove())
+    this.surface?.querySelectorAll('.beeslides-col-handle').forEach((h) => h.remove())
     if (this.editing) return
     const ids = this.store.selection
     if (ids.length !== 1) return
@@ -2018,7 +2018,7 @@ export class SlideCanvas {
     for (let i = 0; i < el.columns.length - 1; i++) {
       acc += el.columns[i].w || 0
       const handle = document.createElement('div')
-      handle.className = 'slidomingo-col-handle'
+      handle.className = 'beeslides-col-handle'
       handle.style.cssText =
         `position:absolute;top:0;height:${el.h}px;width:11px;` +
         `left:${(acc / total) * el.w - 5.5}px;cursor:col-resize;z-index:5;`
@@ -2041,7 +2041,7 @@ export class SlideCanvas {
     const pair = w0 + w1
     const min = pair * 0.12
     const cols = node.querySelectorAll<HTMLElement>('col')
-    const handles = [...node.querySelectorAll<HTMLElement>('.slidomingo-col-handle')]
+    const handles = [...node.querySelectorAll<HTMLElement>('.beeslides-col-handle')]
     const total = el.columns.reduce((s, c) => s + (c.w || 0), 0) || 1
     let live0 = w0
     let live1 = w1
@@ -2475,7 +2475,7 @@ export class SlideCanvas {
     if (this.store.readOnly) return // live viewer — no inline editing
     if (this.editing === node) return
     this.commitTextEdit()
-    const inner = node.querySelector<HTMLElement>('.slidomingo-text-inner')
+    const inner = node.querySelector<HTMLElement>('.beeslides-text-inner')
     if (!inner) return
     // fields ({{page}} etc.) and math ($…$) render RESOLVED; while editing,
     // show the raw source so the author edits the token, not the computed value
@@ -2501,7 +2501,7 @@ export class SlideCanvas {
     }
     this.editing = node
     this.editingSlideId = this.store.slide.id
-    node.classList.add('slidomingo-editing')
+    node.classList.add('beeslides-editing')
     inner.contentEditable = 'true'
     inner.focus()
     document.getSelection()?.selectAllChildren(inner)
@@ -2598,9 +2598,9 @@ export class SlideCanvas {
     this.editing = null
     this.editingSlideId = null
     this.emitTextEdit(undefined)
-    const inner = node.querySelector<HTMLElement>('.slidomingo-text-inner')
+    const inner = node.querySelector<HTMLElement>('.beeslides-text-inner')
     const id = node.dataset.elId
-    node.classList.remove('slidomingo-editing')
+    node.classList.remove('beeslides-editing')
     if (!inner || !id) return
     closeRichPopover(false)
     // For code, we care about the raw innerText
@@ -2663,7 +2663,7 @@ export class SlideCanvas {
 
   /** Enter cell editing from a clicked/dbl-clicked <td> (re-queries fresh). */
   private editCellFromTd(td: HTMLElement) {
-    const tableNode = td.closest<HTMLElement>('.slidomingo-el-table')
+    const tableNode = td.closest<HTMLElement>('.beeslides-el-table')
     const id = tableNode?.dataset.elId
     if (!id) return
     this.editCellAt(id, Number(td.dataset.r), Number(td.dataset.c))
@@ -2676,8 +2676,8 @@ export class SlideCanvas {
     const td = this.surface?.querySelector<HTMLElement>(
       `[data-el-id="${CSS.escape(id)}"] td[data-r="${r}"][data-c="${c}"]`)
     if (!td) return
-    const node = td.closest<HTMLElement>('.slidomingo-el-table')
-    const inner = td.querySelector<HTMLElement>('.slidomingo-cell-inner')
+    const node = td.closest<HTMLElement>('.beeslides-el-table')
+    const inner = td.querySelector<HTMLElement>('.beeslides-cell-inner')
     if (!node || !inner) return
     // a cell's $…$ math renders typeset; edit its SOURCE, the way
     // startTextEdit does for a text box. Mandatory, not cosmetic: committing
@@ -2691,7 +2691,7 @@ export class SlideCanvas {
     this.editingSlideId = this.store.slide.id
     this.editingCell = { r, c }
     this.tableRange.setCell(id, r, c) // stays the active cell when the edit ends
-    node.classList.add('slidomingo-editing')
+    node.classList.add('beeslides-editing')
     inner.contentEditable = 'true'
     inner.focus()
     document.getSelection()?.selectAllChildren(inner)
@@ -2747,9 +2747,9 @@ export class SlideCanvas {
     this.editingSlideId = null
     this.editingCell = null
     this.emitTextEdit(undefined)
-    node.classList.remove('slidomingo-editing')
+    node.classList.remove('beeslides-editing')
     const inner = node.querySelector<HTMLElement>(
-      `td[data-r="${cell.r}"][data-c="${cell.c}"] .slidomingo-cell-inner`)
+      `td[data-r="${cell.r}"][data-c="${cell.c}"] .beeslides-cell-inner`)
     if (!inner || !id) return
     closeRichPopover(false)
     normalizeRuns(inner)
@@ -2778,7 +2778,7 @@ export class SlideCanvas {
   private pickCellAt(elId: string | null, target: EventTarget | null, mode: 'click' | 'extend' | 'context') {
     if (!elId || this.store.element(elId)?.type !== 'table' || this.editingCell) return
     const td = target instanceof Element ? target.closest<HTMLElement>('td[data-r][data-c]') : null
-    if (!td || td.closest<HTMLElement>('.slidomingo-el-table')?.dataset.elId !== elId || !td.closest('.ed-stage-scale')) return
+    if (!td || td.closest<HTMLElement>('.beeslides-el-table')?.dataset.elId !== elId || !td.closest('.ed-stage-scale')) return
     const r = Number(td.dataset.r)
     const c = Number(td.dataset.c)
     const rect = this.tableRange.rect()

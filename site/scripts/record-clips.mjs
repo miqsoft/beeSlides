@@ -148,7 +148,7 @@ for (const id of ids) {
     if (real.length) throw new Error(`page error: ${real[0]}`)
     if (noise.length) console.log(`  note  ${id}: ${noise.length} known Moveable page error(s) ignored`)
     if (scenario.expect) {
-      const why = await scenario.expect({ doc: await ui.evaluate(() => window.slidomingo.doc), app })
+      const why = await scenario.expect({ doc: await ui.evaluate(() => window.beeslides.doc), app })
       if (why) throw new Error(`expect: ${why}`)
     }
     if (check) { console.log(`  ok    ${id} (${marks.length} steps, ${app})`); continue }

@@ -82,11 +82,11 @@ try {
         // A pristine shell opens as a new draft on the start page: start a
         // Blank deck (the content comes from loadDoc below).
         await wc.executeJavaScript(`(() => { const t = [...document.querySelectorAll('.ed-sp-row .ed-sp-tile')].find((b) => /Blank/.test(b.textContent)); if (t) t.click() })()`).catch(() => {})
-        const ready = await wc.executeJavaScript('!!(window.slidomingo && window.slidomingo.doc && window.slidomingoDesktop)').catch(() => false)
+        const ready = await wc.executeJavaScript('!!(window.beeslides && window.beeslides.doc && window.slidomingoDesktop)').catch(() => false)
         if (ready) return wc.executeJavaScript(code)
       }
       if (Date.now() > deadline) {
-        const probe = wc ? await wc.executeJavaScript('JSON.stringify({s: typeof window.slidomingo, d: !!(window.slidomingo && window.slidomingo.doc), b: typeof window.slidomingoDesktop, t: document.title, body: document.body.innerText.slice(0, 200)})').catch((e) => String(e)) : 'no window'
+        const probe = wc ? await wc.executeJavaScript('JSON.stringify({s: typeof window.beeslides, d: !!(window.beeslides && window.beeslides.doc), b: typeof window.slidomingoDesktop, t: document.title, body: document.body.innerText.slice(0, 200)})').catch((e) => String(e)) : 'no window'
         throw new Error(`document window never booted: ${probe}`)
       }
       await new Promise((r) => setTimeout(r, 200))
@@ -96,22 +96,22 @@ try {
   // A small deck with real content — a coloured page and a big title — so a
   // thumbnail of it can't be mistaken for the dark boot splash.
   await run(`(() => {
-    const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+    const d = JSON.parse(JSON.stringify(window.beeslides.doc))
     d.title = 'Thumbnail check'
     d.slides[0].background = '#FFE8B0'
     d.slides[0].elements = [{ id: 'tt', type: 'text', x: 96, y: 260, w: 1088, h: 160, rotation: 0, opacity: 1,
       html: 'Thumbnail check', fontSize: 88, fontFamily: 'system-ui, sans-serif', fontWeight: 800,
       color: '#1D1119', align: 'left', valign: 'top', lineHeight: 1.1 }]
-    return window.slidomingo.loadDoc(JSON.stringify(d))
+    return window.beeslides.loadDoc(JSON.stringify(d))
   })()`)
   const saved = join(work, 'saved.beeslides.html')
-  const html = await run('window.slidomingo.serialize()')
+  const html = await run('window.beeslides.serialize()')
   writeFileSync(saved, html)
-  ok(html.includes('<div data-slidomingo-preview="1">'), 'a serialized deck carries a preview host')
+  ok(html.includes('<div data-beeslides-preview="1">'), 'a serialized deck carries a preview host')
 
   const enc = join(work, 'enc.beeslides.html')
-  writeFileSync(enc, html.replace(/(<script[^>]*id="slidomingo-doc"[^>]*>)[\s\S]*?(<\/script>)/,
-    '$1\n{"format":"slidomingo/enc","v":1,"salt":"x","iv":"y","data":"z"}\n$2'))
+  writeFileSync(enc, html.replace(/(<script[^>]*id="beeslides-doc"[^>]*>)[\s\S]*?(<\/script>)/,
+    '$1\n{"format":"beeslides/enc","v":1,"salt":"x","iv":"y","data":"z"}\n$2'))
 
   const thumb = (p) => run(`window.slidomingoDesktop.getThumbnail(${JSON.stringify(p)})`)
 

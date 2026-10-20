@@ -31,7 +31,7 @@
 // assetstore.ts). render.ts inlines every <img>'s full data: URI; this module
 // marks each box-filling one as storable, and the kernel turns it into a div
 // that draws the SAME bytes through CSS content replacement from one rule in
-// #slidomingo-assets, with the img's own object-fit and radius — the JSON then
+// #beeslides-assets, with the img's own object-fit and radius — the JSON then
 // refers to those bytes instead of carrying them a second time. Lossless by
 // construction: nothing is downscaled or re-encoded, ever (product rule — size
 // is fine, quality is sacred). See docs/DECISIONS.md 2026-09-28 (both entries).
@@ -164,13 +164,13 @@ export function buildStaticLayer(doc: SlidomingoDoc): HTMLElement | null {
 
   const build = (staticMediaStill: boolean): HTMLElement => {
     const root = document.createElement('div')
-    root.id = 'slidomingo-static-layer'
-    root.dataset.slidomingoDeckVersion = '1'
+    root.id = 'beeslides-static-layer'
+    root.dataset.beeslidesDeckVersion = '1'
 
     // (embedded fonts: the asset store's @font-face rules, not a style here)
     for (const slide of slides) {
       const page = renderSlideStatic(slide, doc, staticMediaStill)
-      page.setAttribute('data-slidomingo-static-slide', slide.id)
+      page.setAttribute('data-beeslides-static-slide', slide.id)
       inlineRuntimeCss(page)
       root.appendChild(page)
     }

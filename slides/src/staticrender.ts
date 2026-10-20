@@ -4,7 +4,7 @@
 // stylesheet never loads: the first-page preview (preview.ts) and the
 // full-deck static declarative layer (staticlayer.ts). Both draw through
 // renderSlide/renderElement — the one model→DOM renderer — and both then
-// need the same small set of `.slidomingo-*` class rules the (absent) runtime
+// need the same small set of `.beeslides-*` class rules the (absent) runtime
 // stylesheet would otherwise have supplied, because that stylesheet ships
 // deflated and is never inflated for an audience that runs no script.
 
@@ -28,35 +28,35 @@ export function prepend(el: HTMLElement, css: string) {
  */
 export const FONT_FALLBACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`
 
-/** Inline the rules `.slidomingo-*` classes get from styles.css, which is
+/** Inline the rules `.beeslides-*` classes get from styles.css, which is
  *  compressed into a payload this audience never decompresses. */
 export function inlineRuntimeCss(root: HTMLElement) {
   prepend(root, 'position:relative;overflow:hidden')
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el'))) {
     prepend(el, 'position:absolute')
   }
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el-text .slidomingo-text-inner'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el-text .beeslides-text-inner'))) {
     prepend(el, 'overflow-wrap:break-word')
   }
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el-table'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el-table'))) {
     prepend(el, 'overflow:visible')
   }
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-cell-inner'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-cell-inner'))) {
     prepend(el, 'min-height:1em')
   }
   // rich text (styles.css, "rich text lists and links")
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el ul, .slidomingo-el ol'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el ul, .beeslides-el ol'))) {
     prepend(el, 'margin:0;padding-inline-start:1.25em')
   }
   // nested numbering 1. → a. → i. (deepest first: prepend puts a rule BEFORE
   // what is there, so the later-prepended, shallower one would otherwise win)
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el ol ol ol'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el ol ol ol'))) {
     prepend(el, 'list-style-type:lower-roman')
   }
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el ol ol'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el ol ol'))) {
     prepend(el, 'list-style-type:lower-alpha')
   }
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.slidomingo-el a[href]'))) {
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.beeslides-el a[href]'))) {
     prepend(el, 'color:var(--sl-hlink,inherit);text-decoration:underline')
   }
   for (const el of Array.from(root.querySelectorAll<HTMLElement>('code'))) {
@@ -90,7 +90,7 @@ export function markStorable(root: HTMLElement): void {
     // clipping box with explicit % sizes and object-fit:fill — every part of
     // that box is in its own inline style, so content replacement draws it
     // the same way
-    const cropped = img.parentElement?.classList.contains('slidomingo-crop') &&
+    const cropped = img.parentElement?.classList.contains('beeslides-crop') &&
       img.style.position === 'absolute' && img.style.objectFit === 'fill'
     if (!cropped && (img.style.width !== '100%' || img.style.height !== '100%' || !FITS.includes(img.style.objectFit))) continue
     img.setAttribute(STORABLE_ATTR, '')

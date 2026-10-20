@@ -232,7 +232,7 @@ function imagesToBackgrounds(root: HTMLElement) {
  * left alone whenever its shorthand is present on the same element.
  *
  * Moving these is not just cheaper but more faithful: the rules being inlined
- * are what `.slidomingo-*` classes get from styles.css, and they are supposed to sit
+ * are what `.beeslides-*` classes get from styles.css, and they are supposed to sit
  * BELOW the element's own inline style in the cascade, which is exactly where a
  * class rule sits.
  */

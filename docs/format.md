@@ -1,4 +1,4 @@
-# The `slidomingo/slides` document format
+# The `beeslides/slides` document format
 
 *Normative reference for the JSON document model, current as of BeeSlides
 **v1.0.0** (format version `1`). The authoritative source is
@@ -8,10 +8,15 @@ the two disagree, the code wins; please file that as a docs bug.*
 A `.beeslides.html` file carries one JSON document inside a single plaintext block:
 
 ```html
-<script type="application/slidomingo+json" id="slidomingo-doc">
-{ "format": "slidomingo/slides", "version": 1, ... }
+<script type="application/beeslides+json" id="beeslides-doc">
+{ "format": "beeslides/slides", "version": 1, ... }
 </script>
 ```
+
+Files saved before 2026-10-20 use the old names: `application/slidomingo+json`,
+`id="slidomingo-doc"`, `"format": "slidomingo/slides"`, `slidomingo/enc` and
+`slidomingo-store:` refs. Readers must accept both spellings; writers write
+only the new ones (`kernel/src/legacynames.ts`).
 
 Everything else in the HTML file is the fixed *shell* (the runtime, styles,
 license notices). The document block is the only part that changes between
@@ -51,8 +56,8 @@ the string `</script>` can never appear and terminate the block.
 
 **Asset-store refs.** In a saved plaintext file, any string holding embedded
 bytes (`doc.assets` values, an image `src`, a video `poster`, …) may instead be
-`"slidomingo-store:sha256-<16 hex>"`: a reference to the same bytes stored once
-in the file's `<style id="slidomingo-assets">` (or on the static layer's media
+`"beeslides-store:sha256-<16 hex>"`: a reference to the same bytes stored once
+in the file's `<style id="beeslides-assets">` (or on the static layer's media
 element), and the file then lists `"asset-store"` in `requires`. The id is
 `sha256-` + the first 16 hex digits of the SHA-256 of the `data:` URI's UTF-8
 text. A reader resolves refs from the file before using the document; a tool
@@ -75,7 +80,7 @@ document by hash.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `format` | `"slidomingo/slides"` | yes | Format discriminant. Check it before editing. |
+| `format` | `"beeslides/slides"` | yes | Format discriminant. Check it before editing. |
 | `version` | `number` | yes | Format version. Current: `1`. |
 | `docId` | `string` (uuid) | yes* | Stable per-document identity, minted at creation. **Never regenerate it.** *Minted on load if a pre-`docId` file lacks one. |
 | `title` | `string` | yes | Deck title; also synced to the HTML `<title>`. |
@@ -163,7 +168,7 @@ element: its own `fontFamily` → the governing master's matching font →
   slide coordinates), or neither/dangling (the whole slide).
 - `resolved?: boolean`; `replies?: Array<{ id, author, text, at }>`.
 
-`window.slidomingo.comments()` returns the flat, typed-anchor list — the entry point
+`window.beeslides.comments()` returns the flat, typed-anchor list — the entry point
 for tooling that processes flagged issues in a deck.
 
 ---
@@ -584,7 +589,7 @@ gives one starter slide of the default slide type unless the samples are
 opted in, titles it "Untitled", mints a fresh `docId`, records `basedOn`, and
 drops assets nothing references any more.
 
-Encryption is orthogonal: the `#slidomingo-doc` block may hold a `slidomingo/enc`
+Encryption is orthogonal: the `#beeslides-doc` block may hold a `beeslides/enc`
 envelope (PBKDF2-SHA-256 + AES-GCM over the doc JSON) instead of plaintext
 document JSON — boot shows a password gate. The envelope is still plaintext
 JSON in the block, so the splice contract holds.
@@ -593,7 +598,7 @@ JSON in the block, so the splice contract holds.
 
 ## Format invariants (do not break)
 
-1. `format: "slidomingo/slides"` plus **additive, optional** fields — old files open
+1. `format: "beeslides/slides"` plus **additive, optional** fields — old files open
    in newer shells; unknown fields survive parse → serialize.
 2. Element **ids are identity** — morph, states, and links all key off them.
    Generators must emit deterministic ids.
@@ -621,7 +626,7 @@ JSON in the block, so the splice contract holds.
 
 ```json
 {
-  "format": "slidomingo/slides",
+  "format": "beeslides/slides",
   "version": 1,
   "title": "My deck",
   "size": { "width": 1280, "height": 720 },

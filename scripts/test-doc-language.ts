@@ -48,7 +48,7 @@ const slide = (id: string, elements: TextElement[], extra: Partial<Slide> = {}):
 
 function fixture(): SlidomingoDoc {
   return {
-    version: 1, format: 'slidomingo/slides', docId: 'd1', title: 'Deck',
+    version: 1, format: 'beeslides/slides', docId: 'd1', title: 'Deck',
     size: { width: 1280, height: 720 },
     theme: { background: '#fff', color: '#000', accent: '#c00', fontFamily: 'Inter' },
     terms: {

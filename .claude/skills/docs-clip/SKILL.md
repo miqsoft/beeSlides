@@ -20,7 +20,7 @@ into a short MP4 + poster in `site/public/clips/<id>/`. Read
   `page.locator('.ed-props label', { hasText: '<Label>' })`. Canvas elements:
   `.ed-canvas-wrap [data-el-id="<id>"]` (`el()` in `clips/lib/doc.mjs`).
   Thumbnails: `.ed-sidebar .ed-thumb`. Present pill: `.ed-present-pill`.
-- `window.slidomingo.menu.run('<command id>')` runs any menu command
+- `window.beeslides.menu.run('<command id>')` runs any menu command
   (`slides/src/editor/menumodel.ts`), useful in `setup`, never instead of
   the click the viewer is supposed to learn.
 - Model JSON for `doc:` is specified in `docs/format.md`.

@@ -24,8 +24,8 @@ ever touches the network.
 
 ## Password encryption
 
-A document can be **password-encrypted at rest**: the on-disk `#slidomingo-doc`
-block holds a `slidomingo/enc` envelope — AES-GCM-256 over the document JSON,
+A document can be **password-encrypted at rest**: the on-disk `#beeslides-doc`
+block holds a `beeslides/enc` envelope — AES-GCM-256 over the document JSON,
 with the key derived from your password via **PBKDF2-SHA-256, 600,000
 iterations** (the current OWASP figure for PBKDF2-HMAC-SHA256;
 [`kernel/src/save.ts`](../kernel/src/save.ts)). The password is held only in

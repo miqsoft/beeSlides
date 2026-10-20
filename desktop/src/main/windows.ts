@@ -7,7 +7,7 @@
 // live page). With self-update gone, no save-path fix could ever reach an
 // existing deck. Now a window always loads this build's shell
 // (APPS.slides.prodShellPath, or the dev server) and the renderer asks for the
-// deck's `#slidomingo-doc` text over IPC (documents.ts
+// deck's `#beeslides-doc` text over IPC (documents.ts
 // `slidomingo:read-launch-document`). Files of another app/format fall back to
 // the old `loadFile(path)`, with no binding and so no disk writes — and no
 // preload: a foreign page never gets the desktop bridge (mountDocument).
@@ -877,7 +877,7 @@ function openInNewWindow(r: Resolved): BrowserWindow {
     height: start.height,
     ...(start.x !== undefined && start.y !== undefined ? { x: start.x, y: start.y } : {}),
     show: false,
-    // Native title bar merge (slidomingo/slides editor/titlebar.ts): hide the OS
+    // Native title bar merge (beeslides/slides editor/titlebar.ts): hide the OS
     // title bar and overlay the traffic lights on our own chrome instead of
     // stacking a second bar below it. hiddenInset does NOT shrink the
     // content area — layoutWindow's bounds math below needs no change.

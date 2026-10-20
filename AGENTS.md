@@ -9,15 +9,19 @@ Read before non-trivial work: `docs/PLATFORM.md` (invariants),
 append, don't relitigate). Subsystem notes: `slides/src/CLAUDE.md`,
 `slides/src/editor/CLAUDE.md`, `desktop/CLAUDE.md` (plain Markdown, any tool).
 
-**Naming:** prose and UI say BeeSlides; internal identifiers stay `slidomingo`
-(format string, `#slidomingo-doc`, `window.slidomingo`, storage/IPC/CSS
-prefixes) — saved files depend on them. Recognise both `.beeslides.html` and
-`.slidomingo.html` (`kernel/src/docext.ts`).
+**Naming:** prose, UI and everything a saved file contains say BeeSlides /
+`beeslides` (`#beeslides-doc`, `beeslides/slides`, `beeslides-store:`,
+`window.beeslides`, CSS classes). Files saved before 2026-10-20 say
+`slidomingo`: every reader accepts both (`kernel/src/legacynames.ts`), every
+writer writes only the new names. Storage keys, IPC channels, appId, package
+and TS names stay `slidomingo` (never in a file). Recognise both
+`.beeslides.html` and `.slidomingo.html` (`kernel/src/docext.ts`).
 
 ## Hard rules
 
 1. No literal `</script>` in a bundle or doc block (JSON escapes `<`).
-2. `#slidomingo-doc` stays plaintext, same id, regex-extractable (splice contract).
+2. `#beeslides-doc` stays plaintext, regex-extractable (splice contract); readers
+   also accept `#slidomingo-doc` (`kernel/src/legacynames.ts`).
 3. Never regenerate a document's `docId`.
 4. Encrypted decks never carry a plaintext preview; run
    `node scripts/test-preview.ts` after touching save/preview.
@@ -40,4 +44,4 @@ node_modules/.bin/tsc -b     # typecheck
 cd .. && npm test            # all rigs via scripts/run-tests.mjs
 ```
 
-In-page API: `window.slidomingo` → `{ doc, serialize() }`.
+In-page API: `window.beeslides` → `{ doc, serialize() }`.

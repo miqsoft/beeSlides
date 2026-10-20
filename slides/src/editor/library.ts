@@ -12,7 +12,7 @@
 // object…" (reusableobjects.ts) lists both scopes side by side.
 //
 // FORMAT DECISION (already made — see docs/DECISIONS.md): a library file is
-// an ORDINARY slidomingo/slides document. Each library item is just one `Slide`
+// an ORDINARY beeslides/slides document. Each library item is just one `Slide`
 // in `doc.slides` — `slide.name` is the item's display name, one element for
 // a single-item share, several (sharing a `groupId`) for a group. That is the
 // whole format story: save/splice/self-update/preview/docId-minting/collab
@@ -55,6 +55,7 @@ import type { Store } from '../store'
 import { emptySlide, parseDoc, uid, unsupportedFeatures } from '../model'
 import { formatGate } from '../formatgate'
 import { resolveDocText, withContentRequires } from '../save'
+import { DOC_BLOCK_SELECTOR, LEGACY_DOC_BLOCK_ID, isEncFormat } from '../../../kernel/src/legacynames.ts'
 import { insertElements, mergeClipResources, parseClip, serializeElements } from './clipboard'
 import { injectFonts } from '../fonts'
 import { renderObjectThumbnail } from '../render'
@@ -65,10 +66,10 @@ import { t } from '../i18n'
 export type ForeignDocResult = { doc: SlidomingoDoc } | { error: string }
 
 /**
- * Extract and validate a foreign .beeslides.html file's `#slidomingo-doc` block.
+ * Extract and validate a foreign .beeslides.html file's `#beeslides-doc` block.
  *
  * Same technique editor.ts's openFileLike already uses for "open a dropped
- * deck" (DOMParser -> #slidomingo-doc -> JSON.parse -> parseDoc) — not duplicated
+ * deck" (DOMParser -> #beeslides-doc -> JSON.parse -> parseDoc) — not duplicated
  * from there because that method is private and folded into a bigger
  * open-and-replace-the-whole-window flow; this needs just the parse half, to
  * BROWSE a file without replacing the current document. desktop/src/main/
@@ -80,7 +81,7 @@ export type ForeignDocResult = { doc: SlidomingoDoc } | { error: string }
  * shared function crossing that boundary.
  */
 export function extractForeignDoc(html: string): ForeignDocResult {
-  const el = new DOMParser().parseFromString(html, 'text/html').querySelector('#slidomingo-doc')
+  const el = new DOMParser().parseFromString(html, 'text/html').querySelector(DOC_BLOCK_SELECTOR)
   // resolved against the file's own asset store (kernel/src/assetstore.ts)
   const block = resolveDocText(el?.textContent?.trim() ?? '', html)
   if (!block) return { error: t('That file has no content yet.') }
@@ -90,7 +91,7 @@ export function extractForeignDoc(html: string): ForeignDocResult {
   } catch {
     return { error: t("That file isn't a BeeSlides document.") }
   }
-  if ((parsed as { format?: string })?.format === 'slidomingo/enc') {
+  if (isEncFormat((parsed as { format?: string })?.format)) {
     return { error: t('That file is password-protected — open it directly to browse it.') }
   }
   const doc = parseDoc(JSON.stringify(parsed))
@@ -341,7 +342,7 @@ export function insertLibraryItem(store: Store, item: Slide, sourceDoc: Slidomin
 
 /**
  * Splice `doc` back into a foreign library file's raw HTML text, replacing
- * only its `#slidomingo-doc` data block — the write-side mirror of
+ * only its `#beeslides-doc` data block — the write-side mirror of
  * `extractForeignDoc`. Deliberately does NOT reuse kernel/src/save.ts's
  * `serializeWith`/`serializeBody`: that machinery reads the app's own live
  * globals (registered shell-block providers, the in-memory encryption
@@ -357,11 +358,16 @@ export function insertLibraryItem(store: Store, item: Slide, sourceDoc: Slidomin
  */
 function spliceForeignDoc(html: string, doc: SlidomingoDoc): string {
   const parsed = new DOMParser().parseFromString(html, 'text/html')
-  let block = parsed.getElementById('slidomingo-doc')
+  // A library file saved before the 2026-10-20 rename keeps its own shell,
+  // whose runtime only knows `#slidomingo-doc` and `slidomingo/slides`: write
+  // the deck under the names that shell reads (kernel/src/legacynames.ts).
+  const legacy = parsed.getElementById('beeslides-doc') ? null : parsed.getElementById(LEGACY_DOC_BLOCK_ID)
+  if (legacy) doc = { ...doc, format: 'slidomingo/slides' } as unknown as SlidomingoDoc
+  let block = parsed.getElementById('beeslides-doc') ?? legacy
   if (!block) {
     block = parsed.createElement('script')
-    block.setAttribute('type', 'application/slidomingo+json')
-    block.id = 'slidomingo-doc'
+    block.setAttribute('type', 'application/beeslides+json')
+    block.id = 'beeslides-doc'
     parsed.head.appendChild(block)
   }
   // `doc` came back resolved (extractForeignDoc), so this block carries its

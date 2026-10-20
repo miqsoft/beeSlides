@@ -27,10 +27,10 @@ function ok(cond: boolean, msg: string) {
   else console.log(`  ok    ${msg}`)
 }
 
-const emptyBlock = '<script type="application/slidomingo+json" id="slidomingo-doc"></script>'
+const emptyBlock = '<script type="application/beeslides+json" id="beeslides-doc"></script>'
 const shell = (block = emptyBlock, pad = 120_000) =>
   `<!DOCTYPE html>\n<html><head><title>BeeSlides</title>${block}</head><body>` +
-  `<script id="slidomingo-rt" type="application/octet-stream">${'x'.repeat(pad)}</script></body>\n</html>\n`
+  `<script id="beeslides-rt" type="application/octet-stream">${'x'.repeat(pad)}</script></body>\n</html>\n`
 
 const dir = mkdtempSync(join(tmpdir(), 'slidomingo-library-'))
 const path = join(dir, 'BeeSlides Library.beeslides.html')
@@ -38,14 +38,14 @@ const path = join(dir, 'BeeSlides Library.beeslides.html')
 try {
   console.log('seed document')
   const seed = seedLibraryDoc() as { format: string; slides: Array<{ elements: unknown[] }>; theme?: unknown; size?: unknown; docId?: unknown }
-  ok(seed.format === 'slidomingo/slides', 'is a slides document')
+  ok(seed.format === 'beeslides/slides', 'is a slides document')
   ok(Array.isArray(seed.slides) && seed.slides.length === 1, 'has exactly one slide (parseDoc refuses zero)')
   ok(seed.slides[0].elements.length === 0, 'that slide is empty — the editor treats it as "no items"')
   ok(!!seed.theme && !!seed.size, 'carries theme and size (parseDoc fills no defaults for them)')
   ok(typeof seed.docId === 'string' && seed.docId !== (seedLibraryDoc() as { docId: string }).docId, 'mints a fresh docId each time')
 
   console.log('splice')
-  const spliced = spliceDocBlock(shell(), { format: 'slidomingo/slides', title: 'a $& b </script> c', slides: [{ id: 's', elements: [] }] })
+  const spliced = spliceDocBlock(shell(), { format: 'beeslides/slides', title: 'a $& b </script> c', slides: [{ id: 's', elements: [] }] })
   ok(!!spliced, 'splices into a shell with a doc block')
   const back = extractDocBlock(spliced!) as { title?: string } | null
   ok(back?.title === 'a $& b </script> c', 'round-trips `$&` and `</script>` exactly')
@@ -61,17 +61,17 @@ try {
   ok(isLibraryCandidate(path), 'counts as a library file')
 
   console.log('second run keeps what is there')
-  const filled = spliceDocBlock(shell(), { format: 'slidomingo/slides', title: 'Mine', slides: [{ id: 'item', name: 'Logo', elements: [{ id: 'e', type: 'shape' }] }] })!
+  const filled = spliceDocBlock(shell(), { format: 'beeslides/slides', title: 'Mine', slides: [{ id: 'item', name: 'Logo', elements: [{ id: 'e', type: 'shape' }] }] })!
   writeFileSync(path, filled)
   ok(ensureLibraryAt(path, shell()) === true, 'reports the existing file')
   ok(readFileSync(path, 'utf8') === filled, 'never overwrites a library someone filled')
 
   console.log('writes')
-  const next = spliceDocBlock(filled, { format: 'slidomingo/slides', title: 'Renamed', slides: [{ id: 'item', name: 'Logo 2', elements: [] }] })!
+  const next = spliceDocBlock(filled, { format: 'beeslides/slides', title: 'Renamed', slides: [{ id: 'item', name: 'Logo 2', elements: [] }] })!
   ok(writeLibraryAt(path, next) === true, 'accepts a complete shell carrying a slides deck')
   ok((extractDocBlock(readFileSync(path, 'utf8')) as { title?: string }).title === 'Renamed', 'and it lands on disk')
   ok(writeLibraryAt(path, next.slice(0, 5000)) === false, 'refuses a truncated write')
-  ok(writeLibraryAt(path, spliceDocBlock(shell(), { format: 'slidomingo/enc', ct: 'x' })) === false, 'refuses an encrypted document')
+  ok(writeLibraryAt(path, spliceDocBlock(shell(), { format: 'beeslides/enc', ct: 'x' })) === false, 'refuses an encrypted document')
   ok(writeLibraryAt(path, 42) === false, 'refuses a non-string')
   ok((extractDocBlock(readFileSync(path, 'utf8')) as { title?: string }).title === 'Renamed', 'a refused write leaves the file alone')
   rmSync(path)
@@ -80,7 +80,7 @@ try {
   console.log('reads')
   ok(!readLibraryAt(path).ok && (readLibraryAt(path) as { reason: string }).reason === 'missing', 'missing file → reason "missing"')
   const other = join(dir, 'other.beeslides.html')
-  writeFileSync(other, spliceDocBlock(shell(), { format: 'slidomingo/spaces', pages: [] })!)
+  writeFileSync(other, spliceDocBlock(shell(), { format: 'beeslides/spaces', pages: [] })!)
   ok((readLibraryAt(other) as { reason?: string }).reason === 'not-a-library', "another app's file is not a library")
   ok(!isLibraryCandidate(other), 'and cannot be chosen as one')
 } finally {

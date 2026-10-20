@@ -94,7 +94,7 @@ doc.slides[0].icon = { keywords: ['print', ' finger ', ''] }
 doc.iconset!.license = 'CC-BY-4.0'
 doc.title = 'Forensics'
 const man = iconManifest(doc, iconFileNames(doc.slides))
-ok(man.format === 'slidomingo-icons' && man.license === 'CC-BY-4.0' && man.name === 'Forensics', 'manifest header', man)
+ok(man.format === 'beeslides-icons' && man.license === 'CC-BY-4.0' && man.name === 'Forensics', 'manifest header', man)
 ok(JSON.stringify(man.icons[0]) === JSON.stringify({ file: 'fingerprint.svg', name: 'Fingerprint', keywords: ['print', 'finger'] }), 'entry with trimmed keywords', man.icons[0])
 ok(!('keywords' in man.icons[1]), 'no keywords → none written')
 const parsed = parseIconManifest(JSON.stringify(man))

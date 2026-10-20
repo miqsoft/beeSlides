@@ -50,12 +50,12 @@ const page = await (await browser.newContext({ viewport: { width: 1500, height: 
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
 await page.goto(url)
-await page.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30000 })
+await page.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30000 })
 await page.waitForSelector('.ed-stage-scale')
-await page.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 15000 }).catch(() => {})
+await page.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 15000 }).catch(() => {})
 await page.waitForTimeout(500)
 
-const base = await page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+const base = await page.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
 const BOX = { rotation: 0, opacity: 1 }
 
 /** load one slide holding `elements`, wait for it to paint */
@@ -63,16 +63,16 @@ async function load(elements, bg = '#FFFFFF') {
   const doc = JSON.parse(JSON.stringify(base))
   doc.slides = [{ id: 's1', name: '', background: bg, transition: 'fade', notes: '', elements }]
   doc.layouts = []
-  await page.evaluate((d) => window.slidomingo.loadDoc(JSON.stringify(d)), doc)
+  await page.evaluate((d) => window.beeslides.loadDoc(JSON.stringify(d)), doc)
   await page.waitForTimeout(500)
 }
-const els = () => page.evaluate(() => window.slidomingo.doc.slides[0].elements.map((e) => JSON.parse(JSON.stringify(e))))
+const els = () => page.evaluate(() => window.beeslides.doc.slides[0].elements.map((e) => JSON.parse(JSON.stringify(e))))
 
 async function snap() {
-  await page.evaluate(() => { document.activeElement?.blur?.(); window.slidomingo.select?.([]); document.documentElement.classList.add('ed-capturing') })
+  await page.evaluate(() => { document.activeElement?.blur?.(); window.beeslides.select?.([]); document.documentElement.classList.add('ed-capturing') })
   await page.keyboard.press('Escape')
   await page.waitForTimeout(250)
-  const slide = page.locator('.ed-stage-scale .slidomingo-slide, .ed-stage-scale [data-slide-id]').first()
+  const slide = page.locator('.ed-stage-scale .beeslides-slide, .ed-stage-scale [data-slide-id]').first()
   const buf = await (await page.locator('.ed-stage-scale').first()).screenshot()
   await page.evaluate(() => document.documentElement.classList.remove('ed-capturing'))
   return buf

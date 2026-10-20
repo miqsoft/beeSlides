@@ -62,8 +62,8 @@ export async function launchDesktop({ repo, viewport, doc, fixedViewport = true 
   if (doc) {
     const json = JSON.stringify({ ...doc, docId: crypto.randomUUID() }).replace(/</g, '\\u003c')
     const html = readFileSync(deck, 'utf8')
-    const re = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
-    if (!re.test(html)) throw new Error('no #slidomingo-doc block in the editor shell')
+    const re = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+    if (!re.test(html)) throw new Error('no #beeslides-doc block in the editor shell')
     writeFileSync(deck, html.replace(re, (_, open, _old, close) => open + json + close))
   }
   const port = 9300 + Math.floor(Math.random() * 500)
@@ -94,7 +94,7 @@ export async function launchDesktop({ repo, viewport, doc, fixedViewport = true 
       for (const t of list.filter((t) => t.type === 'page' && t.url.includes('dist-single'))) {
         const cdp = await wsSession(t.webSocketDebuggerUrl)
         const { result } = await cdp.send('Runtime.evaluate', {
-          expression: '!!(window.slidomingoDesktop && window.slidomingo?.doc && document.querySelector(".ed-sidebar") && !document.getElementById("slidomingo-splash"))',
+          expression: '!!(window.slidomingoDesktop && window.beeslides?.doc && document.querySelector(".ed-sidebar") && !document.getElementById("beeslides-splash"))',
           returnByValue: true,
         })
         if (result.value) {
@@ -122,7 +122,7 @@ export async function launchWeb({ url, viewport, headed }) {
   const page = await ctx.newPage()
   const cdp = await ctx.newCDPSession(page)
   await page.goto(url)
-  await page.waitForFunction(() => window.slidomingo?.doc && document.querySelector('.ed-sidebar') && !document.getElementById('slidomingo-splash'))
+  await page.waitForFunction(() => window.beeslides?.doc && document.querySelector('.ed-sidebar') && !document.getElementById('beeslides-splash'))
   return { cdp, close: () => browser.close(), app: 'web' }
 }
 

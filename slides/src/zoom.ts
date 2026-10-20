@@ -90,14 +90,14 @@ export function playZoomTransition(
   from: HTMLElement, to: HTMLElement, rect: ZoomRect, size: { width: number; height: number },
   dir: 'in' | 'out', seconds: number, onDone?: () => void,
 ): () => void {
-  const surface = to.querySelector<HTMLElement>(':scope > .slidomingo-slide')
-  const old = from.querySelector<HTMLElement>(':scope > .slidomingo-slide')
+  const surface = to.querySelector<HTMLElement>(':scope > .beeslides-slide')
+  const old = from.querySelector<HTMLElement>(':scope > .beeslides-slide')
   if (!surface || !old) { onDone?.(); return () => {} }
   const ghost = makeGhost(old)
-  ghost.classList.add('slidomingo-zoom-ghost')
+  ghost.classList.add('beeslides-zoom-ghost')
   const zin = dir === 'in'
   ghost.style.zIndex = zin ? '0' : '2'
-  to.classList.add('slidomingo-tx-running')
+  to.classList.add('beeslides-tx-running')
   to.appendChild(ghost)
   const overview = zin ? ghost : surface
   const target = zin ? surface : ghost
@@ -120,7 +120,7 @@ export function playZoomTransition(
     surface.style.transform = ''
     surface.style.transformOrigin = ''
     surface.style.opacity = ''
-    to.classList.remove('slidomingo-tx-running')
+    to.classList.remove('beeslides-tx-running')
     onDone?.()
   }
   apply()

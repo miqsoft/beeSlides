@@ -148,7 +148,7 @@ console.log('— playDrawnTransition: onDone runs exactly once')
   g.NodeList ??= class {}
   g.requestAnimationFrame ??= () => 0
   anim.setManual(true)
-  const section = () => { const s = new FakeEl('section'); s.appendChild(new FakeEl('slidomingo-slide')); return s }
+  const section = () => { const s = new FakeEl('section'); s.appendChild(new FakeEl('beeslides-slide')); return s }
   const pair = () => ({ from: section(), to: section() })
   const play = (p: { from: FakeEl; to: FakeEl }, done: () => void, forward = true) =>
     playDrawnTransition(p.from as unknown as HTMLElement, p.to as unknown as HTMLElement, 'push', 'right', forward, done)
@@ -157,12 +157,12 @@ console.log('— playDrawnTransition: onDone runs exactly once')
     let n = 0
     const p = pair()
     play(p, () => n++)
-    ok(n === 0 && p.to.classes.has('slidomingo-tx-running') && p.to.children.length === 2, 'while it plays: not done yet, the ghost is in')
+    ok(n === 0 && p.to.classes.has('beeslides-tx-running') && p.to.children.length === 2, 'while it plays: not done yet, the ghost is in')
     anim.tick(DRAWN_TRANSITION_SECONDS / 2)
     ok(n === 0, 'halfway: still not done')
     anim.tick(DRAWN_TRANSITION_SECONDS)
     ok(n === 1, 'played out: onDone ran once')
-    ok(!p.to.classes.has('slidomingo-tx-running') && p.to.children.length === 1 && !p.to.children[0].style.transform,
+    ok(!p.to.classes.has('beeslides-tx-running') && p.to.children.length === 1 && !p.to.children[0].style.transform,
       '…and the incoming slide is left clean (ghost gone, no transform)')
     anim.tick(1)
     ok(n === 1, '…and never again')

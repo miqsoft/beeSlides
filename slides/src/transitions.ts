@@ -68,7 +68,7 @@ export function transitionFrame(kind: DrawnTransition, dir: TransitionDir | unde
  */
 export function makeGhost(surface: HTMLElement): HTMLElement {
   const ghost = surface.cloneNode(true) as HTMLElement
-  ghost.classList.add('slidomingo-tx-ghost')
+  ghost.classList.add('beeslides-tx-ghost')
   ghost.setAttribute('aria-hidden', 'true')
   ghost.setAttribute('inert', '')
   for (const n of [ghost, ...ghost.querySelectorAll('*')]) {
@@ -105,12 +105,12 @@ export function playDrawnTransition(
   from: HTMLElement, to: HTMLElement, kind: DrawnTransition, dir: TransitionDir | undefined, forward: boolean,
   onDone?: () => void,
 ): () => void {
-  const surface = to.querySelector<HTMLElement>(':scope > .slidomingo-slide')
-  const old = from.querySelector<HTMLElement>(':scope > .slidomingo-slide')
+  const surface = to.querySelector<HTMLElement>(':scope > .beeslides-slide')
+  const old = from.querySelector<HTMLElement>(':scope > .beeslides-slide')
   if (!surface || !old) { onDone?.(); return () => {} }
   const ghost = makeGhost(old)
   ghost.style.zIndex = forward ? '0' : '2'
-  to.classList.add('slidomingo-tx-running')
+  to.classList.add('beeslides-tx-running')
   to.appendChild(ghost)
   const top = forward ? surface : ghost
   const bottom = forward ? ghost : surface
@@ -130,7 +130,7 @@ export function playDrawnTransition(
     ghost.remove()
     surface.style.transform = ''
     surface.style.clipPath = ''
-    to.classList.remove('slidomingo-tx-running')
+    to.classList.remove('beeslides-tx-running')
     onDone?.()
   }
   apply()

@@ -29,7 +29,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0, checks = 0
 function ok(cond, msg) { checks++; if (!cond) failures++; try { console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${msg}`) } catch {} }
@@ -70,7 +70,7 @@ async function driver() {
   const editorPage = () => waitFor(async () => {
     for (const wc of docWcs()) {
       if (wc.isLoading()) continue
-      if (await wc.executeJavaScript(`!!(window.slidomingo && window.slidomingo.menu && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
+      if (await wc.executeJavaScript(`!!(window.beeslides && window.beeslides.menu && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
     }
     return null
   }, 15000)
@@ -88,7 +88,7 @@ async function driver() {
     return { open: !!b && !b.hidden, replace: !!b && !b.querySelector('.ed-findbar-replace').hidden, focus: document.activeElement?.className ?? '' }
   })
   const closeBar = (wc) => js(wc, () => document.querySelector('.ed-findbar .ed-findbar-input')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })))
-  const bodyHtml = (wc) => js(wc, () => window.slidomingo.doc.slides[0].elements.find((e) => e.id === 't-1').html)
+  const bodyHtml = (wc) => js(wc, () => window.beeslides.doc.slides[0].elements.find((e) => e.id === 't-1').html)
 
   const A = await editorPage()
   ok(!!A, 'the editor opened')
@@ -143,10 +143,10 @@ async function driver() {
   await closeBar(A)
 
   // ---- language
-  await js(A, () => window.slidomingo.menu.run('view.lang.de'))
+  await js(A, () => window.beeslides.menu.run('view.lang.de'))
   ok(!!await waitFor(() => !!item('Bearbeiten', 'Suchen…') && !!item('Bearbeiten', 'Suchen und ersetzen…')), 'German: Bearbeiten ▸ Suchen… / Suchen und ersetzen…')
   ok(item('Bearbeiten', 'Suchen und ersetzen…')?.accelerator === 'Alt+CmdOrCtrl+F', 'with the same accelerator')
-  await js(A, () => window.slidomingo.menu.run('view.lang.en'))
+  await js(A, () => window.beeslides.menu.run('view.lang.en'))
   ok(!!await waitFor(() => !!item('Edit', 'Find…')), 'and back to English')
 
   clearTimeout(hardStop)

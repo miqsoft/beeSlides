@@ -363,8 +363,8 @@ console.log('template window')
 console.log('desktop registry')
 function shellFor(doc: unknown): string {
   const json = JSON.stringify(doc).replace(/</g, '\\u003c')
-  return `<!doctype html><html><head><title>x</title><script type="application/slidomingo+json" id="slidomingo-doc">${json}</script></head>`
-    + `<body><script id="slidomingo-rt" type="slidomingo/deflate-b64">${'A'.repeat(120_000)}</script></body></html>\n`
+  return `<!doctype html><html><head><title>x</title><script type="application/beeslides+json" id="beeslides-doc">${json}</script></head>`
+    + `<body><script id="beeslides-rt" type="beeslides/deflate-b64">${'A'.repeat(120_000)}</script></body></html>\n`
 }
 {
   const dir = mkdtempSync(join(tmpdir(), 'slidomingo-tpl-'))

@@ -143,7 +143,7 @@ export function resetCrop(el: ImageElement, natW = 0, natH = 0): boolean {
  *  it decoded ([0, 0] when it is not on the canvas or not decoded yet). */
 export function canvasNaturalSize(elId: string): [number, number] {
   const img = document.querySelector<HTMLImageElement>(
-    `.ed-stage-scale .slidomingo-el[data-el-id="${CSS.escape(elId)}"] img`)
+    `.ed-stage-scale .beeslides-el[data-el-id="${CSS.escape(elId)}"] img`)
   return [img?.naturalWidth || 0, img?.naturalHeight || 0]
 }
 
@@ -191,7 +191,7 @@ export class CropMode {
   setScaleGetter(fn: () => number) { this.scale = fn }
 
   private node(id = this.elId): HTMLElement | null {
-    return this.scaleHost.querySelector<HTMLElement>(`.slidomingo-el[data-el-id="${CSS.escape(id)}"]`)
+    return this.scaleHost.querySelector<HTMLElement>(`.beeslides-el[data-el-id="${CSS.escape(id)}"]`)
   }
 
   /** Enter crop mode for an image element. Waits for the picture to decode

@@ -80,7 +80,7 @@ const ROOM_B = `function boot() {
 }`
 
 const doc = {
-  format: 'slidomingo/slides', version: 1,
+  format: 'beeslides/slides', version: 1,
   docId: 'code-obvious-demo-0001',
   title: `Does the code travel? (build ${STAMP})`,
   size: { width: 1280, height: 720 },
@@ -112,9 +112,9 @@ const doc = {
 }
 
 const shell = readFileSync(shellPath, 'utf8')
-const open = '<script type="application/slidomingo+json" id="slidomingo-doc">'
+const open = '<script type="application/beeslides+json" id="beeslides-doc">'
 const i = shell.indexOf(open)
-if (i < 0) throw new Error('no #slidomingo-doc block in the shell')
+if (i < 0) throw new Error('no #beeslides-doc block in the shell')
 const j = shell.indexOf('</scr' + 'ipt>', i)
 const json = JSON.stringify(doc).replace(/</g, '\\u003c')
 writeFileSync(out, shell.slice(0, i + open.length) + json + shell.slice(j))

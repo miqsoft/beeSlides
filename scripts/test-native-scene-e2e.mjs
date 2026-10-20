@@ -71,17 +71,17 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForTimeout(600)
-  await p.evaluate(() => document.getElementById('slidomingo-splash')?.remove())
-  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
-  await p.evaluate((json) => window.slidomingo.loadDoc(json), JSON.stringify(lakeDeck(base)))
+  await p.evaluate(() => document.getElementById('beeslides-splash')?.remove())
+  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
+  await p.evaluate((json) => window.beeslides.loadDoc(json), JSON.stringify(lakeDeck(base)))
   await p.waitForTimeout(600)
 
   console.log('— editor: every part is an ordinary element')
   {
     const r = await p.evaluate(() => {
-      const s = window.slidomingo.doc.slides[0]
+      const s = window.beeslides.doc.slides[0]
       const ids = s.elements.map((e) => e.id)
       return {
         n: s.elements.length,
@@ -93,16 +93,16 @@ try {
     check(r.types.join() === 'shape,text' && r.n < 60, `${r.n} elements, all shapes and text`, r)
     check(r.drawn === r.n && !r.nan, 'each one is on the canvas with real geometry', r)
     if (saveTo) {
-      writeFileSync(saveTo, await p.evaluate(async () => await window.slidomingo.serialize()))
+      writeFileSync(saveTo, await p.evaluate(async () => await window.beeslides.serialize()))
       console.log(`  saved the deck to ${saveTo}`)
     }
     if (shots) {
-      await p.evaluate(() => window.slidomingo.select?.([]))
+      await p.evaluate(() => window.beeslides.select?.([]))
       await p.screenshot({ path: join(shots, 'lake-editor.png') })
     }
   }
 
-  await p.evaluate(() => { window.slidomingo.anim.setManual(true) })
+  await p.evaluate(() => { window.beeslides.anim.setManual(true) })
   await p.evaluate(() => { try { localStorage.setItem('slidomingo-reduce-motion', 'off') } catch {} })
   // a desktop-width tab has the menu bar (DECISIONS 2026-10-13): Play ▸ Present in tab;
   // a phone-width one the Slideshow pill's menu
@@ -113,16 +113,16 @@ try {
     await p.click('button[title="More ways to present"]:visible')
     await p.click('button:has-text("Present in this tab"):visible')
   }
-  await p.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 10_000 })
+  await p.waitForSelector('.beeslides-present-overlay section.present', { timeout: 10_000 })
   await p.waitForTimeout(500)
-  const tick = (s) => p.evaluate((sec) => window.slidomingo.anim.tick(sec), s)
+  const tick = (s) => p.evaluate((sec) => window.beeslides.anim.tick(sec), s)
   const key = async (k) => { await p.keyboard.press(k); await p.waitForTimeout(80) }
-  const node = (id) => `.slidomingo-present-overlay section.present [data-el-id="${id}"]`
+  const node = (id) => `.beeslides-present-overlay section.present [data-el-id="${id}"]`
   const loopsOf = (id) => p.evaluate((sel) => {
     const n = document.querySelector(sel)
-    return n ? window.slidomingo.anim.getTweensOf(n).filter((t) => t.infinite).length : -1
+    return n ? window.beeslides.anim.getTweensOf(n).filter((t) => t.infinite).length : -1
   }, node(id))
-  const slideRect = () => p.evaluate(() => document.querySelector('.slidomingo-present-overlay section.present .slidomingo-slide').getBoundingClientRect().toJSON())
+  const slideRect = () => p.evaluate(() => document.querySelector('.beeslides-present-overlay section.present .beeslides-slide').getBoundingClientRect().toJSON())
   const top = async (id) => {
     const [r, s] = await Promise.all([p.evaluate((sel) => document.querySelector(sel)?.getBoundingClientRect().toJSON(), node(id)), slideRect()])
     return r ? ((r.y - s.y) * 1280) / s.width : null
@@ -137,7 +137,7 @@ try {
     const origin = await p.evaluate((sel) => document.querySelector(sel)?.style.transformOrigin, node('crown1'))
     check(origin === '50% 100%', 'about its foot (origin: bottom)', origin)
     check(await loopsOf('ripple0') === 0 && await p.evaluate((sel) =>
-      window.slidomingo.anim.getTweensOf(document.querySelector(sel)?.querySelector('line')).some((t) => t.infinite), node('ripple0')),
+      window.beeslides.anim.getTweensOf(document.querySelector(sel)?.querySelector('line')).some((t) => t.infinite), node('ripple0')),
     'the ripples march')
     check(await loopsOf('balloon') === 1, 'the balloon floats')
     if (shots) await p.screenshot({ path: join(shots, 'lake-morning.png') })

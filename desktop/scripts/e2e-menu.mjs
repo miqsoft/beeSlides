@@ -31,7 +31,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0, checks = 0
 function ok(cond, msg) { checks++; if (!cond) failures++; try { console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${msg}`) } catch {} }
@@ -71,7 +71,7 @@ async function driver() {
   const editorPage = () => waitFor(async () => {
     for (const wc of docWcs()) {
       if (wc.isLoading()) continue
-      if (await wc.executeJavaScript(`!!(window.slidomingo && window.slidomingo.menu && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
+      if (await wc.executeJavaScript(`!!(window.beeslides && window.beeslides.menu && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
     }
     return null
   }, 15000)
@@ -96,13 +96,13 @@ async function driver() {
   const want = ['File', 'Edit', 'Insert', 'Slide', 'Arrange', 'View', 'Play', 'Window', 'Help']
   ok(want.every((l) => labels.includes(l)), `menu bar: ${labels.join(' | ')}`)
 
-  const model = await js(A, () => window.slidomingo.menu.model())
+  const model = await js(A, () => window.beeslides.menu.model())
   const ids = []
   const walk = (items) => { for (const it of items) { if (it.id) ids.push(it.id); if (it.submenu) walk(it.submenu) } }
   for (const m of model.menus) walk(m.items)
-  const unknown = await js(A, (ids) => ids.filter((id) => !window.slidomingo.menu.has(id)), ids)
+  const unknown = await js(A, (ids) => ids.filter((id) => !window.beeslides.menu.has(id)), ids)
   ok(ids.length > 80 && unknown.length === 0, `every renderer command id in the model resolves to a registry command (${ids.length} ids, unknown: ${unknown.join(', ') || 'none'})`)
-  ok((await js(A, () => window.slidomingo.menu.unresolved())).length === 0, 'every id the menu tree names is registered')
+  ok((await js(A, () => window.beeslides.menu.unresolved())).length === 0, 'every id the menu tree names is registered')
 
   // ---- one owner per shortcut
   const save = item('File', 'Save')
@@ -121,7 +121,7 @@ async function driver() {
 
   // ---- state follows the editor
   ok(item('Arrange', 'Group')?.enabled === false && item('Insert', 'Save selection…')?.enabled === false, 'Arrange / Save selection are disabled with nothing selected')
-  await js(A, () => { document.activeElement?.blur?.(); window.slidomingo.menu.run('arrange.group') }) // a disabled command must be a no-op
+  await js(A, () => { document.activeElement?.blur?.(); window.beeslides.menu.run('arrange.group') }) // a disabled command must be a no-op
   A.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['meta'] }); A.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['meta'] })
   ok(!!await waitFor(() => item('Arrange', 'Group')?.enabled === true && item('Arrange', 'Align', 'Align left')?.enabled === true), 'Arrange is enabled once something is selected')
   ok(item('Insert', 'Save selection…')?.enabled === true, 'Insert ▸ Save selection… follows the selection too')
@@ -129,11 +129,11 @@ async function driver() {
   // ---- Insert ▸ Shape: the basic shapes, then the preset gallery by category
   ok(!!item('Insert', 'Shape', 'Rectangle') && !!item('Insert', 'Shape', 'Preset shapes', 'Flowchart', 'Decision'),
     'Insert ▸ Shape lists the basic shapes and Preset shapes ▸ <category> ▸ preset')
-  const countEls = () => js(A, () => window.slidomingo.doc.slides.reduce((n, s) => n + s.elements.length, 0))
+  const countEls = () => js(A, () => window.beeslides.doc.slides.reduce((n, s) => n + s.elements.length, 0))
   const n0 = await countEls()
   item('Insert', 'Shape', 'Preset shapes', 'Stars', '5-point star')?.click()
   const inserted = await waitFor(async () => (await countEls()) === n0 + 1, 5000)
-  const last = await js(A, () => window.slidomingo.doc.slides.flatMap((s) => s.elements).find((e) => e.type === 'shape' && e.shape === 'path' && /^M /.test(e.d || '')) ?? null)
+  const last = await js(A, () => window.beeslides.doc.slides.flatMap((s) => s.elements).find((e) => e.type === 'shape' && e.shape === 'path' && /^M /.test(e.d || '')) ?? null)
   ok(!!inserted && !!last, `choosing Stars ▸ 5-point star inserts it as a plain path shape (${n0} → ${await countEls()})`)
 
   // ---- running items through the real channel
@@ -155,9 +155,9 @@ async function driver() {
   ok(!!saved, 'File ▸ Save writes the deck to disk')
 
   // ---- language relabels the native menu
-  await js(A, () => window.slidomingo.menu.run('view.lang.de'))
+  await js(A, () => window.beeslides.menu.run('view.lang.de'))
   ok(!!await waitFor(() => !!top('Datei') && !!item('Datei', 'Speichern') && !!item('Datei', 'Neues Fenster')), 'switching to German relabels the menu bar, renderer and main-owned items alike')
-  await js(A, () => window.slidomingo.menu.run('view.lang.en'))
+  await js(A, () => window.beeslides.menu.run('view.lang.en'))
   ok(!!await waitFor(() => !!top('File') && !!item('File', 'Save')), 'and back to English')
 
   // ---- a window without an editor: same menus, all disabled
@@ -181,7 +181,7 @@ async function driver() {
   const I = await waitFor(async () => {
     for (const wc of docWcs()) {
       if (winOf(wc) !== iconWin || wc.isLoading()) continue
-      if (await js(wc, () => window.slidomingo?.doc?.kind === 'iconset' && !!window.slidomingo.menu && !!document.querySelector('.ed-iconset')).catch(() => false)) return wc
+      if (await js(wc, () => window.beeslides?.doc?.kind === 'iconset' && !!window.beeslides.menu && !!document.querySelector('.ed-iconset')).catch(() => false)) return wc
     }
     return null
   }, 15000)

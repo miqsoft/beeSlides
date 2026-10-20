@@ -1,7 +1,7 @@
 # BeeSlides — for AI agents
 
-**Guide version `__APP_VERSION__`** · document format `slidomingo/slides` (v1). This
-guide matches the BeeSlides shell of the same version. A deck's `#slidomingo-doc`
+**Guide version `__APP_VERSION__`** · document format `beeslides/slides` (v1). This
+guide matches the BeeSlides shell of the same version. A deck's `#beeslides-doc`
 JSON is always the source of truth — if it was written by a newer shell it may
 carry features beyond this guide; unknown keys are ignored, never fatal.
 
@@ -76,7 +76,7 @@ sections below. Only read further if the task needs it.
 
 ---
 
-> **This guide covers BeeSlides decks only** (`"format": "slidomingo/slides"`).
+> **This guide covers BeeSlides decks only** (`"format": "beeslides/slides"`).
 > Other apps built on the same file idea may use other formats. Before you
 > edit a file, check its `"format"` field and use the matching guide; if the
 > format is one you have no guide for, don't guess at its shape.
@@ -99,31 +99,37 @@ A BeeSlides deck (`*.beeslides.html`) is a self-contained HTML file. The documen
 lives in ONE plaintext block near the top:
 
 ```html
-<script type="application/slidomingo+json" id="slidomingo-doc">
-{ "format": "slidomingo/slides", ... }
+<script type="application/beeslides+json" id="beeslides-doc">
+{ "format": "beeslides/slides", ... }
 </script>
 ```
+
+A file saved before 2026-10-20 (often `*.slidomingo.html`) uses the old names
+throughout: `id="slidomingo-doc"`, `"format": "slidomingo/slides"`,
+`<style id="slidomingo-assets">` and `"slidomingo-store:…"` refs. Edit such a
+file under ITS names — never rename them by hand, since its own runtime reads
+only those. BeeSlides converts it on its next save.
 
 Two ways to work with it:
 
 1. **File harness** (Claude Code, agent sandboxes): edit the JSON inside the
-   `#slidomingo-doc` block in place. Escape every `<` in the JSON as `\u003c`
+   `#beeslides-doc` block in place. Escape every `<` in the JSON as `\u003c`
    so the block can never contain a literal `</script>`. Leave everything else in the
-   file untouched — in particular `<style id="slidomingo-assets">`, which holds
+   file untouched — in particular `<style id="beeslides-assets">`, which holds
    the file's pictures and fonts. Strings like
-   `"slidomingo-store:sha256-0123456789abcdef"` are references to those bytes:
+   `"beeslides-store:sha256-0123456789abcdef"` are references to those bytes:
    keep them (and `"requires": ["asset-store"]`) exactly as they are, move or
    copy them freely, and never invent one. New pictures may always be written
    inline as `data:` URIs; the app stores them on its next save.
 2. **Chat round-trip** (any chatbot): the user copies the JSON out via
    *Save → Copy document JSON* — or *Copy document JSON without pictures*,
    which is small enough for any chat: pictures become
-   `"slidomingo-store:sha256-…"` refs. You return a full replacement document
+   `"beeslides-store:sha256-…"` refs. You return a full replacement document
    (keep every ref you were given; add new pictures as `data:` URIs), and they
    paste it back via *Save → Replace from JSON…* (undoable), which puts the
    pictures back.
-   In the browser console: `window.slidomingo.doc` (read) /
-   `window.slidomingo.loadDoc(json)` (write, undoable).
+   In the browser console: `window.beeslides.doc` (read) /
+   `window.beeslides.loadDoc(json)` (write, undoable).
 
 ---
 
@@ -248,14 +254,14 @@ Clicking a tile plays its section (→ walks it, hidden slides included) and zoo
       app already fixed for you (kept gaps, grown text, attached arrows) —
       don't undo them by hand.
 
-### `window.slidomingo.measure()` — size text before you place it (this is a precondition, not a suggestion)
+### `window.beeslides.measure()` — size text before you place it (this is a precondition, not a suggestion)
 
 The format is absolute pixels, which is what lets morph, the drag handles and
 the renderer work from one representation. The cost falls on you: the height of
 a string at a given width and font is not knowable from the JSON.
 
 **Any multi-line text write is expected to call `measure()` first.** This is
-not advisory — skip it and the write path (`window.slidomingo.validate()`, and
+not advisory — skip it and the write path (`window.beeslides.validate()`, and
 the MCP `write_slide`/`insert_elements`/etc. tools) WILL flag the resulting
 overflow back at you afterward anyway, as a prominent "TEXT OVERFLOW" finding.
 Calling `measure()` up front is strictly cheaper than writing, getting flagged,
@@ -263,7 +269,7 @@ and fixing it in a second round trip — treat the after-the-fact check as a
 safety net for what you missed, not as the normal way to size text.
 
 ```js
-window.slidomingo.measure({ html: 'Long paragraph…', w: 600, fontSize: 28, lineHeight: 1.4 })
+window.beeslides.measure({ html: 'Long paragraph…', w: 600, fontSize: 28, lineHeight: 1.4 })
 // → { height: 236, width: 600, lines: 6 }
 ```
 
@@ -278,13 +284,13 @@ column, deciding whether a heading needs two lines or three, sizing a caption
 under a photo. In the editor, the same thing is a **Fit height to text** button
 in the Typography panel.
 
-### `window.slidomingo.validate()`
+### `window.beeslides.validate()`
 
 Open the deck and run it in the browser console. It reports, in one pass, the
 things the runtime otherwise swallows in silence:
 
 ```js
-const { ok, counts, findings } = window.slidomingo.validate()
+const { ok, counts, findings } = window.beeslides.validate()
 findings.filter(f => f.severity !== 'info')
 ```
 
@@ -315,7 +321,7 @@ without them — and elements should carry the full field set shown.
 
 ```json
 {
-  "format": "slidomingo/slides", "version": 1, "title": "My deck",
+  "format": "beeslides/slides", "version": 1, "title": "My deck",
   "size": { "width": 1280, "height": 720 },
   "theme": { "background": "#101418", "color": "#F2F0EA",
              "accent": "#FF9E8A", "fontFamily": "system-ui, sans-serif" },

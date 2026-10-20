@@ -130,14 +130,14 @@ await page.goto(url)
 await page.waitForTimeout(1500)
 const blank = page.locator('button:visible:has-text("Blank")').first()
 if (await blank.count()) await blank.click()
-await page.waitForFunction(() => !!window.slidomingo?.doc && !!document.querySelector('.ed-root'), null, { timeout: 15000 })
+await page.waitForFunction(() => !!window.beeslides?.doc && !!document.querySelector('.ed-root'), null, { timeout: 15000 })
 // the start page's own errors come from the catch-all stub (its template
 // list is undefined here), not from anything under test
 pageErrors.length = 0
 
 const pageHas = (s) => page.evaluate((s) => JSON.stringify({ ...localStorage }).includes(s) || document.documentElement.outerHTML.includes(s), s)
 const openSettings = async () => {
-  await page.evaluate(() => window.slidomingo.menu.run('app.settings'))
+  await page.evaluate(() => window.beeslides.menu.run('app.settings'))
   await page.locator('.ed-settings-navitem', { hasText: 'Icon library' }).click()
   await page.waitForSelector('.ed-isrc[data-source-id="src_lib"]')
 }
@@ -194,15 +194,15 @@ try {
 
   // ---- the popover: search and insert through main
   await page.locator('.ed-settings-close').click()
-  await page.evaluate(() => window.slidomingo.menu.run('insert.icons'))
+  await page.evaluate(() => window.beeslides.menu.run('insert.icons'))
   await page.waitForSelector('.ed-icon-pop')
   await page.waitForFunction(() => document.querySelectorAll('.ed-icon-pop .ed-icon-grid img').length > 0, null, { timeout: 10000 }).catch(() => {})
   const thumb = await page.locator('.ed-icon-pop .ed-icon-grid img').first().getAttribute('src').catch(() => null)
   ok(!!thumb && thumb.startsWith('blob:'), `the grid shows an authed thumbnail as a blob: URL (${thumb?.slice(0, 20)})`)
-  const before = await page.evaluate(() => window.slidomingo.doc.slides[0].elements.length)
+  const before = await page.evaluate(() => window.beeslides.doc.slides[0].elements.length)
   await page.locator('.ed-icon-pop .ed-icon-grid > *').first().click()
-  await page.waitForFunction((n) => window.slidomingo.doc.slides[0].elements.length > n, before, { timeout: 10000 }).catch(() => {})
-  const added = await page.evaluate(() => window.slidomingo.doc.slides[0].elements.at(-1))
+  await page.waitForFunction((n) => window.beeslides.doc.slides[0].elements.length > n, before, { timeout: 10000 }).catch(() => {})
+  const added = await page.evaluate(() => window.beeslides.doc.slides[0].elements.at(-1))
   ok(added?.type === 'svg' && !!added.asset, 'clicking it inserts the svg (fetched through main)')
   await page.keyboard.press('Escape')
 

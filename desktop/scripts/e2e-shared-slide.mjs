@@ -28,7 +28,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let failures = 0
@@ -77,11 +77,11 @@ async function driver() {
     }
     return null
   })
-  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root"))')
+  const wc = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-root"))')
   ok(!!wc, 'the deck opened')
   if (!wc) { report(); app.exit(1); return }
-  const slideId = await wc.executeJavaScript('window.slidomingo.doc.slides[0].id')
-  const count = () => wc.executeJavaScript('window.slidomingo.doc.slides[0].elements.length')
+  const slideId = await wc.executeJavaScript('window.beeslides.doc.slides[0].id')
+  const count = () => wc.executeJavaScript('window.beeslides.doc.slides[0].elements.length')
   const badge = () => wc.executeJavaScript(`(() => { const b = document.querySelector('.ed-thumb-lock'); return b ? b.style.getPropertyValue('--ed-lock-color') : null })()`)
 
   await wc.executeJavaScript('window.slidomingoDesktop.toggleTerminal()')
@@ -132,7 +132,7 @@ async function driver() {
 
   // write_slide for the same slide, from each session, via the slide-write channel
   for (const [i, dir] of dirs.entries()) {
-    const slide = await wc.executeJavaScript('JSON.parse(JSON.stringify(window.slidomingo.doc.slides[0]))')
+    const slide = await wc.executeJavaScript('JSON.parse(JSON.stringify(window.beeslides.doc.slides[0]))')
     slide.elements.push({ id: `w${i}`, type: 'text', x: 50, y: 400 + i * 90, w: 300, h: 60, html: `w${i}` })
     const r = await send(dir, 'slide-write', 'slide-write-result', { slideId, slide })
     ok(r?.ok === true, `session ${'AB'[i]} write_slide on the shared slide (${r?.error ?? 'ok'})`)
@@ -140,9 +140,9 @@ async function driver() {
   ok(await count() === n0 + 5, `and both writes landed (${await count()} elements)`)
 
   // ---- recovery banner: desktop must not offer an older IndexedDB copy ----
-  const stale = await wc.executeJavaScript('JSON.stringify(Object.assign(JSON.parse(JSON.stringify(window.slidomingo.doc)), { title: "STALE COPY" }))')
+  const stale = await wc.executeJavaScript('JSON.stringify(Object.assign(JSON.parse(JSON.stringify(window.beeslides.doc)), { title: "STALE COPY" }))')
   const seeded = await wc.executeJavaScript(`(async () => {
-    const snap = { docId: window.slidomingo.doc.docId, at: Date.now() + 1e6, title: 'STALE COPY', json: '' }
+    const snap = { docId: window.beeslides.doc.docId, at: Date.now() + 1e6, title: 'STALE COPY', json: '' }
     snap.json = ${JSON.stringify(stale)}
     let n = 0
     for (const { name } of await indexedDB.databases()) {
@@ -158,7 +158,7 @@ async function driver() {
   ok(seeded >= 1, `seeded a differing recovery snapshot (${seeded} db)`)
   wc.reload()
   await sleep(500)
-  const again = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root"))')
+  const again = await findWc(/BeeSlides\.beeslides\.html/, '!!(window.beeslides && window.beeslides.doc && document.querySelector(".ed-root"))')
   ok(!!again, 'the deck reopened')
   await sleep(2500) // checkRecovery is async
   const banner = await again?.executeJavaScript('!!document.querySelector(".ed-recover")')

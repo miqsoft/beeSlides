@@ -1,4 +1,4 @@
-/* ————— slidomingo/slides chrome ————— */
+/* ————— beeslides/slides chrome ————— */
 
 /* THEME TOKENS — chrome only.
  *
@@ -122,7 +122,7 @@ option { background: var(--field); color: var(--ink); }
 
    So every surface that draws slide content is pinned back to LTR:
 
-   - .slidomingo-slide is the SHARED root of the canvas stage, sidebar thumbnails,
+   - .beeslides-slide is the SHARED root of the canvas stage, sidebar thumbnails,
      present sections, print pages and the speaker view's frames (render.ts
      renderSlide), so this one rule covers all four surfaces at once. The
      containers are pinned too, belt and braces, because they also carry
@@ -137,12 +137,12 @@ option { background: var(--field); color: var(--ink); }
    Text INSIDE elements still resolves its own direction per element, from the
    content the author typed (render.ts sets dir="auto"). That is the content
    half of RTL and is unaffected by any of this. */
-.slidomingo-slide,
-.slidomingo-thumb-surface,
+.beeslides-slide,
+.beeslides-thumb-surface,
 .ed-scroll,
-.slidomingo-present-overlay,
+.beeslides-present-overlay,
 .moveable-control-box,
-#slidomingo-print {
+#beeslides-print {
   direction: ltr;
 }
 
@@ -589,7 +589,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 .ed-thumb:hover .ed-thumb-tools { display: flex; }
 .ed-thumb-tools .ed-btn { padding: 3px; background: var(--chip); }
 
-.slidomingo-thumb-surface { overflow: hidden; pointer-events: none; }
+.beeslides-thumb-surface { overflow: hidden; pointer-events: none; }
 
 .ed-add-slide { border: 1.5px dashed var(--line); justify-content: center; color: var(--muted); align-self: stretch; }
 
@@ -925,7 +925,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 }
 .ed-typetree-row:hover .ed-typetree-thumb { border-color: color-mix(in srgb, var(--muted) 45%, var(--line)); }
 .ed-typetree-row.active .ed-typetree-thumb { border-color: var(--accent); }
-.ed-typetree-thumb .slidomingo-thumb-surface { display: block; }
+.ed-typetree-thumb .beeslides-thumb-surface { display: block; }
 .ed-typetree-actions {
   position: absolute;
   inset-inline-end: 4px;
@@ -1050,7 +1050,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   overflow: hidden;
   background: var(--surface);
 }
-.ed-typetree-leafthumb .slidomingo-thumb-surface { display: block; }
+.ed-typetree-leafthumb .beeslides-thumb-surface { display: block; }
 .ed-typetree-leaftext { display: flex; flex-direction: column; min-width: 0; font-size: 11px; line-height: 1.3; }
 .ed-typetree-leafnum { color: var(--muted); font-size: 10.5px; }
 .ed-typetree-leaftitle { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1578,8 +1578,8 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 .ed-findbar-toggle.is-open svg { transform: rotate(90deg); }
 .ed-findbar-spacer { flex: none; width: 28px; }
 .ed-findbar-text { border: 1px solid var(--line); white-space: nowrap; }
-::highlight(slidomingo-find) { background-color: rgb(255 194 51 / 0.45); }
-::highlight(slidomingo-find-current) { background-color: #ff8a1f; color: #17120a; }
+::highlight(beeslides-find) { background-color: rgb(255 194 51 / 0.45); }
+::highlight(beeslides-find-current) { background-color: #ff8a1f; color: #17120a; }
 
 .ed-zoombtn {
   font: inherit;
@@ -1599,10 +1599,10 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 /* agent screenshots (editor.prepareCapture): the slide only, no editor chrome */
 .ed-capturing .moveable-control-box, .ed-capturing .ed-lineedit, .ed-capturing .ed-safezone,
 .ed-capturing .ed-comment-layer, .ed-capturing .ed-comment-hl, .ed-capturing .ed-comment-chip,
-.ed-capturing .slidomingo-col-handle, .ed-capturing .ed-zoombar, .ed-capturing .ed-present-pill,
+.ed-capturing .beeslides-col-handle, .ed-capturing .ed-zoombar, .ed-capturing .ed-present-pill,
 .ed-capturing .ed-minibar, .ed-capturing .ed-grid, .ed-capturing .ed-layoutgrid, .ed-capturing .ed-keyline,
 .ed-capturing .ed-guides { visibility: hidden !important; }
-.ed-capturing .slidomingo-el-table td.slidomingo-cell-sel { box-shadow: none !important; }
+.ed-capturing .beeslides-el-table td.beeslides-cell-sel { box-shadow: none !important; }
 
 /* Reusable-object canvas content-space grid (canvas.ts setObjectGrid,
    toggled by layoutmanager.ts's syncSurface while that surface is open).
@@ -1686,21 +1686,21 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 
 /* ————— slide surface (shared by canvas, thumbs, present) ————— */
 
-.slidomingo-slide { position: relative; overflow: hidden; }
+.beeslides-slide { position: relative; overflow: hidden; }
 
-.slidomingo-el { position: absolute; contain: layout style; }
+.beeslides-el { position: absolute; contain: layout style; }
 
 /* Layout Manager live composite preview (render.ts RenderOpts.ghostIds) —
    "this is context, not what you're editing right now." Real z-order, just
    dimmed and inert, so collisions with the governing slide type/building
    blocks are visible without leaving the current editing surface. */
-.slidomingo-el-ghost { opacity: .35; pointer-events: none; }
+.beeslides-el-ghost { opacity: .35; pointer-events: none; }
 
 /* Slide-type sub-editor: a governing master's building-block elements render
    at FULL opacity (real, final-looking content) but stay non-selectable —
-   cursor is the only hint, so it must beat .ed-stage .slidomingo-el's grab. */
-.ed-stage .slidomingo-el.slidomingo-el-locked { cursor: not-allowed; }
-.ed-stage .slidomingo-el.slidomingo-el-locked:active { cursor: not-allowed; }
+   cursor is the only hint, so it must beat .ed-stage .beeslides-el's grab. */
+.ed-stage .beeslides-el.beeslides-el-locked { cursor: not-allowed; }
+.ed-stage .beeslides-el.beeslides-el-locked:active { cursor: not-allowed; }
 
 /* Live fields, editor only (render.ts `fieldMarkers` — never in present,
    print or the static layer): a tint and a dotted underline, so {{page}}
@@ -1718,7 +1718,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 /* A footer piece Header & footer switches off, on the slide type where it
    is designed: still there to edit, dimmed. (Slides simply leave it out.)
    On the children, since the element box carries its own inline opacity. */
-.slidomingo-el-footer-off > * { opacity: .35; }
+.beeslides-el-footer-off > * { opacity: .35; }
 
 /* Formulas are left on the browser's own `math` family ON PURPOSE — naming a
    maths font here fixes nothing and has been reverted three times. The
@@ -1735,9 +1735,9 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    and still broken on Windows. Read docs/DECISIONS.md, 2026-08-25, before
    touching this; the rig is slides/probe/radical-join.html. */
 
-.slidomingo-el-text,
-.slidomingo-el-code
- .slidomingo-text-inner {
+.beeslides-el-text,
+.beeslides-el-code
+ .beeslides-text-inner {
   overflow-wrap: break-word;
   outline: none;
   cursor: default;
@@ -1755,7 +1755,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
    under `white-space: pre`, and the block collapses to one rendered line
    (identically under inline-block and inline-flex; the display value was
    never the variable that mattered). */
-.slidomingo-el-code [data-tok] {
+.beeslides-el-code [data-tok] {
   display: inline-block;
 }
 
@@ -1770,16 +1770,16 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 /* A hidden slide is still an ordinary, editable slide — it is just out of the
    show. Dimmed rather than greyed out, and the number struck through, so the
    sidebar reads as "this one will be skipped" without looking broken. */
-.ed-thumb-hidden .slidomingo-thumb-surface { opacity: 0.42; }
+.ed-thumb-hidden .beeslides-thumb-surface { opacity: 0.42; }
 .ed-thumb-hidden .ed-thumb-num {
   text-decoration: line-through;
   opacity: 0.75;
 }
 
-.ed-stage .slidomingo-el { cursor: grab; }
-.ed-stage .slidomingo-el:active { cursor: grabbing; }
-.ed-stage .slidomingo-editing { cursor: text; }
-.ed-stage .slidomingo-editing .slidomingo-text-inner {
+.ed-stage .beeslides-el { cursor: grab; }
+.ed-stage .beeslides-el:active { cursor: grabbing; }
+.ed-stage .beeslides-editing { cursor: text; }
+.ed-stage .beeslides-editing .beeslides-text-inner {
   cursor: text;
   user-select: text;
   box-shadow: 0 0 0 1.5px var(--blue);
@@ -1976,7 +1976,7 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 .ed-sorter-item:hover { background: var(--chrome-2); }
 .ed-sorter-item.selected { border-color: var(--accent); background: var(--chrome-2); }
 .ed-sorter-item.state { margin-inline-start: 26px; opacity: 0.86; }
-.ed-sorter-item .slidomingo-thumb-surface { border-radius: 6px; box-shadow: 0 2px 10px rgb(23 18 10 / 0.14); }
+.ed-sorter-item .beeslides-thumb-surface { border-radius: 6px; box-shadow: 0 2px 10px rgb(23 18 10 / 0.14); }
 .ed-sorter-num {
   font-size: 11.5px;
   font-weight: 700;
@@ -2429,17 +2429,17 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
 
 /* ————— present overlay ————— */
 
-.slidomingo-present-overlay {
+.beeslides-present-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
   background: #000;
 }
-.slidomingo-present-overlay .reveal,
-.slidomingo-present-overlay .reveal-viewport {
+.beeslides-present-overlay .reveal,
+.beeslides-present-overlay .reveal-viewport {
   background: #000;
 }
-.slidomingo-present-overlay .reveal {
+.beeslides-present-overlay .reveal {
   width: 100%;
   height: 100%;
   --r-background-color: #000;
@@ -2453,36 +2453,36 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   --r-overlay-element-bg-color: 255, 255, 255;
   --r-overlay-element-fg-color: 0, 0, 0;
 }
-.slidomingo-present-overlay .reveal .slides section { padding: 0; }
+.beeslides-present-overlay .reveal .slides section { padding: 0; }
 /* Presenter laser: viewport-level so its screen-space size stays constant at
    every Reveal scale. The visual layer stays pointer-transparent so slide
    links, hover effects, charts and media remain interactive while it is armed. */
-.slidomingo-laser-layer {
+.beeslides-laser-layer {
   position: absolute;
   inset: 0;
   z-index: 59;
   pointer-events: none;
 }
-.slidomingo-present-overlay.laser-over-slide .slidomingo-slide,
-.slidomingo-present-overlay.laser-over-slide .slidomingo-slide * { cursor: none !important; }
-.slidomingo-laser-trail {
+.beeslides-present-overlay.laser-over-slide .beeslides-slide,
+.beeslides-present-overlay.laser-over-slide .beeslides-slide * { cursor: none !important; }
+.beeslides-laser-trail {
   position: absolute;
   inset: 0;
   display: block;
   overflow: hidden;
   pointer-events: none;
 }
-.slidomingo-laser-trail-segment {
+.beeslides-laser-trail-segment {
   fill: none;
   stroke-linecap: butt;
   vector-effect: non-scaling-stroke;
 }
-.slidomingo-laser-trail-segment.halo { stroke: rgb(255 255 255 / 0.9); }
-.slidomingo-laser-trail-segment.core { stroke: #ef252f; }
-.slidomingo-laser-trail-segment.tail-tip { stroke: none; }
-.slidomingo-laser-trail-segment.tail-tip.halo { fill: rgb(255 255 255 / 0.9); }
-.slidomingo-laser-trail-segment.tail-tip.core { fill: #ef252f; }
-.slidomingo-laser-dot {
+.beeslides-laser-trail-segment.halo { stroke: rgb(255 255 255 / 0.9); }
+.beeslides-laser-trail-segment.core { stroke: #ef252f; }
+.beeslides-laser-trail-segment.tail-tip { stroke: none; }
+.beeslides-laser-trail-segment.tail-tip.halo { fill: rgb(255 255 255 / 0.9); }
+.beeslides-laser-trail-segment.tail-tip.core { fill: #ef252f; }
+.beeslides-laser-dot {
   position: absolute;
   width: 12px;
   height: 12px;
@@ -2496,51 +2496,51 @@ a.ed-btn { text-decoration: none; }  /* a link styled as a button */
   transform: translate(-50%, -50%);
   transition: opacity 0.08s linear;
 }
-.slidomingo-laser-dot.visible { opacity: 1; }
-.slidomingo-present-overlay.reduce-motion .slidomingo-laser-trail { display: none; }
-.slidomingo-present-overlay.reduce-motion .slidomingo-laser-dot { transition: none; }
+.beeslides-laser-dot.visible { opacity: 1; }
+.beeslides-present-overlay.reduce-motion .beeslides-laser-trail { display: none; }
+.beeslides-present-overlay.reduce-motion .beeslides-laser-dot { transition: none; }
 /* Reduced motion (M / speaker toggle / OS prefers-reduced-motion): JS fx are
    skipped in present.ts; this neutralises CSS-driven motion too — Reveal's
    slide transitions cut instantly and svg keyframe animations don't play. */
-.slidomingo-present-overlay.reduce-motion .reveal .slides section { transition: none !important; }
-.slidomingo-present-overlay.reduce-motion .slidomingo-el-svg * { animation: none !important; }
+.beeslides-present-overlay.reduce-motion .reveal .slides section { transition: none !important; }
+.beeslides-present-overlay.reduce-motion .beeslides-el-svg * { animation: none !important; }
 /* Only the slide on screen animates its svgs. Reveal keeps neighbours mounted
    (viewDistance), and an animated drawing on every one of them multiplied the
    work 3-4x for nothing visible (seasons demo: 1380 running animations, 345
    on screen). Paused, not removed: arrival re-clones and re-aligns them to the
    show clock (present.ts restartSvgAnimations / alignEndlessAnimations). */
-.slidomingo-present-overlay .reveal .slides section:not(.present) .slidomingo-el-svg * { animation-play-state: paused !important; }
+.beeslides-present-overlay .reveal .slides section:not(.present) .beeslides-el-svg * { animation-play-state: paused !important; }
 /* Paused is still expensive: Chrome keeps a compositor layer per paused
    animation (seasons: 1149 layers, 7 ms of Layerize every frame, 2026-10-14).
    So once a slide can no longer be on screen (its transition is over,
    present.ts parkSvgAnimations) its drawings hold no animations at all; the
    arrival creates them fresh and aligns them to the show clock. */
-.slidomingo-present-overlay .reveal .slides section.slidomingo-svg-parked:not(.present) .slidomingo-el-svg * { animation: none !important; }
+.beeslides-present-overlay .reveal .slides section.beeslides-svg-parked:not(.present) .beeslides-el-svg * { animation: none !important; }
 /* …and nothing under the show animates: the editor canvas behind the overlay
    kept a full copy of the drawing running for the whole presentation. */
-body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .slidomingo-el-svg * { animation: none !important; }
+body:has(> .beeslides-present-overlay) > :not(.beeslides-present-overlay) .beeslides-el-svg * { animation: none !important; }
 /* Drawn transitions (push/wipe/cover/split, src/transitions.ts): the
    incoming section clips to the slide while a snapshot of the other slide
    (the ghost) moves under or over it. */
-.slidomingo-present-overlay .slidomingo-tx-running { overflow: hidden; }
-.slidomingo-tx-running > .slidomingo-slide { z-index: 1; }
-.slidomingo-tx-running > .slidomingo-tx-ghost { position: absolute; left: 0; top: 0; }
-.slidomingo-tx-ghost, .slidomingo-tx-ghost * { pointer-events: none !important; }
+.beeslides-present-overlay .beeslides-tx-running { overflow: hidden; }
+.beeslides-tx-running > .beeslides-slide { z-index: 1; }
+.beeslides-tx-running > .beeslides-tx-ghost { position: absolute; left: 0; top: 0; }
+.beeslides-tx-ghost, .beeslides-tx-ghost * { pointer-events: none !important; }
 /* Zoom tiles (render.ts renderZoomTile): the nested cover slide is a picture —
    no pointer events reach into it, so a click lands on the tile itself (the
    editor selects it, the show zooms). */
-.slidomingo-zoom-inner, .slidomingo-zoom-inner * { pointer-events: none !important; }
-.slidomingo-zoom-missing {
+.beeslides-zoom-inner, .beeslides-zoom-inner * { pointer-events: none !important; }
+.beeslides-zoom-missing {
   display: flex; align-items: center; justify-content: center; text-align: center;
   box-sizing: border-box; padding: 8px; border: 2px dashed rgba(127, 127, 127, .6);
   background: rgba(127, 127, 127, .08); color: rgba(110, 110, 110, .95);
   font: 600 18px/1.3 system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
-.slidomingo-present-overlay [data-zoom-tile] { cursor: pointer; }
-.slidomingo-present-overlay [data-zoom-tile]:focus-visible { outline: 3px solid var(--slidomingo-accent, #4c8dff); outline-offset: 3px; }
+.beeslides-present-overlay [data-zoom-tile] { cursor: pointer; }
+.beeslides-present-overlay [data-zoom-tile]:focus-visible { outline: 3px solid var(--beeslides-accent, #4c8dff); outline-offset: 3px; }
 /* Presenter ink (src/presentink.ts): a layer inside each slide surface, inert
    until a tool is picked, so links/hover/builds are untouched with ink off. */
-.slidomingo-ink {
+.beeslides-ink {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -2549,9 +2549,9 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   overflow: visible;
   pointer-events: none;
 }
-.slidomingo-present-overlay.ink-on .slidomingo-ink { pointer-events: auto; touch-action: none; cursor: crosshair; }
-.slidomingo-present-overlay[data-ink-tool="eraser"] .slidomingo-ink { cursor: cell; }
-.slidomingo-ink-bar {
+.beeslides-present-overlay.ink-on .beeslides-ink { pointer-events: auto; touch-action: none; cursor: crosshair; }
+.beeslides-present-overlay[data-ink-tool="eraser"] .beeslides-ink { cursor: cell; }
+.beeslides-ink-bar {
   position: absolute;
   left: 16px;
   bottom: 16px;
@@ -2566,10 +2566,10 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   pointer-events: none;
   transition: opacity 0.25s ease;
 }
-.slidomingo-ink-bar.awake,
-.slidomingo-present-overlay.ink-on .slidomingo-ink-bar { opacity: 1; pointer-events: auto; }
-.slidomingo-present-overlay:not(.ink-on) .slidomingo-ink-bar .ink-extra { display: none; }
-.slidomingo-ink-bar button {
+.beeslides-ink-bar.awake,
+.beeslides-present-overlay.ink-on .beeslides-ink-bar { opacity: 1; pointer-events: auto; }
+.beeslides-present-overlay:not(.ink-on) .beeslides-ink-bar .ink-extra { display: none; }
+.beeslides-ink-bar button {
   display: grid;
   place-items: center;
   width: 32px;
@@ -2581,9 +2581,9 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   background: transparent;
   cursor: pointer;
 }
-.slidomingo-ink-bar button:hover { background: rgb(255 255 255 / 0.14); }
-.slidomingo-ink-bar button.active { background: rgb(255 255 255 / 0.24); color: #FFC233; }
-.slidomingo-ink-bar .ink-swatch::after {
+.beeslides-ink-bar button:hover { background: rgb(255 255 255 / 0.14); }
+.beeslides-ink-bar button.active { background: rgb(255 255 255 / 0.24); color: #FFC233; }
+.beeslides-ink-bar .ink-swatch::after {
   content: '';
   width: 14px;
   height: 14px;
@@ -2591,10 +2591,10 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   background: var(--ink-swatch);
   box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.7);
 }
-.slidomingo-ink-bar .ink-swatch.active::after { box-shadow: 0 0 0 2px #FFC233; }
-.slidomingo-present-overlay.reduce-motion .slidomingo-ink-bar { transition: none; }
+.beeslides-ink-bar .ink-swatch.active::after { box-shadow: 0 0 0 2px #FFC233; }
+.beeslides-present-overlay.reduce-motion .beeslides-ink-bar { transition: none; }
 /* dual-screen: one-click permission grant + transient toast */
-.slidomingo-present-grant {
+.beeslides-present-grant {
   position: fixed;
   left: 50%;
   bottom: 28px;
@@ -2610,8 +2610,8 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   cursor: pointer;
   opacity: 0.94;
 }
-.slidomingo-present-grant:hover { opacity: 1; }
-.slidomingo-present-toast {
+.beeslides-present-grant:hover { opacity: 1; }
+.beeslides-present-toast {
   position: fixed;
   left: 50%;
   bottom: 28px;
@@ -2626,9 +2626,9 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   max-width: 80vw;
   text-align: center;
 }
-.slidomingo-present-overlay .slidomingo-el[data-link] { cursor: pointer; }
-.slidomingo-present-overlay .slidomingo-el[data-link]:hover {
-  outline: 2.5px solid var(--slidomingo-accent, #FFC233);
+.beeslides-present-overlay .beeslides-el[data-link] { cursor: pointer; }
+.beeslides-present-overlay .beeslides-el[data-link]:hover {
+  outline: 2.5px solid var(--beeslides-accent, #FFC233);
   outline-offset: 3px;
   border-radius: 999px;
 }
@@ -2668,7 +2668,7 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
 .ed-help-head { display: flex; align-items: center; gap: 18px; margin-bottom: 6px; }
 .ed-help-head h2 { margin: 2px 0 0; }
 .ed-help-word { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; animation: ed-help-up .5s ease .55s both; }
-/* The help pop-up's mark plays the boot splash's intro (index.html #slidomingo-splash,
+/* The help pop-up's mark plays the boot splash's intro (index.html #beeslides-splash,
    generated from brand.ts): same timings, own keyframe names. */
 .ed-help-logo { position: relative; flex: none; width: 88px; height: 88px; padding: 0; border: 0; border-radius: 20px; overflow: hidden; cursor: pointer; background: #17120A; box-shadow: 0 0 44px rgba(255,194,51,.22), 0 8px 26px rgba(0,0,0,.35); }
 .ed-help-logo.play { animation: ed-help-in .45s cubic-bezier(.22,1.4,.36,1) both, ed-help-float 3.4s ease-in-out 1.4s infinite; }
@@ -2904,7 +2904,7 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
 .ed-chart-grid .ed-btn-icon:hover { color: #c9302c; }
 
 /* inline code spans inside text elements — editor, present and print alike */
-.slidomingo-el-text code {
+.beeslides-el-text code {
   font-family: ui-monospace, SFMono-Regular, Berkeley Mono, Menlo, Consolas, monospace;
   font-size: 0.9em;
   background: rgb(127 127 127 / 0.16);
@@ -2917,18 +2917,18 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
    item it indents under; nested numbering steps 1. → a. → i. like an office
    suite. The link colour is the palette's hyperlink slot when the deck has
    one, else the text's own colour — the underline is what says "link". */
-:is(.slidomingo-el-text, .slidomingo-cell-inner) :is(ul, ol) {
+:is(.beeslides-el-text, .beeslides-cell-inner) :is(ul, ol) {
   margin: 0;
   padding-inline-start: 1.25em;
 }
-:is(.slidomingo-el-text, .slidomingo-cell-inner) li { margin: 0; }
-:is(.slidomingo-el-text, .slidomingo-cell-inner) ol ol { list-style-type: lower-alpha; }
-:is(.slidomingo-el-text, .slidomingo-cell-inner) ol ol ol { list-style-type: lower-roman; }
-:is(.slidomingo-el-text, .slidomingo-cell-inner) a {
+:is(.beeslides-el-text, .beeslides-cell-inner) li { margin: 0; }
+:is(.beeslides-el-text, .beeslides-cell-inner) ol ol { list-style-type: lower-alpha; }
+:is(.beeslides-el-text, .beeslides-cell-inner) ol ol ol { list-style-type: lower-roman; }
+:is(.beeslides-el-text, .beeslides-cell-inner) a {
   color: var(--sl-hlink, inherit);
   text-decoration: underline;
 }
-.slidomingo-present-overlay :is(.slidomingo-el-text, .slidomingo-cell-inner) a[href] { cursor: pointer; }
+.beeslides-present-overlay :is(.beeslides-el-text, .beeslides-cell-inner) a[href] { cursor: pointer; }
 
 /* arrange kit: one compact row per group — tiny label left, buttons right */
 /* arrange rows: caption + a shared 6-column track of near-fixed square
@@ -3956,7 +3956,7 @@ body:has(> .slidomingo-present-overlay) > :not(.slidomingo-present-overlay) .sli
   left: 0;
   padding: 0 6px 6px 0;
 }
-.ed-drag-stack > .slidomingo-thumb-surface {
+.ed-drag-stack > .beeslides-thumb-surface {
   border-radius: 6px;
   box-shadow: 3px 3px 0 -1px var(--surface), 3px 3px 0 0 var(--line), 6px 6px 0 -1px var(--surface), 6px 6px 0 0 var(--line);
 }
@@ -4111,7 +4111,7 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 
 /* interactive states read as secondary in Reveal's overview grid
    (!important: Reveal positions overview sections with inline styles) */
-.slidomingo-present-overlay .reveal.overview section[data-slidomingo-state] {
+.beeslides-present-overlay .reveal.overview section[data-beeslides-state] {
   opacity: 0.35 !important;
   outline: 2px dashed rgb(255 255 255 / 0.35);
   outline-offset: -2px;
@@ -4326,7 +4326,7 @@ body.ed-row-resizing { cursor: row-resize; user-select: none; }
 .ed-look-cell { position: relative; display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px; }
 .ed-look-cell:hover, .ed-look-cell:focus-visible { outline: 2px solid var(--accent, #4f46e5); outline-offset: 1px; }
 .ed-look-cell.is-tweaked::after { content: ''; position: absolute; right: -2px; top: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent, #4f46e5); }
-html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-slide .slidomingo-el { opacity: 0 !important; }
+html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .beeslides-slide .beeslides-el { opacity: 0 !important; }
 .ed-lookview-live > .ed-lookview, .ed-capturing .ed-lookview { visibility: hidden; }
 .ed-grid { position: absolute; left: 0; top: 0; pointer-events: none; }
 
@@ -4410,12 +4410,12 @@ html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-sli
 .ed-gs-foot { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; font-size: 11.5px; color: var(--muted); }
 
 /* PDF export: each linear slide is one exact 1600×900 page */
-#slidomingo-print { display: none; }
+#beeslides-print { display: none; }
 @media print {
-  #app, #slidomingo-splash, .slidomingo-present-overlay, .ed-toast { display: none !important; }
-  #slidomingo-print { display: block; }
+  #app, #beeslides-splash, .beeslides-present-overlay, .ed-toast { display: none !important; }
+  #beeslides-print { display: block; }
   @page { size: 1600px 900px; margin: 0; }
-  #slidomingo-print .bp-page {
+  #beeslides-print .bp-page {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
     width: 1600px;
@@ -4432,7 +4432,7 @@ html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-sli
 }
 
 /* ————— speaker view popup ————— */
-.slidomingo-speaker {
+.beeslides-speaker {
   margin: 0;
   background: #130F08;
   color: #F5EEDF;
@@ -4496,7 +4496,7 @@ html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-sli
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.slidomingo-speaker:not(.sv-in-extra) .sv-current-tag { display: none; }
+.beeslides-speaker:not(.sv-in-extra) .sv-current-tag { display: none; }
 /* a slide with extras: cream cards peek out behind it — there is a layer under this one */
 .sv-has-extra .sv-current .sv-frame {
   box-shadow: 9px 9px 0 -1px #130F08, 10px 10px 0 0 #FFF6E0, 19px 19px 0 -1px #130F08, 20px 20px 0 0 #8C826C;
@@ -4645,19 +4645,19 @@ html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-sli
 
 /* click builds: an element (or paragraph) that has not been clicked in yet.
    Visibility, not display, so the slide's layout never shifts as things arrive. */
-.slidomingo-build-hidden { visibility: hidden !important; }
+.beeslides-build-hidden { visibility: hidden !important; }
 
 /* audience blackout — a plain black cover over the slides overlay */
-.slidomingo-blackout {
+.beeslides-blackout {
   position: absolute;
   inset: 0;
   z-index: 60;
   background: #000;
 }
-.slidomingo-blackout[hidden] { display: none; }
+.beeslides-blackout[hidden] { display: none; }
 
 /* transient confirmation pill in present mode (e.g. Reduced motion on/off) */
-.slidomingo-present-toast {
+.beeslides-present-toast {
   position: absolute;
   left: 50%;
   bottom: 48px;
@@ -4672,7 +4672,7 @@ html:not(.ed-capturing) .ed-lookview-on:not(.ed-lookview-live) > .slidomingo-sli
   opacity: 0;
   transition: opacity 0.25s ease;
 }
-.slidomingo-present-toast.show { opacity: 1; }
+.beeslides-present-toast.show { opacity: 1; }
 
 /* Safe-zone margin guide — purely visual, positioned+sized in JS
    (editor/canvas.ts updateSafeZone) from the same scaled margin
@@ -5821,17 +5821,17 @@ dialog.ed-dialog .ed-dialog-actions button:not(.ed-primary) { color: var(--ink);
 }
 
 /* ————— tables ————— */
-.slidomingo-el-table { overflow: visible; }
-.slidomingo-el-table .slidomingo-cell-inner { min-height: 1em; }
+.beeslides-el-table { overflow: visible; }
+.beeslides-el-table .beeslides-cell-inner { min-height: 1em; }
 /* editor-only affordances */
-.ed-root .slidomingo-el-table td { cursor: text; }
-.slidomingo-col-handle { border-radius: 3px; }
-.slidomingo-col-handle:hover { background: rgb(138 92 126 / 0.35); }
-.slidomingo-el-table.slidomingo-editing td { cursor: text; }
+.ed-root .beeslides-el-table td { cursor: text; }
+.beeslides-col-handle { border-radius: 3px; }
+.beeslides-col-handle:hover { background: rgb(138 92 126 / 0.35); }
+.beeslides-el-table.beeslides-editing td { cursor: text; }
 /* selected cells (editor/tablerange.ts) — a class on the canvas's own <td>s
    only, never in any output. Inset shadows paint over the cell's inline
    background without touching layout. */
-.ed-stage-scale .slidomingo-el-table td.slidomingo-cell-sel {
+.ed-stage-scale .beeslides-el-table td.beeslides-cell-sel {
   box-shadow: inset 0 0 0 9999px rgb(138 92 126 / 0.20), inset 0 0 0 2px rgb(138 92 126 / 0.85);
 }
 .ed-table-cells .ed-btn { font-size: 12px; padding-inline: 6px; white-space: normal; text-align: start; line-height: 1.25; min-width: 0; }
@@ -6176,14 +6176,14 @@ button.ed-sd-from:focus-visible { outline: 2px solid var(--blue); outline-offset
   padding: 6px; border: 2px solid transparent; border-radius: 10px;
   background: var(--surface); color: var(--ink); cursor: pointer; text-align: start;
 }
-.ed-zoompick-card .slidomingo-thumb-surface {
+.ed-zoompick-card .beeslides-thumb-surface {
   border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); pointer-events: none;
 }
 .ed-zoompick-card:hover { background: var(--chrome-2); }
 .ed-zoompick-card:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 .ed-zoompick-card.ed-zoompick-on { border-color: var(--accent, #d63f71); background: var(--chrome-2); }
 .ed-zoompick-card:disabled { opacity: 0.4; cursor: default; }
-.ed-zoompick-hidden .slidomingo-thumb-surface { opacity: 0.55; }
+.ed-zoompick-hidden .beeslides-thumb-surface { opacity: 0.55; }
 .ed-zoompick-name { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ed-zoompick-sub { font-size: 11px; color: var(--muted); }
 
@@ -6284,13 +6284,13 @@ button.ed-sd-from:focus-visible { outline: 2px solid var(--blue); outline-offset
 .ed-stage-scale [data-hit="paint"]:not([data-sel]), .ed-stage-scale [data-hit="none"]:not([data-sel]) { pointer-events: none; }
 .ed-stage-scale [data-hit="paint"]:not([data-sel]) svg * { pointer-events: visibleStroke; }
 .ed-stage-scale [data-hit="paint"]:not([data-sel]) svg [data-hit-stroke] { pointer-events: stroke; }
-.ed-stage-scale [data-hit="paint"]:not([data-sel]) .slidomingo-text-inner { pointer-events: auto; }
+.ed-stage-scale [data-hit="paint"]:not([data-sel]) .beeslides-text-inner { pointer-events: auto; }
 /* Hidden elements: gone from the canvas unless selected (via the Select
    menu), then ghosted and inert so the panel's eye toggle can bring them back. */
-.ed-stage-scale .slidomingo-el-hidden:not([data-sel]) { display: none !important; }
-.ed-stage-scale .slidomingo-el-hidden[data-sel] { opacity: .3 !important; pointer-events: none !important; }
+.ed-stage-scale .beeslides-el-hidden:not([data-sel]) { display: none !important; }
+.ed-stage-scale .beeslides-el-hidden[data-sel] { opacity: .3 !important; pointer-events: none !important; }
 /* Hover-outline for a row of the right-click Select menu. */
-.ed-stage-scale .slidomingo-el.ed-sel-hover { outline: 2px solid #f5a623; outline-offset: 1px; }
+.ed-stage-scale .beeslides-el.ed-sel-hover { outline: 2px solid #f5a623; outline-offset: 1px; }
 
 .ed-btn-icon.ed-on { background: var(--accent-soft, rgba(80,120,255,.18)); }
 .ed-ctx-select { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; }

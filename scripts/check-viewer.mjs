@@ -24,10 +24,10 @@ if (!file) {
 gateShell(file)
 
 const html = readFileSync(file, 'utf8')
-const payloads = [...html.matchAll(/<script id="slidomingo-rt" type="slidomingo\/deflate-b64">([\s\S]*?)<\/script>/g)]
+const payloads = [...html.matchAll(/<script id="beeslides-rt" type="beeslides\/deflate-b64">([\s\S]*?)<\/script>/g)]
   .map((m) => inflateRawSync(Buffer.from(m[1].trim(), 'base64')).toString('utf8'))
 if (!payloads.length) {
-  console.error('check-viewer: no #slidomingo-rt payload found — run it on the compressed shell')
+  console.error('check-viewer: no #beeslides-rt payload found — run it on the compressed shell')
   process.exit(1)
 }
 const js = payloads.join('\n')

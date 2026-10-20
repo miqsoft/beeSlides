@@ -8,7 +8,7 @@
 // Structurally the same idiom as main.ts's passwordGate(): a full-screen
 // overlay appended to document.body, removed once a choice is made, resolved
 // AFTER capturePristine()/BEFORE the first paint — see main.ts's boot-gate
-// comment for why that ordering needs no `data-slidomingo-transient` marker.
+// comment for why that ordering needs no `data-beeslides-transient` marker.
 //
 // A LAYOUT here is what the code and the format call a template: a DECK-level
 // concept (a whole reusable document: slide types + theme + assets) —
@@ -20,6 +20,7 @@
 // of the source file's own flag, since a manually dropped or Claude-authored
 // file can't be trusted to have set it.
 import { stripDocExt } from '../../kernel/src/docext.ts'
+import { DOC_BLOCK_SELECTOR } from '../../kernel/src/legacynames.ts'
 import {
   FIGURE_PRESETS, FORMAT_VERSION, newFigureDoc, newIconsetDoc, ancestorChain, builtinLayouts, defaultSlideType, deriveChartPalette, effectiveLayout, instantiateLayout, instantiateTemplate, newDoc, newDocId, parseDoc,
   pickableSlideTypes, slideTypeRows, stampAsTemplate, starterSlide, templateNameFromPath, type SlidomingoDoc, type Slide,
@@ -100,7 +101,7 @@ async function layoutDocFromSlidomingoFile(file: File): Promise<SlidomingoDoc> {
   const named = file.name
   const notOurs = () => new Error(t('{name} isn’t a BeeSlides document.', { name: named }))
   const html = await file.text()
-  const el = new DOMParser().parseFromString(html, 'text/html').querySelector('#slidomingo-doc')
+  const el = new DOMParser().parseFromString(html, 'text/html').querySelector(DOC_BLOCK_SELECTOR)
   if (!el) throw notOurs()
   // resolved against the file's own asset store (kernel/src/assetstore.ts)
   const block = resolveDocText(el.textContent?.trim() ?? '', html)
@@ -301,7 +302,7 @@ function startPage(o: { openCreate?: boolean; openFigure?: boolean } = {}): Prom
     overlay.tabIndex = -1
     document.body.appendChild(overlay)
     overlay.focus()
-    document.getElementById('slidomingo-splash')?.remove()
+    document.getElementById('beeslides-splash')?.remove()
 
     const card = div('ed-startpick-card ed-sp-page')
     overlay.appendChild(card)

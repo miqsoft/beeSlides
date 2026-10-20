@@ -14,7 +14,7 @@ import { windowForDocWebContents } from './windows.ts'
 import { handleFrom } from './ipcguard.ts'
 import { openIfClickedLink } from './navguard.ts'
 
-export const SPEAKER_FRAME_NAME = 'slidomingo-speaker'
+export const SPEAKER_FRAME_NAME = 'beeslides-speaker'
 
 interface Saved { bounds: Rectangle; maximized: boolean; fullscreen: boolean }
 

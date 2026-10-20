@@ -62,7 +62,7 @@ ok(real.measured === false, 'measured is false without a DOM rather than silentl
 
 // ------------------------------------------------------------- a clean deck
 const clean: SlidomingoDoc = {
-  format: 'slidomingo/slides', version: '1.0.0', docId: 'test', title: 'clean',
+  format: 'beeslides/slides', version: '1.0.0', docId: 'test', title: 'clean',
   size: { width: 1280, height: 720 }, theme: { accent: '#F7A600', fontFamily: 'system-ui' },
   assets: {}, fonts: null,
   slides: [{

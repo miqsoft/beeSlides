@@ -4,7 +4,7 @@
 //
 // The starter ELEMENT LIBRARY — a small showcase for "Insert from library…"
 // (slides/src/editor/library.ts). Per the format decision (docs/DECISIONS.md):
-// a library file is an ORDINARY slidomingo/slides document, no new format — each
+// a library file is an ORDINARY beeslides/slides document, no new format — each
 // item here is just one Slide in doc.slides, `slide.name` is the item's
 // display name, one element for a single-item share (the five code snippets),
 // several for a group (the two shape/icon groups). Nothing here is a new
@@ -79,7 +79,7 @@ const slide = (o) => ({
   notes: o.notes ?? '', elements: o.elements, name: o.name,
 })
 const doc = (o) => ({
-  format: 'slidomingo/slides', version: 1, title: o.title,
+  format: 'beeslides/slides', version: 1, title: o.title,
   size: { width: 1280, height: 720 },
   theme: { background: PAPER, color: INK, accent: ACCENT, fontFamily: SANS },
   // Every open of this sample mints its own docId/no collab — it is source
@@ -212,9 +212,9 @@ const library = doc({
 // ——— splice + write — same technique + gate as build-example-decks.mjs ———
 const outDir = process.argv[2] ?? join(root, 'scripts', 'starter-library')
 mkdirSync(outDir, { recursive: true })
-const blockRe = /<script type="application\/slidomingo\+json" id="slidomingo-doc">[\s\S]*?<\/script>/
+const blockRe = /<script type="application\/beeslides\+json" id="beeslides-doc">[\s\S]*?<\/script>/
 const json = JSON.stringify(library).replace(/</g, '\\u003c')
-const out = shell.replace(blockRe, `<script type="application/slidomingo+json" id="slidomingo-doc">\n${json}\n</scr` + 'ipt>')
+const out = shell.replace(blockRe, `<script type="application/beeslides+json" id="beeslides-doc">\n${json}\n</scr` + 'ipt>')
 if (!out.includes(json)) throw new Error('splice failed for starter library')
 const outFile = join(outDir, 'BeeSlides-Starter-Library.beeslides.html')
 writeFileSync(outFile, out)

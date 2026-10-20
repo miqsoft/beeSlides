@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
-// The slidomingo/slides document model. This JSON is what lives inside the
-// <script type="application/slidomingo+json"> block of a .beeslides.html file.
+// The beeslides/slides document model. This JSON is what lives inside the
+// <script type="application/beeslides+json"> block of a .beeslides.html file.
 
 import { stripDocExt } from '../../kernel/src/docext.ts'
 import { BRAND } from './brand.ts'
 import { catAxisKey } from './chartaxes.ts'
 import { missingFeatures } from '../../kernel/src/doc.ts'
-import { resolveAssets, storeOf } from '../../kernel/src/assetstore.ts'
+import { mayHoldStoreRefs, resolveAssets, storeOf } from '../../kernel/src/assetstore.ts'
+import { currentFormat } from '../../kernel/src/legacynames.ts'
 import type { Guides, LayoutGrid } from './layoutgrid.ts'
 
-export const FORMAT = 'slidomingo/slides'
+export const FORMAT = 'beeslides/slides'
 export const FORMAT_VERSION = 1
 
 /**
@@ -23,7 +24,7 @@ export const FORMAT_VERSION = 1
  */
 export const KNOWN_FEATURES: ReadonlySet<string> = new Set<string>([
   // embedded bytes stored once in the file, referenced from the JSON as
-  // `slidomingo-store:<id>` (kernel/src/assetstore.ts)
+  // `beeslides-store:<id>` (kernel/src/assetstore.ts)
   'asset-store',
   // text/table html carries links, lists or coloured/sized runs
   // (render.ts sanitizeHtml, DECISIONS 2026-10-08) — see RICH_TEXT_FEATURE
@@ -158,7 +159,7 @@ export function syncContentRequires(doc: { requires?: unknown }): boolean {
  * the next save keeps whatever bytes the file still has for it.
  */
 export function resolveStoreRefs(next: SlidomingoDoc, current: SlidomingoDoc): { doc: SlidomingoDoc; missing: string[] } {
-  if (!JSON.stringify(next).includes('slidomingo-store:')) return { doc: next, missing: [] }
+  if (!mayHoldStoreRefs(JSON.stringify(next))) return { doc: next, missing: [] }
   const { doc, dangling } = resolveAssets(next, storeOf(current))
   return { doc, missing: dangling }
 }
@@ -965,7 +966,7 @@ export interface Comment {
    * Flagged for an AI agent to act on — set via an `@ai `/`/ai ` prefix when
    * writing the comment (the prefix is stripped from `text`), or toggled
    * later from the thread's footer. Additive: absent = not flagged, and old
-   * files simply lack it. See `commentEntries`/`window.slidomingo.comments()`.
+   * files simply lack it. See `commentEntries`/`window.beeslides.comments()`.
    */
   forAgent?: boolean
   /**
@@ -3630,7 +3631,7 @@ export interface CommentEntry {
 /**
  * Flat, typed-anchor list of every review comment thread — the entry point
  * for tooling and AI agents processing a deck ("fix everything people
- * flagged"). THE single implementation: `window.slidomingo.comments()` and the
+ * flagged"). THE single implementation: `window.beeslides.comments()` and the
  * MCP `comments` query verb (desktop terminal integration) both call this,
  * so the two surfaces cannot disagree about shape or filtering.
  */
@@ -4349,6 +4350,9 @@ export function newTemplateDoc(title: string): SlidomingoDoc {
 export function parseDoc(json: string): SlidomingoDoc | null {
   try {
     const doc = JSON.parse(json)
+    // A deck saved before 2026-10-20 says `slidomingo/slides`; it is the same
+    // format and takes the new name here (kernel/src/legacynames.ts).
+    if (doc && typeof doc === 'object') doc.format = currentFormat(doc.format)
     if (doc && doc.format === FORMAT && Array.isArray(doc.slides) && doc.slides.length > 0) {
       // Documents from before docId existed get one minted here; it persists
       // on the next save and stays stable from then on.

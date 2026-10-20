@@ -11,14 +11,22 @@ import { type KernelDoc, canonicalJson, unsupportedFeatures, UnsupportedFeatures
 import { appConfig } from './app.ts'
 import {
   assetId, externalizeAssets, fontRule, imageRule, parseStoreCss, pruneIdMemo, resolveAssets, storeClass,
-  storeRefsIn, STORE_ATTR, STORE_ID, STORE_REF_PREFIX, MEDIA_POSTER_ATTR, MEDIA_SRC_ATTR,
+  storeRefsIn, mayHoldStoreRefs, STORE_ATTR, STORE_ID, MEDIA_POSTER_ATTR, MEDIA_SRC_ATTR,
 } from './assetstore.ts'
 import { DOC_EXT, hasDocExt, stripDocExt } from './docext.ts'
+import {
+  LEGACY_DOC_BLOCK_ID, LEGACY_MEDIA_POSTER_ATTR, LEGACY_MEDIA_SRC_ATTR, LEGACY_PREVIEW_ATTR, LEGACY_STATIC_ATTR,
+  LEGACY_STORE_ID, isEncFormat,
+} from './legacynames.ts'
 
 export { canonicalJson, registerKnownFeatures, UnsupportedFeaturesError } from './doc.ts'
 export { resolveDocText } from './assetstore.ts'
 
-const DATA_BLOCK_ID = 'slidomingo-doc'
+const DATA_BLOCK_ID = 'beeslides-doc'
+
+/** The doc block of a page or shell, under either name (legacynames.ts). */
+const docBlockOf = (root: Document): HTMLElement | null =>
+  root.getElementById(DATA_BLOCK_ID) ?? root.getElementById(LEGACY_DOC_BLOCK_ID)
 // Split so the literal never appears in the bundle (it would terminate the
 // inline <script> that carries this very code inside a built BeeSlides file).
 const SCRIPT_CLOSE = '</scr' + 'ipt>'
@@ -31,14 +39,14 @@ const SCRIPT_CLOSE = '</scr' + 'ipt>'
  * scripts/postbuild-compress.mjs). Serializing the clone as-is wrote that
  * ~100KB of CSS back as PLAINTEXT — and the next boot inflated the payload and
  * appended another copy, so every save grew the file by another 100KB, forever.
- * The CSS ships deflated in the #slidomingo-rt-css payload for a reason; the saved
+ * The CSS ships deflated in the #beeslides-rt-css payload for a reason; the saved
  * file must carry it exactly once, compressed.
  *
  * So: anything injected before the pristine capture carries this attribute and
  * is stripped from every serialized shell. The kernel does not care what the
  * node is — only that the app declared it runtime-owned.
  */
-const TRANSIENT_SELECTOR = '[data-slidomingo-transient]'
+const TRANSIENT_SELECTOR = '[data-beeslides-transient]'
 
 let pristine: Document | null = null
 
@@ -60,7 +68,7 @@ export function adoptPristineHtml(html: string): boolean {
   if (typeof DOMParser === 'undefined') return false
   let parsed: Document
   try { parsed = new DOMParser().parseFromString(html, 'text/html') } catch { return false }
-  if (!parsed.getElementById(DATA_BLOCK_ID)) return false
+  if (!docBlockOf(parsed)) return false
   pristine = parsed
   return true
 }
@@ -71,13 +79,13 @@ export function adoptPristineHtml(html: string): boolean {
  * the static layer: a video's bytes may live on the layer's own element.
  */
 export function readEmbeddedDoc(): string | null {
-  const block = document.getElementById(DATA_BLOCK_ID)
+  const block = docBlockOf(document)
   const text = block?.textContent?.trim()
   if (!text) return null
-  if (!text.includes(STORE_REF_PREFIX)) return text
+  if (!mayHoldStoreRefs(text)) return text
   let json: unknown
   try { json = JSON.parse(text) } catch { return text }
-  if ((json as { format?: unknown } | null)?.format === 'slidomingo/enc') return text
+  if (isEncFormat((json as { format?: unknown } | null)?.format)) return text
   const { doc, dangling } = resolveAssets(json, readStore(document))
   if (dangling.length) console.warn(`slidomingo: ${dangling.length} stored asset(s) missing from this file`, dangling)
   return JSON.stringify(doc)
@@ -87,11 +95,12 @@ export function readEmbeddedDoc(): string | null {
  *  stores: the store <style>, and the static layer's self-carrying media. */
 function readStore(root: Document): Map<string, string> {
   const store = new Map<string, string>()
-  const style = root.getElementById(STORE_ID)
+  const style = root.getElementById(STORE_ID) ?? root.getElementById(LEGACY_STORE_ID)
   if (style) parseStoreCss(style.textContent ?? '', store)
-  for (const el of Array.from(root.querySelectorAll(`[${MEDIA_SRC_ATTR}],[${MEDIA_POSTER_ATTR}]`))) {
-    const srcId = el.getAttribute(MEDIA_SRC_ATTR)
-    const posterId = el.getAttribute(MEDIA_POSTER_ATTR)
+  const media = `[${MEDIA_SRC_ATTR}],[${MEDIA_POSTER_ATTR}],[${LEGACY_MEDIA_SRC_ATTR}],[${LEGACY_MEDIA_POSTER_ATTR}]`
+  for (const el of Array.from(root.querySelectorAll(media))) {
+    const srcId = el.getAttribute(MEDIA_SRC_ATTR) ?? el.getAttribute(LEGACY_MEDIA_SRC_ATTR)
+    const posterId = el.getAttribute(MEDIA_POSTER_ATTR) ?? el.getAttribute(LEGACY_MEDIA_POSTER_ATTR)
     const src = el.getAttribute('src')
     const poster = el.getAttribute('poster')
     if (srcId && src && !store.has(srcId)) store.set(srcId, src)
@@ -104,7 +113,7 @@ function readStore(root: Document): Map<string, string> {
  * Extra plaintext blocks the app wants written into every saved shell —
  * language packs today (docs/i18n-packs.md), whatever else later. The kernel
  * stays ignorant of what they mean: it is told an id, a type and a JSON body,
- * and guarantees only that they survive a save the same way #slidomingo-doc does.
+ * and guarantees only that they survive a save the same way #beeslides-doc does.
  *
  * The full set is re-declared on every serialize, so dropping one from the
  * list removes it from the next saved file — that is how "remove from this
@@ -184,18 +193,19 @@ function serializeBody(shell: Document, envelope: string | null, doc: KernelDoc)
     clone.head.appendChild(el)
   }
 
-  let block = clone.getElementById(DATA_BLOCK_ID)
+  let block = docBlockOf(clone)
   if (!block) {
     block = clone.createElement('script')
-    block.setAttribute('type', 'application/slidomingo+json')
-    block.id = DATA_BLOCK_ID
     clone.head.appendChild(block)
   }
+  // A shell from before the rename gets the new names on its first save.
+  block.setAttribute('type', 'application/beeslides+json')
+  block.id = DATA_BLOCK_ID
 
   // The store the shell arrived with (the last save's), read BEFORE it is
   // removed: a ref this document can no longer resolve keeps its bytes.
   const previous = readStore(clone)
-  for (const stale of Array.from(clone.querySelectorAll(`#${STORE_ID},[${STORE_ATTR}]`))) stale.remove()
+  for (const stale of Array.from(clone.querySelectorAll(`#${STORE_ID},[${STORE_ATTR}],#${LEGACY_STORE_ID},[data-${LEGACY_STORE_ID}]`))) stale.remove()
 
   // `body` for the veto: the envelope, or '' for plaintext (which the veto
   // then judges by the password flag alone)
@@ -252,7 +262,7 @@ function serializeBody(shell: Document, envelope: string | null, doc: KernelDoc)
 // after all, the preview is simply never rendered and we are back to today's
 // behaviour: a regression is not possible, only an improvement.
 //
-// It is shell FURNITURE, not document data: nothing here enters `#slidomingo-doc`,
+// It is shell FURNITURE, not document data: nothing here enters `#beeslides-doc`,
 // no format field is added, and a file saved by an older build (which has no
 // preview) opens identically.
 //
@@ -260,7 +270,7 @@ function serializeBody(shell: Document, envelope: string | null, doc: KernelDoc)
 // placement, the replace-don't-append rule, the encryption veto and the
 // output-safety check; the app hands back a ready-made element.
 
-const PREVIEW_ATTR = 'data-slidomingo-preview'
+const PREVIEW_ATTR = 'data-beeslides-preview'
 
 /** Builds the app's static first-page rendering. Return null for "no preview". */
 export type PreviewProvider = (doc: KernelDoc) => HTMLElement | null
@@ -277,7 +287,7 @@ export function registerPreview(fn: PreviewProvider): void {
  * May this saved file carry a plaintext preview of its first page?
  *
  * NO for an encrypted deck, and this is the single most important rule here.
- * The whole point of the `slidomingo/enc` envelope is that the content is
+ * The whole point of the `beeslides/enc` envelope is that the content is
  * unreadable on disk without the password; rendering page one in plaintext
  * beside the ciphertext would hand an attacker the title slide — usually the
  * most disclosive page in the deck — and would do it silently, because the
@@ -315,7 +325,7 @@ const STYLE_CLOSE_START = '</sty' + 'le'
  * writes a sheet), and every one of them builds declarations out of AUTHOR
  * data — colours, fonts, sizes. A single `</style>` in one of those values ends
  * the element early and everything after it is live markup in the reader's DOM,
- * outside `#slidomingo-doc`, at parse time, before the remover runs.
+ * outside `#beeslides-doc`, at parse time, before the remover runs.
  *
  * A flat "refuse any `<style`" would be simpler and would refuse EVERY preview,
  * so the rule is shaped like the tokenizer instead: at most one style element,
@@ -405,7 +415,7 @@ function writePreview(clone: Document, allowed: boolean, doc: KernelDoc): HTMLEl
   // The selector is deliberately attribute-only: it must sweep the host AND the
   // remover script beside it, and it must still find previews written by an
   // older BeeSlides, which parked them in a <noscript>.
-  for (const stale of Array.from(clone.querySelectorAll(`[${PREVIEW_ATTR}]`))) stale.remove()
+  for (const stale of Array.from(clone.querySelectorAll(`[${PREVIEW_ATTR}],[${LEGACY_PREVIEW_ATTR}]`))) stale.remove()
 
   if (!previewProvider || !allowed) return null
 
@@ -456,7 +466,7 @@ function writePreview(clone: Document, allowed: boolean, doc: KernelDoc): HTMLEl
   // the ~550KB of compressed payload at the end of the body. The remover goes
   // immediately after the host: any markup between them is markup the parser
   // could paint first.
-  const splash = clone.getElementById('slidomingo-splash')
+  const splash = clone.getElementById('beeslides-splash')
   const parent = splash?.parentNode ?? clone.body ?? clone.documentElement
   const after = splash?.parentNode ? splash.nextSibling : null
   parent.insertBefore(host, after)
@@ -495,7 +505,7 @@ function removeHost(host: HTMLElement): void {
 // the replace-don't-append rule, the encryption veto, the output-safety
 // check — and knows nothing about how any app draws a page.
 
-const STATIC_ATTR = 'data-slidomingo-static'
+const STATIC_ATTR = 'data-beeslides-static'
 
 /** Builds the app's full declarative rendering of every slide. Return null
  *  for "no static layer" (the app itself may also decline, e.g. mid-render
@@ -545,7 +555,7 @@ export function registerStaticLayer(fn: StaticLayerProvider): void {
 function writeStaticLayer(clone: Document, allowed: boolean, doc: KernelDoc): HTMLElement | null {
   // REPLACE, NEVER APPEND — identical reasoning to writePreview: the shell
   // being cloned already carries the PREVIOUS save's layer.
-  for (const stale of Array.from(clone.querySelectorAll(`[${STATIC_ATTR}]`))) stale.remove()
+  for (const stale of Array.from(clone.querySelectorAll(`[${STATIC_ATTR}],[${LEGACY_STATIC_ATTR}]`))) stale.remove()
 
   if (!staticLayerProvider || !allowed) return null
 
@@ -561,7 +571,7 @@ function writeStaticLayer(clone: Document, allowed: boolean, doc: KernelDoc): HT
   if (!el) return null
 
   const host = clone.createElement('div')
-  host.id = 'slidomingo-static'
+  host.id = 'beeslides-static'
   host.setAttribute(STATIC_ATTR, '1')
   host.appendChild(clone.importNode(el, true))
   storePictures(host)
@@ -580,7 +590,7 @@ function writeStaticLayer(clone: Document, allowed: boolean, doc: KernelDoc): HT
   // a JS-off reader reaches real content before the ~550KB of runtime blocks
   // — but AFTER any preview host, so a thumbnailer scanning minimally still
   // meets the (much smaller, purpose-built) preview first, unchanged.
-  const splash = clone.getElementById('slidomingo-splash')
+  const splash = clone.getElementById('beeslides-splash')
   const previewNodes = clone.querySelectorAll(`[${PREVIEW_ATTR}]`)
   const anchor = previewNodes.length ? previewNodes[previewNodes.length - 1] : splash
   const parent = anchor?.parentNode ?? clone.body ?? clone.documentElement
@@ -609,7 +619,7 @@ function writeStaticLayer(clone: Document, allowed: boolean, doc: KernelDoc): HT
  *  width/height, display:block, object-fit). The kernel turns each into a
  *  `div.sa-<id>[role=img]` carrying the img's own inline style (or
  *  `[aria-hidden=true]` for a decorative img, alt=""). */
-export const STORABLE_ATTR = 'data-slidomingo-storable'
+export const STORABLE_ATTR = 'data-beeslides-storable'
 
 /** What an app wants the store to hold for a document, beyond the layer. */
 export interface AssetStoreSpec {
@@ -681,7 +691,7 @@ function storePictures(host: HTMLElement): void {
 }
 
 /**
- * Write `#slidomingo-assets` right after the doc block and return every URI
+ * Write `#beeslides-assets` right after the doc block and return every URI
  * the file now carries once (uri → id) — the set the JSON may refer to.
  * Null = no store (nothing to store, or it failed its own safety check).
  */
@@ -767,14 +777,14 @@ export function serializeFile(doc: KernelDoc): string {
 
 // --- password encryption ----------------------------------------------------
 //
-// An encrypted file keeps the SAME plaintext #slidomingo-doc block (the splice
-// contract old updaters rely on) — but the block holds a slidomingo/enc envelope
+// An encrypted file keeps the SAME plaintext #beeslides-doc block (the splice
+// contract old updaters rely on) — but the block holds a beeslides/enc envelope
 // instead of the document: AES-GCM-256 over the doc JSON, key derived from
 // the password with PBKDF2-SHA-256. The password is held in memory for the
 // session so ⌘S and self-update keep writing encrypted output.
 
 export interface EncEnvelope {
-  format: 'slidomingo/enc'
+  format: 'beeslides/enc' | 'slidomingo/enc'
   v: 1
   it: number
   salt: string
@@ -827,7 +837,7 @@ export const isEncryptionActive = () => encPassword !== null
 export function parseEnvelope(text: string): EncEnvelope | null {
   try {
     const env = JSON.parse(text)
-    if (env && env.format === 'slidomingo/enc' && env.v === 1 && env.data && env.salt && env.iv) {
+    if (env && isEncFormat(env.format) && env.v === 1 && env.data && env.salt && env.iv) {
       return env as EncEnvelope
     }
   } catch {
@@ -853,7 +863,7 @@ async function encryptBody(json: string, password: string): Promise<string> {
   const ct = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv: iv as BufferSource }, key, new TextEncoder().encode(json))
   const env: EncEnvelope = {
-    format: 'slidomingo/enc', v: 1, it: ENC_ITERATIONS,
+    format: 'beeslides/enc', v: 1, it: ENC_ITERATIONS,
     salt: eb64.enc(salt), iv: eb64.enc(iv), data: eb64.enc(new Uint8Array(ct)),
   }
   return JSON.stringify(env)
@@ -962,6 +972,8 @@ export type SavePurpose = 'in-place' | 'copy' | 'share'
  * 2026-08-02. Intent has to be explicit in the call, because it cannot be
  * recovered from anything else in it.
  */
+// The ids stay `slidomingo-*` through the 2026-10-20 rename: hosts key on
+// them and the browser files its remembered folder under them.
 export const pickerIdFor = (purpose: SavePurpose): string =>
   purpose === 'in-place' ? 'slidomingo-doc'
     : purpose === 'copy' ? 'slidomingo-copy'
@@ -1093,7 +1105,7 @@ export const currentFileHandle = (): unknown | null => fileHandle
  * turns that document into one BeeSlides can rewrite in place.
  *
  * The caller MUST have obtained readwrite permission first — this only records
- * the handle. It is deliberately not exported through `window.slidomingo`: adopting
+ * the handle. It is deliberately not exported through `window.beeslides`: adopting
  * a handle silently redirects where ⌘S writes, which is a user gesture, never
  * something a script should do behind their back.
  */

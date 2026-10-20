@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
-// Facade: self-save + slidomingo/enc encryption live in the shared kernel now
+// Facade: self-save + beeslides/enc encryption live in the shared kernel now
 // (kernel/src/save.ts). This path stays alive so slides code keeps importing
 // './save' unchanged — see docs/PLATFORM.md §9.
 //

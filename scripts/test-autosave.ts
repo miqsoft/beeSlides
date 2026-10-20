@@ -14,8 +14,8 @@
 // `slidomingo-autosave`, and one `DB_VERSION`. Two failures, one shared:
 //
 //   1. Snapshots from different apps piled into one store wherever they share
-//      an origin — the hosted web site, or any local server. slidomingo/spaces has been
-//      writing into slidomingo/slides' database since its scaffold landed.
+//      an origin — the hosted web site, or any local server. beeslides/spaces has been
+//      writing into beeslides/slides' database since its scaffold landed.
 //   2. Worse, and asymmetric: DB_VERSION was shared too. A new app bumping it
 //      to 2 makes every ALREADY-SHIPPED shell of every other app throw
 //      VersionError on open and lose autosave outright. Shipped shells are

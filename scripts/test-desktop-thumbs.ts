@@ -33,17 +33,17 @@ function file(html: string): string {
   return p
 }
 
-const HEAD_COMMENT = '<!-- The document is the ONE script block, id "slidomingo-doc", below -->'
-const docBlock = (json: string) => `<script type="application/slidomingo+json" id="slidomingo-doc">\n${json}\n</script>`
+const HEAD_COMMENT = '<!-- The document is the ONE script block, id "beeslides-doc", below -->'
+const docBlock = (json: string) => `<script type="application/beeslides+json" id="beeslides-doc">\n${json}\n</script>`
 const fit = (w: number, h: number) =>
   `<div style="position:fixed"><style>._0{position:absolute}</style><div style="position:absolute;width:${w}px;height:${h}px;` +
   `transform:translate(-50%,-50%);transform:translate(-50%,-50%) scale(calc(min(100vw, ${((w / h) * 100).toFixed(2)}vh) / ${w}px))"></div></div>`
 const preview = (w = 1280, h = 720) =>
-  `<div data-slidomingo-preview="1">${fit(w, h)}</div><script data-slidomingo-preview="1">(function(){var a=document.querySelectorAll('[data-slidomingo-preview]')})()</script>`
+  `<div data-beeslides-preview="1">${fit(w, h)}</div><script data-beeslides-preview="1">(function(){var a=document.querySelectorAll('[data-beeslides-preview]')})()</script>`
 const shell = (json: string, body: string) =>
-  `<!doctype html><html><head>${HEAD_COMMENT}${docBlock(json)}</head><body><div id="slidomingo-splash"></div>${body}` +
-  `<script id="slidomingo-rt-css" type="slidomingo/deflate-b64">AAAA</script><script id="slidomingo-rt">BBBB</script></body></html>`
-const SLIDES = '{"format":"slidomingo/slides","version":1,"title":"T","size":{"width":1280,"height":720}}'
+  `<!doctype html><html><head>${HEAD_COMMENT}${docBlock(json)}</head><body><div id="beeslides-splash"></div>${body}` +
+  `<script id="beeslides-rt-css" type="beeslides/deflate-b64">AAAA</script><script id="beeslides-rt">BBBB</script></body></html>`
+const SLIDES = '{"format":"beeslides/slides","version":1,"title":"T","size":{"width":1280,"height":720}}'
 
 console.log('classification')
 {
@@ -51,21 +51,21 @@ console.log('classification')
   ok(r.kind === 'preview' && r.width === 1280 && r.height === 720, `saved deck → preview 1280×720 (${JSON.stringify(r)})`)
 }
 {
-  const r = await scanThumbSource(file(shell('{"format":"slidomingo/enc","v":1,"data":"xx"}', preview())))
+  const r = await scanThumbSource(file(shell('{"format":"beeslides/enc","v":1,"data":"xx"}', preview())))
   ok(r.kind === 'enc', 'encrypted envelope → enc, even if a stale preview host were present')
 }
 ok((await scanThumbSource(file(shell('', '')))).kind === 'none', 'pristine shell (empty block) → none')
 ok((await scanThumbSource(file(shell(SLIDES, '')))).kind === 'none', 'deck saved by an older build, no preview → none')
-ok((await scanThumbSource(file('<!doctype html><html><body><div data-slidomingo-preview="1">x</div></body></html>'))).kind === 'none',
+ok((await scanThumbSource(file('<!doctype html><html><body><div data-beeslides-preview="1">x</div></body></html>'))).kind === 'none',
   'not a BeeSlides file (no doc block), even with a host-shaped div → none')
 ok((await scanThumbSource(file(shell('{not json', preview())))).kind === 'none', 'unparseable doc block → none')
 {
   // User text mentioning the attribute lives in the doc block (JSON escapes `<`).
-  const json = SLIDES.replace('"T"', '"\\u003cdiv data-slidomingo-preview=\\"1\\"\\u003e"')
+  const json = SLIDES.replace('"T"', '"\\u003cdiv data-beeslides-preview=\\"1\\"\\u003e"')
   ok((await scanThumbSource(file(shell(json, '')))).kind === 'none', 'attribute text inside the doc block is not a host')
 }
 {
-  const r = await scanThumbSource(file(shell(SLIDES, preview().replace(/<div data-slidomingo-preview="1">/, '<noscript data-slidomingo-preview="1">').replace('</div><script', '</noscript><script'))))
+  const r = await scanThumbSource(file(shell(SLIDES, preview().replace(/<div data-beeslides-preview="1">/, '<noscript data-beeslides-preview="1">').replace('</div><script', '</noscript><script'))))
   ok(r.kind === 'preview', 'older build\'s <noscript> host → preview')
 }
 {
@@ -82,29 +82,29 @@ ok((await scanThumbSource(file(shell('{not json', preview())))).kind === 'none',
 }
 console.log('static layer')
 {
-  const layer = '<div id="slidomingo-static" data-slidomingo-static="1"><div id="slidomingo-static-layer"><div data-slidomingo-static-slide="s1"></div></div></div>'
+  const layer = '<div id="beeslides-static" data-beeslides-static="1"><div id="beeslides-static-layer"><div data-beeslides-static-slide="s1"></div></div></div>'
   const r = await scanThumbSource(file(shell(SLIDES, preview() + layer)))
   ok(r.kind === 'preview' && r.hasStatic === true && r.width === 1280, `preview + static layer → hasStatic (${JSON.stringify(r)})`)
   const r2 = await scanThumbSource(file(shell(SLIDES, preview())))
   ok(r2.kind === 'preview' && r2.hasStatic === false, 'preview only → hasStatic false (rendered as before)')
   // Only the per-slide attribute (never written without the host) is not the host.
-  const r3 = await scanThumbSource(file(shell(SLIDES, preview() + '<div data-slidomingo-static-slide="s1"></div>')))
+  const r3 = await scanThumbSource(file(shell(SLIDES, preview() + '<div data-beeslides-static-slide="s1"></div>')))
   ok(r3.kind === 'preview' && r3.hasStatic === false, 'a per-slide attribute alone is not the layer')
   // The layer's tag lands well past the first chunk (a big preview pads it out).
   const bigPreview = preview().replace('</style>', `</style><!--${'p'.repeat((1 << 20) + 500)}-->`)
   const r4 = await scanThumbSource(file(shell(SLIDES, bigPreview + layer)))
   ok(r4.kind === 'preview' && r4.hasStatic === true, 'found across a chunk boundary')
   // Mentioned in the doc block (user text) but absent from the body.
-  const json = SLIDES.replace('"T"', '"data-slidomingo-static=\\"1\\""')
+  const json = SLIDES.replace('"T"', '"data-beeslides-static=\\"1\\""')
   const r5 = await scanThumbSource(file(shell(json, preview())))
   ok(r5.kind === 'preview' && r5.hasStatic === false, 'marker text inside the doc block does not count')
 }
 {
   // what a save writes now: an indented, multi-line doc block (canonicalJson)
   // followed by the asset store, then the preview and the layer
-  const pretty = JSON.stringify({ ...JSON.parse(SLIDES), requires: ['asset-store'], title: '\u003c/script> x', assets: { p: 'slidomingo-store:sha256-0123456789abcdef' } }, null, 2).replace(/</g, '\\u003c')
-  const store = '<style id="slidomingo-assets" data-slidomingo-assets="1">\n/*sha256-0123456789abcdef*/.sa-0123456789abcdef{content:url("data:image/png;base64,AAAA")}\n</style>'
-  const layer = '<div id="slidomingo-static" data-slidomingo-static="1"><div data-slidomingo-static-slide="s1"><div class="sa-0123456789abcdef" role="img"></div></div></div>'
+  const pretty = JSON.stringify({ ...JSON.parse(SLIDES), requires: ['asset-store'], title: '\u003c/script> x', assets: { p: 'beeslides-store:sha256-0123456789abcdef' } }, null, 2).replace(/</g, '\\u003c')
+  const store = '<style id="beeslides-assets" data-beeslides-assets="1">\n/*sha256-0123456789abcdef*/.sa-0123456789abcdef{content:url("data:image/png;base64,AAAA")}\n</style>'
+  const layer = '<div id="beeslides-static" data-beeslides-static="1"><div data-beeslides-static-slide="s1"><div class="sa-0123456789abcdef" role="img"></div></div></div>'
   const r = await scanThumbSource(file(shell(pretty, preview() + layer).replace('</script>', '</script>' + store)))
   ok(r.kind === 'preview' && r.width === 1280 && r.hasStatic === true, `pretty-printed doc block + asset store → preview with layer (${JSON.stringify(r)})`)
 }

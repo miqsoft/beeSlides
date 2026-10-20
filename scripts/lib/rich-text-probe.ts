@@ -195,7 +195,7 @@ export function richTextProbe(check: (name: string, pass: boolean) => void): voi
 
   // --- static layer numbering -------------------------------------------------
   const page = document.createElement('div')
-  page.innerHTML = '<div class="slidomingo-el"><ol><li>1<ol><li>a<ol><li>i</li></ol></li></ol></li></ol></div>'
+  page.innerHTML = '<div class="beeslides-el"><ol><li>1<ol><li>a<ol><li>i</li></ol></li></ol></li></ol></div>'
   inlineRuntimeCss(page)
   const ols = Array.from(page.querySelectorAll('ol')) as HTMLElement[]
   check('rich/static — nested numbered lists step 1. → a. → i. without the stylesheet',

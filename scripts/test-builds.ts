@@ -135,7 +135,7 @@ ok(splitParagraphs('<div>a</div>b<br>c').join('|') === '<div>a</div>|b<br>|c', '
 // ---------------------------------------------------------------- validate
 {
   const base = (els: SlideElement[], prev?: SlideElement[]) => ({
-    format: 'slidomingo/slides', version: '1.0.0', docId: 't', title: 't',
+    format: 'beeslides/slides', version: '1.0.0', docId: 't', title: 't',
     size: { width: 1280, height: 720 }, theme: { accent: '#F7A600', fontFamily: 'system-ui' }, assets: {}, fonts: null,
     slides: [
       ...(prev ? [{ id: 's0', background: '#fff', transition: 'none', notes: '', elements: prev }] : []),

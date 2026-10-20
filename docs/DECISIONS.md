@@ -13087,3 +13087,46 @@ Linux (GTK, X11 and Wayland) fires `resize` before the new content size on
 maximize/restore/full screen, or not at all, which left the doc view at its
 old width with white beside it. `openInNewWindow` now relayouts on those
 events and `show`, and off macOS once more 120 ms later.
+
+## 2026-10-20 — Files say `beeslides` too; old `slidomingo` files are read and converted (supersedes the 2026-10-13 identifier list for file contents)
+
+Owner's call: "do it still and break the rule/adapt". Everything a saved file
+contains now says `beeslides`: the doc block
+(`<script type="application/beeslides+json" id="beeslides-doc">`), the formats
+`beeslides/slides` / `beeslides/enc`, the runtime blocks
+`beeslides/deflate-b64`, the asset store (`#beeslides-assets`,
+`beeslides-store:` refs, `data-beeslides-*`), the preview, static layer and
+splash ids, every renderer/chrome CSS class (`.beeslides-el` …), the
+`generator` meta (`beeslides-slides`), the tooling comment and the scripting
+API (`window.beeslides`). This breaks the old AGENTS.md rule 2 / PLATFORM §2
+"same id, forever" on purpose; both are rewritten.
+
+**Old files keep working.** `kernel/src/legacynames.ts` is the one place the
+old names live (like `docext.ts` for the extension). Every reader accepts
+both: the kernel's doc block and store readers, `parseDoc` (`currentFormat`
+renames `slidomingo/slides` on read), the editor's open/library/start-picker
+paths, and desktop main's `docfile`/`thumbscan`/`recent`/`templatefs`/`thumbs`.
+Every writer writes only the new names, so a file converts on its next save.
+Dangling old refs come out under the new prefix. The one exception: the
+browser editor writing a library file back into ITS OWN old shell
+(`spliceForeignDoc`) keeps `#slidomingo-doc` and `slidomingo/slides`, because
+that shell's runtime reads only those.
+
+**Kept `slidomingo`** (never in a file, or shared with other versions/hosts):
+localStorage/IndexedDB keys (renaming would wipe preferences and autosave),
+clipboard and drag MIME types (copy/paste between app versions), the
+save-picker ids (`pickerIdFor`; hosts key on them), appId, IPC channels,
+preload globals, userData/partition names, package and TS names, and
+`window.slidomingo`, now an alias of `window.beeslides` for existing scripts
+and agents.
+
+**Cost, accepted:** a file saved by this build does not open in an older
+BeeSlides (it looks for `#slidomingo-doc`), nor in third-party tools that
+regex for the old id. Custom SVG CSS that targeted `.slidomingo-*` classes
+stops matching.
+
+Rig: `scripts/test-legacy-names.ts` (old block, format, envelope, refs, store,
+media attribute, preview and static markers through every reader). Checked
+by hand in Chromium: three old example decks and two real user decks with
+store refs open in the new shell, save under the new names only, and reopen
+with every picture.

@@ -65,14 +65,14 @@ function show(doc: SlidomingoDoc) {
     console.warn('slidomingo: opened read-only, this build does not know', missing)
   }
   // The JS-off static layer has done its job once script runs (as in main.ts).
-  document.getElementById('slidomingo-static')?.remove()
+  document.getElementById('beeslides-static')?.remove()
   resolveThemeRefs(doc)
   playerMode(doc)
 }
 
 /** A viewer shell with no (or an unreadable) document block. */
 function empty() {
-  document.getElementById('slidomingo-splash')?.remove()
+  document.getElementById('beeslides-splash')?.remove()
   const card = document.createElement('div')
   card.className = 'ed-player'
   card.innerHTML = `<div class="ed-playercard"><p>${t('This file contains no deck.')}</p></div>`

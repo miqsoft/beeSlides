@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 // The kernel document envelope — the ONLY doc fields kernel modules may read.
-// Every app's document model (slidomingo/slides, slidomingo/spaces, …) satisfies this
+// Every app's document model (beeslides/slides, beeslides/spaces, …) satisfies this
 // structurally; the kernel never sees an app's content shape (slides, blocks,
 // cells). Keep this interface minimal on purpose: adding a field here is a
 // platform decision (docs/PLATFORM.md §9), not a convenience.

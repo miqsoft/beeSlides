@@ -29,7 +29,7 @@ const KEY = 'slidomingo-theme';
  *
  * Reading the `localStorage` PROPERTY — not calling a method on it — throws
  * when site data is blocked, inside some embedded webviews, and in any
- * sandboxed frame. slidomingo/slides 1.0.15 shipped a fix for exactly this after one
+ * sandboxed frame. beeslides/slides 1.0.15 shipped a fix for exactly this after one
  * unreadable preference cost users the whole document. A theme is worth less
  * than a document; it must degrade to the default in silence.
  */

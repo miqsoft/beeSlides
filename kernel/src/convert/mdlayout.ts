@@ -3,7 +3,7 @@
 //
 // Coordinate synthesis — the one hard problem in importing a `.qmd`.
 //
-// Quarto is DOCUMENT FLOW; slidomingo/slides is ABSOLUTE COORDINATES. A `.qmd`
+// Quarto is DOCUMENT FLOW; beeslides/slides is ABSOLUTE COORDINATES. A `.qmd`
 // carries no x/y/w/h anywhere, so inventing them is the job. This file does
 // NOT contain a layout engine, and adding one here would be the wrong answer:
 // slides already has a layout system (roles, layouts, `applyLayout`), and a
@@ -393,7 +393,7 @@ export function columns(region: Frame, weights: number[], gap: number): Frame[] 
  * off the stacks above rather than guessed: mixed-case proportional sans runs
  * ~0.52em, monospace is exactly its own advance (~0.6em for every face in
  * MONO_STACK). This is a BUDGET, not a layout — the real text metrics come
- * from `window.slidomingo.measure()` in the app layer, which is what produces the
+ * from `window.beeslides.measure()` in the app layer, which is what produces the
  * post-import overflow findings.
  */
 export const ADV_SANS = 0.52

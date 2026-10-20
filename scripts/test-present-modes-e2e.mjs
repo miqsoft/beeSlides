@@ -81,29 +81,29 @@ function buildDeck(base) {
 }
 const splice = (html, deck) => {
   const json = JSON.stringify(deck).replace(/</g, '\\u003c')
-  const out = html.replace(/(<script type="application\/slidomingo\+json" id="slidomingo-doc">)([\s\S]*?)(<\/script>)/, `$1${json}$3`)
+  const out = html.replace(/(<script type="application\/beeslides\+json" id="beeslides-doc">)([\s\S]*?)(<\/script>)/, `$1${json}$3`)
   if (out === html) throw new Error('doc block not found in shell')
   return out
 }
 
 // ---- helpers ----------------------------------------------------------------------
 const cur = (p) => p.evaluate(() =>
-  document.querySelector('.slidomingo-present-overlay section.present > .slidomingo-slide')?.getAttribute('data-slide-id') ?? null)
-const inShow = (p) => p.evaluate(() => !!document.querySelector('.slidomingo-present-overlay'))
+  document.querySelector('.beeslides-present-overlay section.present > .beeslides-slide')?.getAttribute('data-slide-id') ?? null)
+const inShow = (p) => p.evaluate(() => !!document.querySelector('.beeslides-present-overlay'))
 const cardShown = (p) => p.evaluate(() => {
   const c = document.querySelector('.ed-player')
   return !!c && getComputedStyle(c).display !== 'none'
 })
 const fs = (p) => p.evaluate(() => !!document.fullscreenElement)
 const toast = (p) => p.evaluate(() => {
-  const t = document.querySelector('.slidomingo-present-toast')
+  const t = document.querySelector('.beeslides-present-toast')
   return t ? t.textContent : null
 })
 const pickMode = (p, m) => p.click(`.ed-playmode[data-mode="${m}"]`)
 const goLabel = (p) => p.evaluate(() => document.querySelector('.ed-playgo')?.textContent?.replace(/\s+/g, ' ').trim())
 const startShow = async (p) => {
   await p.click('.ed-playgo')
-  await p.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 20_000 })
+  await p.waitForSelector('.beeslides-present-overlay section.present', { timeout: 20_000 })
   await p.waitForTimeout(500)
 }
 const press = async (p, k) => { await p.keyboard.press(k); await p.waitForTimeout(250) }
@@ -122,7 +122,7 @@ async function runShell(name, file) {
   await p.goto(pathToFileURL(file).href)
   await p.waitForSelector('.ed-playercard', { timeout: 30_000 })
   await p.waitForTimeout(400)
-  await p.evaluate(() => document.getElementById('slidomingo-splash')?.remove())
+  await p.evaluate(() => document.getElementById('beeslides-splash')?.remove())
 
   // the card
   check(await cardShown(p) && !(await inShow(p)), 'opens on the start card, nothing autostarts')
@@ -177,9 +177,9 @@ async function runShell(name, file) {
   const changes = await p.evaluate(() => new Promise((resolve) => {
     const t0 = performance.now()
     const seen = []
-    let last = document.querySelector('.slidomingo-present-overlay section.present > .slidomingo-slide')?.getAttribute('data-slide-id')
+    let last = document.querySelector('.beeslides-present-overlay section.present > .beeslides-slide')?.getAttribute('data-slide-id')
     const iv = setInterval(() => {
-      const id = document.querySelector('.slidomingo-present-overlay section.present > .slidomingo-slide')?.getAttribute('data-slide-id')
+      const id = document.querySelector('.beeslides-present-overlay section.present > .beeslides-slide')?.getAttribute('data-slide-id')
       if (id && id !== last) { seen.push([id, Math.round(performance.now() - t0)]); last = id }
     }, 50)
     setTimeout(() => { clearInterval(iv); resolve(seen) }, 4400)
@@ -201,7 +201,7 @@ async function runShell(name, file) {
   await p.click('.ed-playgo')
   const sv = await popupP
   check(!!sv, 'Presenter view: one click opens the speaker window …')
-  await p.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 20_000 }).catch(() => {})
+  await p.waitForSelector('.beeslides-present-overlay section.present', { timeout: 20_000 }).catch(() => {})
   await p.waitForTimeout(600)
   check(await inShow(p) && await cur(p) === 'S1', '… and starts the show in the same click (no second click)')
   if (sv) {
@@ -246,7 +246,7 @@ async function runShell(name, file) {
   const hctx = await browser.newContext({ viewport: { width: 1280, height: 720 } })
   const h = await hctx.newPage()
   await h.goto(pathToFileURL(file).href + '#present')
-  await h.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 30_000 })
+  await h.waitForSelector('.beeslides-present-overlay section.present', { timeout: 30_000 })
   check(await cur(h) === 'S1', '#present starts the show without the card')
   await hctx.close()
 }
@@ -257,14 +257,14 @@ async function runExport(withViewerShell) {
   const name = withViewerShell ? 'export with the desktop viewer shell' : 'export on the web (no bridge)'
   console.log(`— ${name}`)
   const viewerHtml = readFileSync(viewerFile, 'utf8')
-  const rtOf = (h) => h.match(/id="slidomingo-rt"[^>]*>([\s\S]*?)<\/script>/)?.[1]
+  const rtOf = (h) => h.match(/id="beeslides-rt"[^>]*>([\s\S]*?)<\/script>/)?.[1]
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true })
   const p = await ctx.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.addInitScript(() => { delete window.showSaveFilePicker }) // force the download fallback
   await p.goto(pathToFileURL(editorFile).href)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForTimeout(800)
   if (withViewerShell) await p.evaluate((html) => { window.slidomingoDesktop = { getViewerShell: async () => html } }, viewerHtml)
   await p.click('.ed-split-caret:visible')
@@ -298,14 +298,14 @@ async function runExport(withViewerShell) {
 async function runDesktopExport() {
   console.log('— export through the desktop save dialog')
   const viewerHtml = readFileSync(viewerFile, 'utf8')
-  const rtOf = (h) => h.match(/id="slidomingo-rt"[^>]*>([\s\S]*?)<\/script>/)?.[1]
+  const rtOf = (h) => h.match(/id="beeslides-rt"[^>]*>([\s\S]*?)<\/script>/)?.[1]
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true })
   const p = await ctx.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.addInitScript(() => { delete window.showSaveFilePicker }) // as in Electron: no web picker to fall back on
   await p.goto(pathToFileURL(editorFile).href)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForTimeout(800)
   await p.evaluate((html) => {
     window.__saveReq = null
@@ -339,8 +339,8 @@ try {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
   const p = await ctx.newPage()
   await p.goto(pathToFileURL(editorFile).href)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
-  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
+  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
   await ctx.close()
   const deck = buildDeck(base)
   const dir = mkdtempSync(join(tmpdir(), 'present-modes-e2e-'))

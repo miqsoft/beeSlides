@@ -66,14 +66,14 @@ export interface RenderOpts {
    *  events change — the slide-type direction's building-block elements. */
   lockedCursorIds?: Set<string>
   /** Editor canvas only: elements with `hidden` are still emitted (tagged
-   *  `.slidomingo-el-hidden`, which the stylesheet collapses) so the Select
+   *  `.beeslides-el-hidden`, which the stylesheet collapses) so the Select
    *  menu can reach and unhide them. Every other output omits them. */
   showHidden?: boolean
   /** Editor canvas only: empty parts of shapes/text boxes stop catching
    *  pointer events (`data-hit="paint"`), so clicks reach what is underneath. */
   paintHit?: boolean
   /** Surface box size, in px — overrides `doc.size` for the rendered
-   *  `.slidomingo-slide` surface (which clips overflow: hidden). Used by the
+   *  `.beeslides-slide` surface (which clips overflow: hidden). Used by the
    *  reusable-object editing surface, whose authoring canvas is much bigger
    *  than the deck's own slide size; omitted everywhere else, where the
    *  surface is simply the deck's page. */
@@ -243,7 +243,7 @@ export function stripRemoteRefs(node: HTMLElement): void {
       const v = e.getAttribute?.(a)
       if (v && isRemoteUrl(v)) {
         e.removeAttribute(a)
-        e.dataset.slidomingoOffline = '1'
+        e.dataset.beeslidesOffline = '1'
       }
     }
   }
@@ -381,7 +381,7 @@ export function cssLinearGradient(g: NonNullable<ShapeElement['fillGradient']>):
 
 /** Materialize a GradientFill as a <defs> gradient; returns its url() ref. */
 function gradientRef(svg: SVGSVGElement, g: NonNullable<ShapeElement['fillGradient']>): string {
-  const id = `slidomingo-grad-${gradSeq++}`
+  const id = `beeslides-grad-${gradSeq++}`
   const defs = document.createElementNS(SVG_NS, 'defs')
   const lin = document.createElementNS(SVG_NS, 'linearGradient')
   lin.setAttribute('id', id)
@@ -415,7 +415,7 @@ let markSeq = 0
 /** A line-tip marker in <defs>; sized in strokeWidth units, colored like the line. */
 function markerRef(svg: SVGSVGElement, kind: NonNullable<ShapeElement['lineStart']>, color: string, start: boolean): string | null {
   if (kind === 'none') return null
-  const id = `slidomingo-mark-${markSeq++}`
+  const id = `beeslides-mark-${markSeq++}`
   const marker = document.createElementNS(SVG_NS, 'marker')
   marker.setAttribute('id', id)
   marker.setAttribute('viewBox', '0 0 8 8')
@@ -1013,12 +1013,13 @@ const SVG_ATTRS = new Set([
  * so the open `data-*` door below stops short of them.
  *
  * `data-slidomingo` is reserved as a PREFIX, not as one name: the shell's own marks
- * are `data-slidomingo-transient` (kernel `serializeBody` deletes those nodes from
- * the clone it saves) and `data-slidomingo-preview` (which save.ts removes
+ * are `data-beeslides-transient` (kernel `serializeBody` deletes those nodes from
+ * the clone it saves) and `data-beeslides-preview` (which save.ts removes
  * unconditionally, replace-never-append). Reserving the exact string only would
  * have left an author element able to answer either query.
  */
-const SVG_DATA_RESERVED = /^data-(el-id|flip-id|slide-id|autoplay|r|c)$|^data-slidomingo/
+// `data-slidomingo-*` too: the shell names of files saved before 2026-10-20.
+const SVG_DATA_RESERVED = /^data-(el-id|flip-id|slide-id|autoplay|r|c)$|^data-(?:beeslides|slidomingo)/
 
 /**
  * `aria-*` is open-ended by design and inert; `data-*` is how a diagram's own
@@ -1167,11 +1168,11 @@ export function sanitizeSvgCss(css: string): string {
     // be a second chance to disagree with the browser about what the ident says.
     (/^-?[a-zA-Z][-\w]*$/.test(kw) && CSS_AT_ALLOWED.has(kw.toLowerCase())
       ? `${pre}@${kw}`
-      : `${pre}@slidomingo-refused `))
+      : `${pre}@beeslides-refused `))
     // A function that fetches past the url() rewrite below is RENAMED, like a
     // refused at-rule: an unknown function invalidates its one declaration,
     // and the rest of the sheet still parses.
-    .replace(CSS_FN, (m, name: string) => (cssFetchFn(name) ? 'slidomingo-refused(' : m))
+    .replace(CSS_FN, (m, name: string) => (cssFetchFn(name) ? 'beeslides-refused(' : m))
   return atFiltered.replace(/url\(\s*(['"]?)([^'")]*)\1\s*\)/gi, (m, _q: string, target: string) => {
     const v = String(target).replace(/[\u0000-\u0020]/g, '').toLowerCase()
     return v.startsWith('#') || v.startsWith('data:image/') ? m : 'none'
@@ -1388,7 +1389,7 @@ export function renderTableHtml(el: TableElement, doc: SlidomingoDoc): string {
             // columns.
             // $…$ math typesets in cells as in text boxes (after sanitizing —
             // see resolveMath); canvas.editCellAt shows the source while editing
-            `<div class="slidomingo-cell-inner" dir="auto">${resolveMath(sanitizeHtml(String(cell.html ?? ''))) || '<br>'}</div></td>`
+            `<div class="beeslides-cell-inner" dir="auto">${resolveMath(sanitizeHtml(String(cell.html ?? ''))) || '<br>'}</div></td>`
           )
         })
         .join('')
@@ -1398,8 +1399,8 @@ export function renderTableHtml(el: TableElement, doc: SlidomingoDoc): string {
   const rad = cssNum(st.radius, 0, 512)
   const radius = rad ? `border-radius:${rad}px;overflow:hidden;` : ''
   return (
-    `<div class="slidomingo-table-wrap" style="width:100%;height:100%;${radius}">` +
-    `<table class="slidomingo-table" style="width:100%;height:100%;border-collapse:collapse;` +
+    `<div class="beeslides-table-wrap" style="width:100%;height:100%;${radius}">` +
+    `<table class="beeslides-table" style="width:100%;height:100%;border-collapse:collapse;` +
     `table-layout:fixed;font-family:${font};font-size:${cssNum(st.fontSize, 16, 512)}px;line-height:1.3;">` +
     `<colgroup>${cols}</colgroup>${rowsHtml}</table></div>`
   )
@@ -1450,9 +1451,9 @@ function labelAsImage(node: Element, alt: string | undefined): void {
  */
 export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: RenderOpts = {}): HTMLElement {
   const node = document.createElement('div')
-  node.className = `slidomingo-el slidomingo-el-${el.type}`
-  if (opts.ghostIds?.has(el.id)) node.classList.add('slidomingo-el-ghost')
-  if (opts.lockedCursorIds?.has(el.id)) node.classList.add('slidomingo-el-locked')
+  node.className = `beeslides-el beeslides-el-${el.type}`
+  if (opts.ghostIds?.has(el.id)) node.classList.add('beeslides-el-ghost')
+  if (opts.lockedCursorIds?.has(el.id)) node.classList.add('beeslides-el-locked')
   node.dataset.elId = el.id
   node.dataset.flipId = morphKey(el)
   if (el.link) node.dataset.link = el.link
@@ -1460,7 +1461,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
   if (el.showOnHover) node.dataset.showOnHover = el.showOnHover
   if (el.type === 'shape' && el.container) node.dataset.container = '1'
   applyElementFrame(node, el)
-  if (el.hidden) node.classList.add('slidomingo-el-hidden')
+  if (el.hidden) node.classList.add('beeslides-el-hidden')
   // Editor: user-locked elements and unselected backdrops are click-through
   // (canvas.ts selects them via the Select menu / plain-click fallback). An
   // icon set has no backdrops: its paths are drawn on the whole canvas, and
@@ -1475,7 +1476,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       node.style.flexDirection = 'column'
       node.style.justifyContent = VALIGN[el.valign]
       const inner = document.createElement('div')
-      inner.className = 'slidomingo-text-inner'
+      inner.className = 'beeslides-text-inner'
       // Base direction from the text itself. Without it every box is LTR, and
       // Arabic/Hebrew/Persian/Urdu render with their neutral characters in the
       // wrong place — a trailing full stop jumps to the head of the line, and
@@ -1565,7 +1566,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       const img = document.createElement('img')
       const imgSrc = assetSrc(doc, el.src, opts.inlineData)
       if (imgSrc) img.src = imgSrc
-      else img.dataset.slidomingoOffline = '1'
+      else img.dataset.beeslidesOffline = '1'
       img.draggable = false
       // '' is a real value here (decorative), so only absence skips it; the
       // kernel's asset store carries a description over as aria-label when it
@@ -1583,7 +1584,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
         // static layer's store keeps the img's own inline style (staticrender
         // markStorable accepts this shape too).
         const box = document.createElement('div')
-        box.className = 'slidomingo-crop'
+        box.className = 'beeslides-crop'
         box.style.cssText = `position:relative;width:100%;height:100%;overflow:hidden;border-radius:${cssNum(el.radius, 0)}px`
         img.style.cssText = `position:absolute;left:${pct(-crop.x / crop.w)};top:${pct(-crop.y / crop.h)};` +
           `width:${pct(1 / crop.w)};height:${pct(1 / crop.h)};max-width:none;object-fit:fill;display:block`
@@ -1652,7 +1653,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       const video = document.createElement('video')
       const videoSrc = assetSrc(doc, el.src, opts.inlineData)
       if (videoSrc) video.src = videoSrc
-      else if (el.src) video.dataset.slidomingoOffline = '1'
+      else if (el.src) video.dataset.beeslidesOffline = '1'
       const posterUrl = assetSrc(doc, el.poster ?? '', opts.inlineData)
       if (posterUrl) video.poster = posterUrl
       video.controls = el.controls !== false
@@ -1747,7 +1748,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       // which is exactly the room a morphing token needs.
       node.style.overflow = 'hidden'
       const inner = document.createElement('pre')
-      inner.className = 'slidomingo-text-inner'
+      inner.className = 'beeslides-text-inner'
       inner.dir = 'auto'
       inner.style.fontSize = `${el.fontSize}px`
       inner.style.fontFamily = resolveFontFamily(el, doc, opts)
@@ -1755,7 +1756,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       inner.style.lineHeight = String(el.lineHeight)
       inner.style.width = '100%'
       inner.style.color = el.color
-      inner.classList.add('slidomingo-code')
+      inner.classList.add('beeslides-code')
       inner.style.whiteSpace = 'pre'
       inner.style.margin = '0'
       // NOT overflow:hidden here. A <pre> is only as tall as its own lines,
@@ -1780,7 +1781,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       node.style.flexDirection = 'column'
       node.style.justifyContent = VALIGN[el.valign] ?? 'center'
       const inner = document.createElement('div')
-      inner.className = 'slidomingo-math-inner'
+      inner.className = 'beeslides-math-inner'
       inner.style.fontSize = `${cssNum(el.fontSize, 48)}px`
       inner.style.color = cssColor(el.color, 'inherit')
       inner.style.textAlign = ALIGN[el.align as string] ?? 'center'
@@ -1790,7 +1791,7 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
       // text-align moves. Styled inline (not in styles.css) so the static
       // layer and the no-JS preview lay it out the same way.
       const box = document.createElement('span')
-      box.className = 'slidomingo-math-box'
+      box.className = 'beeslides-math-box'
       box.style.display = 'inline-block'
       box.style.maxWidth = '100%'
       const tex = typeof el.tex === 'string' ? el.tex : ''
@@ -1805,13 +1806,13 @@ export function renderElement(el: SlideElement, doc: SlidomingoDoc, opts: Render
         if (m) (m as unknown as HTMLElement).style.display = 'inline math'
       } else if (tex.trim()) {
         // not valid TeX: the source, legibly, so the author sees what to fix
-        box.classList.add('slidomingo-math-error')
+        box.classList.add('beeslides-math-error')
         box.style.cssText += ';font-family:ui-monospace,Menlo,Consolas,monospace;font-size:0.5em;' +
           'white-space:pre-wrap;text-decoration:underline wavy rgba(200,40,40,0.7);text-underline-offset:0.2em'
         box.textContent = tex
       } else if (!opts.hidePlaceholders) {
         // nothing typed yet: a dim prompt on the canvas, nothing in output
-        box.classList.add('slidomingo-math-empty')
+        box.classList.add('beeslides-math-empty')
         box.style.opacity = '0.38'
         box.textContent = '∑ ' + t('Equation')
       }
@@ -1882,17 +1883,17 @@ function renderZoomTile(node: HTMLElement, el: ZoomElement, doc: SlidomingoDoc, 
   const depth = opts.zoomDepth ?? 0
   const radius = cssNum(el.radius, 0)
   const box = document.createElement('div')
-  box.className = 'slidomingo-zoom-box'
+  box.className = 'beeslides-zoom-box'
   box.style.cssText = `position:relative;width:100%;height:100%;overflow:hidden;border-radius:${radius}px`
   const cover = zoomCover(doc, el)
   if (!cover) {
     // the editor says why the tile is empty; present/print just leave it empty
     if (!opts.hidePlaceholders) {
-      box.classList.add('slidomingo-zoom-missing')
+      box.classList.add('beeslides-zoom-missing')
       box.textContent = t('Zoom target missing')
     }
   } else if (depth >= 1) {
-    box.classList.add('slidomingo-zoom-still')
+    box.classList.add('beeslides-zoom-still')
     box.style.background = cssColor(cover.background, '#d0d0d0', 200)
   } else {
     const r = zoomTileRect({ x: 0, y: 0, w: el.w, h: el.h }, doc.size)
@@ -1900,7 +1901,7 @@ function renderZoomTile(node: HTMLElement, el: ZoomElement, doc: SlidomingoDoc, 
       svgAsImage: true, inertEmbed: true, staticMediaStill: true, hidePlaceholders: true,
       inlineData: opts.inlineData, stillTrails: opts.stillTrails, zoomDepth: depth + 1,
     })
-    inner.classList.add('slidomingo-zoom-inner')
+    inner.classList.add('beeslides-zoom-inner')
     inner.style.position = 'absolute'
     inner.style.left = '0'
     inner.style.top = '0'
@@ -1919,7 +1920,7 @@ function renderZoomTile(node: HTMLElement, el: ZoomElement, doc: SlidomingoDoc, 
   const sw = cssNum(el.strokeWidth, 0, 200)
   if (sw > 0) {
     const frame = document.createElement('div')
-    frame.className = 'slidomingo-zoom-frame'
+    frame.className = 'beeslides-zoom-frame'
     frame.style.cssText = `position:absolute;inset:0;box-sizing:border-box;pointer-events:none;` +
       `border:${sw}px solid ${cssColor(el.stroke, '#ffffff')};border-radius:${radius}px`
     node.appendChild(frame)
@@ -1958,7 +1959,7 @@ export function resolveSlideFonts(doc: SlidomingoDoc, slide: Slide): { fontFamil
 export function renderSlide(slide: Slide, doc: SlidomingoDoc, opts: RenderOpts = {}): HTMLElement {
   const size = opts.size ?? doc.size
   const surface = document.createElement('div')
-  surface.className = 'slidomingo-slide'
+  surface.className = 'beeslides-slide'
   surface.dataset.slideId = slide.id
   surface.style.width = `${size.width}px`
   surface.style.height = `${size.height}px`
@@ -1987,7 +1988,7 @@ export function renderSlide(slide: Slide, doc: SlidomingoDoc, opts: RenderOpts =
     const off = el.type === 'text' && !!el.footerRole && footerOff.has(el.footerRole)
     if (off && !isType) continue
     const node = renderElement(el, doc, { ...opts, fields, fonts, fieldMarkers })
-    if (off) node.classList.add('slidomingo-el-footer-off')
+    if (off) node.classList.add('beeslides-el-footer-off')
     const loop = el.fx?.loop
     if (opts.stillTrails && loop?.type === 'motion-path' && loop.trail !== false && !el.showOnHover) {
       surface.appendChild(renderMotionTrail(el, loop.path, size))
@@ -2027,7 +2028,7 @@ function renderMotionTrail(el: SlideElement, path: string, size: { width: number
 export function renderThumbnail(slide: Slide, doc: SlidomingoDoc, width: number, opts: RenderOpts = {}): HTMLElement {
   const scale = width / doc.size.width
   const box = document.createElement('div')
-  box.className = 'slidomingo-thumb-surface'
+  box.className = 'beeslides-thumb-surface'
   box.style.width = `${width}px`
   box.style.height = `${doc.size.height * scale}px`
   const inner = renderSlide(slide, doc, { svgAsImage: true, ...opts })
@@ -2070,7 +2071,7 @@ export function renderObjectThumbnail(obj: Slide, doc: SlidomingoDoc, width: num
   const box = elementsBoundingBox(obj.elements)
   if (!box) {
     const empty = document.createElement('div')
-    empty.className = 'slidomingo-thumb-surface ed-objectthumb-empty'
+    empty.className = 'beeslides-thumb-surface ed-objectthumb-empty'
     empty.style.width = `${width}px`
     empty.style.height = `${Math.round(width * 0.6)}px`
     return empty

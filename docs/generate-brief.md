@@ -1,7 +1,7 @@
 # BeeSlides — generation brief
 
 Condensed brief for designing ONE fresh deck as
-`slidomingo/slides` JSON. This is not the full reference — see `format.md`
+`beeslides/slides` JSON. This is not the full reference — see `format.md`
 (complete field spec) and `agents.md` (full authoring guide) in this same
 directory if you need more than what's here.
 
@@ -19,7 +19,7 @@ format's own words (`template`, `layouts`).
   `ppt/slideMasters/`, `ppt/theme/` and the pictures under `ppt/media/`,
   e.g. `unzip -o source.pptx -d source`) and, when present,
   `pptx-converted.json` — `{ "doc": …, "report": … }`: `doc` is our own
-  converter's draft of the same file, already valid `slidomingo/slides` JSON
+  converter's draft of the same file, already valid `beeslides/slides` JSON
   with its pictures embedded, and `report` lists what it approximated or
   dropped (`entries[]`, each with a `code`, a `verdict` and where). Start from the draft — it
   has the geometry and the assets right — and fix what the report and the
@@ -43,7 +43,7 @@ format's own words (`template`, `layouts`).
 
 ```json
 {
-  "format": "slidomingo/slides", "version": 1, "title": "My deck",
+  "format": "beeslides/slides", "version": 1, "title": "My deck",
   "size": { "width": 1280, "height": 720 },
   "theme": { "background": "#101418", "color": "#F2F0EA",
              "accent": "#FF9E8A", "fontFamily": "system-ui, sans-serif" },
@@ -173,7 +173,7 @@ full shared field set: `id, x, y, w, h, rotation, opacity`.
 ## Text budgets — stay inside these (there is no autofit)
 
 The renderer never shrinks text to fit its box — an element that overflows
-just collides with whatever is below it, silently. `window.slidomingo.measure()`
+just collides with whatever is below it, silently. `window.beeslides.measure()`
 is how every OTHER flow checks this before writing, but it needs a live
 app/JS context to render into, and **this flow writes `generate-result.json`
 blind, before any such context exists** — there is nothing to measure

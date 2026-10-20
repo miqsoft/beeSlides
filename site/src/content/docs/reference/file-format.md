@@ -6,7 +6,7 @@ sidebar: { order: 2 }
 
 A `.beeslides.html` file is an ordinary web page made of three parts:
 
-1. **The document**: a plaintext JSON block, `<script type="application/json" id="slidomingo-doc">`,
+1. **The document**: a plaintext JSON block, `<script type="application/json" id="beeslides-doc">`,
    near the top of the file. It holds every slide, element, note and comment.
    Pictures and fonts sit in an asset store beside it.
 2. **A preview**: a static picture of the first slide, so file managers and
@@ -25,9 +25,9 @@ byte-for-byte the same.
   older app lacks opens read-only rather than getting mangled.
 - An encrypted deck carries no plaintext preview.
 
-The names inside the file (`slidomingo/slides`, `#slidomingo-doc`) are
-BeeSlides' original working name. They stay so that existing files keep
-working.
+Files saved before October 2026 use BeeSlides' original working name inside
+the file (`slidomingo/slides`, `#slidomingo-doc`). They still open, and take
+the new names the next time they are saved.
 
 ## Specs
 

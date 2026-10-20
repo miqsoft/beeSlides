@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
-// Theme token gate for slidomingo/slides.
+// Theme token gate for beeslides/slides.
 //
 //   node scripts/test-slides-theme.mjs
 //
@@ -71,10 +71,10 @@ for (const [name, body] of [['light', light], ['dark', dark]]) {
 // The 1.21:1 bug. A surface pinned to #fff stays light while its text follows
 // the theme. Exceptions are surfaces that are deliberately NOT chrome:
 //
-//   .slidomingo-speaker*  the presenter window is always dark — you present in a
+//   .beeslides-speaker*  the presenter window is always dark — you present in a
 //                    darkened room, and it should not brighten at dawn
-//   .slidomingo-splash    boot brand art, the starter deck's own palette
-//   #slidomingo-print     paper is white because paper is white
+//   .beeslides-splash    boot brand art, the starter deck's own palette
+//   #beeslides-print     paper is white because paper is white
 //   .slidomingo-          anything rendering document content
 //   .ed-comment-hl   a comment pin sits ON the slide, over document content
 //                    the author chose — a white dot ringed in accent has to
@@ -101,7 +101,7 @@ for (const [name, body] of [['light', light], ['dark', dark]]) {
 // 0.06)` lifting a button on an always-dark card) and white stops inside a
 // gradient (a hatch, a glint) are tints over whatever is beneath, not a
 // surface the text sits on.
-const EXEMPT = /^(\.slidomingo-speaker|\.sv-|\.slidomingo-splash|#slidomingo-print|\.slidomingo-|\.ed-comment-hl|\.ed-pwcard|\.ed-sp-thumb\.is-blank|\.ed-sp-col\.is-figure \.ed-sp-thumb|\.ed-color-trigger-swatch|@|:root|\*)/
+const EXEMPT = /^(\.beeslides-speaker|\.sv-|\.beeslides-splash|#beeslides-print|\.slidomingo-|\.ed-comment-hl|\.ed-pwcard|\.ed-sp-thumb\.is-blank|\.ed-sp-col\.is-figure \.ed-sp-thumb|\.ed-color-trigger-swatch|@|:root|\*)/
 const rules = [...css.matchAll(/(^|\n)([^@{}\n][^{}]*)\{([^}]*)\}/g)]
 const whiteSurfaces = []
 for (const [, , sel, body] of rules) {

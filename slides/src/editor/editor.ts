@@ -113,6 +113,7 @@ import {
 } from './desktopdoc'
 import { formatGate, refuseGatedWrite, refuseNewerDoc } from '../formatgate'
 import { lightDoc } from '../../../kernel/src/assetstore.ts'
+import { DOC_BLOCK_SELECTOR, isEncFormat } from '../../../kernel/src/legacynames.ts'
 import { pickSlideZoom, pickSummaryZoom, zoomDropdown } from './zoompicker'
 import { UiCustomizer, targetLabel } from './customize/apply'
 import { UiProfileStore } from './customize/store'
@@ -1875,7 +1876,7 @@ export class Editor {
     try {
       const viewerHtml = await window.slidomingoDesktop?.getViewerShell?.()
       const viewerShell = viewerHtml ? new DOMParser().parseFromString(viewerHtml, 'text/html') : null
-      const html = viewerShell?.getElementById('slidomingo-doc')
+      const html = viewerShell?.querySelector(DOC_BLOCK_SELECTOR)
         ? await serializeDocInto(viewerShell, clone)
         : await serializeAuto(clone)
       if (window.slidomingoDesktop?.saveDocumentAs) {
@@ -2868,7 +2869,7 @@ export class Editor {
   private thumbSurface(slide: Slide, width: number): HTMLElement {
     if (this.isIconset && !slide.elements.length) {
       // an empty icon canvas: its keyline circle, and what it is meant to show if that is known
-      const box = div('slidomingo-thumb-surface ed-icon-empty')
+      const box = div('beeslides-thumb-surface ed-icon-empty')
       box.style.width = `${width}px`
       box.style.height = `${Math.round(width * this.store.doc.size.height / this.store.doc.size.width)}px`
       box.title = t('Not drawn yet')
@@ -2882,7 +2883,7 @@ export class Editor {
     const look = this.store.shownLook
     if (!look) return renderThumbnail(slide, this.store.doc, width)
     const box = document.createElement('div')
-    box.className = 'slidomingo-thumb-surface'
+    box.className = 'beeslides-thumb-surface'
     const height = Math.round(width * this.store.doc.size.height / this.store.doc.size.width)
     box.style.width = `${width}px`
     box.style.height = `${height}px`
@@ -3313,7 +3314,7 @@ export class Editor {
   private lastTemplateSamples = true
 
   /** Whole-document replaces (Replace from JSON, a restored version,
-   *  `window.slidomingo.loadDoc`) go through `parseDoc`, which strips a
+   *  `window.beeslides.loadDoc`) go through `parseDoc`, which strips a
    *  template's identity — put it back, so the live doc stays this window's
    *  template (its id, and whether its slides are samples). */
   private keepTemplateIdentity() {
@@ -3648,7 +3649,7 @@ export class Editor {
         if (!slide) return
         const idx = Number(item.dataset.index)
         const w = slide.stateOf || extraParent(this.store.doc, idx) >= 0 ? Math.round(base * 0.84) : base
-        item.querySelector('.slidomingo-thumb-surface')?.replaceWith(this.thumbSurface(slide, w))
+        item.querySelector('.beeslides-thumb-surface')?.replaceWith(this.thumbSurface(slide, w))
         // comment badge tracks doc-level changes too (comments emit 'doc')
         const cmtState = thumbCommentState(slide)
         const badge = item.querySelector('.ed-thumb-cmt')
@@ -4031,17 +4032,17 @@ export class Editor {
     if (this.layoutManagerOpen) { this.toast(t('Close the Layout Manager to export PDF')); return }
     this.canvas.commitTextEdit()
     if (!this.isFigure && (await exportDeckAsPdfDesktop(this.store.doc, (m) => this.toast(m)))) return
-    document.getElementById('slidomingo-print')?.remove()
+    document.getElementById('beeslides-print')?.remove()
     const box = div('')
-    box.id = 'slidomingo-print'
+    box.id = 'beeslides-print'
     // page geometry follows the deck's aspect (width normalised to 1600)
     // A figure prints 1:1 at its own size (no 1600px normalisation): the page IS the figure.
     const fig = this.isFigure
     const pageW = fig ? this.store.doc.size.width : 1600
     const pageH = fig ? this.store.doc.size.height : Math.round((1600 * this.store.doc.size.height) / this.store.doc.size.width)
     const pageCss = document.createElement('style')
-    pageCss.textContent = `@page { size: ${pageW}px ${pageH}px; margin: 0; } #slidomingo-print .bp-page { width: ${pageW}px; height: ${pageH}px; }` +
-      (fig ? ' #slidomingo-print .bp-page { page-break-after: auto; break-after: auto; }' : '')
+    pageCss.textContent = `@page { size: ${pageW}px ${pageH}px; margin: 0; } #beeslides-print .bp-page { width: ${pageW}px; height: ${pageH}px; }` +
+      (fig ? ' #beeslides-print .bp-page { page-break-after: auto; break-after: auto; }' : '')
     box.appendChild(pageCss)
     for (const slide of this.store.doc.slides) {
       if (!inLinearFlow(slide)) continue
@@ -4585,7 +4586,7 @@ export class Editor {
     })
   }
 
-  /** Scripting/e2e handle for the UI profile — `window.slidomingo.uiProfile`. */
+  /** Scripting/e2e handle for the UI profile — `window.beeslides.uiProfile`. */
   uiProfileApi() {
     const c = this.customizer!
     return {
@@ -6682,7 +6683,7 @@ export class Editor {
    */
   private async openFileLike(file: File, handle: any | null, named: string): Promise<void> {
     const html = await file.text()
-    const el = new DOMParser().parseFromString(html, 'text/html').querySelector('#slidomingo-doc')
+    const el = new DOMParser().parseFromString(html, 'text/html').querySelector(DOC_BLOCK_SELECTOR)
     // resolved against the file's own asset store (kernel/src/assetstore.ts)
     const block = resolveDocText(el?.textContent?.trim() ?? '', html)
     // A pristine, never-saved shell ships an EMPTY block — the blank deck is
@@ -6692,7 +6693,7 @@ export class Editor {
     if (el && !block) { alert(t('{name} is an empty copy of BeeSlides, not a saved deck. Open it on its own to start one.', { name: named })); return }
     let parsed: unknown
     try { parsed = JSON.parse(block) } catch { alert(t('{name} isn’t a BeeSlides document.', { name: named })); return }
-    if ((parsed as { format?: string })?.format === 'slidomingo/enc') {
+    if (isEncFormat((parsed as { format?: string })?.format)) {
       alert(t('{name} is password-protected. Open it directly to unlock it.', { name: named }))
       return
     }
@@ -7892,7 +7893,7 @@ function reportList(notes: string): HTMLElement {
 
 /**
  * The document as handed to an AI agent — a deep clone, kept as its own
- * function (rather than agent call sites reading `window.slidomingo.doc`
+ * function (rather than agent call sites reading `window.beeslides.doc`
  * directly) for API stability: this used to also strip live-collaboration
  * credentials (see docs/DECISIONS.md, 2026-08-28 "the agent-facing copy of a
  * document is not stripped"), a concern that no longer applies now that live
@@ -8364,7 +8365,7 @@ function buildSectionHeader(opts: {
 // pointer and draws a single insertion line there — so where the line is IS
 // where the drop lands, in both directions.
 
-const SLIDE_MIME = 'text/slidomingo-slide'
+const SLIDE_MIME = 'text/beeslides-slide'
 const SECTION_MIME = 'text/slidomingo-section'
 const SECTION_RENAME_EVENT = 'slidomingo:rename-section'
 
@@ -8381,7 +8382,7 @@ function startSlideDrag(ev: DragEvent, ids: string[], source: HTMLElement, conta
   ev.dataTransfer.setData(SLIDE_MIME, JSON.stringify(ids))
   ev.dataTransfer.effectAllowed = 'move'
   activeDrag = { kind: 'slides', ids }
-  const surface = source.querySelector<HTMLElement>('.slidomingo-thumb-surface')
+  const surface = source.querySelector<HTMLElement>('.beeslides-thumb-surface')
   if (ids.length > 1 && surface) {
     const ghost = div('ed-drag-stack')
     const copy = surface.cloneNode(true) as HTMLElement

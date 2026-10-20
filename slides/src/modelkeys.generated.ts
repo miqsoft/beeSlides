@@ -5,7 +5,7 @@
 // edit. Run `node scripts/build-modelkeys.mjs` after changing the format's
 // interfaces; CI fails if this file is out of date.
 //
-// The property names the slidomingo/slides format defines. `validate()` reports
+// The property names the beeslides/slides format defines. `validate()` reports
 // anything outside these sets, because an unknown key is ignored silently and
 // a typo just means the styling does not apply.
 

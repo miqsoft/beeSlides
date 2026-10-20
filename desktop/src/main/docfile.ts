@@ -6,14 +6,16 @@
 // node-testable (scripts/test-desktop-docfile.ts).
 //
 // Everything here leans on the splice contract (docs/PLATFORM.md): the
-// `#slidomingo-doc` block is a plain
-// `<script type="application/slidomingo+json" id="slidomingo-doc">…</script>`
+// `#beeslides-doc` block is a plain
+// `<script type="application/beeslides+json" id="beeslides-doc">…</script>`
 // whose JSON has `<` escaped as `<` (kernel/src/save.ts), so a regex +
 // JSON.parse reads it exactly as the renderer's `textContent` would.
 import { relative, resolve, isAbsolute, sep } from 'node:path'
 import { resolveDocText } from '../../../kernel/src/assetstore.ts'
+import { DOC_BLOCK_ID_SRC, currentFormat, isEncFormat } from '../../../kernel/src/legacynames.ts'
 
-const DOC_BLOCK_RE = /<script[^>]*\bid=["']slidomingo-doc["'][^>]*>([\s\S]*?)<\/script>/i
+// Either name: files saved before 2026-10-20 say `slidomingo-doc` (kernel/src/legacynames.ts).
+const DOC_BLOCK_RE = new RegExp(`<script[^>]*\\bid=["']${DOC_BLOCK_ID_SRC}["'][^>]*>([\\s\\S]*?)<\\/script>`, 'i')
 
 /** The doc block's text exactly as the file holds it, trimmed. May hold
  *  asset-store refs; fine for reading format/title/flags, never hand it to
@@ -60,7 +62,7 @@ function rawDocBlock(html: string): unknown | null {
 
 /**
  * What a file holds, as far as the desktop shell needs to know:
- * - `slides` — a slidomingo/slides deck (the current shell can host it)
+ * - `slides` — a beeslides/slides deck (the current shell can host it)
  * - `enc` — a password envelope; the renderer's password gate unwraps it
  * - `empty` — a pristine app shell with no document yet
  * - `other` — a BeeSlides block of another app (spaces, …) or an unknown format
@@ -75,8 +77,8 @@ export function detectFormat(html: string): DocFormat {
   let json: unknown
   try { json = JSON.parse(text) } catch { return 'none' }
   const format = (json as { format?: unknown } | null)?.format
-  if (format === 'slidomingo/slides') return 'slides'
-  if (format === 'slidomingo/enc') return 'enc'
+  if (currentFormat(format) === 'beeslides/slides') return 'slides'
+  if (isEncFormat(format)) return 'enc'
   return 'other'
 }
 
@@ -150,7 +152,7 @@ export function looksLikeShell(html: string): boolean {
   if (typeof html !== 'string' || html.length < MIN_SHELL_BYTES) return false
   if (!/^﻿?\s*<!doctype html/i.test(html)) return false
   if (!/<\/html>\s*$/i.test(html)) return false
-  if (!/\bid=["']slidomingo-rt["']/.test(html)) return false
+  if (!/\bid=["']beeslides-rt["']/.test(html)) return false
   const f = detectFormat(html)
   return f === 'slides' || f === 'enc'
 }

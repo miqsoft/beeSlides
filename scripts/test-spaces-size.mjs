@@ -5,7 +5,7 @@
 //
 //   node scripts/test-spaces-size.mjs [--update]
 //
-// WHY THIS EXISTS. docs/DECISIONS.md set a 100KB ceiling for slidomingo/spaces and
+// WHY THIS EXISTS. docs/DECISIONS.md set a 100KB ceiling for beeslides/spaces and
 // the round finished at 108KB. That is not the failure — features were worth
 // their bytes and the ceiling was raised deliberately. The failure is that the
 // same entry said "the ceiling is checked per feature from here" and shipped NO
@@ -21,7 +21,7 @@
 // argue with.
 //
 // enforce:false is a WATERMARK: the size and its drift from `reference` are
-// printed every run, and nothing fails. slidomingo/spaces is here by the
+// printed every run, and nothing fails. beeslides/spaces is here by the
 // maintainer's decision — at 98.6% of the old 256 KiB ceiling the app had
 // started declining worthwhile fixes over a few hundred bytes, which is the
 // ceiling costing more than it saves.

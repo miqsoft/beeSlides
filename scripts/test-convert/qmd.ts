@@ -169,7 +169,7 @@ function ok(cond: boolean, msg: string) {
 const full = convertMarkdown(MD_FULL, { assets: { 'figs/slope.png': fakePng(800, 600) }, name: 'workflow.qmd' })
 {
   const d = full.doc
-  ok(d.format === 'slidomingo/slides' && d.version === '1.0.0', 'emits the format header')
+  ok(d.format === 'beeslides/slides' && d.version === '1.0.0', 'emits the format header')
   ok(d.title === 'Bayesian Workflow', 'doc.title comes from the front matter')
   ok(d.meta?.author === 'Ada Lovelace, Grace Hopper', 'both authors land in doc.meta.author')
   ok(d.meta?.company === 'Institute for Advanced Study', 'institute lands in doc.meta.company')

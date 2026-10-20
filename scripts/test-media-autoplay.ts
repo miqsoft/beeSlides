@@ -89,7 +89,7 @@ out.push('video-off=' + attrOf('video', false))
 out.push('video-on=' + attrOf('video', true))
 
 const marker = document.createElement('div')
-marker.id = 'slidomingo-results'
+marker.id = 'beeslides-results'
 marker.textContent = out.join(' | ')
 document.body.appendChild(marker)
 `
@@ -125,7 +125,7 @@ const dom = execFileSync(CHROME, [
   // headroom only: the dump no longer carries the bundle
 ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 16 * 1024 * 1024 })
 
-const m = dom.match(/<div id="slidomingo-results">([^<]*)<\/div>/)
+const m = dom.match(/<div id="beeslides-results">([^<]*)<\/div>/)
 ok(!!m, 'the probe ran and reported (if this fails, nothing below means anything)')
 const results = Object.fromEntries((m?.[1] ?? '').split(' | ').map((p) => p.split('=') as [string, string]))
 

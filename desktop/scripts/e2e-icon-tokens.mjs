@@ -43,7 +43,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const KEY = 'slidomingo-icon-sources'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -147,7 +147,7 @@ async function driver() {
     const out = []
     for (const wc of webContents.getAllWebContents()) {
       if (wc.isDestroyed() || wc.isLoading() || !/BeeSlides\.beeslides\.html/.test(wc.getURL())) continue
-      if (await wc.executeJavaScript('!!(window.slidomingo && document.querySelector(".ed-ribbon"))')) out.push(wc)
+      if (await wc.executeJavaScript('!!(window.beeslides && document.querySelector(".ed-ribbon"))')) out.push(wc)
     }
     return out
   })
@@ -190,7 +190,7 @@ async function driver() {
   const status = await js(b, `window.slidomingoDesktop.iconTokenStatus([{ id: 'src_old', url: ${JSON.stringify(s1Root)} }])`)
   ok(status.src_old === true && Object.keys(status).length === 1, 'iconTokenStatus says a token is stored — and returns nothing but that')
   hits.s1.length = 0
-  await js(b, `window.slidomingo.menu.run('app.settings'); true`)
+  await js(b, `window.beeslides.menu.run('app.settings'); true`)
   await waitFor(async () => js(b, `!!document.querySelector('.ed-settings-navitem')`))
   await js(b, `[...document.querySelectorAll('.ed-settings-navitem')].find((n) => n.textContent.includes('Icon library')).click(); true`)
   const card = await waitFor(async () => js(b, `!!document.querySelector('.ed-isrc[data-source-id="src_old"]')`))

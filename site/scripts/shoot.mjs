@@ -70,7 +70,7 @@ const MARK = (marks) => {
     const x = after ? r.right + 24 : dx >= 0 ? r.left + dx : r.right + dx
     const y = after ? r.top + r.height / 2 : dy >= 0 ? r.top + dy : r.bottom + dy
     const m = document.createElement('div')
-    m.setAttribute('data-slidomingo-transient', '')
+    m.setAttribute('data-beeslides-transient', '')
     m.textContent = n
     m.style.cssText = `position:fixed;z-index:2147483647;left:${x - 17}px;top:${y - 17}px;width:34px;height:34px;
       border-radius:50%;background:#FFC233;color:#17120A;font:800 18px/34px -apple-system,system-ui,sans-serif;

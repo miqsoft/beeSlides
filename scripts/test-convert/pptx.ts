@@ -65,7 +65,7 @@ const byId = (r: ConvertResult, slide: number, id: string) =>
 {
   const r = await convertPptx(await fxMinimal(), { link: false })
   const d = r.doc
-  ok(d.format === 'slidomingo/slides' && d.version === '1.0.0', 'minimal: format/version stamped')
+  ok(d.format === 'beeslides/slides' && d.version === '1.0.0', 'minimal: format/version stamped')
   // 12192000×6858000 EMU / 9525 = 1280×720 EXACTLY
   ok(d.size.width === 1280 && d.size.height === 720, 'minimal: 12192000×6858000 EMU converts to exactly 1280×720')
   ok(d.title === 'Rig Deck', 'minimal: title comes from docProps/core.xml dc:title')

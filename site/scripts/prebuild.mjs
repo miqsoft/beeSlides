@@ -30,7 +30,7 @@ console.log(`prebuild: ${decks.length} example deck(s) copied to public/examples
 // The splice contract (docs/PLATFORM.md): swap the editor's doc block for the
 // example's, minus `readonly` (that flag is what makes it present-only). The
 // docId stays the example's own.
-const DOC_BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const DOC_BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const EDITABLE = 'how-bees-fly.beeslides.html'
 if (existsSync(built)) {
   const shell = readFileSync(built, 'utf8')

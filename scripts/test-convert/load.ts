@@ -59,7 +59,7 @@ function ok(cond: boolean, msg: string) {
 /** The gate itself: emitted document → text → the REAL loader. */
 function gate(name: string, doc: unknown) {
   // through JSON — the emitted document must survive as TEXT, the way it
-  // actually travels (Replace from JSON…, window.slidomingo.loadDoc)
+  // actually travels (Replace from JSON…, window.beeslides.loadDoc)
   const parsed = parseDoc(JSON.stringify(doc))
   ok(parsed !== null, `${name}: parseDoc accepts the emitted document`)
   if (!parsed) return

@@ -118,10 +118,10 @@ export function fontFaceCss(doc: SlidomingoDoc): string {
  * Idempotent — call at boot and again whenever a font is added.
  */
 export function injectFonts(doc: SlidomingoDoc) {
-  let style = document.getElementById('slidomingo-fonts') as HTMLStyleElement | null
+  let style = document.getElementById('beeslides-fonts') as HTMLStyleElement | null
   if (!style) {
     style = document.createElement('style')
-    style.id = 'slidomingo-fonts'
+    style.id = 'beeslides-fonts'
     document.head.appendChild(style)
   }
   style.textContent = fontFaceCss(doc)

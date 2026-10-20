@@ -117,22 +117,22 @@ function buildDeck(base, mods = {}) {
 
 // ---- show helpers (both shells) --------------------------------------------------
 const cur = (p) => p.evaluate(() =>
-  document.querySelector('.slidomingo-present-overlay section.present > .slidomingo-slide')?.getAttribute('data-slide-id') ?? null)
-const ghost = (p) => p.evaluate(() => !!document.querySelector('.slidomingo-present-overlay .slidomingo-zoom-ghost'))
+  document.querySelector('.beeslides-present-overlay section.present > .beeslides-slide')?.getAttribute('data-slide-id') ?? null)
+const ghost = (p) => p.evaluate(() => !!document.querySelector('.beeslides-present-overlay .beeslides-zoom-ghost'))
 /** width of the present surface relative to its section (1 = at rest) */
 const surfaceScale = (p) => p.evaluate(() => {
-  const s = document.querySelector('.slidomingo-present-overlay section.present')
-  const surf = s?.querySelector(':scope > .slidomingo-slide')
+  const s = document.querySelector('.beeslides-present-overlay section.present')
+  const surf = s?.querySelector(':scope > .beeslides-slide')
   if (!s || !surf) return null
   return surf.getBoundingClientRect().width / s.getBoundingClientRect().width
 })
 const noteVisible = (p) => p.evaluate(() => {
-  const n = document.querySelector('.slidomingo-present-overlay section [data-slide-id="O"] [data-el-id="note"]')
+  const n = document.querySelector('.beeslides-present-overlay section [data-slide-id="O"] [data-el-id="note"]')
   return n ? getComputedStyle(n).visibility !== 'hidden' : null
 })
 const clickTile = async (p, id) => {
   const box = await p.evaluate((tid) => {
-    const n = document.querySelector(`.slidomingo-present-overlay section.present [data-el-id="${tid}"]`)
+    const n = document.querySelector(`.beeslides-present-overlay section.present [data-el-id="${tid}"]`)
     const r = n?.getBoundingClientRect()
     return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null
   }, id)
@@ -148,13 +148,13 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForTimeout(600)
   // headless leaves the finished boot splash in the flow (same on main) — it only gets in the screenshots' way
-  await p.evaluate(() => document.getElementById('slidomingo-splash')?.remove())
-  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+  await p.evaluate(() => document.getElementById('beeslides-splash')?.remove())
+  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
   const load = async (doc) => {
-    await p.evaluate((json) => window.slidomingo.loadDoc(json), JSON.stringify(doc))
+    await p.evaluate((json) => window.beeslides.loadDoc(json), JSON.stringify(doc))
     await p.waitForTimeout(300)
   }
   await load(buildDeck(base))
@@ -163,7 +163,7 @@ try {
   {
     const r = await p.evaluate(() => {
       const tileNode = document.querySelector('.ed-stage-scale [data-el-id="zA"]')
-      const inner = tileNode?.querySelector('.slidomingo-zoom-inner')
+      const inner = tileNode?.querySelector('.beeslides-zoom-inner')
       const nested = inner ? [...inner.querySelectorAll('*')] : []
       return {
         tile: !!tileNode,
@@ -171,15 +171,15 @@ try {
         nestedHasText: !!inner?.textContent?.includes('A one'),
         noDataAttrs: nested.every((n) => ![...n.attributes].some((a) => a.name.startsWith('data-'))) && !!inner && ![...inner.attributes].some((a) => a.name.startsWith('data-')),
         inert: inner?.hasAttribute('inert') && inner.getAttribute('aria-hidden') === 'true',
-        frame: !!tileNode?.querySelector('.slidomingo-zoom-frame'),
-        missing: !!document.querySelector('.ed-stage-scale .slidomingo-zoom-missing'),
+        frame: !!tileNode?.querySelector('.beeslides-zoom-frame'),
+        missing: !!document.querySelector('.ed-stage-scale .beeslides-zoom-missing'),
       }
     })
     check(r.tile && r.inner && r.nestedHasText, 'a tile renders its cover slide nested', r)
     check(r.noDataAttrs && r.inert, 'the nested picture carries no data-* attributes and is inert', r)
     check(r.frame && !r.missing, 'the frame is drawn; no "target missing" box', r)
     if (shots) {
-      await p.evaluate(() => window.slidomingo.select?.([]))
+      await p.evaluate(() => window.beeslides.select?.([]))
       await p.screenshot({ path: join(shots, 'editor-overview-tiles.png') })
     }
   }
@@ -198,7 +198,7 @@ try {
       await p.mouse.up()
       await p.waitForTimeout(200)
     }
-    const sel = await p.evaluate(() => window.slidomingo.selection)
+    const sel = await p.evaluate(() => window.beeslides.selection)
     check(JSON.stringify(sel) === JSON.stringify(['zA']), 'marquee over a tile selects the tile, nothing nested', sel)
     if (shots && sel.length === 1) {
       // the properties panel for a zoom tile
@@ -215,8 +215,8 @@ try {
 
   console.log('— editor: Insert ▸ Summary zoom')
   {
-    const before = await p.evaluate(() => window.slidomingo.doc.slides.length)
-    await p.evaluate(() => window.slidomingo.menu.run('insert.summaryZoom'))
+    const before = await p.evaluate(() => window.beeslides.doc.slides.length)
+    await p.evaluate(() => window.beeslides.menu.run('insert.summaryZoom'))
     await p.waitForSelector('.ed-zoompick', { timeout: 5000 })
     await p.click('.ed-zoompick-tabs button[data-tab="sections"]')
     await p.click('.ed-zoompick-card[data-key="section:secB"]')
@@ -225,7 +225,7 @@ try {
     await p.click('.ed-zoompick .ed-btn-primary')
     await p.waitForTimeout(400)
     const r = await p.evaluate(() => {
-      const d = window.slidomingo.doc
+      const d = window.beeslides.doc
       const i = d.slides.findIndex((s) => s.elements.filter((e) => e.type === 'zoom').length === 2 && s.id !== 'O')
       const s = d.slides[i]
       return {
@@ -236,16 +236,16 @@ try {
     })
     check(r.n === before + 1 && r.nextId === 'D' && JSON.stringify(r.targets) === '["secB","secZ"]' && !!r.section,
       'one overview slide before the first picked section, one tile per section, its own section', r)
-    await p.evaluate(() => window.slidomingo.undo())
+    await p.evaluate(() => window.beeslides.undo())
     await p.waitForTimeout(200)
-    const after = await p.evaluate(() => ({ n: window.slidomingo.doc.slides.length, secs: window.slidomingo.doc.sections.length }))
+    const after = await p.evaluate(() => ({ n: window.beeslides.doc.slides.length, secs: window.beeslides.doc.sections.length }))
     check(after.n === before && after.secs === 4, 'one undo takes the whole summary zoom back', after)
   }
 
   console.log('— editor: deleting a target prunes its tile')
   {
     const r = await p.evaluate(() => {
-      const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+      const d = JSON.parse(JSON.stringify(window.beeslides.doc))
       return d.slides.find((s) => s.id === 'N').elements.some((e) => e.id === 'zZ')
     })
     // delete slide Z through the slide panel (focus the sidebar thumb, Delete; confirm the impact dialog)
@@ -253,18 +253,18 @@ try {
     const thumb = await p.$('.ed-sidebar [data-slide-id="Z"]')
     if (thumb) { await thumb.click(); await p.keyboard.press('Delete'); await p.waitForTimeout(300) }
     const after = await p.evaluate(() => {
-      const d = window.slidomingo.doc
+      const d = window.beeslides.doc
       return { z: d.slides.some((s) => s.id === 'Z'), tile: d.slides.find((s) => s.id === 'N')?.elements.some((e) => e.id === 'zZ') }
     })
     check(r && !after.z && after.tile === false, 'the slide is gone and so is the tile that zoomed into it', after)
-    await p.evaluate(() => window.slidomingo.undo())
+    await p.evaluate(() => window.beeslides.undo())
     await p.waitForTimeout(200)
   }
 
   // ---------------------------------------------------------------- the show
   const present = async (doc) => {
     await load(doc)
-    await p.evaluate(() => { window.slidomingo.anim.setManual(true) })
+    await p.evaluate(() => { window.beeslides.anim.setManual(true) })
     await p.evaluate(() => { try { localStorage.setItem('slidomingo-reduce-motion', 'off') } catch {} })
     // a desktop-width tab has the menu bar (DECISIONS 2026-10-13): Play ▸ Present in tab;
     // a phone-width one the Slideshow pill's menu
@@ -275,10 +275,10 @@ try {
       await p.click('button[title="More ways to present"]:visible')
       await p.click('button:has-text("Present in this tab"):visible')
     }
-    await p.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 10_000 })
+    await p.waitForSelector('.beeslides-present-overlay section.present', { timeout: 10_000 })
     await p.waitForTimeout(400)
   }
-  const tick = (s) => p.evaluate((sec) => window.slidomingo.anim.tick(sec), s)
+  const tick = (s) => p.evaluate((sec) => window.beeslides.anim.tick(sec), s)
   const key = async (k) => { await p.keyboard.press(k); await p.waitForTimeout(60) }
   const exitShow = async () => { await p.keyboard.press('Escape'); await p.waitForTimeout(300) }
 
@@ -352,7 +352,7 @@ try {
   console.log('— show: Enter on a focused tile; speaker preview')
   {
     await key('Home'); await tick(1.2)
-    await p.evaluate(() => document.querySelector('.slidomingo-present-overlay section.present [data-el-id="zA"]')?.focus())
+    await p.evaluate(() => document.querySelector('.beeslides-present-overlay section.present [data-el-id="zA"]')?.focus())
     const role = await p.evaluate(() => {
       const n = document.activeElement
       return { role: n?.getAttribute('role'), label: n?.getAttribute('aria-label'), tab: n?.tabIndex }
@@ -368,7 +368,7 @@ try {
       await p.waitForTimeout(200)
       const label = await sv.evaluate(() => document.querySelector('.sv-next-wrap .sv-label')?.textContent)
       check(label === 'Back to zoom', 'the speaker view previews "Back to zoom" on the range\'s last slide', label)
-      const nextBg = await sv.evaluate(() => document.querySelector('.sv-nextbox .slidomingo-slide')?.getAttribute('data-slide-id'))
+      const nextBg = await sv.evaluate(() => document.querySelector('.sv-nextbox .beeslides-slide')?.getAttribute('data-slide-id'))
       check(nextBg === 'O', 'and shows the overview as the next slide', nextBg)
       await sv.close()
     } else check(false, 'the speaker view opens')
@@ -415,7 +415,7 @@ try {
     const deck = buildDeck({ ...base, readonly: true })
     deck.slides.forEach((s) => s.elements.forEach((e) => { if (e.type === 'zoom') e.duration = 3 }))
     const json = JSON.stringify(deck).replace(/</g, '\\u003c')
-    const spliced = html.replace(/(<script type="application\/slidomingo\+json" id="slidomingo-doc">)(<\/script>)/, `$1${json}$2`)
+    const spliced = html.replace(/(<script type="application\/beeslides\+json" id="beeslides-doc">)(<\/script>)/, `$1${json}$2`)
     check(spliced !== html, 'the doc splices into the viewer shell')
     const dir = mkdtempSync(join(tmpdir(), 'zoom-e2e-'))
     const file = join(dir, 'deck.beeslides.html')
@@ -429,7 +429,7 @@ try {
     await v.addInitScript(() => { try { localStorage.setItem('slidomingo-present-mode', 'window') } catch {} })
     await v.goto(pathToFileURL(file).href)
     await v.click('.ed-playgo', { timeout: 20_000 })
-    await v.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 20_000 })
+    await v.waitForSelector('.beeslides-present-overlay section.present', { timeout: 20_000 })
     await v.waitForTimeout(800)
     check(await cur(v) === 'O', 'the viewer starts the show on the overview')
     await clickTile(v, 'zA')

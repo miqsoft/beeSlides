@@ -43,7 +43,7 @@ const image = (id, extra = {}) => ({
 const ly = (id, elements, extra = {}) => ({ id, name: id, background: `#${id.length}${id.length}${id.length}`, transition: 'fade', notes: '', elements, ...extra })
 function makeDoc(layouts, slides = []) {
   return {
-    format: 'slidomingo/slides', version: 1, docId: 'd', title: 't',
+    format: 'beeslides/slides', version: 1, docId: 'd', title: 't',
     size: { width: 1280, height: 720 },
     theme: { background: '#fff', color: '#000', accent: '#f00', fontFamily: 'Arial' },
     slides, layouts,

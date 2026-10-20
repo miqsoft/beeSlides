@@ -158,7 +158,7 @@ const fontsFor = (want) => {
 }
 
 const doc = (o) => ({
-  format: 'slidomingo/slides', version: 1, title: o.title,
+  format: 'beeslides/slides', version: 1, title: o.title,
   size: { width: 1280, height: 720 },
   theme: o.theme, template: true,
   ...(o.withFonts
@@ -745,7 +745,7 @@ function deckPicnic() {
 // ——— splice + write ————————————————————————————————————————————————
 const outDir = process.argv[2] ?? join(root, 'working')
 mkdirSync(outDir, { recursive: true })
-const blockRe = /<script type="application\/slidomingo\+json" id="slidomingo-doc">[\s\S]*?<\/script>/
+const blockRe = /<script type="application\/beeslides\+json" id="beeslides-doc">[\s\S]*?<\/script>/
 for (const [file, build] of [
   ['signal-editorial-type.beeslides.html', deckSignal],
   ['terra-premium-product.beeslides.html', deckTerra],
@@ -755,7 +755,7 @@ for (const [file, build] of [
   uid = 0
   const d = build()
   const json = JSON.stringify(d).replace(/</g, '\\u003c')
-  const out = shell.replace(blockRe, `<script type="application/slidomingo+json" id="slidomingo-doc">\n${json}\n</scr` + 'ipt>')
+  const out = shell.replace(blockRe, `<script type="application/beeslides+json" id="beeslides-doc">\n${json}\n</scr` + 'ipt>')
   if (!out.includes(json)) throw new Error(`splice failed for ${file}`)
   writeFileSync(join(outDir, file), out)
   console.log(`${file} — ${d.slides.length} slides, ${Math.round(out.length / 1024)} KB`)

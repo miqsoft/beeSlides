@@ -377,7 +377,7 @@ async function runOne({ co, task, run, browser, url, args, outDir }) {
 
     // final state
     await sleep(800)
-    const after = await page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+    const after = await page.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
     const deckFile = `${tag}.final-deck.json`
     writeFileSync(join(outDir, deckFile), JSON.stringify(after, null, 1))
     record.files.finalDeck = deckFile

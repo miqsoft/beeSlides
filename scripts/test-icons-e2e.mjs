@@ -143,15 +143,15 @@ async function boot(ctx, seed = {}) {
     }
   }, { KEYS, seed })
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForSelector('.ed-stage-scale', { timeout: 30_000 })
-  await p.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 15_000 }).catch(() => {})
+  await p.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 15_000 }).catch(() => {})
   await p.waitForTimeout(400)
   // a blank slide to insert into
   await p.evaluate(() => {
-    const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+    const d = JSON.parse(JSON.stringify(window.beeslides.doc))
     d.slides = [{ ...d.slides[0], id: 's1', elements: [] }]
-    window.slidomingo.loadDoc(JSON.stringify(d))
+    window.beeslides.loadDoc(JSON.stringify(d))
   })
   await p.waitForTimeout(300)
   return p
@@ -189,7 +189,7 @@ const thumbsLoaded = (p) => p.evaluate(async () => {
   await Promise.all(imgs.map((i) => i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 3000) })))
   return imgs.length > 0 && imgs.every((i) => i.complete && i.naturalWidth > 0)
 })
-const slideEls = (p) => p.evaluate(() => window.slidomingo.doc.slides[0].elements.map((e) => ({ id: e.id, type: e.type, asset: e.asset, src: e.src, provenance: e.provenance })))
+const slideEls = (p) => p.evaluate(() => window.beeslides.doc.slides[0].elements.map((e) => ({ id: e.id, type: e.type, asset: e.asset, src: e.src, provenance: e.provenance })))
 const clickCell = async (p, label) => {
   await p.locator('.ed-icon-cell', { hasText: label }).first().click()
   await p.waitForTimeout(400)
@@ -265,13 +265,13 @@ try {
     await clickCell(p, 'star')
     let els = await slideEls(p)
     check(els.length === 1 && els[0].type === 'svg', 'clicking an svg icon inserts one svg element', els)
-    const interned = await p.evaluate(() => { const e = window.slidomingo.doc.slides[0].elements[0]; return window.slidomingo.doc.assets?.[e.asset] ?? null })
+    const interned = await p.evaluate(() => { const e = window.beeslides.doc.slides[0].elements[0]; return window.beeslides.doc.assets?.[e.asset] ?? null })
     check(typeof interned === 'string' && interned.includes('fill="#fa0"'), 'its markup is interned in doc.assets')
     const host = new URL(srv.base).host
     check(JSON.stringify(els[0].provenance) === JSON.stringify({ origin: host, url: srv.base + '/files/shapes/star.svg', author: 'S. Tar', license: 'CC-BY-4.0' }),
       'the inserted icon records its source, address, and the license the SERVER gave for it', els[0].provenance)
     check((await p.locator('.ed-icon-pop').count()) === 1, 'the popover stays open so several icons can be dropped in a row')
-    await p.evaluate(() => window.slidomingo.undo())
+    await p.evaluate(() => window.beeslides.undo())
     await p.waitForTimeout(200)
     check((await slideEls(p)).length === 0, 'ONE undo removes the inserted icon')
     // the same icon twice shares one asset
@@ -414,7 +414,7 @@ try {
   {
     // FSA handles read back from IndexedDB need a persistent profile (see
     // the headless-driving notes); a stubbed picker hands out an OPFS dir
-    const profile = mkdtempSync(join(tmpdir(), 'slidomingo-icons-'))
+    const profile = mkdtempSync(join(tmpdir(), 'beeslides-icons-'))
     const fctx = await chromium.launchPersistentContext(profile, { headless: true, viewport: { width: 1440, height: 900 } })
     try {
       const p = await fctx.newPage()
@@ -423,15 +423,15 @@ try {
         window.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('icons')
       })
       await p.goto(url)
-      await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+      await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
       await p.waitForSelector('.ed-stage-scale', { timeout: 30_000 })
-      await p.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 15_000 }).catch(() => {})
+      await p.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 15_000 }).catch(() => {})
       const opfs = await p.evaluate(async (svg) => {
         try {
           const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('icons', { create: true })
           const sub = await dir.getDirectoryHandle('arrows', { create: true })
           // an icons.json, as an exported icon set carries (iconset.ts iconManifest)
-          const manifest = JSON.stringify({ format: 'slidomingo-icons', version: 1, name: 'Mine', license: 'CC-BY-4.0', author: 'Icon Maker',
+          const manifest = JSON.stringify({ format: 'beeslides-icons', version: 1, name: 'Mine', license: 'CC-BY-4.0', author: 'Icon Maker',
             icons: [{ file: 'sun.svg', name: 'sun', keywords: ['daylight'] }] })
           for (const [d, name, data] of [[dir, 'sun.svg', svg], [sub, 'arrow-left.svg', svg], [dir, 'readme.txt', 'not an icon'], [dir, 'icons.json', manifest]]) {
             const w = await (await d.getFileHandle(name, { create: true })).createWritable()
@@ -445,14 +445,14 @@ try {
       } else {
         await p.evaluate((K) => { localStorage.setItem(K.mode, 'folder') }, KEYS)
         await p.reload()
-        await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+        await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
         await p.waitForSelector('.ed-stage-scale', { timeout: 30_000 })
-        await p.waitForFunction(() => !document.getElementById('slidomingo-splash'), null, { timeout: 15_000 }).catch(() => {})
+        await p.waitForFunction(() => !document.getElementById('beeslides-splash'), null, { timeout: 15_000 }).catch(() => {})
         await p.waitForTimeout(400)
         await p.evaluate(() => {
-          const d = JSON.parse(JSON.stringify(window.slidomingo.doc))
+          const d = JSON.parse(JSON.stringify(window.beeslides.doc))
           d.slides = [{ ...d.slides[0], id: 's1', elements: [] }]
-          window.slidomingo.loadDoc(JSON.stringify(d))
+          window.beeslides.loadDoc(JSON.stringify(d))
         })
 
         await openPopover(p)

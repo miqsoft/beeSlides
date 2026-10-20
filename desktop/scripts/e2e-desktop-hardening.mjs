@@ -48,7 +48,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let failures = 0
@@ -135,7 +135,7 @@ async function driver() {
     return null
   })
   const isShell = (u) => /BeeSlides\.beeslides\.html/.test(u)
-  const EDITOR = 'window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-root")'
+  const EDITOR = 'window.beeslides && window.beeslides.doc && document.querySelector(".ed-root")'
   const js = (wc, src) => wc.executeJavaScript(src, true)
   const jsNoGesture = (wc, src) => wc.executeJavaScript(src, false)
   /** A real (trusted) left click at view coordinates. */
@@ -235,7 +235,7 @@ async function driver() {
 
     // the speaker window: allowed by name, scriptable by the deck, no bridge
     const before = new Set(BrowserWindow.getAllWindows())
-    await js(wc, `window.__sp = window.open('about:blank', 'slidomingo-speaker', 'width=400,height=300'); !!window.__sp`)
+    await js(wc, `window.__sp = window.open('about:blank', 'beeslides-speaker', 'width=400,height=300'); !!window.__sp`)
     const sp = await waitFor(async () => BrowserWindow.getAllWindows().find((w) => !before.has(w) && !w.isDestroyed()) ?? null, 5000)
     ok(!!sp, 'the speaker window opens')
     if (sp) {
@@ -376,7 +376,7 @@ async function driver() {
     const r4 = await saveAs()
     ok(r4?.ok === true && globalThis.__boxes.length === boxes && existsSync(arg.fresh.replace(/\.html$/, '.beeslides.html')), 'a new name is written without a box')
     // the editor's own Save a copy… sends its translated strings
-    await js(wc, `window.slidomingo.i18n.setLocale('de'); true`)
+    await js(wc, `window.beeslides.i18n.setLocale('de'); true`)
     globalThis.__savePath = arg.typed
     globalThis.__boxAnswer = 1
     wc.send('slidomingo:menu-command', 'file.saveCopy')
@@ -429,11 +429,11 @@ async function driver() {
     const wc = await findWc(isShell, EDITOR)
     ok(!!wc, 'the deck opened')
     if (!wc) return quit()
-    const overlay = () => js(wc, `!!document.querySelector('.slidomingo-present-overlay section.present a[href]')`)
+    const overlay = () => js(wc, `!!document.querySelector('.beeslides-present-overlay section.present a[href]')`)
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'F5' }); wc.sendInputEvent({ type: 'keyUp', keyCode: 'F5' })
     ok(!!await waitFor(overlay, 8000), 'F5 starts the show, the link is live')
     await sleep(1200) // the slide transition
-    const r = await js(wc, `(() => { const b = document.querySelector('.slidomingo-present-overlay section.present a[href]').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()`)
+    const r = await js(wc, `(() => { const b = document.querySelector('.beeslides-present-overlay section.present a[href]').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2] })()`)
     await sleep(1100) // past the hand-off gap of the key press
     const n0 = BrowserWindow.getAllWindows().length // (+ a speaker window on a 2-display machine)
     await click(wc, Math.round(r[0]), Math.round(r[1]))

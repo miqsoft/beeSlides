@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// Text measurement — `window.slidomingo.measure()`.
+// Text measurement — `window.beeslides.measure()`.
 //
 // WHY THIS EXISTS. The format is absolute pixels, which is what lets morph, the
 // editor's drag handles and the renderer all work from one representation. The
@@ -60,7 +60,7 @@ export interface TextMeasurement {
  */
 function withHost<T>(fn: (host: HTMLElement) => T): T {
   const host = document.createElement('div')
-  host.setAttribute('data-slidomingo-transient', '')
+  host.setAttribute('data-beeslides-transient', '')
   host.style.cssText =
     'position:fixed;left:-10000px;top:0;visibility:hidden;pointer-events:none;contain:strict;'
   document.body.appendChild(host)
@@ -86,7 +86,7 @@ export function measureText(spec: TextMeasureSpec, doc: SlidomingoDoc): TextMeas
 function measureInto(host: HTMLElement, spec: TextMeasureSpec, doc: SlidomingoDoc): TextMeasurement {
   const el = defaultText({
     ...spec,
-    id: 'slidomingo-measure',
+    id: 'beeslides-measure',
     x: 0,
     y: 0,
     w: spec.w,
@@ -97,7 +97,7 @@ function measureInto(host: HTMLElement, spec: TextMeasureSpec, doc: SlidomingoDo
   // measurement — let the inner text take whatever height it needs.
   node.style.height = 'auto'
   host.appendChild(node)
-  const inner = node.querySelector<HTMLElement>('.slidomingo-text-inner') ?? node
+  const inner = node.querySelector<HTMLElement>('.beeslides-text-inner') ?? node
   const height = Math.ceil(inner.getBoundingClientRect().height)
   // lineHeight is unitless in the model, so one line is fontSize * lineHeight
   const per = (el.fontSize ?? 16) * (el.lineHeight ?? 1.2)
@@ -148,19 +148,19 @@ export interface MathMeasurement {
 
 /**
  * Measure an equation (model.ts `MathElement`) as the renderer lays it out:
- * the natural size of its `.slidomingo-math-box`, unconstrained by the
+ * the natural size of its `.beeslides-math-box`, unconstrained by the
  * element's own frame. Same rule as text — render through `renderElement`,
  * never estimate — because MathML layout depends on the viewer's math font.
  */
 export function measureMath(el: MathElement, doc: SlidomingoDoc): MathMeasurement {
   return withHost((host) => {
-    const node = renderElement({ ...el, id: 'slidomingo-measure', x: 0, y: 0, rotation: 0 } as MathElement, doc)
+    const node = renderElement({ ...el, id: 'beeslides-measure', x: 0, y: 0, rotation: 0 } as MathElement, doc)
     // neither box dimension may constrain what we are trying to find
     node.style.width = '100000px'
     node.style.height = 'auto'
     node.style.transform = ''
     host.appendChild(node)
-    const box = node.querySelector<HTMLElement>('.slidomingo-math-box') ?? node
+    const box = node.querySelector<HTMLElement>('.beeslides-math-box') ?? node
     const r = box.getBoundingClientRect()
     node.remove()
     return { width: Math.ceil(r.width), height: Math.ceil(r.height) }

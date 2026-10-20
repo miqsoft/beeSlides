@@ -26,7 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const readDoc = (p) => JSON.parse(readFileSync(p, 'utf8').match(BLOCK_RE)[2].trim())
 
@@ -107,18 +107,18 @@ async function driver() {
       return null
     }, ms)
   }
-  const TEMPLATE_WINDOW = 'window.slidomingo && window.slidomingo.doc && document.querySelector(".ed-layoutmgr-overlay") && / — Layout$/.test(document.title)'
+  const TEMPLATE_WINDOW = 'window.beeslides && window.beeslides.doc && document.querySelector(".ed-layoutmgr-overlay") && / — Layout$/.test(document.title)'
   const START_PAGE = 'window.slidomingoDesktop && document.querySelector(".ed-startpick .ed-sp-row")'
   /** Change the doc through the scripting API (an ordinary undoable edit). */
   const edit = (wc, fn) => js(wc, `(() => {
-    const d = JSON.parse(JSON.stringify(window.slidomingo.doc)); (${fn})(d)
-    window.slidomingo.loadDoc(JSON.stringify(d))
+    const d = JSON.parse(JSON.stringify(window.beeslides.doc)); (${fn})(d)
+    window.beeslides.loadDoc(JSON.stringify(d))
   })`)
   const menuItem = (label) => Menu.getApplicationMenu().items.find((i) => i.label === 'File').submenu.items.find((i) => i.label === label)
   async function shot(wc, name) {
     if (!process.env.E2E_SHOTS) return
     try {
-      await waitFor(() => wc.executeJavaScript('!document.getElementById("slidomingo-splash")'), 5000)
+      await waitFor(() => wc.executeJavaScript('!document.getElementById("beeslides-splash")'), 5000)
       wc.invalidate()
       await sleep(500)
       writeFileSync(join(process.env.E2E_SHOTS, `${name}.png`), (await wc.capturePage()).toPNG())
@@ -312,10 +312,10 @@ async function driver() {
     ok(!!start2, 'a second window shows the start page')
     ok(!await js(start2, () => !!document.querySelector('.ed-sp-panel:not([hidden])')), 'no panel is open before the click')
     jsGo(start2, (path) => document.querySelector(`.ed-sp-tile[title="${path}"]`).click(), p) // one click: a deck
-    const deck = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Untitled" && !/ — Layout$/.test(document.title)')
+    const deck = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Untitled" && !/ — Layout$/.test(document.title)')
     ok(!!deck, 'opening the template normally still starts an "Untitled" deck')
-    ok(await js(deck, () => window.slidomingo.doc.basedOn?.templateId) === templateId, 'based on it (basedOn.templateId)')
-    ok(await js(deck, () => !window.slidomingo.doc.template && !window.slidomingo.doc.templateId), 'and not a template itself')
+    ok(await js(deck, () => window.beeslides.doc.basedOn?.templateId) === templateId, 'based on it (basedOn.templateId)')
+    ok(await js(deck, () => !window.beeslides.doc.template && !window.beeslides.doc.templateId), 'and not a template itself')
     ok(await js(deck, () => document.querySelector('.ed-savestatus')?.textContent) === 'Draft', 'a new Draft')
     // an already-open template focuses its window instead of a second one
     const before = docWindows()
@@ -328,7 +328,7 @@ async function driver() {
 
   if (step === 'deck-edit-template') {
     const p = arg.path
-    const deck = await page('window.slidomingo && window.slidomingo.doc && window.slidomingo.doc.title === "Based deck"')
+    const deck = await page('window.beeslides && window.beeslides.doc && window.beeslides.doc.title === "Based deck"')
     ok(!!deck, 'a deck based on the template opens')
     await js(deck, () => document.dispatchEvent(new CustomEvent('slidomingo:open-layout-manager', { detail: { tab: 'types', force: true } })))
     await waitFor(() => js(deck, () => !!document.querySelector('.ed-tmplmenu > .ed-btn')))
@@ -345,11 +345,11 @@ async function driver() {
     ok(docWindows() === 2, 'in a NEW window — the deck stays open beside it')
     await edit(wc, (d) => { d.layouts.find((l) => l.id === 'ly-e2e').background = '#fedcba' })
     ok(!!await waitFor(async () => readDoc(p).layouts.find((l) => l.id === 'ly-e2e')?.background === '#fedcba', 6000), 'an edit there saves into the template')
-    ok(await js(deck, () => !window.slidomingo.doc.layouts?.some((l) => l.background === '#fedcba')), 'the deck does not change by itself')
+    ok(await js(deck, () => !window.beeslides.doc.layouts?.some((l) => l.background === '#fedcba')), 'the deck does not change by itself')
     await js(deck, () => document.querySelector('.ed-tmplmenu > .ed-btn').click())
     await waitFor(() => js(deck, () => [...document.querySelectorAll('.ed-tmplmenu .ed-menu .ed-btn')].some((b) => b.textContent.startsWith('Update this deck'))))
     await js(deck, () => [...document.querySelectorAll('.ed-tmplmenu .ed-menu .ed-btn')].find((b) => b.textContent.startsWith('Update this deck')).click())
-    ok(!!await waitFor(() => js(deck, () => window.slidomingo.doc.layouts?.find((l) => l.id === 'ly-e2e')?.background === '#fedcba'), 5000),
+    ok(!!await waitFor(() => js(deck, () => window.beeslides.doc.layouts?.find((l) => l.id === 'ly-e2e')?.background === '#fedcba'), 5000),
       '"Update this deck from “Brand”" pulls the saved change in')
     quit()
   }

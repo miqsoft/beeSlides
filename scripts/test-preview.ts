@@ -11,7 +11,7 @@
 // can fail SILENTLY — nobody looks at markup they cannot see — and both are
 // unrecoverable once files are on disk:
 //
-//   1. THE ENCRYPTION VETO. A `slidomingo/enc` deck must never carry a plaintext
+//   1. THE ENCRYPTION VETO. A `beeslides/enc` deck must never carry a plaintext
 //      rendering of page one. Getting this wrong publishes the title slide of
 //      every password-protected deck ever saved, and the owner would have no
 //      way to notice.
@@ -22,7 +22,7 @@
 //      refusal covers the preview's own `<style>`, which is the hole escaping
 //      cannot close: a raw text element is written to the file VERBATIM, so a
 //      `</style>` inside one author-supplied declaration ends it early and the
-//      rest becomes live markup in every reader's DOM, outside #slidomingo-doc.
+//      rest becomes live markup in every reader's DOM, outside #beeslides-doc.
 //   3. THE AT-REST KDF. Its iteration count may be raised, and raising it must
 //      never cost a file. The count lives in the envelope, so an encrypted deck
 //      written by any older build has to keep opening with ITS number — a deck
@@ -60,9 +60,9 @@ const NOSCRIPT_CLOSE = '</nosc' + 'ript>'
 const STYLE_OPEN = '<sty' + 'le>'
 const STYLE_CLOSE = '</sty' + 'le>'
 
-const PLAIN = JSON.stringify({ format: 'slidomingo/slides', docId: 'x', title: 'Q3 board' })
+const PLAIN = JSON.stringify({ format: 'beeslides/slides', docId: 'x', title: 'Q3 board' })
 const ENVELOPE = JSON.stringify({
-  format: 'slidomingo/enc', v: 1, it: 300000, salt: 'c2FsdA==', iv: 'aXY=', data: 'ZGF0YQ==',
+  format: 'beeslides/enc', v: 1, it: 300000, salt: 'c2FsdA==', iv: 'aXY=', data: 'ZGF0YQ==',
 })
 
 // --- 1. the encryption veto -------------------------------------------------
@@ -79,7 +79,7 @@ ok(previewAllowed(PLAIN, true) === false, 'password active vetoes the preview ev
 
 // The body alone must be enough too. This is the path where an already-
 // encrypted block is re-serialized without the in-memory flag ever being set.
-ok(previewAllowed(ENVELOPE) === false, 'a slidomingo/enc body vetoes the preview even with no password flag')
+ok(previewAllowed(ENVELOPE) === false, 'a beeslides/enc body vetoes the preview even with no password flag')
 ok(previewAllowed(ENVELOPE, true) === false, 'both signals together still veto')
 
 // …and through the real module state, not just the parameter, because that is
@@ -91,8 +91,8 @@ ok(previewAllowed(PLAIN) === true, 'clearing the password restores the preview')
 
 // A body that merely looks envelope-ish must not accidentally suppress a
 // preview — the check has to be the real parse, not a substring sniff.
-ok(previewAllowed(JSON.stringify({ title: 'about slidomingo/enc envelopes' })) === true,
-  'a deck that merely mentions slidomingo/enc still previews')
+ok(previewAllowed(JSON.stringify({ title: 'about beeslides/enc envelopes' })) === true,
+  'a deck that merely mentions beeslides/enc still previews')
 ok(previewAllowed('not json at all') === true, 'an unparseable body is not mistaken for an envelope')
 
 // --- 2. the output refusal --------------------------------------------------
@@ -116,10 +116,10 @@ ok(previewIsSafe('<div>' + '<SCR' + 'IPT src=x>' + '</div>') === false, 'an uppe
 ok(previewIsSafe('<div>' + '</NOSC' + 'RIPT>' + '</div>') === false, 'an upper-case noscript close is refused')
 
 // The forged-block case the pack rig also covers: a preview must not be able
-// to counterfeit an opening #slidomingo-doc tag above the real one, because an old
+// to counterfeit an opening #beeslides-doc tag above the real one, because an old
 // updater splices into the FIRST match.
-ok(previewIsSafe('<div>' + '<scr' + 'ipt type="application/slidomingo+json" id="slidomingo-doc">{}</div>') === false,
-  'a forged #slidomingo-doc opening tag is refused')
+ok(previewIsSafe('<div>' + '<scr' + 'ipt type="application/beeslides+json" id="beeslides-doc">{}</div>') === false,
+  'a forged #beeslides-doc opening tag is refused')
 
 // --- 3. the stylesheet, which escaping cannot protect -----------------------
 //
@@ -159,7 +159,7 @@ console.log('\nat-rest KDF')
 
 const LEGACY_PASSWORD = 'correct horse battery staple'
 const LEGACY_ENVELOPE = {
-  format: 'slidomingo/enc' as const, v: 1 as const, it: 300000,
+  format: 'beeslides/enc' as const, v: 1 as const, it: 300000,
   salt: 'zcBz9Vbqwj+iUtehuL5l/g==',
   iv: 'Cqufag7LTNkRg6Lu',
   data: '+IrsgJlM1O3yUyEvjDhl+2gLpXJzdKH9nV8JSInKsKkJFKIZfkC9uxu0Wdq0E6Ds5+U3q3lJ7DrEaN5j+jBKH8HLjAFWFyQ3y5uMYgHO6g==',

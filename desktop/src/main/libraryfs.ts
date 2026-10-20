@@ -5,7 +5,7 @@
 // run without electron (scripts/test-desktop-library.ts). library.ts binds
 // them to the real location and registers the IPC.
 //
-// A library file is an ORDINARY slidomingo/slides document: each slide is one
+// A library file is an ORDINARY beeslides/slides document: each slide is one
 // item (docs/DECISIONS.md, "Scope split: Layout Manager = this file; Library =
 // global registry in the editor"). Nothing here adds a format. The default
 // library starts with one EMPTY slide because a document needs at least one
@@ -17,13 +17,13 @@ import { basename } from 'node:path'
 import { detectFormat, looksLikeShell } from './docfile.ts'
 import { writeFileAtomic } from './fsutil.ts'
 
-const DOC_BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const DOC_BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 
 /** The new-deck defaults of model.ts's `newDoc()`, restated: main cannot
  *  import the renderer's model (same reason as templatefs.ts). */
 export function seedLibraryDoc(): Record<string, unknown> {
   return {
-    format: 'slidomingo/slides',
+    format: 'beeslides/slides',
     version: 1,
     docId: randomUUID(),
     title: 'BeeSlides Library',
@@ -39,7 +39,7 @@ export function seedLibraryDoc(): Record<string, unknown> {
   }
 }
 
-/** `shell` with its `#slidomingo-doc` block replaced by `doc`, `<`-escaped as
+/** `shell` with its `#beeslides-doc` block replaced by `doc`, `<`-escaped as
  *  the splice contract requires (docs/PLATFORM.md §2). `null` when the shell
  *  has no doc block. */
 export function spliceDocBlock(shell: string, doc: unknown): string | null {

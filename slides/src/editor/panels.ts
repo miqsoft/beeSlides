@@ -2700,8 +2700,8 @@ export class PropsPanel {
     b.title = t('Turn the selected words into a term of this layout, so each deck shows them in its own language (Document properties ▸ Language & terms)')
     b.addEventListener('mousedown', (ev) => ev.preventDefault())
     b.addEventListener('click', () => {
-      const editingNode = document.querySelector<HTMLElement>('.slidomingo-editing')
-      const inner = editingNode?.dataset.elId === el.id ? editingNode.querySelector<HTMLElement>('.slidomingo-text-inner') : null
+      const editingNode = document.querySelector<HTMLElement>('.beeslides-editing')
+      const inner = editingNode?.dataset.elId === el.id ? editingNode.querySelector<HTMLElement>('.beeslides-text-inner') : null
       const lang = this.store.doc.meta?.language || locale().split('-')[0] || 'en'
       if (inner && document.activeElement === inner) {
         const sel = window.getSelection()
@@ -2740,9 +2740,9 @@ export class PropsPanel {
    *   documented simplification, not a bug.
    */
   private insertFieldToken(elId: string, token: string) {
-    const editingNode = document.querySelector<HTMLElement>('.slidomingo-editing')
+    const editingNode = document.querySelector<HTMLElement>('.beeslides-editing')
     const inner = editingNode?.dataset.elId === elId
-      ? editingNode.querySelector<HTMLElement>('.slidomingo-text-inner')
+      ? editingNode.querySelector<HTMLElement>('.beeslides-text-inner')
       : null
     if (inner && document.activeElement === inner) {
       document.execCommand('insertText', false, token)

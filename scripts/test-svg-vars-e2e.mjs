@@ -104,12 +104,12 @@ try {
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(url)
-  await p.waitForFunction(() => !!window.slidomingo?.loadDoc, null, { timeout: 30_000 })
+  await p.waitForFunction(() => !!window.beeslides?.loadDoc, null, { timeout: 30_000 })
   await p.waitForTimeout(600)
-  await p.evaluate(() => document.getElementById('slidomingo-splash')?.remove())
-  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc)))
+  await p.evaluate(() => document.getElementById('beeslides-splash')?.remove())
+  const base = await p.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc)))
   const load = async (doc) => {
-    const ok = await p.evaluate((json) => window.slidomingo.loadDoc(json), JSON.stringify(doc))
+    const ok = await p.evaluate((json) => window.beeslides.loadDoc(json), JSON.stringify(doc))
     await p.waitForTimeout(600)
     return ok
   }
@@ -139,7 +139,7 @@ try {
 
   if (saveTo) {
     await load(seasonsDeck(base))
-    const html = await p.evaluate(async () => await window.slidomingo.serialize())
+    const html = await p.evaluate(async () => await window.beeslides.serialize())
     writeFileSync(saveTo, html)
     console.log(`  saved the four-season deck to ${saveTo}`)
   }
@@ -161,13 +161,13 @@ try {
     check(thumbs.some((s) => s.includes(`--leaf1:${SUMMER.vars.leaf1};`)) && thumbs.some((s) => s.includes('--snow:1;')),
       'thumbnails carry each slide\'s own vars as the svg\'s root rule', thumbs.length)
     if (shots) {
-      await p.evaluate(() => window.slidomingo.select?.([]))
+      await p.evaluate(() => window.beeslides.select?.([]))
       await p.screenshot({ path: join(shots, 'editor-spring.png') })
     }
   }
 
   // ---------------------------------------------------------------- the show
-  await p.evaluate(() => { window.slidomingo.anim.setManual(true) })
+  await p.evaluate(() => { window.beeslides.anim.setManual(true) })
   await p.evaluate(() => { try { localStorage.setItem('slidomingo-reduce-motion', 'off') } catch {} })
   // a desktop-width tab has the menu bar (DECISIONS 2026-10-13): Play ▸ Present in tab;
   // a phone-width one the Slideshow pill's menu
@@ -178,12 +178,12 @@ try {
     await p.click('button[title="More ways to present"]:visible')
     await p.click('button:has-text("Present in this tab"):visible')
   }
-  await p.waitForSelector('.slidomingo-present-overlay section.present', { timeout: 10_000 })
+  await p.waitForSelector('.beeslides-present-overlay section.present', { timeout: 10_000 })
   await p.waitForTimeout(600)
-  const tick = (s) => p.evaluate((sec) => window.slidomingo.anim.tick(sec), s)
+  const tick = (s) => p.evaluate((sec) => window.beeslides.anim.tick(sec), s)
   const key = async (k) => { await p.keyboard.press(k); await p.waitForTimeout(80) }
   const inShow = (fn, arg) => p.evaluate(fn, arg)
-  const scene = '.slidomingo-present-overlay section.present [data-el-id="scene"]'
+  const scene = '.beeslides-present-overlay section.present [data-el-id="scene"]'
   const sway = () => inShow((sel) => {
     const g = document.querySelector(`${sel} .sw`)
     const a = g?.getAnimations()[0]
@@ -196,7 +196,7 @@ try {
     check(s && s.start === 0 && Math.abs(s.current - s.now) < 1, 'spring: the endless sway starts at the timeline origin', s)
     const states = await inShow(() => {
       const out = { here: 0, hereRunning: 0, away: 0, awayRunning: 0 }
-      for (const sec of document.querySelectorAll('.slidomingo-present-overlay .reveal .slides section')) {
+      for (const sec of document.querySelectorAll('.beeslides-present-overlay .reveal .slides section')) {
         const here = sec.classList.contains('present')
         for (const a of sec.getAnimations({ subtree: true })) {
           out[here ? 'here' : 'away']++
@@ -218,14 +218,14 @@ try {
   {
     // summer is mounted (paused) next to spring: mark its drawing's nodes
     await inShow(() => {
-      const g = document.querySelector('.slidomingo-present-overlay section:not(.present) [data-slide-id="summer"] [data-el-id="scene"] .sw')
+      const g = document.querySelector('.beeslides-present-overlay section:not(.present) [data-slide-id="summer"] [data-el-id="scene"] .sw')
       if (g) g.__kept = true
     })
     await key('ArrowRight')
     check(await inShow((sel) => document.querySelector(`${sel} .sw`)?.__kept === true, scene),
       'an all-endless drawing keeps its nodes on arrival (re-aligned, not re-cloned)')
     const leaving = () => inShow(() => {
-      const sec = document.querySelector('.slidomingo-present-overlay [data-slide-id="spring"]')?.closest('section')
+      const sec = document.querySelector('.beeslides-present-overlay [data-slide-id="spring"]')?.closest('section')
       const all = sec ? sec.getAnimations({ subtree: true }) : []
       return { n: all.length, running: all.filter((a) => a.playState === 'running').length }
     })
@@ -234,16 +234,16 @@ try {
     await tick(1.1) // half of morphSeconds 2.2
     const mid = await inShow((sel) => {
       const node = document.querySelector(sel)
-      const sec = document.querySelector('.slidomingo-present-overlay section.present')
+      const sec = document.querySelector('.beeslides-present-overlay section.present')
       // what the drawing PAINTS with, not what was written
       const seen = (k) => (node ? getComputedStyle(node).getPropertyValue(k).trim() : null)
       const leaf = node?.querySelector('path.s1')
       return {
-        slide: sec?.querySelector('.slidomingo-slide')?.getAttribute('data-slide-id'),
+        slide: sec?.querySelector('.beeslides-slide')?.getAttribute('data-slide-id'),
         leaf: leaf ? getComputedStyle(leaf).fill : null,
         blossom: seen('--blossom'),
         sunX: seen('--sun-x'),
-        ghosts: sec ? sec.querySelectorAll('.slidomingo-el-svg:not([data-el-id])').length : -1,
+        ghosts: sec ? sec.querySelectorAll('.beeslides-el-svg:not([data-el-id])').length : -1,
       }
     }, scene)
     const c = (mid.leaf ?? '').match(/\d+(\.\d+)?/g)?.map(Number) ?? []
@@ -302,7 +302,7 @@ try {
     await tick(0.05)
     // where the stem's local points land, through its real computed transform
     const at = () => inShow(() => {
-      const n = document.querySelector('.slidomingo-present-overlay section.present [data-el-id="stem"]')
+      const n = document.querySelector('.beeslides-present-overlay section.present [data-el-id="stem"]')
       if (!n) return null
       const cs = getComputedStyle(n)
       const m = new DOMMatrix(cs.transform === 'none' ? undefined : cs.transform)
@@ -329,7 +329,7 @@ try {
   console.log('— show: a finite svg animation replays on every visit')
   {
     const once = () => inShow(() => {
-      const r = document.querySelector('.slidomingo-present-overlay section.present [data-el-id="drawon"] .once')
+      const r = document.querySelector('.beeslides-present-overlay section.present [data-el-id="drawon"] .once')
       const a = r?.getAnimations()[0]
       return r ? { current: a?.currentTime ?? null } : null
     })

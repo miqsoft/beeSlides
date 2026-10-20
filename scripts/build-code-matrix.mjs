@@ -78,7 +78,7 @@ for (const [label, expect, A, B] of CASES) {
 }
 
 const doc = {
-  format: 'slidomingo/slides', version: 1, docId: 'code-matrix-demo-0001',
+  format: 'beeslides/slides', version: 1, docId: 'code-matrix-demo-0001',
   title: 'Seven ways to change code',
   size: { width: 1280, height: 720 },
   theme: { background: INK, color: PAPER, accent: PEACH, fontFamily: 'Instrument Sans, Helvetica Neue, sans-serif' },
@@ -86,7 +86,7 @@ const doc = {
 }
 
 const shell = readFileSync(shellPath, 'utf8')
-const open = '<script type="application/slidomingo+json" id="slidomingo-doc">'
+const open = '<script type="application/beeslides+json" id="beeslides-doc">'
 const i = shell.indexOf(open)
 const j = shell.indexOf('</scr' + 'ipt>', i)
 writeFileSync(out, shell.slice(0, i + open.length) + JSON.stringify(doc).replace(/</g, '\\u003c') + shell.slice(j))

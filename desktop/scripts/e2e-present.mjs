@@ -22,7 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const desktopDir = resolve(here, '..')
 const repo = resolve(desktopDir, '..')
 const SHELL_PATH = join(repo, 'slides/dist-single/BeeSlides.beeslides.html')
-const BLOCK_RE = /(<script[^>]*\bid=["']slidomingo-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
+const BLOCK_RE = /(<script[^>]*\bid=["']beeslides-doc["'][^>]*>)([\s\S]*?)(<\/script>)/i
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0, checks = 0
 function ok(cond, msg) { checks++; if (!cond) failures++; try { console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${msg}`) } catch {} }
@@ -53,7 +53,7 @@ async function driver() {
   const js = (wc, code) => wc.executeJavaScript(code)
   const key = async (wc, keyCode, modifiers) => { wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers }); wc.sendInputEvent({ type: 'keyUp', keyCode, modifiers }); await sleep(50) }
   const deck = await waitFor(async () => {
-    for (const wc of docWcs()) if (!wc.isLoading() && await js(wc, `!!(window.slidomingo && window.slidomingo.doc && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
+    for (const wc of docWcs()) if (!wc.isLoading() && await js(wc, `!!(window.beeslides && window.beeslides.doc && document.querySelector('.ed-stage [data-el-id]'))`).catch(() => false)) return wc
     return null
   })
   ok(!!deck, 'deck opened')
@@ -62,7 +62,7 @@ async function driver() {
   win.focus(); deck.focus()
   await sleep(500)
   const speakerWins = () => BrowserWindow.getAllWindows().filter((w) => w !== win && !w.isDestroyed() && w.webContents.getURL() === 'about:blank')
-  const overlay = () => js(deck, `!!document.querySelector('.slidomingo-present-overlay')`)
+  const overlay = () => js(deck, `!!document.querySelector('.beeslides-present-overlay')`)
 
   // ---- one display: fullscreen, no speaker, S opens notes, Esc restores
   // (faked too: on a machine with a second screen the show would open the
@@ -105,8 +105,8 @@ async function driver() {
     ok(win.getBounds().x >= fake.bounds.x - 50 || true, 'audience move requested')
     const sp = speakerWins()[0]
     if (sp) {
-      const n0 = await js(deck, `document.querySelector('.slidomingo-present-overlay .slides')?.querySelectorAll('section').length ?? 0`)
-      const idx = () => js(deck, `(window.Reveal && 0) || document.querySelector('.slidomingo-present-overlay section.present')?.getAttribute('data-slidomingo-index') ?? ''`)
+      const n0 = await js(deck, `document.querySelector('.beeslides-present-overlay .slides')?.querySelectorAll('section').length ?? 0`)
+      const idx = () => js(deck, `(window.Reveal && 0) || document.querySelector('.beeslides-present-overlay section.present')?.getAttribute('data-slidomingo-index') ?? ''`)
       const cur0 = await js(sp.webContents, `document.querySelector('.sv-count')?.textContent`)
       sp.webContents.focus()
       await key(sp.webContents, 'Right')

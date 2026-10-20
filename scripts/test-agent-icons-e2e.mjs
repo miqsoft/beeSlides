@@ -107,7 +107,7 @@ await page.goto(url)
 await page.waitForTimeout(1500)
 const blank = page.locator('button:visible:has-text("Blank")').first()
 if (await blank.count()) await blank.click()
-await page.waitForFunction(() => !!window.__agent && !!window.slidomingo?.doc, null, { timeout: 15000 })
+await page.waitForFunction(() => !!window.__agent && !!window.beeslides?.doc, null, { timeout: 15000 })
 
 let n = 0
 async function act(verb, args) {
@@ -117,16 +117,16 @@ async function act(verb, args) {
   return page.evaluate((id) => window.__results[id], id)
 }
 
-const slideId = await page.evaluate(() => window.slidomingo.doc.slides[0].id)
-const before = await page.evaluate(() => window.slidomingo.doc.slides[0].elements.length)
+const slideId = await page.evaluate(() => window.beeslides.doc.slides[0].id)
+const before = await page.evaluate(() => window.beeslides.doc.slides[0].elements.length)
 
 const found = await act('icons', { op: 'search', query: 'cloud' })
 ok(found.ok && found.refs.join() === 'i1,i2', `search against the configured server: ${JSON.stringify(found.summary)}`)
 ok(found.summary.includes('license: MIT') && found.summary.includes('license unknown'), 'search lines carry the license (or say it is unknown)')
 const put = await act('icons', { op: 'insert', slideId, ref: 'i1', x: 100, y: 120, size: 80, alt: 'Upload' })
 ok(put.ok && typeof put.elementId === 'string', `insert: ${put.summary ?? put.error}`)
-const el = await page.evaluate((id) => window.slidomingo.doc.slides[0].elements.find((e) => e.id === id), put.elementId)
-const markup = await page.evaluate((k) => window.slidomingo.doc.assets?.[k], el?.asset)
+const el = await page.evaluate((id) => window.beeslides.doc.slides[0].elements.find((e) => e.id === id), put.elementId)
+const markup = await page.evaluate((k) => window.beeslides.doc.assets?.[k], el?.asset)
 ok(el?.provenance?.license === 'MIT' && el.provenance.author === 'Cloud Co' && /\/files\/cloud\/cloud-upload\.svg$/.test(el.provenance.url ?? '') && !!el.provenance.origin, `the agent's insert records the icon's provenance (${JSON.stringify(el?.provenance)})`)
 ok(el?.type === 'svg' && el.x === 100 && el.y === 120 && el.w === 80 && el.h === 80 && el.alt === 'Upload', `svg element at the exact frame (${JSON.stringify(el && { type: el.type, x: el.x, y: el.y, w: el.w, h: el.h, alt: el.alt })})`)
 ok(typeof markup === 'string' && markup.includes('#ff0000'), 'its markup is interned in doc.assets')
@@ -138,14 +138,14 @@ const dom = await page.evaluate((id) => {
 ok(dom?.svg && !dom.script && !dom.pwned, `drawn on the canvas, sanitized (${JSON.stringify(dom)})`)
 const users = await act('icons', { op: 'search', query: 'user' })
 const png = await act('icons', { op: 'insert', slideId, ref: users.refs[0] })
-const img = await page.evaluate((id) => window.slidomingo.doc.slides[0].elements.find((e) => e.id === id), png.elementId)
+const img = await page.evaluate((id) => window.beeslides.doc.slides[0].elements.find((e) => e.id === id), png.elementId)
 ok(png.ok && img?.type === 'image' && img.w === 96 && img.alt === '', `a png becomes an image element, 96px default (${img?.type} ${img?.w})`)
-ok(await page.evaluate(() => window.slidomingo.doc.slides[0].elements.length) === before + 2, 'two elements added')
+ok(await page.evaluate(() => window.beeslides.doc.slides[0].elements.length) === before + 2, 'two elements added')
 // one undo step per insert
 await page.evaluate(() => document.activeElement?.blur())
 await page.keyboard.press('Meta+z')
 await page.waitForTimeout(200)
-ok(await page.evaluate(() => window.slidomingo.doc.slides[0].elements.length) === before + 1, 'undo removes exactly the last icon')
+ok(await page.evaluate(() => window.beeslides.doc.slides[0].elements.length) === before + 1, 'undo removes exactly the last icon')
 const bad = await act('icons', { op: 'insert', slideId: 'nope', ref: 'i1' })
 ok(!bad.ok && /no-such-slide/.test(bad.error), `unknown slide refused (${bad.error})`)
 // existing insert_elements path still works after the refactor
@@ -155,14 +155,14 @@ ok(ins.ok && ins.elementIds?.length === 1, `insert_elements unchanged (${JSON.st
 // AI-written SVG is refused on every write path; the icon already in the deck is untouched
 const MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#0f0"/></svg>'
 const box = { x: 10, y: 10, w: 50, h: 50, rotation: 0, opacity: 1 }
-const count = () => page.evaluate(() => window.slidomingo.doc.slides[0].elements.length)
+const count = () => page.evaluate(() => window.beeslides.doc.slides[0].elements.length)
 const n0 = await count()
 const refusedSvg = (r, what) => ok(r && r.ok === false && /AI-written SVG is refused/.test(r.error ?? '') && /icons tool/.test(r.error), `${what} is refused with the way out (${String(r?.error).slice(0, 60)}…)`)
 refusedSvg(await act('insert_elements', { slideId, elements: [{ type: 'svg', ...box, markup: MARK }] }), 'insert_elements with svg markup')
 refusedSvg(await act('insert_elements', { slideId, elements: [{ type: 'svg', ...box, asset: 'fresh' }], assets: { fresh: MARK } }), 'insert_elements with a new svg asset')
 refusedSvg(await act('insert_elements', { slideId, elements: [{ type: 'image', ...box, src: 'data:image/svg+xml;base64,' + Buffer.from(MARK).toString('base64'), fit: 'contain', radius: 0 }] }), 'a picture that holds svg')
 ok(await count() === n0, 'nothing was added by the refused inserts')
-const icon = await page.evaluate((id) => window.slidomingo.doc.slides[0].elements.find((e) => e.id === id), put.elementId)
+const icon = await page.evaluate((id) => window.beeslides.doc.slides[0].elements.find((e) => e.id === id), put.elementId)
 const reuse = await act('insert_elements', { slideId, elements: [{ type: 'svg', ...box, asset: icon.asset }], nudge: false })
 ok(reuse.ok && reuse.elementIds?.length === 1, 'an svg that points at artwork already in the deck is fine (a copy of the icon)')
 refusedSvg(await act('update_element', { slideId, elementId: put.elementId, props: { markup: MARK } }), 'update_element swapping the markup')
@@ -170,7 +170,7 @@ refusedSvg(await act('update_element', { slideId, elementId: put.elementId, prop
 const tint = await act('update_element', { slideId, elementId: put.elementId, props: { alt: 'Cloud', opacity: 0.5 } })
 ok(tint.ok, 'update_element on the icon still works for everything else')
 // write_slide: the get_slide round trip passes, new artwork does not
-const slideNow = () => page.evaluate(() => JSON.parse(JSON.stringify(window.slidomingo.doc.slides[0])))
+const slideNow = () => page.evaluate(() => JSON.parse(JSON.stringify(window.beeslides.doc.slides[0])))
 async function writeSlide(slide) {
   const id = `w${++n}`
   await page.evaluate(([id, slide, slideId]) => window.__slideWrite({ requestId: id, slideId, slide }), [id, slide, slideId])

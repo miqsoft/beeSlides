@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 The BeeSlides authors
 //
-// The .pptx orchestrator — package in, ONE slidomingo/slides document + fidelity
+// The .pptx orchestrator — package in, ONE beeslides/slides document + fidelity
 // report out. All the domain knowledge lives in the sibling modules (theme,
 // inherit, media, text, shapes); this file owns the walks that stitch them
 // together, and the walks are where a converter quietly loses whole decks:
@@ -1810,7 +1810,7 @@ function paletteFrom(scheme: Record<string, string>): NonNullable<OutDoc['theme'
 // --- the conversion ----------------------------------------------------------
 
 /**
- * Convert one .pptx/.potx to a slidomingo/slides document. Throws (ZipError /
+ * Convert one .pptx/.potx to a beeslides/slides document. Throws (ZipError /
  * XmlError / Error) only for a package that is not a presentation at all;
  * everything recoverable lands in the report instead. See ConvertPptxOptions
  * for deck vs template mode and `link`.
@@ -2053,7 +2053,7 @@ export async function convertPptx(bytes: Uint8Array, opts: ConvertPptxOptions = 
   const scheme = deckTheme ? deckTheme.scheme : {}
   const palette = paletteFrom(scheme)
   const doc: OutDoc = {
-    format: 'slidomingo/slides',
+    format: 'beeslides/slides',
     version: '1.0.0',
     // merged table cells: the gate an older reader needs (DECISIONS
     // 2026-10-08) — set here so converter output written straight to a file

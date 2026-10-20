@@ -6,7 +6,7 @@
 // surface for as long as the show runs and are NEVER written to the document
 // (exit removes the overlay and every stroke with it).
 //
-// The layer sits INSIDE `.slidomingo-slide`, in slide coordinates (viewBox =
+// The layer sits INSIDE `.beeslides-slide`, in slide coordinates (viewBox =
 // the deck size), so Reveal's scaling, a resize and a drawn transition all
 // carry the ink with its slide. It is `pointer-events:none` until a tool is
 // picked: with ink off, links, hover sets, charts and builds see exactly the
@@ -87,10 +87,10 @@ export function createPresentInk(opts: {
   let color: string = INK_COLORS[0]
 
   const layerOf = (surface: HTMLElement, create: boolean): SVGSVGElement | null => {
-    let svg = surface.querySelector<SVGSVGElement>(':scope > svg.slidomingo-ink')
+    let svg = surface.querySelector<SVGSVGElement>(':scope > svg.beeslides-ink')
     if (!svg && create) {
       svg = document.createElementNS(SVG_NS, 'svg')
-      svg.classList.add('slidomingo-ink')
+      svg.classList.add('beeslides-ink')
       svg.setAttribute('viewBox', `0 0 ${size.width} ${size.height}`)
       svg.setAttribute('aria-hidden', 'true')
       // highlighter strokes paint under pen strokes, whatever the order drawn
@@ -107,7 +107,7 @@ export function createPresentInk(opts: {
   // ——— the toolbar: a pen button that wakes on pointer movement, the full
   // set while a tool is in hand ———
   const bar = document.createElement('div')
-  bar.className = 'slidomingo-ink-bar'
+  bar.className = 'beeslides-ink-bar'
   const button = (key: string, title: string, extra = true) => {
     const b = document.createElement('button')
     b.type = 'button'
