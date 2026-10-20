@@ -13071,3 +13071,19 @@ Canvas select was truncated.
 
 Rig: `scripts/test-iconset-e2e.mjs` (styles picked through Style ▾, the dot,
 no bar, the ribbon at 2600 and 1000 px, Arrange folding and unfolding).
+
+## 2026-10-20 — The MCP server is `beeslides`; Linux windows relayout on maximize
+
+Owner's call, following the 2026-10-13 visible-name rule: the MCP server
+name is read by people (Claude Code shows `mcp__<server>__<tool>` in the
+terminal and in permission prompts), so it is **`beeslides`**, not
+`slidomingo-slides`. Tools are now `mcp__beeslides__add_slide` etc. No deck
+or install depends on the server name, so this needs no migration; the one
+cost is that a Claude Code "always allow" given under the old name asks once
+more. The `generator` meta and `appId` value `slidomingo-slides` are the file
+format and stay.
+
+Linux (GTK, X11 and Wayland) fires `resize` before the new content size on
+maximize/restore/full screen, or not at all, which left the doc view at its
+old width with white beside it. `openInNewWindow` now relayouts on those
+events and `show`, and off macOS once more 120 ms later.

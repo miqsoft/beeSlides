@@ -721,7 +721,7 @@ rl.on('line', (line) => {
     respond(id, {
       protocolVersion: params?.protocolVersion ?? '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'slidomingo-slides', version: '1.0.0' },
+      serverInfo: { name: 'beeslides', version: '1.0.0' },
     })
     return
   }

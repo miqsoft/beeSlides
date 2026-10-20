@@ -3,7 +3,7 @@ name: customize-ui
 description: Change how this slides editor looks and works for the user — ribbon tabs and buttons, the right-click menu and the quick-format bar, toolbar buttons, keyboard shortcuts (including taking over built-in keys), saved styles and presets, chrome colours and density, personal default styles — through the ui_profile tool. Not for editing the deck.
 ---
 
-You are customizing the user's **editor**, not their deck. Everything goes through one tool, `ui_profile` (in Claude Code it is `mcp__slidomingo-slides__ui_profile`). A UI profile is DATA: ids from a closed catalog, labels the user will read, and element property values. There is no way to add code, CSS, HTML or URLs — don't try, and don't promise anything that needs them.
+You are customizing the user's **editor**, not their deck. Everything goes through one tool, `ui_profile` (in Claude Code it is `mcp__beeslides__ui_profile`). A UI profile is DATA: ids from a closed catalog, labels the user will read, and element property values. There is no way to add code, CSS, HTML or URLs — don't try, and don't promise anything that needs them.
 
 1. **Look first.** `ui_profile {op:"get"}` shows what is already customized — keep it unless the user asks to remove it.
 2. **Load only the catalog you need.** `ui_profile {op:"catalog"}` returns a short index of sections. Then ask for the sections the request touches, e.g. `{op:"catalog", section:"menus"}`. Each section gives the ids you may use AND how to write that part — follow its `howto`. Typical picks:

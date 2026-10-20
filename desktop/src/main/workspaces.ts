@@ -36,7 +36,7 @@ export function ensureWorkspace(root: string, key: string, deckName: string | nu
     writeFileSync(join(dir, 'CLAUDE.md'),
       `# BeeSlides workspace\n\n` +
       `This folder is managed by the BeeSlides app; do not put files here.\n` +
-      `You are editing ${deckName ? `the deck "${deckName}"` : 'an unsaved deck'} through the slidomingo-slides MCP tools.\n` +
+      `You are editing ${deckName ? `the deck "${deckName}"` : 'an unsaved deck'} through the beeslides MCP tools.\n` +
       (hasDeckDir ? `The deck's own folder is available as an additional working directory.\n` : ''), 'utf8')
   } catch { /* best effort */ }
   for (const [name, text] of Object.entries(skills)) {

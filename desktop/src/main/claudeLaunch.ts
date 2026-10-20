@@ -39,7 +39,7 @@ export const claudeInstruction = (sharedDir: string): string =>
   `request naming a slide type, such as content slides, targets that slide ` +
   `type by id (from the context line or doc_info), and every deck slide using ` +
   `it follows. The full snapshot is ./${sharedDir}/selection.json if you ever ` +
-  `need more. Edit through the slidomingo-slides MCP tools and prefer the ` +
+  `need more. Edit through the beeslides MCP tools and prefer the ` +
   `smallest one: update_element to change properties of one element, ` +
   `elements({op}) for several elements in one call and for layout (edit a ` +
   `batch, delete, arrange as a row or grid, align, distribute, match_size: ` +

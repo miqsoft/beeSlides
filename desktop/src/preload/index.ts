@@ -148,7 +148,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   sendApplyEditResult: (result: { ok: boolean; summary?: string; error?: string; sessionId?: string }): void =>
     ipcRenderer.send('slidomingo:apply-edit-result', result),
 
-  /** Fires when the get_slide MCP tool (slidomingo-slides server, see
+  /** Fires when the get_slide MCP tool (beeslides server, see
    *  desktop/src/mcp/slides-mcp-server.mjs) asks to read one whole slide —
    *  forwarded from terminalPanel.ts's slide-request-*.json watcher.
    *  `sessionId` identifies which terminal tab asked (read verbs are never

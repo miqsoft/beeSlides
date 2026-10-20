@@ -7,7 +7,7 @@ carry features beyond this guide; unknown keys are ignored, never fatal.
 
 ## Quick reference (desktop terminal sessions: read only this section first)
 
-Edit through the `slidomingo-slides` MCP tools. The smallest verb wins:
+Edit through the `beeslides` MCP tools. The smallest verb wins:
 `update_element({slideId, elementId, props})` for any property change,
 `set_frame` to move/resize one element, `insert_elements`/`delete_element` for
 structure, `write_slide` only to restructure a whole slide. Several elements at

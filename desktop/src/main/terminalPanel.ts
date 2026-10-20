@@ -289,7 +289,7 @@ const CONTEXT_README =
   `Each terminal TAB has its own session-<id> subfolder one level below this\n` +
   `directory (its mcp-config.json, settings.json and per-request files). You\n` +
   `never need to touch it; the MCP tools already point at it.\n\n` +
-  `MCP tools (server "slidomingo-slides") give progressively-disclosed access.\n` +
+  `MCP tools (server "beeslides") give progressively-disclosed access.\n` +
   `Prefer the cheap ones; get_slide/write_slide move a whole slide's JSON:\n` +
   `  read:  doc_info, outline, find_text (search the deck), list_reusable_objects,\n` +
   `         measure, validate,\n` +
@@ -1267,7 +1267,7 @@ async function createSession(
     mkdirSync(sessionDir, { recursive: true })
     writeFileSync(join(sessionDir, 'mcp-config.json'), JSON.stringify({
       mcpServers: {
-        'slidomingo-slides': {
+        'beeslides': {
           command: 'node',
           args: [join(sharedContextDir, 'slides-mcp-server.mjs'), sessionDir],
         },

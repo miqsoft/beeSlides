@@ -44,7 +44,7 @@ import { TASKS } from './bench/tasks.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(here, 'bench/fixtures')
-const MCP_PREFIX = 'mcp__slidomingo-slides__'
+const MCP_PREFIX = 'mcp__beeslides__'
 
 // ---------------------------------------------------------------------------
 // args
@@ -139,7 +139,7 @@ function makeWorkspace(co) {
   writeFileSync(join(ws, 'CLAUDE.md'),
     `# BeeSlides workspace\n\n` +
     `This folder is managed by the BeeSlides app; do not put files here.\n` +
-    `You are editing an unsaved deck through the slidomingo-slides MCP tools.\n`, 'utf8')
+    `You are editing an unsaved deck through the beeslides MCP tools.\n`, 'utf8')
   if (co.customizeSkill) {
     mkdirSync(join(ws, '.claude/skills/customize-ui'), { recursive: true })
     writeFileSync(join(ws, '.claude/skills/customize-ui/SKILL.md'), co.customizeSkill, 'utf8')
@@ -158,7 +158,7 @@ function makeWorkspace(co) {
   const sessionDir = join(shared, `session-${id}`)
   mkdirSync(sessionDir, { recursive: true })
   writeFileSync(join(sessionDir, 'mcp-config.json'), JSON.stringify({
-    mcpServers: { 'slidomingo-slides': { command: 'node', args: [join(shared, 'slides-mcp-server.mjs'), sessionDir] } },
+    mcpServers: { 'beeslides': { command: 'node', args: [join(shared, 'slides-mcp-server.mjs'), sessionDir] } },
   }, null, 2), 'utf8')
   const hook = (script, arg) => {
     const file = join(shared, script)
@@ -179,7 +179,7 @@ function makeWorkspace(co) {
  *  prompt on stdin. --allowedTools first (it is variadic). */
 function claudeArgs(co, w, chatId, model) {
   return [
-    '--allowedTools', 'mcp__slidomingo-slides', 'Read', 'Glob', 'Grep',
+    '--allowedTools', 'mcp__beeslides', 'Read', 'Glob', 'Grep',
     '-p', '--output-format', 'stream-json', '--verbose',
     '--append-system-prompt', co.claudeInstruction(w.sharedName),
     '--session-id', chatId,

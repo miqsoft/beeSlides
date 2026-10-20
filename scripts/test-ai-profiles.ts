@@ -1029,7 +1029,7 @@ for (const wire of ['anthropic', 'openai'] as const) {
   chat.onEvent((e) => evs.push(e))
   const turn = await chat.send('make ⌘⇧B my heading look', '[editor selection] text "Hello" {"fontSize":44}')
   ok(seen[0].tools.map((x) => x.name).join() === 'ui_profile', 'the chat offers the model exactly one tool: ui_profile (no deck tools, no MCP child)')
-  ok(seen[0].system.includes('customize') && !seen[0].system.includes('slidomingo-slides tools'), 'with the customize system prompt, not the deck one')
+  ok(seen[0].system.includes('customize') && !seen[0].system.includes('beeslides tools'), 'with the customize system prompt, not the deck one')
   ok((seen[0].messages[0] as { text: string }).text.startsWith('[editor selection]'), 'the renderer\'s selection line leads the user message')
   ok(!!turn && turn.revBefore === before && turn.changes.length === 1 && turn.changes[0].summary === '⌘⇧B applies your heading look', 'the turn reports its one change and the revision before it')
   ok(currentProfile(svc).profile?.shortcuts?.['Mod+Shift+B'] === 'apply-heading' && changes.at(-1)?.source === 'chat', 'the profile changed, as a chat change')
