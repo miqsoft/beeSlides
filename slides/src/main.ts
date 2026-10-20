@@ -313,6 +313,8 @@ if (location.hash === '#present') {
     const { doc: next, missing } = resolveStoreRefs(parsed, store.doc)
     if (missing.length) console.warn(`beeslides.loadDoc: ${missing.length} stored asset(s) not in this document, kept as references`, missing)
     store.replaceDoc(next)
+    // the new document's embedded fonts (boot injects them only for the first)
+    injectFonts(store.doc)
     return true
   },
   /**
