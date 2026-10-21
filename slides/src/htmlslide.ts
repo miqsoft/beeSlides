@@ -20,7 +20,9 @@
 //   - a block holding only inline content → a text element (its content
 //     box; inline styling becomes the rich-text subset sanitizeHtml keeps),
 //   - <img> → image, <table> → table, <pre> → code, <hr> → line,
-//     [data-chart] → chart, [data-keep] → the existing element of that id.
+//     [data-chart] → chart, [data-keep] → the existing element of that id,
+//     <svg> → native shapes/paths/text (svgconvert.ts, as Convert to objects),
+//     <iframe srcdoc> → an embed (the format's sandboxed widget; never run here).
 // Element ids are the HTML ids, so a rewrite updates elements in place
 // (mergeCompiled keeps what HTML cannot say: fx, links, locks, comments) and
 // the same id on two slides morphs. Everything leaves through
@@ -28,8 +30,9 @@
 //
 // The way back (slide → HTML) is htmlemit.ts.
 import type {
-  ChartElement, CodeElement, GradientFill, ImageElement, ShadowSpec, ShapeElement, Slide, SlideElement, SlidomingoDoc, TableCell, TableElement, TextElement,
+  ChartElement, CodeElement, GradientFill, ImageElement, ShadowSpec, ShapeElement, Slide, SlideElement, SlidomingoDoc, SvgElement, TableCell, TableElement, TextElement,
 } from './model'
+import { convertSvgToObjects } from './svgconvert'
 import { resolveSlideFonts, sanitizeHtml } from './render'
 import { sanitizeElement } from './untrusted'
 
@@ -53,6 +56,9 @@ export interface CompileResult {
 
 /** The longest source a slide remembers (pictures already referenced by id). */
 export const MAX_REMEMBERED_HTML = 200_000
+
+/** The longest document an embed carries (untrusted.ts LIMITS.html). */
+const MAX_EMBED_HTML = 64 * 1024
 
 /** Longest source accepted (html + css). A slide is a few KB; pictures as
  *  data: URIs make it larger. */
@@ -91,7 +97,7 @@ const cssValue = (v: string | undefined): string => String(v ?? '').replace(/[;{
 const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"
 
 /** Tags that never reach the layout iframe (with their content). */
-const DROP_TAGS = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'frame', 'frameset', 'form', 'input', 'button', 'select', 'textarea', 'video', 'audio', 'canvas', 'svg', 'math', 'template', 'noscript', 'portal']
+const DROP_TAGS = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'frame', 'frameset', 'form', 'input', 'button', 'select', 'textarea', 'video', 'audio', 'canvas', 'math', 'template', 'noscript', 'portal']
 
 /**
  * The source, made inert before it is laid out: no script or plugin tag,
@@ -100,15 +106,42 @@ const DROP_TAGS = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base'
  * iframe's sandbox and CSP refuse the same things again; this pass is what
  * lets the result say what was dropped.
  */
-function inertSource(src: HtmlSlideSource, resolveImg: (raw: string) => string | null, notes: Set<string>): { body: string; css: string } {
+function inertSource(src: HtmlSlideSource, resolveImg: (raw: string) => string | null, notes: Set<string>): { body: string; css: string; embeds: string[] } {
   const tpl = document.createElement('template')
   tpl.innerHTML = src.html
   const root = tpl.content
   numberImages(root)
+  // a self-contained frame (srcdoc, no src) is a widget the deck can carry as
+  // an `embed` (allow-scripts only, null origin); it is laid out as an empty
+  // box of the same size here, and nothing in it runs now
+  const embeds: string[] = []
+  for (const fr of Array.from(root.querySelectorAll('iframe'))) {
+    const doc = fr.getAttribute('srcdoc')
+    if (doc === null || fr.getAttribute('src')) continue
+    const box = document.createElement('div')
+    for (const a of ['id', 'class', 'style', 'width', 'height']) { const v = fr.getAttribute(a); if (v !== null) box.setAttribute(a, v) }
+    if (!box.style.width && fr.getAttribute('width')) box.style.width = `${fr.getAttribute('width')}px`
+    if (!box.style.height && fr.getAttribute('height')) box.style.height = `${fr.getAttribute('height')}px`
+    if (!box.style.width) box.style.width = '300px'
+    if (!box.style.height) box.style.height = '150px'
+    box.setAttribute('data-bs-embed', String(embeds.length))
+    embeds.push(doc)
+    fr.replaceWith(box)
+  }
   for (const tag of DROP_TAGS) {
     for (const el of Array.from(root.querySelectorAll(tag))) {
-      notes.add(tag === 'svg' ? 'An <svg> was left out: put icons in with the icons tool, drawings as shapes.' : `<${tag}> is not part of a slide and was left out.`)
+      notes.add(`<${tag}> is not part of a slide and was left out.`)
       el.remove()
+    }
+  }
+  // svg drawings become native shapes (visit → svgconvert.ts); what could
+  // smuggle HTML or a request into one goes first
+  for (const el of Array.from(root.querySelectorAll('svg *'))) {
+    const name = el.localName.toLowerCase()
+    if (name === 'foreignobject' || name === 'script' || name === 'animate' || name === 'set' || name === 'animatemotion' || name === 'animatetransform') { el.remove(); continue }
+    for (const a of ['href', 'xlink:href', 'src']) {
+      const v = el.getAttribute(a)
+      if (v !== null && !v.startsWith('#') && !v.startsWith('data:')) { el.removeAttribute(a); notes.add('A link inside an <svg> to something outside it was left out.') }
     }
   }
   for (const el of Array.from(root.querySelectorAll('*'))) {
@@ -139,7 +172,7 @@ function inertSource(src: HtmlSlideSource, resolveImg: (raw: string) => string |
   }
   const holder = document.createElement('div')
   holder.appendChild(root.cloneNode(true))
-  return { body: holder.innerHTML, css: css.replace(/<\/style/gi, '') }
+  return { body: holder.innerHTML, css: css.replace(/<\/style/gi, ''), embeds }
 }
 
 /** Every <img> gets its document position, so the picture element it becomes
@@ -181,8 +214,8 @@ function fontFaces(doc: SlidomingoDoc): string {
 /** Lays `src` out in an offscreen, script-less iframe and hands its document
  *  to `read`; the iframe is gone afterwards whatever happens. */
 async function withLaidOut<T>(doc: SlidomingoDoc, slide: Slide, size: { width: number; height: number }, src: HtmlSlideSource,
-  resolveImg: (raw: string) => string | null, notes: Set<string>, read: (d: Document) => T): Promise<T> {
-  const { body, css } = inertSource(src, resolveImg, notes)
+  resolveImg: (raw: string) => string | null, notes: Set<string>, read: (d: Document, embeds: string[]) => T): Promise<T> {
+  const { body, css, embeds } = inertSource(src, resolveImg, notes)
   const frame = document.createElement('iframe')
   frame.setAttribute('sandbox', 'allow-same-origin')
   frame.setAttribute('data-beeslides-transient', '')
@@ -199,7 +232,7 @@ async function withLaidOut<T>(doc: SlidomingoDoc, slide: Slide, size: { width: n
     if (!d) throw new Error('The HTML could not be laid out.')
     await withTimeout(d.fonts?.ready ?? Promise.resolve(), 3000)
     await withTimeout(Promise.all(Array.from(d.images).map((img) => img.decode().catch(() => undefined))), 3000)
-    return read(d)
+    return read(d, embeds)
   } finally {
     frame.remove()
   }
@@ -328,6 +361,8 @@ interface Ctx {
   existing: Map<string, SlideElement>
   /** data-bs-img number → the picture element's id */
   imageIds: Map<string, string>
+  /** srcdoc of each self-contained iframe, by data-bs-embed number */
+  embeds: string[]
 }
 
 /** The id an HTML element gives its slide element (unique on the slide). */
@@ -550,8 +585,28 @@ function base(f: Frame, opacity: number) {
   return { x: f.x, y: f.y, w: f.w, h: f.h, rotation: f.rotation, opacity }
 }
 
+/** Whether `el`'s text is ONE line exactly as wide as the box `f` it sits in
+ *  (the box shrink-wrapped it: a flex item, inline-block, max-content). */
+function shrinkWrappedLine(ctx: Ctx, el: Element, f: Frame): boolean {
+  const range = ctx.win.document.createRange()
+  range.selectNodeContents(el)
+  const rects = Array.from(range.getClientRects()).filter((r) => r.width > 0 && r.height > 0)
+  if (!rects.length || new Set(rects.map((r) => Math.round(r.bottom))).size > 1) return false
+  const width = Math.max(...rects.map((r) => r.right)) - Math.min(...rects.map((r) => r.left))
+  return Math.abs(width - f.w) < 0.75
+}
+
+/** px of room a one-line text gets, so redrawn at its exact (shrink-wrapped)
+ *  width it cannot wrap its last word onto a second line */
+const ONE_LINE_SLACK = 2
+
 function emitText(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, f: Frame, id: string, html: string, opacity: number, role?: string) {
   const heading = role === 'title' || /^H[1-6]$/.test(el.tagName)
+  // a box with room to spare keeps its width, so writing a slide back adds nothing
+  if (f.rotation === 0 && shrinkWrappedLine(ctx, el, f)) {
+    const a = ALIGN(cs)
+    f = { ...f, w: round(f.w + ONE_LINE_SLACK), x: round(a === 'center' ? f.x - ONE_LINE_SLACK / 2 : a === 'right' ? f.x - ONE_LINE_SLACK : f.x) }
+  }
   let content = html.trim()
   if (cs.fontStyle === 'italic') content = `<i>${content}</i>`
   const dec = decorations(cs)
@@ -733,20 +788,25 @@ function emitTable(ctx: Ctx, table: HTMLTableElement, cs: CSSStyleDeclaration, f
     ? Array.from(plain.cells).map((c) => ({ w: round(c.getBoundingClientRect().width / f.w, 10000) }))
     : Array.from({ length: nCols }, () => ({ w: round(1 / nCols, 10000) }))
   const cellStyle = (c: Element) => ctx.win.getComputedStyle(c)
+  // what a cell is painted with: its own background, else its row's, else its
+  // row group's (thead/tbody) — CSS paints all three, the model has cells only
+  const paintOf = (c: Element): string | null => {
+    for (let n: Element | null = c; n && n !== table; n = n.parentElement) {
+      const v = cssToModelColor(ctx.win.getComputedStyle(n).backgroundColor)
+      if (visibleColor(v)) return v
+    }
+    return null
+  }
   const headCell = header ? trs[0].cells[0] : null
   const bodyRows = header ? trs.slice(1) : trs
   const body0 = bodyRows[0]?.cells[0] ?? trs[0].cells[0]
   const bs = cellStyle(body0)
   const hs = headCell ? cellStyle(headCell) : bs
-  const rowBg = (tr?: HTMLTableRowElement) => {
-    if (!tr || !tr.cells[0]) return null
-    const c = cssToModelColor(cellStyle(tr.cells[0]).backgroundColor)
-    return visibleColor(c) ? c : visibleColor(cssToModelColor(ctx.win.getComputedStyle(tr).backgroundColor)) ? cssToModelColor(ctx.win.getComputedStyle(tr).backgroundColor) : null
-  }
+  const rowBg = (tr?: HTMLTableRowElement) => (tr?.cells[0] ? paintOf(tr.cells[0]) : null)
   const bg0 = rowBg(bodyRows[0]), bg1 = rowBg(bodyRows[1])
   const bodyFont = fontFamilyFor(ctx, bs, false)
   const style: TableElement['style'] = {
-    headerBg: (header && cssToModelColor(hs.backgroundColor)) || 'transparent',
+    headerBg: (header && headCell && paintOf(headCell)) || 'transparent',
     headerColor: cssToModelColor(hs.color) ?? '#000000',
     borderColor: cssToModelColor(bs.borderBottomColor) ?? 'transparent',
     borderWidth: bs.borderBottomStyle === 'none' ? 0 : round(px(bs.borderBottomWidth)),
@@ -757,7 +817,11 @@ function emitTable(ctx: Ctx, table: HTMLTableElement, cs: CSSStyleDeclaration, f
     radius: round(px(cs.borderTopLeftRadius)),
   }
   if (bodyFont) style.fontFamily = bodyFont
-  if (bg1 && bg1 !== bg0) style.zebra = bg1
+  // stripes only when the body really alternates; one coloured row stays a
+  // per-cell colour (a zebra would paint every other row with it)
+  const bodyBgs = bodyRows.map((tr) => rowBg(tr))
+  const evens = bodyBgs.filter((_, i) => i % 2 === 0), odds = bodyBgs.filter((_, i) => i % 2 === 1)
+  if (bg1 && bg1 !== bg0 && odds.length >= 2 && odds.every((b) => b === bg1) && evens.every((b) => b === bg0)) style.zebra = bg1
   const cellOf = (c: HTMLTableCellElement, ri: number): TableCell => {
     const s = cellStyle(c)
     const cell: TableCell = { html: richHtml(ctx, c, s).trim() }
@@ -766,7 +830,7 @@ function emitTable(ctx: Ctx, table: HTMLTableElement, cs: CSSStyleDeclaration, f
     const isHead = header && ri === 0
     const color = cssToModelColor(s.color)
     if (color && color !== (isHead ? style.headerColor : style.color)) cell.color = color
-    const bg = cssToModelColor(s.backgroundColor)
+    const bg = paintOf(c)
     const rowDefault = isHead ? style.headerBg : (style.zebra && (ri - (header ? 1 : 0)) % 2 === 1 ? style.zebra : bg0)
     if (visibleColor(bg) && bg !== rowDefault) cell.bg = bg
     if (!isHead && isBold(s.fontWeight) && !isBold(bs.fontWeight)) cell.bold = true
@@ -795,6 +859,44 @@ function emitTable(ctx: Ctx, table: HTMLTableElement, cs: CSSStyleDeclaration, f
   if (Math.max(...heights) - Math.min(...heights) > 2) ctx.notes.add(`#${id}: the rows of a slide table share its height evenly; the HTML gave them different heights (${Math.round(Math.min(...heights))}–${Math.round(Math.max(...heights))}px).`)
   if (rows.some((r) => r.cells.some((c) => c.colspan || c.rowspan))) ctx.notes.add(`#${id}: merged cells kept; check the table with review_slide.`)
   ctx.out.push({ id, type: 'table', ...base(f, opacity), columns, rows, header, style } as TableElement)
+}
+
+/** The presentation properties an svg node's look comes from. */
+const SVG_PAINT = ['fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'font-size', 'font-family', 'font-weight', 'text-anchor']
+
+/**
+ * An inline <svg> drawing → native shapes, paths and text, exactly as the
+ * editor's Convert to objects makes them (svgconvert.ts reads the drawing off
+ * the live DOM: no second SVG interpreter). The deck never gets an opaque svg
+ * element (DECISIONS 2026-10-11): what comes out can be edited piece by piece.
+ * Pieces are `<id>-1`, `<id>-2`, … in drawing order, so a rewrite updates them.
+ */
+function emitSvg(ctx: Ctx, el: Element, f: Frame, id: string, opacity: number) {
+  // the page's CSS does not travel with the markup: paint set by a class or an
+  // inherited rule is written onto each node of a copy first
+  const copy = el.cloneNode(true) as Element
+  const from = [el, ...Array.from(el.querySelectorAll('*'))], to = [copy, ...Array.from(copy.querySelectorAll('*'))]
+  from.forEach((n, i) => {
+    const cs = ctx.win.getComputedStyle(n)
+    for (const prop of SVG_PAINT) {
+      const v = cs.getPropertyValue(prop)
+      if (v && v !== 'normal') to[i].setAttribute(prop, v)
+    }
+  })
+  copy.removeAttribute('style')
+  copy.removeAttribute('class')
+  const drawing = { id, type: 'svg', x: f.x, y: f.y, w: f.w, h: f.h, rotation: f.rotation, opacity, markup: copy.outerHTML } as SvgElement
+  const r = convertSvgToObjects(drawing, ctx.doc)
+  if ('error' in r) { ctx.notes.add(`The drawing #${id} was left out: ${r.error}`); return }
+  const norm = (v: string) => v.replace(/["']/g, '').replace(/\s*,\s*/g, ',').trim().toLowerCase()
+  r.elements.forEach((piece, k) => {
+    piece.id = claimId(ctx, id, `-${k + 1}`)
+    if (piece.groupId) piece.groupId = `${id}-group`
+    // text in the theme font follows the theme, as everywhere else
+    if (piece.type === 'text' && piece.fontFamily && norm(piece.fontFamily) === norm(ctx.bodyFont)) piece.fontFamily = ''
+    ctx.out.push(piece)
+  })
+  for (const n of r.notes) ctx.notes.add(`The drawing #${id}: ${n}.`)
 }
 
 function emitChart(ctx: Ctx, el: Element, f: Frame, id: string, opacity: number) {
@@ -901,6 +1003,7 @@ function visit(ctx: Ctx, el: Element) {
     }
   }
 
+  if (el.localName === 'svg') { emitSvg(ctx, el, f, claimId(ctx, wanted), opacity); return }
   if (tag === 'IMG') { emitImage(ctx, el as HTMLImageElement, cs, f, claimId(ctx, wanted), opacity); return }
   if (tag === 'HR') {
     const w = Math.max(px(cs.borderTopWidth), px(cs.borderBottomWidth), 1)
@@ -909,6 +1012,14 @@ function visit(ctx: Ctx, el: Element) {
     return
   }
   const id = claimId(ctx, wanted)
+  const embed = el.getAttribute('data-bs-embed')
+  if (embed !== null) {
+    const html = ctx.embeds[Number(embed)] ?? ''
+    if (html.length > MAX_EMBED_HTML) { ctx.notes.add(`The frame #${id} was left out: its document is longer than ${MAX_EMBED_HTML} characters.`); return }
+    ctx.out.push({ id, type: 'embed', ...base(f, opacity), html } as SlideElement)
+    ctx.notes.add(`#${id}: a self-contained <iframe> became an embed (it runs sandboxed, with no access to the deck).`)
+    return
+  }
   if (tag === 'TABLE') { emitTable(ctx, el as HTMLTableElement, cs, f, id, opacity); return }
   if (el.hasAttribute('data-chart') || tag === 'PRE') {
     // a styled chart/code box: the box is a shape of its own, behind
@@ -958,13 +1069,22 @@ export async function compileSlideHtml(doc: SlidomingoDoc, slide: Slide, src: Ht
   const existing = new Map(slide.elements.map((e) => [e.id, e]))
   const lookup = { doc, existing }
   const fonts = resolveSlideFonts(doc, slide)
-  return withLaidOut(doc, slide, size, src, (raw) => resolveImgSrc(lookup, raw)?.loadable ?? null, notes, (d) => {
+  const result = await withLaidOut(doc, slide, size, src, (raw) => resolveImgSrc(lookup, raw)?.loadable ?? null, notes, (d, embeds) => {
     const win = d.defaultView!
-    const bodyFont = fonts.fontFamily || doc.theme.fontFamily
+    // the theme fonts as THIS document spells them back in computed styles
+    // (Chrome rewrites e.g. BlinkMacSystemFont to "system-ui"): a text in the
+    // theme font keeps fontFamily '' and follows later theme changes
+    const probe = d.createElement('span')
+    d.body.appendChild(probe)
+    probe.style.fontFamily = 'var(--bs-font)'
+    const bodyFont = win.getComputedStyle(probe).fontFamily || fonts.fontFamily || doc.theme.fontFamily
+    probe.style.fontFamily = 'var(--bs-heading-font)'
+    const headingFont = win.getComputedStyle(probe).fontFamily || bodyFont
+    probe.remove()
     const ctx: Ctx = {
       doc, slide, size, win, notes, out: [], ids: new Set(), reserved: new Set(Array.from(d.body.querySelectorAll('[id]'), (e) => e.id)),
       autoPrefix: `h${slideTag(slide.id)}-`, auto: 0,
-      bodyFont, headingFont: fonts.headingFamily || doc.theme.headingFamily || bodyFont, titled: false, rootTaken: false, existing, imageIds: new Map(),
+      bodyFont, headingFont, titled: false, rootTaken: false, existing, imageIds: new Map(), embeds,
     }
     const bodyCs = win.getComputedStyle(d.body)
     const htmlCs = win.getComputedStyle(d.documentElement)
@@ -984,6 +1104,28 @@ export async function compileSlideHtml(doc: SlidomingoDoc, slide: Slide, src: Ht
     }
     return { elements, background: ctx.background, notes: [...notes], remember: rememberable(src, ctx.imageIds) }
   })
+  await loadFontsFor(doc, fonts, result.elements)
+  return result
+}
+
+/**
+ * The page loads an embedded face only when something first uses it. The
+ * HTML was measured in its own document; before the layout guard measures
+ * the new elements in THIS one, every face they are drawn in is loaded, or
+ * it measures a fallback and "fixes" text that fits.
+ */
+async function loadFontsFor(doc: SlidomingoDoc, fonts: { fontFamily?: string; headingFamily?: string }, els: readonly SlideElement[]) {
+  if (typeof document === 'undefined' || !document.fonts?.load) return
+  const specs = new Set<string>()
+  for (const e of els) {
+    if (e.type !== 'text' && e.type !== 'code') continue
+    const heading = e.type === 'text' && e.role === 'title'
+    const family = e.fontFamily || (heading ? fonts.headingFamily || doc.theme.headingFamily : undefined) || fonts.fontFamily || doc.theme.fontFamily
+    const weight = e.type === 'text' ? e.fontWeight : 400
+    // the element's own weight, and bold for <b> runs inside it
+    for (const w of new Set([weight, 700])) { specs.add(`${w} 16px ${family}`); specs.add(`italic ${w} 16px ${family}`) }
+  }
+  await withTimeout(Promise.all([...specs].map((f) => document.fonts.load(f).catch(() => []))), 3000)
 }
 
 // ---- merge, signature ------------------------------------------------------------
