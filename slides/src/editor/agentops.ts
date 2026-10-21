@@ -1107,6 +1107,22 @@ const SLIDE_HTML: AreaHandlers['slide_html'] = {
   },
 }
 
+/** A slide_html compile turned into a candidate for `slide` WITHOUT writing
+ *  it (propose_variants): a copy of the slide merged by id exactly as a
+ *  write would merge it, its source remembered. Returns a reason instead
+ *  when the candidate would be refused as a write. */
+export function slideFromCompiled(doc: SlidomingoDoc, slide: Slide, compiled: CompileResult): Slide | string {
+  const merged = mergeCompiled(slide.elements, compiled.elements, inheritedIds(doc, slide)).elements
+  const svg = agentSvgViolation(doc, merged, { existing: slide.elements })
+  if (svg) return svg
+  const out = JSON.parse(JSON.stringify(slide)) as Slide
+  out.elements = JSON.parse(JSON.stringify(merged)) as SlideElement[]
+  if (compiled.background) out.background = compiled.background
+  if (compiled.remember) out.htmlSource = { ...compiled.remember, sig: htmlSignature(out.elements, out.background) }
+  else delete out.htmlSource
+  return out
+}
+
 const AREA_HANDLERS: AreaHandlers = { deck: DECK, deck_settings: SETTINGS, icons: ICONS, elements: ELEMENTS, slide_html: SLIDE_HTML }
 
 /** Whether `verb` names an op area (a grouped tool such as `deck`). */

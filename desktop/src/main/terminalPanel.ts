@@ -300,7 +300,8 @@ const CONTEXT_README =
   `  write: update_element (patch props of one element — the default edit),\n` +
   `         insert_elements, set_frame, duplicate_element, delete_element,\n` +
   `         reorder_element, apply_change_pattern, write_slide (restructure\n` +
-  `         only), propose_variants (offers candidates, applies nothing),\n` +
+  `         only), propose_variants (2-6 designs of one slide as HTML for\n` +
+  `         the user to compare and pick; applies nothing),\n` +
   `         create_reusable_object, promote_to_reusable_object,\n` +
   `         create_slide_type,\n` +
   `         slide_type({op: rename|reorder|move|detach|relink}),\n` +

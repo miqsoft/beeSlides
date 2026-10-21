@@ -445,20 +445,31 @@ const TOOLS = [
   {
     name: 'propose_variants',
     description:
-      'Show the user up to 6 full-slide candidates to pick from. Applies ' +
-      'nothing and returns at once; you never learn the pick. A new call ' +
-      'replaces an unpicked set.',
+      'Offer the user 2-6 different designs for one slide; they compare them ' +
+      'side by side with the current slide and pick one or keep it. Write ' +
+      'each as HTML + CSS exactly like slide_html write (same rules, ids ' +
+      'merge into the slide), or as a whole slide (write_slide shape). Make ' +
+      'them differ in layout and emphasis, not just colour; give each a short ' +
+      'label and a one-line note on what it does differently. Applies ' +
+      'nothing; the result lists any design that could not be made. You ' +
+      'never learn the pick. A new call replaces an unpicked set.',
     inputSchema: {
       type: 'object',
       properties: {
         slideId: { type: 'string' },
         variants: {
           type: 'array',
+          minItems: 1,
           maxItems: 6,
           items: {
             type: 'object',
-            properties: { slide: { type: 'object' }, label: { type: 'string' } },
-            required: ['slide'],
+            properties: {
+              html: { type: 'string', description: 'The slide body as HTML (as in slide_html write).' },
+              css: { type: 'string' },
+              slide: { type: 'object', description: 'Instead of html: a whole slide (write_slide shape, same id).' },
+              label: { type: 'string', description: 'A few words, e.g. "Three cards".' },
+              note: { type: 'string', description: 'One line: what this design does differently.' },
+            },
           },
         },
         assets: { type: 'object' },

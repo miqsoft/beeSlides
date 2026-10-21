@@ -13207,3 +13207,37 @@ also `agentWork` in `selection.json`, and each digest lists the slides OTHER
 tabs wrote ("another chat is working on …"; a tab's own are left out via its
 session id). Locks are released when a turn ends (API chat `busy:false`, or a
 `claude` tab's `Stop` hook writing `turn-done`), not after 8 idle minutes.
+
+## 2026-10-21 — Design options: `propose_variants` takes HTML, and a compare view replaces the popover
+
+**Decision.** `propose_variants` candidates may be written as HTML + CSS
+(`{label, note, html, css}`) as well as whole slides. Each HTML design is laid
+out exactly like a `slide_html` write (`htmlslide.ts compileSlideHtml`) and
+merged by id into a COPY of the slide (`agentops.ts slideFromCompiled`, the
+same `mergeCompiled` + inherited chrome + `agentSvgViolation` a write uses),
+so the design picked keeps the slide's animations, links and comments and
+remembers its HTML (`slide_html read` gives it back). Nothing touches
+`store.doc` until Use, which is one undo step, as before. A design that
+cannot be made is dropped with its reason (`dropped`), and layout notes come
+back to the agent (`notes`): the call now answers after laying them out,
+not at once.
+
+**Why HTML.** A model comparing three layouts needs three real layouts; with
+whole-slide JSON it had to compute every frame by hand, which is what it does
+worst (the reason `slide_html` exists, 2026-10-20). Designs came back as
+near-copies or misaligned.
+
+**The compare view** (`variantpicker.ts`): a modal `<dialog>` (top layer,
+so the title bar's z-index ceiling does not apply) with all designs in a grid
+sized to fit the window, and one design large with a strip that includes the
+current slide (← →, 0–6, Enter uses, Esc steps back, then closes). Closing
+discards nothing; only Use, Keep current slide, or a new proposal clears the
+set. The ✨ pill on the slide's thumbnail and the title-bar badge reopen it. It
+opens on its own unless a text is being edited or another dialog is open
+(then an action toast offers Compare). A slide edited after the proposal
+shows a warning, since Use replaces it.
+
+**Kept:** ONE pending set per deck. Designs for every slide at once would need
+a set per slide and the badge on each thumbnail; not done until it is asked
+for. The `slide-designs` API-chat skill therefore does one slide per call.
+Rig: `scripts/test-slide-variants-e2e.mjs`.

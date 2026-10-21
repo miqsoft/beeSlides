@@ -8,11 +8,13 @@ import buildDeck from './build-deck.md?raw'
 import customizeUi from './customize-ui.md?raw'
 import drawIcons from './draw-icons.md?raw'
 import polishDeck from './polish-deck.md?raw'
+import slideDesigns from './slide-designs.md?raw'
 import translateDeck from './translate-deck.md?raw'
 
 export const BUILTIN_SKILLS: Skill[] = [
   parseSkill(buildDeck, 'build-deck'),
   parseSkill(polishDeck, 'polish-deck'),
+  parseSkill(slideDesigns, 'slide-designs'),
   parseSkill(translateDeck, 'translate-deck'),
   parseSkill(customizeUi, 'customize-ui'),
   parseSkill(drawIcons, 'draw-icons'),

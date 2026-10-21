@@ -3644,66 +3644,231 @@ body:has(> .beeslides-present-overlay) > :not(.beeslides-present-overlay) .beesl
   line-height: 1;
 }
 
-/* propose_variants picker — popover over the topbar's ✨ badge, modeled on
-   the layout picker above */
-.ed-variantpick {
-  position: fixed;
-  z-index: 200;
+/* propose_variants compare view (variantpicker.ts) — a modal <dialog>: all
+   designs in a grid sized to fit the screen, or one large with a strip to
+   flip between it, the others and the current slide */
+dialog.ed-variants {
+  border: 0;
+  border-radius: 18px;
+  padding: 0;
+  width: min(1180px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgb(23 18 10 / 0.18);
-  padding: 12px 14px;
-  max-width: 560px;
-  max-height: 70vh;
-  overflow-y: auto;
-}
-.ed-variantpick-title {
+  color: var(--ink);
+  font: inherit;
   font-size: 13px;
-  font-weight: 700;
-  margin: 2px 2px 10px;
-}
-.ed-variantpick-grid {
-  display: grid;
-  grid-template-columns: repeat(3, auto);
-  gap: 10px;
-}
-.ed-variantpick-item {
-  cursor: pointer;
-  border: 2px solid var(--line);
-  border-radius: 8px;
-  padding: 3px;
-  text-align: center;
-  transition: border-color 0.12s ease;
-}
-.ed-variantpick-item:hover { border-color: var(--accent); }
-.ed-variantpick-name {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 3px;
+  box-shadow: 0 30px 80px rgb(23 18 10 / 0.35), 0 0 0 1px var(--line);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 160px;
 }
-.ed-variantpick-broken {
-  width: 160px;
-  height: 90px;
+dialog.ed-variants:not([open]) { display: none; }
+dialog.ed-variants::backdrop {
+  background: rgb(23 18 10 / 0.5);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  dialog.ed-variants[open] { animation: ed-variants-in 0.18s ease-out; }
+  @keyframes ed-variants-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+}
+.ed-variants-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 24px 12px;
+}
+.ed-variants-titles { flex: 1; min-width: 0; }
+.ed-variants-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.ed-variants-title svg { width: 18px; height: 18px; color: var(--accent-text); flex: none; }
+.ed-variants-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.ed-variants-x {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ed-variants-x:hover { background: var(--chrome); color: var(--ink); }
+.ed-variants-warn {
+  margin: 0 24px 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  font-size: 12.5px;
+}
+.ed-variants-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 24px 16px;
+}
+.ed-variants-grid {
+  display: grid;
+  gap: 24px 20px;
+  justify-content: center;
+}
+.ed-variants-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ed-variants-shot,
+.ed-variants-tab {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 10px;
+  cursor: pointer;
+  line-height: 0;
+  box-shadow: 0 0 0 1px var(--line), 0 2px 8px rgb(23 18 10 / 0.08);
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+.ed-variants-shot > .beeslides-thumb-surface,
+.ed-variants-tab > .beeslides-thumb-surface,
+.ed-variants-big > .beeslides-thumb-surface { border-radius: 10px; overflow: hidden; }
+.ed-variants-shot:hover,
+.ed-variants-shot:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent), 0 10px 28px rgb(23 18 10 / 0.18);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ed-variants-shot:hover { transform: translateY(-2px); }
+}
+.ed-variants-key {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: rgb(23 18 10 / 0.72);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+.ed-variants-meta { display: flex; align-items: flex-start; gap: 12px; }
+.ed-variants-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ed-variants-label { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-variants-note {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ed-variants-btn {
+  flex: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ed-variants-btn:hover { background: var(--chrome); }
+.ed-variants-btn.ed-primary {
+  border-color: transparent;
+  color: #17120A;
+  background: linear-gradient(180deg, #FFD466, #F5A300);
+}
+.ed-variants-btn.ed-primary:hover { filter: brightness(1.04); }
+.ed-variants-btn:disabled { opacity: 0.45; cursor: default; filter: none; }
+.ed-variants-btn:focus-visible,
+.ed-variants-back:focus-visible,
+.ed-variants-tab:focus-visible,
+.ed-variants-x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ed-variants-use { padding: 5px 14px; }
+.ed-variants-broken {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
   color: var(--muted);
   background: var(--chrome);
-  border-radius: 6px;
+  border-radius: 10px;
+  line-height: 1.3;
 }
-.ed-variantpick-footer {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+/* one design, large */
+.ed-variants-stage { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ed-variants-back {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  font-weight: 600;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.ed-variants-big {
+  line-height: 0;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--line), 0 12px 36px rgb(23 18 10 / 0.16);
+}
+.ed-variants-caption { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; max-width: 720px; }
+.ed-variants-caption .ed-variants-note { -webkit-line-clamp: 3; }
+.ed-variants-strip { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; padding-top: 4px; }
+.ed-variants-tab { opacity: 0.7; }
+.ed-variants-tab:hover { opacity: 1; }
+.ed-variants-tab[aria-selected="true"] { opacity: 1; box-shadow: 0 0 0 3px var(--accent); }
+.ed-variants-tab .ed-variants-key { top: 4px; inset-inline-start: 4px; min-width: 18px; height: 18px; line-height: 18px; font-size: 11px; }
+.ed-variants-foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--chrome);
 }
+.ed-variants-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 640px) {
+  .ed-variants-hint { display: none; }
+  .ed-variants-foot { flex-wrap: wrap; justify-content: flex-end; }
+}
+
+/* the ✨ pill on the thumbnail of the slide with proposed designs */
+.ed-thumb-variants {
+  position: absolute;
+  bottom: 5px;
+  inset-inline-end: 5px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px var(--surface), 0 2px 6px rgb(23 18 10 / 0.2);
+}
+.ed-thumb-variants svg { width: 11px; height: 11px; }
+.ed-thumb-variants:hover { filter: brightness(1.05); }
 
 /* propose_variants topbar badge — pill next to the terminal toggle. Visibility
    is toggled via inline style.display by editor.ts's updateVariantBadge

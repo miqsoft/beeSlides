@@ -76,7 +76,7 @@ import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
 import { renderIconSources } from './iconsettings'
 import { openLibraryPanel } from './librarypanel'
 import { openSaveSelectionDialog } from './saveselection'
-import { openVariantPicker, type PendingVariant, type PendingVariants } from './variantpicker'
+import { closeVariantPicker, MAX_VARIANTS, openVariantPicker, type PendingVariant, type PendingVariants } from './variantpicker'
 import { colorForSession } from './sessioncolor'
 import { flipMenuIfNeeded, positionFloating } from './floatingposition'
 import { isDesktopShell, useRibbonChrome, buildRibbon, ribbonGroup, ribbonRow } from './ribbon'
@@ -125,8 +125,9 @@ import { validateProfile } from './customize/validate'
 import { QUICKBAR_PLACES, emptyProfile, type QuickBarPlace, type UiProfile } from './customize/schema'
 import type { RibbonHandle } from './ribbon'
 import { agentFindText } from './findtext'
-import { isAreaTool, runAreaOp, sectionRows, type HtmlLayout, type IconLibraryAccess, type SlideWrites } from './agentops'
-import { compileSlideHtml } from '../htmlslide'
+import { isAreaTool, runAreaOp, sectionRows, slideFromCompiled, type HtmlLayout, type IconLibraryAccess, type SlideWrites } from './agentops'
+import { compileSlideHtml, type CompileResult } from '../htmlslide'
+import { MAX_SLIDE_HTML } from '../agentops/spec'
 import { slideToHtml } from '../htmlemit'
 
 
@@ -806,7 +807,7 @@ export class Editor {
     // Built as a local const (not read back off `this.variantBadge`) so the
     // closure and the rightCluster array below both see a definite
     // HTMLElement rather than fighting TS's this.field narrowing rules.
-    const variantBadge = btn(ICONS.sparkle, '', () => openVariantPicker(this, this.store, variantBadge),
+    const variantBadge = btn(ICONS.sparkle, '', () => this.openVariants(),
       t('Claude Code proposed slide variants — pick one'))
     variantBadge.classList.add('ed-variant-badge')
     variantBadge.style.display = 'none'
@@ -2809,6 +2810,23 @@ export class Editor {
     item.appendChild(badge)
   }
 
+  /** The ✨ pill on the thumbnail of the slide Claude proposed designs for:
+   *  it says how many and opens the compare view. */
+  private appendVariantBadge(item: HTMLElement, slideId: string) {
+    const pending = this.pendingVariants
+    if (!pending || pending.slideId !== slideId) return
+    const badge = document.createElement('button')
+    badge.type = 'button'
+    badge.className = 'ed-thumb-variants'
+    badge.innerHTML = `${ICONS.sparkle}<span>${pending.variants.length}</span>`
+    badge.title = pending.variants.length === 1
+      ? t('Claude proposed a design for this slide — compare it with the slide')
+      : t('Claude proposed {n} designs for this slide — compare them', { n: pending.variants.length })
+    badge.addEventListener('pointerdown', (ev) => ev.stopPropagation())
+    badge.addEventListener('click', (ev) => { ev.stopPropagation(); this.openVariants() })
+    item.appendChild(badge)
+  }
+
   private makeThumb(slide: import('../model').Slide, i: number, isState: boolean): HTMLElement {
     const item = div('ed-thumb')
     item.dataset.index = String(i)
@@ -2857,6 +2875,7 @@ export class Editor {
       item.appendChild(link)
     }
     this.appendLockBadge(item, slide.id)
+    this.appendVariantBadge(item, slide.id)
     const clicks = stepCount(slide)
     if (clicks) item.appendChild(this.buildsBadge(clicks))
     const tools = div('ed-thumb-tools')
@@ -6331,36 +6350,7 @@ export class Editor {
         const targetSlide = this.store.doc.slides.find((s) => s.id === slideId)
         if (!targetSlide) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
         { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        const rawVariants = Array.isArray(args.variants) ? args.variants.slice(0, 6) : []
-        const survivors: PendingVariant[] = []
-        for (const raw of rawVariants) {
-          if (!raw || typeof raw !== 'object') continue
-          const candidate = raw as { slide?: unknown; label?: unknown }
-          // Same untrusted-fragment rebuild write_slide runs a whole slide
-          // through (applyExternalSlideWrite) — a candidate is exactly as
-          // trusted as an agent's write_slide payload, no more. A bad
-          // element type or an oversized field is dropped by sanitizeSlide
-          // (per-element, same as a malicious paste); a mismatched slide.id
-          // drops the WHOLE candidate here.
-          const sanitized = sanitizeSlide(candidate.slide)
-          if (!sanitized || sanitized.id !== slideId) continue
-          survivors.push({ slide: sanitized, label: typeof candidate.label === 'string' ? candidate.label : undefined })
-        }
-        if (!survivors.length) { respond({ requestId: cmd.requestId, ok: false, error: 'no-valid-variants' }); return }
-        const replacing = !!this.pendingVariants
-        this.pendingVariants = {
-          requestId: cmd.requestId,
-          slideId,
-          variants: survivors,
-          assets: sanitizeAssets(args.assets),
-          fonts: sanitizeFonts(args.fonts),
-        }
-        this.updateVariantBadge()
-        this.toast(replacing
-          ? t('Claude Code proposed {n} new variants — replaced the earlier, unreviewed set', { n: survivors.length })
-          : t('Claude Code proposed {n} variants for slide “{id}”', { n: survivors.length, id: slideId }))
-        if (this.variantBadge) openVariantPicker(this, this.store, this.variantBadge)
-        respond({ requestId: cmd.requestId, ok: true, count: survivors.length })
+        void this.proposeVariants(slideId, args).then((r) => respond({ requestId: cmd.requestId, ...r }))
         return
       }
       case 'create_reusable_object': {
@@ -6582,6 +6572,91 @@ export class Editor {
     }
   }
 
+  /**
+   * propose_variants: builds each candidate WITHOUT touching store.doc or the
+   * undo stack. A candidate is either a whole slide (`slide`, the
+   * write_slide shape) or HTML (`html` + `css`), laid out exactly as a
+   * slide_html write would lay it out and merged by id into a copy of the
+   * slide — so the one picked keeps the slide's animations, links and
+   * comments. One that cannot be made is dropped with its reason, not the
+   * whole call; the agent hears which.
+   */
+  private async proposeVariants(slideId: string, args: Record<string, unknown>): Promise<{ ok: boolean; [k: string]: unknown }> {
+    const rawVariants = Array.isArray(args.variants) ? args.variants.slice(0, MAX_VARIANTS) : []
+    const survivors: PendingVariant[] = []
+    const dropped: string[] = []
+    const notes: string[] = []
+    for (const [i, raw] of rawVariants.entries()) {
+      const n = i + 1
+      if (!raw || typeof raw !== 'object') { dropped.push(`variant ${n}: not an object`); continue }
+      const candidate = raw as { slide?: unknown; html?: unknown; css?: unknown; label?: unknown; note?: unknown }
+      const label = typeof candidate.label === 'string' && candidate.label.trim() ? candidate.label.trim().slice(0, 60) : undefined
+      const note = typeof candidate.note === 'string' && candidate.note.trim() ? candidate.note.trim().slice(0, 240) : undefined
+      if (typeof candidate.html === 'string') {
+        const target = this.store.doc.slides.find((s) => s.id === slideId)
+        if (!target) return { ok: false, error: 'no-such-slide' }
+        const css = typeof candidate.css === 'string' && candidate.css ? candidate.css : undefined
+        if (!candidate.html.trim()) { dropped.push(`variant ${n}: html is empty`); continue }
+        if (candidate.html.length + (css?.length ?? 0) > MAX_SLIDE_HTML) { dropped.push(`variant ${n}: the HTML is too long (at most ${MAX_SLIDE_HTML} characters)`); continue }
+        let compiled: CompileResult
+        try { compiled = await this.agentHtml.compile(target, { html: candidate.html, ...(css ? { css } : {}) }) } catch (e) {
+          dropped.push(`variant ${n}: ${e instanceof Error ? e.message : String(e)}`)
+          continue
+        }
+        // laid out against the slide as it is NOW (it may have changed meanwhile)
+        const now = this.store.doc.slides.find((s) => s.id === slideId)
+        if (!now) return { ok: false, error: 'no-such-slide' }
+        const made = slideFromCompiled(this.store.doc, now, compiled)
+        if (typeof made === 'string') { dropped.push(`variant ${n}: ${made}`); continue }
+        for (const line of compiled.notes) notes.push(`variant ${n}: ${line}`)
+        survivors.push({ slide: made, label, note })
+        continue
+      }
+      // Same untrusted-fragment rebuild write_slide runs a whole slide
+      // through (applyExternalSlideWrite) — a candidate is exactly as
+      // trusted as an agent's write_slide payload, no more. A bad
+      // element type or an oversized field is dropped by sanitizeSlide
+      // (per-element, same as a malicious paste); a mismatched slide.id
+      // drops the WHOLE candidate here.
+      const sanitized = sanitizeSlide(candidate.slide)
+      if (!sanitized) { dropped.push(`variant ${n}: give html (+ css) or a whole slide`); continue }
+      if (sanitized.id !== slideId) { dropped.push(`variant ${n}: slide.id must be "${slideId}"`); continue }
+      survivors.push({ slide: sanitized, label, note })
+    }
+    if (!survivors.length) return { ok: false, error: `no-valid-variants${dropped.length ? ` (${dropped.join('; ')})` : ''}` }
+    const target = this.store.doc.slides.find((s) => s.id === slideId)
+    if (!target) return { ok: false, error: 'no-such-slide' }
+    const replacing = !!this.pendingVariants
+    this.pendingVariants = {
+      slideId,
+      variants: survivors,
+      assets: sanitizeAssets(args.assets),
+      fonts: sanitizeFonts(args.fonts),
+      baseline: JSON.stringify(target),
+    }
+    this.updateVariantBadge()
+    const num = this.store.doc.slides.indexOf(target) + 1
+    const one = survivors.length === 1
+    const message = replacing
+      ? (one ? t('Claude proposed a new design — it replaces the ones you had not picked from') : t('Claude proposed {n} new designs — they replace the ones you had not picked from', { n: survivors.length }))
+      : (one ? t('Claude proposed a design for slide {num}', { num }) : t('Claude proposed {n} designs for slide {num}', { n: survivors.length, num }))
+    // never over a text being typed or another dialog: say so and wait
+    if (this.canvas.isEditingText || document.querySelector('dialog[open]')) actionToast(message, t('Compare'), () => this.openVariants())
+    else this.openVariants()
+    return {
+      ok: true,
+      count: survivors.length,
+      ...(dropped.length ? { dropped } : {}),
+      ...(notes.length ? { notes: notes.slice(0, 30) } : {}),
+      shown: 'The user now compares them side by side with the current slide and picks one or keeps the slide. You are not told which; do not wait or poll.',
+    }
+  }
+
+  /** Opens the compare view for the pending designs (no-op without any). */
+  openVariants() {
+    if (this.pendingVariants) openVariantPicker(this, this.store)
+  }
+
   /** Shows/hides and labels the topbar's propose_variants badge — called
    *  after pendingVariants is set (propose_variants) or cleared
    *  (applyVariant/discardVariants). No-op on the web topbar, which never
@@ -6595,6 +6670,7 @@ export class Editor {
     } else {
       this.variantBadge.style.display = 'none'
     }
+    this.rebuildSidebar()
   }
 
   /** Read-only view of the pending propose_variants set for variantpicker.ts
@@ -6634,9 +6710,10 @@ export class Editor {
       doc.slides[idx] = slide
     }, 'slides')
     if (pending.fonts.length) injectFonts(this.store.doc)
-    const label = chosen.label ?? t('Variant {n}', { n: index + 1 })
-    this.toast(t('Applied “{label}” to slide “{id}”', { label, id: pending.slideId }))
     this.clearPendingVariants()
+    if (idx !== this.store.currentIndex && !this.store.editingSurface) this.store.goTo(idx)
+    const label = chosen.label ?? t('Design {n}', { n: index + 1 })
+    this.toast(t('Used “{label}” on slide {num} — undo brings the old slide back', { label, num: idx + 1 }))
   }
 
   /** Discard the pending set without touching store.doc/store.commit/the
@@ -6645,13 +6722,13 @@ export class Editor {
   discardVariants() {
     if (!this.pendingVariants) return
     this.clearPendingVariants()
-    this.toast(t('Discarded the proposed variants.'))
+    this.toast(t('Kept the current slide.'))
   }
 
   private clearPendingVariants() {
     this.pendingVariants = null
     this.updateVariantBadge()
-    document.querySelector('.ed-variantpick')?.remove()
+    closeVariantPicker()
   }
 
   private async checkRecovery() {

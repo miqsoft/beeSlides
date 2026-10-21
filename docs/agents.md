@@ -196,6 +196,12 @@ show appear as `data-keep` placeholders; pictures as `src="element:<id>"`.
 Use `slide_html` to create and restructure; use `update_element` /
 `elements` for small changes (a colour, one nudge, an animation).
 
+**Options instead of one answer.** When the user asks for alternatives
+("show me a few designs for this slide"), write two to six as HTML and offer
+them with `propose_variants` `{slideId, variants:[{label, note, html,
+css}]}`: they compare them with the slide as it is and pick one. Nothing
+changes until they do.
+
 ---
 
 ## Make a GREAT deck, not just a correct one
@@ -767,13 +773,18 @@ for the whole session. The details behind them:
   cuts nothing and is read as removing the crop, like `null`. `id` and `type` are fixed. `html` and table cell html are
   sanitized. One undo step. Nested objects (`style`, `option`, `fx`) are
   replaced whole, not merged.
-- **`propose_variants`** — up to 6 full replacement slides (same shape as
-  `write_slide`, `slide.id` must equal `slideId`), each checked on its own;
-  an invalid one is dropped, not the whole call. Nothing is applied until
-  the human picks one in the picker; the call returns `{ok, count}` at once
-  and you never learn which, if any, they chose — do not wait or poll.
-  There is ONE pending slot: a new call before they pick discards the
-  earlier set (they are told).
+- **`propose_variants`** — 2–6 designs of one slide for the user to compare
+  side by side with the current slide (and one at a time, large) and pick
+  from. Write each as `{label, note, html, css}`: laid out exactly like a
+  `slide_html` write and merged by id into a copy of the slide, so the one
+  picked keeps the slide's animations, links and comments. A whole slide
+  (`{slide}`, `write_slide` shape, same id) is accepted too. Each is checked
+  on its own; one that cannot be made is dropped (listed in `dropped`, with
+  layout `notes`), not the whole call. Nothing is applied until the human
+  picks; using one is one undo step. You never learn which, if any, they
+  chose — do not wait or poll. There is ONE pending slot: a new call before
+  they pick replaces the earlier set (they are told). Make the designs
+  differ in layout and emphasis, not only colour.
 - **`apply_change_pattern`** — looks up `sourceElementId`'s most recent
   change (the log `recent_changes` reads) and copies its changed fields onto
   each listed target of the same type (and shape kind). `id`, `morphId`,

@@ -9,6 +9,12 @@ preserved.
 
 ## [Unreleased]
 
+- **Claude can offer you design options for a slide:** ask for a few designs
+  and Claude writes them (as HTML, laid out by the browser); you compare them
+  side by side with the slide as it is, or one at a time in large, flip with
+  the arrow keys, and use one with a click. Nothing changes until you pick,
+  using one is a single undo step, and animations, links and comments on the
+  slide stay. A ✨ on the slide's thumbnail brings the choice back later.
 - **Claude can write a slide as plain HTML:** the new `slide_html` agent tool
   takes ordinary HTML and CSS (flexbox, grid, padding), lays it out in the
   browser and turns every box into normal, editable slide elements — text,
