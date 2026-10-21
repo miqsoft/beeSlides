@@ -14,7 +14,7 @@
 // the window was bound to. Nothing is ever written next to or into the deck:
 // transcripts carry raw tool output (file contents, env), which must not
 // travel with a file people share (docs/DECISIONS.md, "Chat history").
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeFileAtomic } from './fsutil.ts'
 
@@ -127,35 +127,75 @@ export function findTranscript(configDir: string, id: string): string | null {
 
 const TITLE_MAX = 80
 
-function clip(text: string): string {
+/** One line of at most TITLE_MAX characters — how every chat title is shown. */
+export function clip(text: string): string {
   const one = text.replace(/\s+/g, ' ').trim()
   return one.length > TITLE_MAX ? `${one.slice(0, TITLE_MAX - 1)}…` : one
 }
 
-/** A human title for a transcript: the user's /rename, else Claude Code's own
- *  generated title, else the first thing the user typed. */
-export function transcriptTitle(text: string): string | null {
-  let custom: string | null = null
-  let ai: string | null = null
-  let firstPrompt: string | null = null
+/** What a transcript has said about its title so far (see scanTitle). */
+export interface TitleScan { custom: string | null; ai: string | null; firstPrompt: string | null }
+
+/** Folds transcript lines into `scan`: the latest /rename, the latest title
+ *  Claude Code generated, the first thing the user typed. */
+export function scanTitle(text: string, scan: TitleScan = { custom: null, ai: null, firstPrompt: null }): TitleScan {
   for (const line of text.split('\n')) {
-    const cheap = line.includes('"custom-title"') || line.includes('"ai-title"') || (!firstPrompt && line.includes('"type":"user"'))
+    const cheap = line.includes('"custom-title"') || line.includes('"ai-title"') || (!scan.firstPrompt && line.includes('"type":"user"'))
     if (!cheap) continue
     let entry: { type?: string; customTitle?: unknown; aiTitle?: unknown; isMeta?: unknown; message?: { content?: unknown } }
     try { entry = JSON.parse(line) } catch { continue }
-    if (entry.type === 'custom-title' && typeof entry.customTitle === 'string') custom = entry.customTitle
-    else if (entry.type === 'ai-title' && typeof entry.aiTitle === 'string') ai = entry.aiTitle
-    else if (entry.type === 'user' && !firstPrompt && !entry.isMeta) {
+    if (entry.type === 'custom-title' && typeof entry.customTitle === 'string') scan.custom = entry.customTitle
+    else if (entry.type === 'ai-title' && typeof entry.aiTitle === 'string') scan.ai = entry.aiTitle
+    else if (entry.type === 'user' && !scan.firstPrompt && !entry.isMeta) {
       const content = entry.message?.content
       const text = typeof content === 'string'
         ? content
         : Array.isArray(content) ? content.find((c) => c?.type === 'text' && typeof c.text === 'string')?.text : undefined
       // Slash commands and local-command echoes arrive as <command-…> markup.
-      if (typeof text === 'string' && text.trim() && !text.trimStart().startsWith('<')) firstPrompt = text
+      if (typeof text === 'string' && text.trim() && !text.trimStart().startsWith('<')) scan.firstPrompt = text
     }
   }
-  const title = custom ?? ai ?? firstPrompt
+  return scan
+}
+
+function titleOf(scan: TitleScan): string | null {
+  const title = scan.custom ?? scan.ai ?? scan.firstPrompt
   return title ? clip(title) : null
+}
+
+/** A human title for a transcript: the user's /rename, else Claude Code's own
+ *  generated title, else the first thing the user typed. */
+export function transcriptTitle(text: string): string | null {
+  return titleOf(scanTitle(text))
+}
+
+/** How far a live transcript has been read, so asking again reads only what
+ *  was appended since (transcripts of long chats run to many MB). */
+export interface TitleTail { file: string; offset: number; scan: TitleScan }
+
+/** The title of a transcript that is still being written. Reads from
+ *  `tail.offset` to the last complete line; a file that shrank or changed is
+ *  read again from the start. Returns the tail to pass next time. */
+export function tailTranscriptTitle(file: string, tail: TitleTail | null): { title: string | null; tail: TitleTail } {
+  let t: TitleTail = tail && tail.file === file ? tail : { file, offset: 0, scan: { custom: null, ai: null, firstPrompt: null } }
+  let fd: number | null = null
+  try {
+    const size = statSync(file).size
+    if (size < t.offset) t = { file, offset: 0, scan: { custom: null, ai: null, firstPrompt: null } }
+    if (size > t.offset) {
+      fd = openSync(file, 'r')
+      const buf = Buffer.alloc(size - t.offset)
+      const n = readSync(fd, buf, 0, buf.length, t.offset)
+      const end = buf.lastIndexOf(0x0a, n - 1)
+      if (end >= 0) {
+        scanTitle(buf.toString('utf8', 0, end), t.scan)
+        t.offset += end + 1
+      }
+    }
+  } catch { /* unreadable right now — keep what we had */ } finally {
+    if (fd !== null) try { closeSync(fd) } catch { /* already closed */ }
+  }
+  return { title: titleOf(t.scan), tail: t }
 }
 
 /** An API chat's title: its first user message (the transcript is our own

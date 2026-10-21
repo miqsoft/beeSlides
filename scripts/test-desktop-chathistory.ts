@@ -13,11 +13,11 @@
 // unsaved draft was saved, a never-used tab cluttering the list forever, or a
 // renderer-supplied id reaching the shell command line.
 
-import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  addRecord, backfillChats, belongsTo, projectDirName, findTranscript, isChatId, listChats, loadRecords, retarget, transcriptTitle,
+  addRecord, backfillChats, belongsTo, projectDirName, findTranscript, isChatId, listChats, loadRecords, retarget, tailTranscriptTitle, transcriptTitle,
 } from '../desktop/src/main/chathistory.ts'
 
 let failures = 0
@@ -166,6 +166,25 @@ ok(listChats(store, join(root, 'missing-config'), { docId: 'doc-1', path: deckPa
   ok(backfillChats(bstore, config, cwd, key, cache) === 1, 'a later transcript is picked up')
   ok(backfillChats(bstore, config, cwd, { docId: null, path: null }, cache) === 0, 'no docId and no path claims nothing')
   ok(listChats(bstore, config, key).length === 2, 'claimed chats show in the deck history')
+}
+
+// ---- open-tab titles: a live transcript is read in steps -------------------------
+{
+  const file = join(root, 'live.jsonl')
+  const first = line({ type: 'user', message: { content: 'Tighten the agenda slide' } })
+  writeFileSync(file, first + '\n' + '{"type":"ai-ti')
+  let r = tailTranscriptTitle(file, null)
+  ok(r.title === 'Tighten the agenda slide', 'a new tab is titled by its first prompt')
+  ok(r.tail.offset === first.length + 1, '…and a half-written last line is left for later')
+  appendFileSync(file, 'tle","aiTitle":"agenda-tightening"}\n')
+  r = tailTranscriptTitle(file, r.tail)
+  ok(r.title === 'agenda-tightening', 'the line finished later is read, with the generated title winning')
+  appendFileSync(file, line({ type: 'custom-title', customTitle: 'Agenda ✂' }) + '\n')
+  r = tailTranscriptTitle(file, r.tail)
+  ok(r.title === 'Agenda ✂', 'a /rename appended later wins, multibyte text intact')
+  writeFileSync(file, line({ type: 'user', message: { content: 'fresh start' } }) + '\n')
+  ok(tailTranscriptTitle(file, r.tail).title === 'fresh start', 'a file that shrank is read again from the start')
+  ok(tailTranscriptTitle(join(root, 'missing.jsonl'), null).title === null, 'a missing transcript has no title and does not throw')
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed`)

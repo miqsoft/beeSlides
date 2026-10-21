@@ -57,7 +57,7 @@ import type { ChatEvent } from './apichat/types.ts'
 import { writeFileAtomic } from './fsutil.ts'
 import { captureSlideSnapshot, isSnapshotRequest } from './slidesnapshot.ts'
 import { addFolder, existingFolders, listFolders, removeFolder, retargetFolders, validateFolder } from './attachedfolders.ts'
-import { addRecord, backfillChats, belongsTo, findTranscript, getRecord, isChatId, listChats, retarget, type ChatSummary, type DeckKey } from './chathistory.ts'
+import { addRecord, backfillChats, belongsTo, clip, findTranscript, getRecord, isChatId, listChats, retarget, tailTranscriptTitle, type ChatSummary, type DeckKey, type TitleTail } from './chathistory.ts'
 import { deckKeyFor, docWebContentsFor, draftsDir, layoutWindow, launchPathFor, windowForDocWebContents } from './windows.ts'
 import { isInside } from './docfile.ts'
 import { guardNavigation } from './navguard.ts'
@@ -140,7 +140,7 @@ function deliverPrompt(win: BrowserWindow, text: string): void {
     const created = await createSession(panel.workspace, panel.contextDir, basename(panel.contextDir), () => deckKeyForWindow(panel.hostWindow), { initialTask })
     if (!created || panels.get(win.id) !== panel) return
     const init = wireAndRegisterSession(panel, created)
-    try { panel.view.webContents.send('terminal:init', { sessions: [init], activeId: created.id }) } catch { /* view gone */ }
+    try { panel.view.webContents.send('terminal:init', { sessions: [init], activeId: created.id, mode: panel.mode }) } catch { /* view gone */ }
   })()
 }
 
@@ -212,6 +212,8 @@ interface SessionState {
   handledRequestFiles: Set<string>
   /** At most one pending "partial write, parse again shortly" retry per file. */
   requestRetryTimers: Map<string, NodeJS.Timeout>
+  /** How far the tab title has read this tab's transcript (terminal:tab-titles). */
+  titleTail?: TitleTail
 }
 
 interface PanelState {
@@ -1464,7 +1466,7 @@ async function openPanel(win: BrowserWindow, opts?: { initialTask?: string; comp
     return
   }
   sendCurrentTheme(view, win.id)
-  view.webContents.send('terminal:init', { sessions: [initPayloadFor(view, session)], activeId: session.id })
+  view.webContents.send('terminal:init', { sessions: [initPayloadFor(view, session)], activeId: session.id, mode: panel.mode })
   docWebContentsFor(win)?.send('slidomingo:terminal-state', { open: true })
   if (panels.get(win.id) === panel) animateReveal(panel, 1)
 }
@@ -1599,6 +1601,7 @@ export async function popOutTerminalPanel(win: BrowserWindow): Promise<void> {
   view.webContents.send('terminal:init', {
     sessions: [...panel.sessions.values()].map((s) => initPayloadFor(view, s)),
     activeId: activeSessionIdFor(panel),
+    mode: panel.mode,
   })
 
   // Only now — the replacement has PROVEN it works — tear down the old,
@@ -1676,6 +1679,7 @@ export async function dockTerminalPanel(win: BrowserWindow): Promise<void> {
   view.webContents.send('terminal:init', {
     sessions: [...panel.sessions.values()].map((s) => initPayloadFor(view, s)),
     activeId: activeSessionIdFor(panel),
+    mode: panel.mode,
   })
 
   // Only now — the replacement has PROVEN it works — tear down the old,
@@ -1836,7 +1840,7 @@ export function registerTerminalIpc(): void {
       const created = await createSession(panel.workspace, panel.contextDir, basename(panel.contextDir), () => deckKeyForWindow(panel.hostWindow), { profile })
       if (!created || panels.get(win.id) !== panel) return
       const init = wireAndRegisterSession(panel, created)
-      try { panel.view.webContents.send('terminal:init', { sessions: [init], activeId: created.id }) } catch { /* view gone */ }
+      try { panel.view.webContents.send('terminal:init', { sessions: [init], activeId: created.id, mode: panel.mode }) } catch { /* view gone */ }
     })()
   })
   onFrom('terminal', 'chat:send', (ev, sessionId: unknown, text: unknown) => {
@@ -1886,6 +1890,32 @@ export function registerTerminalIpc(): void {
     } catch {
       return []
     }
+  })
+  // Tab labels: each open tab's conversation title (null = nothing said yet,
+  // the tab keeps its profile name). Polled by the panel, so a Claude Code
+  // transcript is read only from where the last poll stopped.
+  handleFrom('terminal', 'terminal:tab-titles', async (ev): Promise<Record<string, string | null>> => {
+    const panel = panelForSender(ev.sender.id)
+    const out: Record<string, string | null> = {}
+    if (!panel) return out
+    for (const session of panel.sessions.values()) {
+      try {
+        if (session.chat) {
+          const first = session.chat.display.find((d) => d.kind === 'user')
+          out[session.id] = first && 'text' in first && first.text.trim() ? clip(first.text) : null
+          continue
+        }
+        const known = session.titleTail?.file
+        const file = known && basename(known) === `${session.chatId}.jsonl`
+          ? known
+          : findTranscript(await claudeConfigDir(session.profile), session.chatId)
+        if (!file) { out[session.id] = null; continue }
+        const { title, tail } = tailTranscriptTitle(file, session.titleTail ?? null)
+        session.titleTail = tail
+        out[session.id] = title
+      } catch { out[session.id] = null }
+    }
+    return out
   })
   // Continue one of them in a new tab (`claude --resume`). Only a conversation
   // recorded for THIS deck, and never one a tab is already running.

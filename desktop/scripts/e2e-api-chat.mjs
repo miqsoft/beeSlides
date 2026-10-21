@@ -176,7 +176,8 @@ async function driver() {
   ok(!!term, 'the panel opened a chat tab (no pty, no claude launch)')
   if (!term) { report(); app.exit(1); return }
   ok(!existsSync(launchLog) || !readFileSync(launchLog, 'utf8').includes('claude'), 'no `claude` was launched for an API profile')
-  const label = () => term.executeJavaScript(`[...document.querySelectorAll('.term-tab-label')].map((n) => n.textContent)`)
+  // The profile each tab runs (its label until the chat has a title).
+  const label = () => term.executeJavaScript(`[...document.querySelectorAll('.term-tab')].map((n) => n.dataset.profile)`)
   ok((await label()).join() === 'Mock Anthropic · API', `tab label shows the profile name (${(await label()).join()})`)
   ok((await term.executeJavaScript(`document.querySelector('.chat-head').textContent`)).includes('mock-claude'), 'the header shows the model')
   const profiles = await term.executeJavaScript('window.slidomingoTerminal.listProfiles()')

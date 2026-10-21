@@ -40,7 +40,7 @@ contextBridge.exposeInMainWorld('slidomingoTerminal', {
    *  terminalPanel.ts's header comment), so the tab strip can build itself
    *  without a chicken-and-egg "which tabs exist" round trip. Live
    *  terminal:data is held back until ready() below. */
-  onInit: (cb: (state: { sessions: InitSession[]; activeId: string | null }) => void): void => {
+  onInit: (cb: (state: { sessions: InitSession[]; activeId: string | null; mode?: 'docked' | 'popped' }) => void): void => {
     ipcRenderer.on('terminal:init', (_ev, state) => cb(state))
   },
   onData: (cb: (sessionId: string, data: string) => void): void => {
@@ -76,6 +76,8 @@ contextBridge.exposeInMainWorld('slidomingoTerminal', {
   onShowProfiles: (cb: () => void): void => { ipcRenderer.on('terminal:show-profiles', () => cb()) },
   /** This deck's earlier conversations, newest activity first. */
   listChats: (): Promise<ChatSummary[]> => ipcRenderer.invoke('terminal:list-chats'),
+  /** Each open tab's conversation title by session id; null = nothing said yet. */
+  tabTitles: (): Promise<Record<string, string | null>> => ipcRenderer.invoke('terminal:tab-titles'),
   /** Continues one of them (`claude --resume`) as a new tab — null if it is
    *  not this deck's, already running, or the pty failed to spawn. Ack with
    *  ready() exactly like newTab. */

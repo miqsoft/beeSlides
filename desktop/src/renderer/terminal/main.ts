@@ -33,7 +33,7 @@ type FolderState = { folders: Array<{ path: string; name: string; exists: boolea
 declare global {
   interface Window {
     slidomingoTerminal: {
-      onInit(cb: (state: { sessions: InitSession[]; activeId: string | null }) => void): void
+      onInit(cb: (state: { sessions: InitSession[]; activeId: string | null; mode?: 'docked' | 'popped' }) => void): void
       onData(cb: (sessionId: string, data: string) => void): void
       onExit(cb: (sessionId: string, code: number | null) => void): void
       onTabClosed(cb: (sessionId: string) => void): void
@@ -49,6 +49,7 @@ declare global {
       onChatSync(cb: (sessionId: string, state: { display: DisplayItem[]; busy: boolean; usage?: UsageReadout | null }) => void): void
       onShowProfiles(cb: () => void): void
       listChats(): Promise<ChatSummary[]>
+      tabTitles(): Promise<Record<string, string | null>>
       resumeChat(chatId: string): Promise<InitSession | null>
       listFolders(): Promise<FolderState | null>
       addFolder(): Promise<FolderState | null>
@@ -91,6 +92,13 @@ interface SessionUI {
   chat: ChatView | null
   pane: HTMLDivElement
   tabEl: HTMLDivElement
+  labelEl: HTMLSpanElement
+  /** The AI profile's tab name (and an API tab's model): the label until the
+   *  conversation has a title, the tooltip's second line after. */
+  profileLabel: string
+  model?: string
+  /** The conversation's title from main (terminal:tab-titles); null = none yet. */
+  title: string | null
   /** main may deliver an exit twice (in the init payload, and again on the
    *  ready flush) — print the exit line only once. */
   exited: boolean
@@ -103,14 +111,50 @@ let tabCounter = 0 // renderer-local, cosmetic only ("Session 1", "Session 2", �
 const tabsEl = document.getElementById('term-tabs')!
 const tabsWrapEl = document.getElementById('term-tabs-wrap')!
 
-/** Shows/hides the trailing fade cue (terminal.css) so an overflowing tab strip
- *  doesn't clip tabs silently. Run on scroll, resize, and tab add/remove. */
+const headerEl = document.getElementById('term-header')!
+const switcherTitleEl = document.getElementById('term-switcher-title')!
+const switcherDotEl = document.getElementById('term-switcher-dot')!
+const switcherBtnEl = document.getElementById('term-history')!
+
+/** The tab row shows once two chats are open (one chat needs only the
+ *  switcher's title), with a fade cue (terminal.css) so an overflowing strip
+ *  doesn't clip tabs silently. Run on scroll, resize, and tab add/remove/rename. */
 function updateTabsOverflow(): void {
+  headerEl.classList.toggle('has-tabs', sessions.size > 1)
   tabsWrapEl.classList.toggle('has-overflow', tabsEl.scrollWidth > tabsEl.clientWidth + 1)
   tabsWrapEl.classList.toggle('at-end', tabsEl.scrollLeft + tabsEl.clientWidth >= tabsEl.scrollWidth - 1)
 }
 tabsEl.addEventListener('scroll', updateTabsOverflow)
 new ResizeObserver(updateTabsOverflow).observe(tabsEl)
+
+/** The switcher shows the chat on screen: its title, or its profile's name
+ *  until it has one. */
+function updateSwitcher(): void {
+  const ui = activeId ? sessions.get(activeId) : undefined
+  switcherTitleEl.textContent = ui ? (ui.title ?? ui.profileLabel) : 'Claude'
+  switcherDotEl.style.background = ui ? colorForSession(ui.id) : 'transparent'
+  switcherBtnEl.title = ui ? `${ui.title ?? 'New chat'} · ${profileLine(ui)}\nOpen and earlier chats` : 'Open and earlier chats'
+}
+
+// The buffer stays a dark terminal in both app themes (terminal.css header),
+// tinted to the app's warm palette instead of a neutral grey. Claude Code
+// draws most of its colours in truecolor; the ANSI set covers the rest.
+const TERM_THEME = {
+  background: '#17130D',
+  foreground: '#ECE4D2',
+  cursor: '#FFC233',
+  cursorAccent: '#17130D',
+  selectionBackground: 'rgba(255, 194, 51, 0.28)',
+  black: '#2B251A', red: '#EF6B5B', green: '#7CC48A', yellow: '#F2C14E',
+  blue: '#7AA7E8', magenta: '#D28AD8', cyan: '#6CC4C0', white: '#D8CFBD',
+  brightBlack: '#7D725E', brightRed: '#FF8A7A', brightGreen: '#9BDDA8', brightYellow: '#FFD772',
+  brightBlue: '#9DC1F5', brightMagenta: '#E5A8EA', brightCyan: '#8FDCD8', brightWhite: '#F8F2E5',
+  // A slim, translucent scrollbar that only reads as a thumb (no track,
+  // no arrows) — xterm's default is a wide opaque grey bar.
+  scrollbarSliderBackground: 'rgba(245, 238, 223, 0.14)',
+  scrollbarSliderHoverBackground: 'rgba(245, 238, 223, 0.28)',
+  scrollbarSliderActiveBackground: 'rgba(245, 238, 223, 0.4)',
+}
 const container = document.getElementById('term-container')!
 
 function createSessionUI(s: InitSession): SessionUI {
@@ -136,16 +180,11 @@ function createSessionUI(s: InitSession): SessionUI {
     pane.append(chat.el)
   } else {
     term = new Terminal({
-      fontSize: 13,
+      // lineHeight stays 1: the DOM renderer draws box-drawing glyphs from
+      // the font, so taller rows break the frames Claude Code draws.
+      fontSize: 13.5,
       fontFamily: 'Menlo, Monaco, monospace',
-      // A slim, translucent scrollbar that only reads as a thumb (no track,
-      // no arrows) — xterm's default is a wide opaque grey bar.
-      theme: {
-        background: '#1e1e1e',
-        scrollbarSliderBackground: 'rgba(255, 255, 255, 0.14)',
-        scrollbarSliderHoverBackground: 'rgba(255, 255, 255, 0.28)',
-        scrollbarSliderActiveBackground: 'rgba(255, 255, 255, 0.4)',
-      },
+      theme: TERM_THEME,
       overviewRuler: { width: 8 },
       cursorBlink: true,
     })
@@ -157,8 +196,10 @@ function createSessionUI(s: InitSession): SessionUI {
 
   const tabEl = document.createElement('div')
   tabEl.className = 'term-tab'
+  tabEl.setAttribute('role', 'tab')
+  tabEl.style.setProperty('--tab-color', colorForSession(id))
+  tabEl.dataset.profile = s.label
   tabEl.dataset.sessionId = id
-  tabEl.title = s.model ? `${s.label} · ${s.model}` : s.label
   const dot = document.createElement('span')
   dot.className = 'term-tab-dot'
   dot.style.background = colorForSession(id)
@@ -178,8 +219,43 @@ function createSessionUI(s: InitSession): SessionUI {
   tabsEl.appendChild(tabEl)
   updateTabsOverflow() // adding a tab grows scrollWidth, not the strip's own box
 
-  return { id, term, fit, chat, pane, tabEl, exited: false }
+  const ui: SessionUI = { id, term, fit, chat, pane, tabEl, labelEl: label, profileLabel: s.label, model: s.model, title: null, exited: false }
+  setTitle(ui, null)
+  return ui
 }
+
+/** What a tab is called: its conversation's title once there is one. */
+function profileLine(ui: SessionUI): string {
+  return ui.model ? `${ui.profileLabel} · ${ui.model}` : ui.profileLabel
+}
+
+function setTitle(ui: SessionUI, title: string | null): void {
+  ui.title = title
+  ui.labelEl.textContent = title ?? ui.profileLabel
+  ui.tabEl.title = title ? `${title}\n${profileLine(ui)}` : profileLine(ui)
+  updateTabsOverflow()
+  if (ui.id === activeId) {
+    ui.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    updateSwitcher()
+  }
+}
+
+/** Asks main for every open tab's conversation title. Titles appear once the
+ *  first message is sent and change when Claude Code names the chat or the
+ *  user /renames it, so this runs on a slow poll as well as on tab changes. */
+let titlesInFlight = false
+function refreshTitles(): void {
+  if (titlesInFlight || sessions.size === 0) return
+  titlesInFlight = true
+  void window.slidomingoTerminal.tabTitles().then((titles) => {
+    for (const [id, title] of Object.entries(titles)) {
+      const ui = sessions.get(id)
+      if (ui && ui.title !== title) setTitle(ui, title)
+    }
+  }).catch(() => { /* panel closing */ }).finally(() => { titlesInFlight = false })
+}
+setInterval(refreshTitles, 3000)
+window.addEventListener('focus', refreshTitles)
 
 /** Builds a tab from main's handover: xterm first, then the scrollback
  *  replay, so claude's first Ink screen (drawn before this renderer even
@@ -210,8 +286,12 @@ function activate(id: string): void {
     const isActive = s.id === id
     s.pane.classList.toggle('active', isActive)
     s.tabEl.classList.toggle('active', isActive)
+    s.tabEl.setAttribute('aria-selected', String(isActive))
   }
+  updateSwitcher()
+  ui.tabEl.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   fitActive()
+  refreshTitles()
   if (ui.chat) ui.chat.focus()
   else ui.term?.focus()
 }
@@ -238,13 +318,16 @@ function removeSessionUI(id: string): void {
     const next = sessions.keys().next().value ?? null
     activeId = null
     if (next) activate(next)
+    else updateSwitcher()
   }
 }
 
-window.slidomingoTerminal.onInit(({ sessions: initial, activeId: initialActive }) => {
+window.slidomingoTerminal.onInit(({ sessions: initial, activeId: initialActive, mode }) => {
+  if (mode) document.documentElement.dataset.mode = mode
   for (const s of initial) createSessionFromInit(s)
   if (initialActive) activate(initialActive)
   window.slidomingoTerminal.ready()
+  refreshTitles()
 })
 window.slidomingoTerminal.onData((sessionId, data) => sessions.get(sessionId)?.term?.write(data))
 window.slidomingoTerminal.onChatEvent((sessionId, ev) => sessions.get(sessionId)?.chat?.apply(ev))
@@ -262,6 +345,20 @@ function addSpawnedTab(result: InitSession | null): void {
   createSessionFromInit(result)
   activate(result.id)
   window.slidomingoTerminal.ready()
+}
+
+/** Drops a menu from the button that opened it: under the bar, flush with the
+ *  button's left edge when it sits on the left half, else its right edge. */
+function placeMenu(menu: HTMLElement, btn: HTMLElement): void {
+  const r = btn.getBoundingClientRect()
+  menu.style.top = `${Math.round(r.bottom + 4)}px`
+  if (r.left + r.width / 2 < window.innerWidth / 2) {
+    menu.style.left = `${Math.max(8, Math.round(r.left))}px`
+    menu.style.right = 'auto'
+  } else {
+    menu.style.right = `${Math.max(8, Math.round(window.innerWidth - r.right))}px`
+    menu.style.left = 'auto'
+  }
 }
 
 // --- new chat: split button ---------------------------------------------------
@@ -297,6 +394,7 @@ function openProfiles(): void {
       })
       profileMenu.append(item)
     }
+    placeMenu(profileMenu, profileBtn)
     profileMenu.hidden = false
     profileBtn.setAttribute('aria-expanded', 'true')
     ;(profileMenu.querySelector('button') as HTMLButtonElement | null)?.focus()
@@ -335,8 +433,61 @@ function closeHistory(): void {
   historyBtn.setAttribute('aria-expanded', 'false')
 }
 
+/** A small grey heading between the menu's "open" and "earlier" parts. */
+function historySection(text: string): HTMLDivElement {
+  const el = document.createElement('div')
+  el.className = 'term-history-section'
+  el.textContent = text
+  return el
+}
+
+/** The tabs open in this panel, in strip order: pick one to switch to it. */
+function renderOpenTabs(chats: ChatSummary[]): void {
+  const whenOf = new Map(chats.filter((c) => c.openIn).map((c) => [c.openIn!, c.updatedAt]))
+  historyMenu.append(historySection('Open'))
+  for (const tabEl of Array.from(tabsEl.querySelectorAll<HTMLElement>('.term-tab'))) {
+    const ui = sessions.get(tabEl.dataset.sessionId ?? '')
+    if (!ui) continue
+    const row = document.createElement('div')
+    row.className = 'term-history-row'
+    const item = document.createElement('button')
+    item.className = 'term-history-item term-history-open'
+    item.classList.toggle('active', ui.id === activeId)
+    item.setAttribute('role', 'menuitem')
+    item.title = ui.title ?? profileLine(ui)
+    const title = document.createElement('span')
+    title.className = 'term-history-title'
+    const dot = document.createElement('span')
+    dot.className = 'term-tab-dot'
+    dot.style.background = colorForSession(ui.id)
+    const text = document.createElement('span')
+    text.textContent = ui.title ?? 'New chat'
+    title.append(dot, text)
+    const meta = document.createElement('span')
+    meta.className = 'term-history-meta'
+    const when = whenOf.get(ui.id)
+    meta.textContent = profileLine(ui) + (when ? ` · ${whenLabel(when)}` : '')
+    item.append(title, meta)
+    item.addEventListener('click', () => { closeHistory(); activate(ui.id) })
+    const close = document.createElement('button')
+    close.className = 'term-folder-remove'
+    close.title = 'Close this chat'
+    close.setAttribute('aria-label', `Close ${ui.title ?? 'this chat'}`)
+    close.textContent = '×'
+    close.addEventListener('click', () => {
+      window.slidomingoTerminal.closeTab(ui.id)
+      row.remove()
+    })
+    row.append(item, close)
+    historyMenu.append(row)
+  }
+}
+
 function renderHistory(chats: ChatSummary[]): void {
   historyMenu.replaceChildren()
+  if (sessions.size > 0) renderOpenTabs(chats)
+  chats = chats.filter((c) => !c.openIn)
+  if (sessions.size > 0) historyMenu.append(historySection('Earlier'))
   if (chats.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'term-history-empty'
@@ -354,14 +505,13 @@ function renderHistory(chats: ChatSummary[]): void {
     title.textContent = chat.title
     const meta = document.createElement('span')
     meta.className = 'term-history-meta'
-    const state = chat.openIn ? ' · open' : chat.openElsewhere ? ' · open in another window' : ''
+    const state = chat.openElsewhere ? ' · open in another window' : ''
     meta.textContent = whenLabel(chat.updatedAt) + (chat.profileName ? ` · ${chat.profileName}` : '') + state
     item.append(title, meta)
     item.disabled = chat.openElsewhere
     item.addEventListener('click', () => {
       closeHistory()
-      if (chat.openIn) activate(chat.openIn)
-      else void window.slidomingoTerminal.resumeChat(chat.id).then(addSpawnedTab)
+      void window.slidomingoTerminal.resumeChat(chat.id).then(addSpawnedTab)
     })
     historyMenu.append(item)
   }
@@ -370,9 +520,10 @@ function renderHistory(chats: ChatSummary[]): void {
 function openHistory(): void {
   void window.slidomingoTerminal.listChats().then((chats) => {
     renderHistory(chats)
+    placeMenu(historyMenu, historyBtn)
     historyMenu.hidden = false
     historyBtn.setAttribute('aria-expanded', 'true')
-    ;(historyMenu.querySelector('button:not(:disabled)') as HTMLButtonElement | null)?.focus()
+    ;(historyMenu.querySelector('.term-history-item:not(:disabled):not(.active)') as HTMLButtonElement | null)?.focus()
   })
 }
 historyBtn.addEventListener('click', (ev) => {
@@ -387,6 +538,22 @@ document.addEventListener('mousedown', (ev) => {
   if (!historyMenu.hidden && !historyMenu.contains(ev.target as Node) && ev.target !== historyBtn && !historyBtn.contains(ev.target as Node)) closeHistory()
   if (!foldersMenu.hidden && !foldersMenu.contains(ev.target as Node) && !foldersBtn.contains(ev.target as Node)) closeFolders()
 })
+// Ctrl+Tab / Ctrl+Shift+Tab step through the tabs, like a browser. Capture
+// phase, so the key never reaches the focused xterm.
+window.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Tab' || !ev.ctrlKey || ev.metaKey || ev.altKey || sessions.size < 2) return
+  ev.preventDefault()
+  ev.stopPropagation()
+  const ids = Array.from(tabsEl.querySelectorAll<HTMLElement>('.term-tab')).map((t) => t.dataset.sessionId!)
+  const at = activeId ? ids.indexOf(activeId) : -1
+  activate(ids[(at + (ev.shiftKey ? -1 : 1) + ids.length) % ids.length])
+}, true)
+// A mouse wheel scrolls the tab strip sideways.
+tabsEl.addEventListener('wheel', (ev) => {
+  if (Math.abs(ev.deltaY) <= Math.abs(ev.deltaX)) return
+  tabsEl.scrollLeft += ev.deltaY
+  ev.preventDefault()
+}, { passive: false })
 document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && !historyMenu.hidden) { closeHistory(); historyBtn.focus() }
   if (ev.key === 'Escape' && !profileMenu.hidden) { closeProfiles(); profileBtn.focus() }
@@ -475,6 +642,7 @@ function openFolders(): void {
   void window.slidomingoTerminal.listFolders().then((state) => {
     if (!state) return
     renderFolders(state)
+    placeMenu(foldersMenu, foldersBtn)
     foldersMenu.hidden = false
     foldersBtn.setAttribute('aria-expanded', 'true')
   })
