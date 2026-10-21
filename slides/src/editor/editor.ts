@@ -125,7 +125,9 @@ import { validateProfile } from './customize/validate'
 import { QUICKBAR_PLACES, emptyProfile, type QuickBarPlace, type UiProfile } from './customize/schema'
 import type { RibbonHandle } from './ribbon'
 import { agentFindText } from './findtext'
-import { isAreaTool, runAreaOp, sectionRows, type IconLibraryAccess, type SlideWrites } from './agentops'
+import { isAreaTool, runAreaOp, sectionRows, type HtmlLayout, type IconLibraryAccess, type SlideWrites } from './agentops'
+import { compileSlideHtml } from '../htmlslide'
+import { slideToHtml } from '../htmlemit'
 
 
 /** Per-BROWSER, not per-deck: whether the "this browser can't rewrite files"
@@ -5609,6 +5611,20 @@ export class Editor {
     },
   }
 
+  /** The `slide_html` tool's layout engine: this page (htmlslide.ts lays
+   *  the HTML out in a script-less iframe, htmlemit.ts writes it back). */
+  private readonly agentHtml: HtmlLayout = {
+    compile: (slide, src) => compileSlideHtml(this.store.doc, slide, src, this.agentCanvasSize(slide.id)),
+    read: (slide) => slideToHtml(this.store.doc, slide, this.agentCanvasSize(slide.id),
+      (s, src) => compileSlideHtml(this.store.doc, s, src, this.agentCanvasSize(s.id))),
+    // the person watching sees the slide land (not while another view is open)
+    show: (slideId) => {
+      const idx = this.store.doc.slides.findIndex((s) => s.id === slideId)
+      if (idx < 0 || idx === this.store.currentIndex || this.store.editingSurface || this.layoutManagerOpen || this.slideSorterOpen || this.outlineViewOpen || this.presenting) return
+      this.store.goTo(idx)
+    },
+  }
+
   /** commitAgentWrite's guard result, for the response that follows it. */
   private lastLayout: GuardResult | null = null
 
@@ -6109,8 +6125,8 @@ export class Editor {
     // Grouped op tools (`deck`, …): agentops.ts checks the args against
     // ../agentops/spec.ts and runs the op as one undo step.
     if (isAreaTool(cmd.verb)) {
-      if ((cmd.verb === 'icons' || cmd.verb === 'elements') && slideId) lockError(slideId)
-      void Promise.resolve(runAreaOp(cmd.verb!, args, { store: this.store, created: this.agentCreatedSlides, icons: this.agentIcons, writes: this.agentSlideWrites })).then((r) => {
+      if ((cmd.verb === 'icons' || cmd.verb === 'elements' || cmd.verb === 'slide_html') && slideId) lockError(slideId)
+      void Promise.resolve(runAreaOp(cmd.verb!, args, { store: this.store, created: this.agentCreatedSlides, icons: this.agentIcons, writes: this.agentSlideWrites, html: this.agentHtml })).then((r) => {
         if (r.ok && r.toast) this.toast(r.toast)
         respond({ requestId: cmd.requestId, ...r })
       })

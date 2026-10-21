@@ -153,6 +153,11 @@ name entries there).
 - Agent writes go through `editor.commitAgentWrite` (layout guard).
 - Import repair: a converter code a model could restore goes in `importrepair.ts REPAIRABLE`;
   one the format cannot express never does.
+- `slide_html` (DECISIONS 2026-10-20): HTML is laid out only in `htmlslide.ts withLaidOut` (sandbox
+  without `allow-scripts` + CSP); every compiled element leaves through `sanitizeElement`. A new CSS
+  → element mapping needs its way back in `htmlemit.ts` and a case in `scripts/test-slide-html-e2e.mjs`
+  (it round-trips every example-deck slide: generated HTML must reproduce every frame within 1px).
+  `Slide.htmlSource` is trusted only while `htmlSignature` matches; never render or parse it.
 
 ## i18n
 

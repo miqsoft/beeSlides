@@ -159,6 +159,7 @@ element: its own `fontFamily` → the governing master's matching font →
 | `masterId?` | `string` | no | Meaningful on a `doc.layouts` entry: which `doc.masters` entry governs it (see [Masters](#masters)). |
 | `hover?` | `{ type, dim?, default? }` | no | Present-mode hover behaviour: `type: 'focus-group'` (dim elements outside the hovered group) or `'reveal'` (`showOnHover` set swap; `default` names the resting set). |
 | `comments?` | `Comment[]` | no | Review threads. Editor-only — never rendered in present/print, but saved in the file. |
+| `htmlSource?` | `{ html, css?, sig }` | no | The HTML/CSS the slide was last written from by the `slide_html` agent tool, so reading it back returns the author's own layout. Data only: never rendered, parsed into the page or run. Trusted only while `sig` (`htmlslide.ts htmlSignature` of the elements and background) still matches the slide — any edit since makes it stale, and readers then ignore it. Embedded pictures appear as `element:<id>`. At most 200 000 characters; writers may drop it at any time. |
 
 ### `Comment`
 

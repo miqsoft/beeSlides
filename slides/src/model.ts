@@ -1136,6 +1136,14 @@ export interface Slide {
   hover?: { type: 'focus-group' | 'reveal'; dim?: number; default?: string }
   /** review comment threads (editor-only; see Comment) */
   comments?: Comment[]
+  /**
+   * The HTML this slide was last written from (the `slide_html` agent tool,
+   * htmlslide.ts), so reading it back gives the author's own flexbox layout
+   * instead of a reconstruction. Only trusted while `sig` still matches the
+   * slide (`htmlSignature`): any edit since makes it stale and it is ignored.
+   * Embedded pictures appear as `element:<id>`. Never rendered, never run.
+   */
+  htmlSource?: { html: string; css?: string; sig: string }
 }
 
 export interface SlidomingoDoc {
