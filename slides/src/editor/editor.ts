@@ -779,11 +779,14 @@ export class Editor {
     const saveGroup = div('ed-split')
     saveGroup.append(this.saveIndicator.root, this.saveDropdown())
 
-    const presentB = tagTool(btn(ICONS.slideshow, '', () => this.present(false, true),
-      t('Start the slideshow fullscreen — F toggles fullscreen, S opens speaker view, Esc ends')), 'present')
+    // [▶|▾] split like Save: the caret offers the Play menu's other ways to
+    // present. The tag sits on the group so Customize hides both halves.
+    const presentB = tagTool(div('ed-split'), 'present')
     presentB.classList.add('ed-slides-only')
     // Claude Code terminal + agent variant picker: desktop APIs, no browser
     // equivalent — not built at all off desktop (never a silent no-op)
+    presentB.append(btn(ICONS.slideshow, '', () => this.present(false, true),
+      t('Start the slideshow fullscreen — F toggles fullscreen, S opens speaker view, Esc ends')), this.presentDropdown())
     const terminalB = tagTool(btn(ICONS.terminal, '', () => void window.slidomingoDesktop?.toggleTerminal(),
       t('Toggle Claude Code terminal (⌘`)')), 'terminal')
     window.slidomingoDesktop?.onTerminalStateChange?.((state) => {
@@ -1378,6 +1381,33 @@ export class Editor {
 
   private saveDropdown(): HTMLElement {
     const wrap = div('ed-dropdown')
+  /** The titlebar Present caret: the Play menu's other present commands,
+   *  run through the registry so they behave exactly like the menu. */
+  private presentDropdown(): HTMLElement {
+    const wrap = div('ed-dropdown')
+    const menu = div('ed-menu ed-save-menu')
+    const icons: Record<string, string> = { 'play.noSpeaker': ICONS.slideshow, 'play.inTab': ICONS.window, 'play.kiosk': ICONS.play }
+    const trigger = btn('<span class="ed-caret">▾</span>', '', () => {
+      wrap.classList.toggle('open')
+      if (!wrap.classList.contains('open')) return
+      menu.textContent = ''
+      for (const id of Object.keys(icons)) {
+        if (this.commands.state(id).visible === false) continue
+        menu.appendChild(btn(icons[id], commandLabel(id), () => {
+          wrap.classList.remove('open')
+          this.commands.run(id)
+        }))
+      }
+      flipMenuIfNeeded(wrap, menu)
+    }, t('More ways to present'))
+    trigger.classList.add('ed-split-caret')
+    wrap.append(trigger, menu)
+    document.addEventListener('pointerdown', (ev) => {
+      if (!wrap.contains(ev.target as Node)) wrap.classList.remove('open')
+    })
+    return wrap
+  }
+
     const menu = div('ed-menu ed-save-menu')
     const trigger = btn('<span class="ed-caret">▾</span>', '', () => {
       wrap.classList.toggle('open')
