@@ -13167,3 +13167,23 @@ a one-sided CSS border is a bar of its own (a curved path under rounded
 corners). Rig: `scripts/test-slide-html-e2e.mjs` (screenshots HTML vs slide,
 round-trips every slide of the example decks and the starter library).
 
+## 2026-10-21 — slide_html: inline SVG becomes native shapes, `<iframe srcdoc>` becomes an embed
+
+Follow-up to 2026-10-20, from converting a real 20-slide HTML deck. An inline
+`<svg>` is no longer left out: it goes through `svgconvert.ts
+convertSvgToObjects` (the editor's Convert to objects, reading the live DOM)
+after the page's CSS paint is written onto each node, so it arrives as
+native rect/ellipse/path/text pieces in one group (`<id>-1…`, `<id>-group`).
+This keeps 2026-10-11 ("Agents do not author SVG"): no opaque svg element is
+ever created, and the pieces are what an agent may already write by hand.
+`foreignObject`, scripts, SMIL animation and outside hrefs are stripped first.
+A self-contained `<iframe srcdoc>` (no `src`) becomes an `embed` (≤ 64 KB,
+the format's sandboxed widget); during conversion it is an empty box and
+nothing in it runs. Note: the editor canvas renders embeds live (sandboxed,
+null origin) although format.md says the canvas shows a placeholder — an
+older mismatch, not changed here. Also fixed on the way: table paint is read
+from the cell, then its row, then its row group; a zebra needs two striped
+rows; the theme fonts are compared as the layout document spells them, so
+text in the theme font keeps `fontFamily: ''`. `loadDoc` now applies a new
+document's embedded fonts (separate commit).
+

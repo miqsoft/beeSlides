@@ -461,7 +461,7 @@ export const SLIDE_HTML_AREA = {
       },
       details: [
         'The body is the slide: lay it out with normal CSS. Theme variables: --bs-bg, --bs-text, --bs-accent (…--bs-accent6), --bs-font, --bs-heading-font, --bs-w, --bs-h, --bs-margin (96px side margin). Defaults: box-sizing border-box, body font var(--bs-font) 24px/1.2, headings var(--bs-heading-font). Keep content inside the 96px side margins.',
-        'What becomes what: a box with a background, border or shadow → a rect (border-radius 50% → ellipse; one-sided borders → thin bars); a block holding only text (inline b/i/u/s/code/a/span/br, or a ul/ol list) → a text element on its content box, with bold, italics, colour and size of inline runs kept; <img> → picture (src: a data: URI, asset:<key> or element:<id of a picture already in the deck>; no downloads); <table> → table (thead or th = header row; cell padding, border, colours, zebra, colspan/rowspan read from CSS); <pre> → code; <hr> → line; <div data-chart=\'{"preset":"bar","option":{…ECharts…}}\'> → chart; a full-slide root box or body background → the slide background (colour or gradient). transform: rotate() is kept. <svg>, scripts, video, iframes and url() other than data: are left out (icons: the icons tool after writing).',
+        'What becomes what: a box with a background, border or shadow → a rect (border-radius 50% → ellipse; one-sided borders → thin bars); a block holding only text (inline b/i/u/s/code/a/span/br, or a ul/ol list) → a text element on its content box, with bold, italics, colour and size of inline runs kept; <img> → picture (src: a data: URI, asset:<key> or element:<id of a picture already in the deck>; no downloads); <table> → table (thead or th = header row; cell padding, border, colours, zebra, colspan/rowspan read from CSS); <pre> → code; <hr> → line; <div data-chart=\'{"preset":"bar","option":{…ECharts…}}\'> → chart; an inline <svg> drawing → native shapes, paths and text (as Convert to objects; one group); a self-contained <iframe srcdoc> → an embed (sandboxed widget); a full-slide root box or body background → the slide background (colour or gradient). transform: rotate() is kept. Scripts, video, forms, frames with an outside src and url() other than data: are left out (icons from the library: the icons tool after writing).',
         'Ids: give every element an id. The id becomes the element id: a rewrite with the same ids updates those elements in place and keeps what HTML cannot say (animations fx, links, locks, comments); an element whose id is gone is removed. The same id on the next slide + transition morph = it morphs. A box with text in it gets two elements: <id> (the box) and <id>-text. data-role="title|subtitle|body" sets the role (the first <h1> is the title). data-valign="middle" centres text vertically (so does a flex box centring its text). <div id="x" data-keep> keeps the existing element x (any kind, e.g. an icon) at the place this box takes.',
         'The result lists what was made, what was left out, and the layout check. To change part of a slide: read it, edit the HTML, write it back.',
       ].join('\n'),
@@ -475,7 +475,7 @@ export const SLIDE_HTML_AREA = {
     },
   },
   notYet: [
-    'svg drawings and icons in the HTML (insert icons with the icons tool after writing)',
+    'icons from the user\'s library inside the HTML (insert them with the icons tool after writing)',
     'animations in CSS (set fx with update_element or elements edit)',
   ],
 } as const satisfies AreaSpec

@@ -12,8 +12,9 @@ preserved.
 - **Claude can write a slide as plain HTML:** the new `slide_html` agent tool
   takes ordinary HTML and CSS (flexbox, grid, padding), lays it out in the
   browser and turns every box into normal, editable slide elements — text,
-  boxes, pictures, tables, charts and code — so slides Claude builds line up
-  exactly. It can also read any slide back as HTML, change it and write it
+  boxes, pictures, tables, charts, code, SVG diagrams (as editable shapes)
+  and embedded figures — so slides Claude builds line up exactly. An HTML
+  slide deck can be converted slide by slide this way. It can also read any slide back as HTML, change it and write it
   again; animations, links and comments stay. Nothing in the HTML runs or
   loads from the network.
 - **The browser editor gets the desktop chrome:** in a desktop-width browser

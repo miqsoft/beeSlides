@@ -27,7 +27,7 @@ import { iconTweaks, readLook, readTweak, setTweak } from '../iconstyles'
 import type { IconShapeTweak } from '../model'
 import { defaultLayoutGrid, layoutTracks, normalizeLayoutGrid, parseSpan, spanRect } from '../layoutgrid'
 import { paletteOf, resolveThemeRefs } from '../palette'
-import { ancestorElementIds } from '../model'
+import { ancestorElementIds, effectiveLayout } from '../model'
 import { cssColor, sanitizeHtml } from '../render'
 import { htmlSignature, mergeCompiled, type CompileResult, type HtmlSlideSource } from '../htmlslide'
 import type { SlideAsHtml } from '../htmlemit'
@@ -1045,11 +1045,14 @@ const ELEMENTS: AreaHandlers['elements'] = {
   },
 }
 
-/** Element ids a slide inherits from its slide type's ancestors: chrome a
- *  slide_html write keeps even when the HTML does not mention it. */
+/** Element ids a slide_html write keeps even when the HTML does not mention
+ *  them: on a deck slide, everything its slide type brings (the type's own
+ *  placeholders and footer fields, and what the type inherits); on a slide
+ *  type itself, only what it inherits from its ancestors. */
 function inheritedIds(doc: SlidomingoDoc, slide: Slide): Set<string> {
-  const layout = slide.layoutId ? doc.layouts?.find((l) => l.id === slide.layoutId) : doc.layouts?.includes(slide) ? slide : undefined
-  return layout ? ancestorElementIds(doc, layout) : new Set()
+  if (doc.layouts?.includes(slide)) return ancestorElementIds(doc, slide)
+  const layout = slide.layoutId ? doc.layouts?.find((l) => l.id === slide.layoutId) : undefined
+  return layout ? new Set(effectiveLayout(doc, layout).elements.map((e) => e.id)) : new Set()
 }
 
 const SLIDE_HTML: AreaHandlers['slide_html'] = {

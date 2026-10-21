@@ -540,6 +540,18 @@ console.log('-- slide_html (merge, keep, fingerprint; layout faked — the brows
   ok(!svg.ok, 'a compiled element that is new svg artwork is refused (agentsvg.ts)')
   const read = await runAreaOp('slide_html', { op: 'read', slideId: 's1' }, ctx) as { ok: boolean; summary: string }
   ok(read.ok && /the source it was written from/.test(read.summary) && read.summary.endsWith('<h1 id="t1">New</h1>'), 'read hands back the HTML')
+  // a slide following a slide type keeps the type's own placeholders and footer
+  const typed = newDoc()
+  const ly = emptySlide({ id: 'ly1' })
+  ly.elements.push(defaultText({ id: 'ph-title', role: 'title', html: '', placeholder: 'Click to add title' }), defaultText({ id: 'ph-page', html: 'Page {{page}}', footerRole: 'slideNumber' }))
+  typed.layouts = [ly]
+  const ts = emptySlide({ id: 't1', layoutId: 'ly1' })
+  ts.elements.push(...ly.elements.map((e) => ({ ...e })), defaultText({ id: 'old', html: 'old content' }))
+  typed.slides = [ts]
+  const tstore = new Store(typed)
+  const tw = await runAreaOp('slide_html', { op: 'write', slideId: 't1', html: '<p id="t1">New</p>' }, { store: tstore, created: new Set(), html: { ...html, compile: async () => ({ elements: [defaultText({ id: 'new', html: 'New' })], notes: [], remember: null }) } }) as { ok: boolean; summary: string }
+  const kept = tstore.doc.slides[0].elements.map((e) => e.id)
+  ok(tw.ok && kept.includes('ph-title') && kept.includes('ph-page') && kept.includes('new') && !kept.includes('old'), 'on a slide that follows a slide type, its placeholders and footer stay; old content goes', kept)
   const big = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: 'x'.repeat(4_000_001) }, ctx)
   ok(!big.ok, 'an over-long source is refused before any layout')
 }

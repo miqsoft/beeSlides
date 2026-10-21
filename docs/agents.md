@@ -166,12 +166,16 @@ elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
   picture already in the deck; nothing is downloaded). `<table>` → table
   (`thead`/`th` header, padding, borders, colours, zebra, `colspan`/`rowspan`
   read from the CSS; its rows share the height evenly). `<pre>` → code. `<hr>`
-  → line. `<div data-chart='{"preset":"bar","option":{…}}'>` → chart. A root
-  box covering the slide (or `body`'s background) → the slide background.
-  `transform: rotate()` → rotation.
-- **Left out** (the result says so): `<svg>` (insert icons with `icons`
-  afterwards), scripts, iframes, video, forms, and every `url()` that is not a
-  `data:` URI. Nothing in the HTML runs or loads.
+  → line. `<div data-chart='{"preset":"bar","option":{…}}'>` → chart. An
+  inline `<svg>` drawing → native shapes, paths and text, one group (as
+  Convert to objects does — never an opaque svg). A self-contained
+  `<iframe srcdoc>` → an `embed` (sandboxed widget). A root box covering the
+  slide (or `body`'s background) → the slide background. `transform:
+  rotate()` → rotation.
+- **Left out** (the result says so): scripts, video, forms, frames with an
+  outside `src`, and every `url()` that is not a `data:` URI. Nothing in the
+  HTML runs or loads while it is converted. Icons from the user's library go
+  in with `icons` afterwards.
 - **Ids are identity.** Give every element an `id`: it becomes the element id.
   Writing the slide again with the same ids updates those elements in place —
   animations (`fx`), links, locks and comments stay — and removes the ones

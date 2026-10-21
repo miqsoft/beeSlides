@@ -246,6 +246,7 @@ h1{margin:0;font-size:72px;line-height:1.05;font-weight:800}
       ok(m.get('pill')?.type === 'shape' && m.get('pill-text')?.type === 'text', 'pill: a box with text → <id> + <id>-text')
       ok(Math.abs(m.get('pill')?.radius - m.get('pill').h / 2) < 0.02, 'pill: radius 999px → half its height (a real pill)')
       ok(m.get('pill-text')?.letterSpacing === 2, 'letter-spacing kept')
+      ok(!/grew text "pill-text"/.test(this.result ?? '') && m.get('pill-text').h < m.get('pill').h, 'a shrink-wrapped one-line text is not wrapped (and grown) when redrawn', this.result?.split('\n').find((l) => l.startsWith('↻')))
       ok(/<i>plain<\/i>/.test(m.get('headline')?.html ?? ''), 'em → italics in the headline')
       const p = m.get('photo')
       ok(p?.type === 'image' && p.fit === 'cover' && p.radius === 28 && p.w === 420 && p.alt === 'A colourful gradient', 'img → picture: cover, radius, size, alt')
@@ -332,6 +333,42 @@ small{font-size:20px;font-weight:400;color:#7678ED}`,
       ok(m.get('quote-border-left')?.type === 'shape' && m.get('quote-border-left').w === 8, 'blockquote border-left → 8px bar')
     },
   },
+  {
+    name: 'figure',
+    title: 'An inline SVG diagram, a scripted figure, a table coloured by row',
+    html: `<div class="fig">
+  <svg id="loop" viewBox="0 0 400 300" style="position:absolute;left:96px;top:120px;width:520px;height:390px">
+    <ellipse cx="200" cy="150" rx="150" ry="110" class="ring"/>
+    <polygon points="330,80 300,72 312,52" fill="#005B7F"/>
+    <rect x="150" y="125" width="100" height="50" rx="8" fill="#179C7D"/>
+    <text x="200" y="157" text-anchor="middle" font-size="20" fill="#fff">loop</text>
+  </svg>
+  <iframe id="anim" sandbox="allow-scripts" style="position:absolute;left:700px;top:120px;width:480px;height:200px;border:0" srcdoc="<!doctype html><body style='margin:0;background:#EDF1F4'><script>try { parent.__ran = (parent.__ran||0)+1 } catch (e) {}</script><p>animated figure</p></body>"></iframe>
+  <table id="rows" style="position:absolute;left:700px;top:360px;width:480px;font-size:20px;border-collapse:collapse">
+    <tr style="background:#005B7F"><th style="color:#fff;text-align:left;padding:8px">Source</th><th style="color:#fff;text-align:left;padding:8px">Linked</th></tr>
+    <tr><td style="padding:8px">Repository</td><td style="padding:8px">No</td></tr>
+    <tr style="background:#E5F3EF"><td style="padding:8px"><b>This thesis</b></td><td style="padding:8px"><b>Yes</b></td></tr>
+  </table>
+</div>`,
+    css: `.fig{position:absolute;inset:0;background:#fff} .ring{fill:none;stroke:#A6BBC8;stroke-width:5}`,
+    mask: ['embed'],
+    async check(sid) {
+      const list = await els(sid), m = byId(list)
+      const pieces = list.filter((e) => e.id.startsWith('loop-'))
+      ok(pieces.length === 4 && !list.some((e) => e.type === 'svg'), 'inline <svg> → native pieces (no opaque svg element)', pieces.map((e) => `${e.id}:${e.type}/${e.shape ?? ''}`))
+      ok(pieces.every((e) => e.groupId === 'loop-group'), 'the pieces stay one group (loop-group), ids loop-1…')
+      const ring = pieces.find((e) => e.shape === 'ellipse')
+      ok(ring && ring.stroke === '#a6bbc8' && ring.strokeWidth > 5 && (ring.fill === 'none' || ring.fill === 'transparent'), 'CSS-class paint carried onto the ring (stroke from .ring, scaled with the drawing)', ring && [ring.stroke, ring.strokeWidth, ring.fill])
+      ok(pieces.some((e) => e.type === 'text' && /loop/.test(e.html)), 'svg text → a text element')
+      const anim = m.get('anim')
+      ok(anim?.type === 'embed' && /animated figure/.test(anim.html) && anim.w === 480 && anim.h === 200, 'iframe srcdoc → embed with its document, at its box')
+      ok(await page.evaluate(() => window.__ran ?? 0) === 0, 'the figure\'s script never reached the page (not while converting; the embed is sandboxed on the canvas)')
+      const t = m.get('rows')
+      ok(t?.style.headerBg === '#005B7F' && t.style.headerColor === '#FFFFFF', 'row background → header colour', t?.style)
+      ok(!t?.style.zebra && t?.rows[2].cells.every((c) => c.bg === '#E5F3EF') && !t?.rows[1].cells.some((c) => c.bg), 'one coloured row → per-cell colour, not a zebra', t?.rows.map((r) => r.cells.map((c) => c.bg)))
+      ok(!t?.style.fontFamily && list.filter((e) => e.type === 'text').every((e) => !e.fontFamily), 'text in the theme font keeps fontFamily "" (follows a later theme change)', [t?.style.fontFamily, ...list.filter((e) => e.type === 'text' && e.fontFamily).map((e) => `${e.id}: ${e.fontFamily}`)])
+    },
+  },
 ]
 
 console.log('-- cases: HTML → slide, compared by eye --')
@@ -344,10 +381,11 @@ for (const c of CASES) {
   await c.check(sid)
   const a = await htmlShot({ html: c.html, css: c.css })
   const b = await slideShot(sid)
-  // plain Chrome draws no chart and no syntax colours: those areas are BeeSlides' own
-  const mask = (await els(sid)).filter((e) => e.type === 'chart' || e.type === 'code').map((e) => ({ x: e.x, y: e.y, w: e.w, h: e.h }))
+  // plain Chrome draws no chart and no syntax colours, and an embed only runs
+  // while presenting: those areas are not compared
+  const mask = (await els(sid)).filter((e) => e.type === 'chart' || e.type === 'code' || e.type === 'embed').map((e) => ({ x: e.x, y: e.y, w: e.w, h: e.h }))
   const cmp = await compare(a, b, mask)
-  ok(cmp.share < (c.tolerance ?? 0.02), `${c.name}: the slide looks like the HTML (${(cmp.share * 100).toFixed(2)}% of pixels differ${mask.length ? `; ${mask.length} chart/code area(s) not compared` : ''})`)
+  ok(cmp.share < (c.tolerance ?? 0.02), `${c.name}: the slide looks like the HTML (${(cmp.share * 100).toFixed(2)}% of pixels differ${mask.length ? `; ${mask.length} chart/code/embed area(s) not compared` : ''})`)
   report.cases.push({
     name: c.name, title: c.title, share: cmp.share, summary: r.summary,
     html: save(`${c.name}-html.png`, a), slide: save(`${c.name}-slide.png`, b), diff: savePng(`${c.name}-diff.png`, cmp.heat),
@@ -413,7 +451,7 @@ async function roundTrip(sid, label) {
 }
 
 console.log('-- round trip on the cases --')
-for (const c of CASES.slice(1)) {
+for (const c of CASES.slice(1, 4)) {
   // make the remembered source stale first, so read has to generate
   const first = (await els(c.sid))[0]
   await act('elements', { op: 'edit', slideId: c.sid, changes: [{ id: first.id, opacity: 0.99 }] })
@@ -466,9 +504,10 @@ console.log('-- nothing runs, nothing loads --')
   ok(r.ok, 'hostile HTML still writes what is safe')
   ok(await page.evaluate(() => window.__ran) === 0, 'no script or handler ran')
   ok(requests.length === 0, 'no network request was made', requests)
-  ok(/left out/.test(r.summary) && /svg/i.test(r.summary), 'the result says what was left out')
+  ok(/<script> is not part of a slide and was left out/.test(r.summary) && /<iframe> is not part of a slide/.test(r.summary), 'the result says what was left out (script, the frame with an outside src)')
   const m = byId(await els(sid))
   ok(!m.has('b') && m.get('c')?.fill === '#123456' && m.get('a')?.type === 'text', 'external picture dropped, safe boxes kept')
+  ok(![...m.values()].some((e) => e.type === 'svg' || e.type === 'embed'), 'no opaque svg and no embed came out of it')
 }
 
 ok(!errors.length, 'no page errors while working', errors)
