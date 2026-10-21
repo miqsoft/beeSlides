@@ -773,7 +773,7 @@ export const zhHant: Catalog = {
   "Delete this item": "刪除此項目",
   "Close Slide Sorter to open the Layout Manager": "關閉投影片瀏覽以開啟 Layout Manager",
   "Close Outline View to open the Layout Manager": "關閉大綱檢視以開啟 Layout Manager",
-  "Locked by another active Claude Code session — it is currently writing this slide.": "已被另一個作用中的 Claude Code 工作階段鎖定 — 它目前正在寫入此投影片。",
+  "Another chat is working on this slide right now.": "另一個聊天目前正在處理此投影片。",
   "No recent change on that element to reapply": "此元素沒有可重新套用的最近變更",
   "That element doesn’t match — same element type needed": "此元素不符 — 需要相同的元素類型",
   "Revert last change": "還原最近的變更",

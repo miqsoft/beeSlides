@@ -773,7 +773,7 @@ export const de: Catalog = {
   "Delete this item": "Dieses Element löschen",
   "Close Slide Sorter to open the Layout Manager": "Schließen Sie die Foliensortierung, um den Layout Manager zu öffnen",
   "Close Outline View to open the Layout Manager": "Schließen Sie die Gliederungsansicht, um den Layout Manager zu öffnen",
-  "Locked by another active Claude Code session — it is currently writing this slide.": "Gesperrt durch eine andere aktive Claude-Code-Sitzung — sie schreibt derzeit auf diese Folie.",
+  "Another chat is working on this slide right now.": "Ein anderer Chat arbeitet gerade an dieser Folie.",
   "No recent change on that element to reapply": "Keine kürzliche Änderung an diesem Element zum erneuten Anwenden",
   "That element doesn’t match — same element type needed": "Dieses Element passt nicht — gleicher Elementtyp erforderlich",
   "Revert last change": "Letzte Änderung rückgängig machen",

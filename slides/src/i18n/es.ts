@@ -773,7 +773,7 @@ export const es: Catalog = {
   "Delete this item": "Eliminar este elemento",
   "Close Slide Sorter to open the Layout Manager": "Cierra el Clasificador de diapositivas para abrir el Layout Manager",
   "Close Outline View to open the Layout Manager": "Cierra la Vista de esquema para abrir el Layout Manager",
-  "Locked by another active Claude Code session — it is currently writing this slide.": "Bloqueada por otra sesión activa de Claude Code — está escribiendo actualmente en esta diapositiva.",
+  "Another chat is working on this slide right now.": "Otro chat está trabajando en esta diapositiva ahora mismo.",
   "No recent change on that element to reapply": "No hay cambios recientes en este elemento para volver a aplicar",
   "That element doesn’t match — same element type needed": "Ese elemento no coincide — se necesita el mismo tipo de elemento",
   "Revert last change": "Revertir el último cambio",

@@ -773,7 +773,7 @@ export const ja: Catalog = {
   "Delete this item": "このアイテムを削除",
   "Close Slide Sorter to open the Layout Manager": "Layout Manager を開くにはスライド一覧を閉じてください",
   "Close Outline View to open the Layout Manager": "Layout Manager を開くにはアウトライン表示を閉じてください",
-  "Locked by another active Claude Code session — it is currently writing this slide.": "他のアクティブな Claude Code セッションによってロックされています — 現在このスライドに書き込み中です。",
+  "Another chat is working on this slide right now.": "別のチャットが現在このスライドで作業中です。",
   "No recent change on that element to reapply": "この要素に再適用する最近の変更はありません",
   "That element doesn’t match — same element type needed": "この要素は一致しません — 同じ要素タイプが必要です",
   "Revert last change": "直前の変更を元に戻す",

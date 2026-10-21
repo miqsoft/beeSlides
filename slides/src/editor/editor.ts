@@ -2803,7 +2803,7 @@ export class Editor {
     if (!owner) return
     const badge = div('ed-thumb-lock')
     badge.style.setProperty('--ed-lock-color', colorForSession(owner))
-    badge.title = t('Locked by another active Claude Code session — it is currently writing this slide.')
+    badge.title = t('Another chat is working on this slide right now.')
     item.appendChild(badge)
   }
 

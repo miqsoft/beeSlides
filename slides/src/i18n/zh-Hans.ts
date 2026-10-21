@@ -773,7 +773,7 @@ export const zhHans: Catalog = {
   "Delete this item": "删除此项目",
   "Close Slide Sorter to open the Layout Manager": "关闭幻灯片浏览以打开 Layout Manager",
   "Close Outline View to open the Layout Manager": "关闭大纲视图以打开 Layout Manager",
-  "Locked by another active Claude Code session — it is currently writing this slide.": "已被另一个活动的 Claude Code 会话锁定 — 它当前正在写入此幻灯片。",
+  "Another chat is working on this slide right now.": "另一个聊天当前正在处理此幻灯片。",
   "No recent change on that element to reapply": "该元素没有可重新应用的最近更改",
   "That element doesn’t match — same element type needed": "该元素不匹配 — 需要相同的元素类型",
   "Revert last change": "撤销最近的更改",
