@@ -1770,19 +1770,43 @@ export class SlideCanvas {
   }
 
 
-  /** The visible slide area on screen, in CSS px of this document — what a
-   *  screenshot of "just the slide" crops to (agent render_preview /
-   *  review_slide). Clipped to the scroller, so a zoomed-in slide yields the
-   *  part actually showing. Null when the canvas is not laid out. */
-  slideScreenRect(): { x: number; y: number; width: number; height: number } | null {
-    const a = this.stage.getBoundingClientRect() // sized to the scaled slide
-    const b = this.scroller.getBoundingClientRect()
-    const x0 = Math.max(a.left, b.left)
-    const y0 = Math.max(a.top, b.top)
-    const x1 = Math.min(a.right, b.right)
-    const y1 = Math.min(a.bottom, b.bottom)
-    if (x1 - x0 < 2 || y1 - y0 < 2) return null
-    return { x: Math.round(x0), y: Math.round(y0), width: Math.round(x1 - x0), height: Math.round(y1 - y0) }
+  /** Frames the canvas for a screenshot (agent render_preview /
+   *  review_slide): `area` (slide px) is zoomed to fill the view and
+   *  centred, or with none the whole slide is shown at fit — a zoomed-in
+   *  view used to hand the agent a fragment. `rect` is where it now is on
+   *  screen, in CSS px of this document (null when the canvas is not laid
+   *  out); `restore` puts the user's zoom and scroll back, unless the user
+   *  zoomed meanwhile. */
+  frameForCapture(area?: { x: number; y: number; w: number; h: number }): { rect: { x: number; y: number; width: number; height: number } | null; restore: () => void } {
+    const zoom = this.zoom
+    const { scrollLeft, scrollTop } = this.scroller
+    const { width, height } = effectiveCanvasSize(this.store)
+    const a = area ?? { x: 0, y: 0, w: width, h: height }
+    const availW = this.scroller.clientWidth - 64 // relayout's margins
+    const availH = this.scroller.clientHeight - 64
+    const want = area && availW > 0 && availH > 0 ? Math.max(1, Math.min(availW / a.w, availH / a.h) / this.fitScale) : 1
+    if (want !== zoom) this.setZoom(want)
+    if (area) {
+      const s = this.stage.getBoundingClientRect()
+      const v = this.scroller.getBoundingClientRect()
+      this.scroller.scrollLeft += s.left + (a.x + a.w / 2) * this.scale - (v.left + v.width / 2)
+      this.scroller.scrollTop += s.top + (a.y + a.h / 2) * this.scale - (v.top + v.height / 2)
+    }
+    const framed = this.zoom
+    const restore = () => {
+      if (this.zoom !== framed) return
+      if (this.zoom !== zoom) this.setZoom(zoom)
+      this.scroller.scrollLeft = scrollLeft
+      this.scroller.scrollTop = scrollTop
+    }
+    const s = this.stage.getBoundingClientRect() // sized to the scaled slide
+    const v = this.scroller.getBoundingClientRect()
+    const x0 = Math.max(s.left + a.x * this.scale, v.left)
+    const y0 = Math.max(s.top + a.y * this.scale, v.top)
+    const x1 = Math.min(s.left + (a.x + a.w) * this.scale, v.right)
+    const y1 = Math.min(s.top + (a.y + a.h) * this.scale, v.bottom)
+    if (x1 - x0 < 2 || y1 - y0 < 2) return { rect: null, restore }
+    return { rect: { x: Math.round(x0), y: Math.round(y0), width: Math.round(x1 - x0), height: Math.round(y1 - y0) }, restore }
   }
   render() {
     // A slide switch is a hard boundary for an inline edit. Commit against

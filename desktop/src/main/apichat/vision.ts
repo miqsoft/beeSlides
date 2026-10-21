@@ -28,6 +28,7 @@ export const LOOK_TOOL = {
     properties: {
       slideId: { type: 'string', description: 'Deck slide to look at.' },
       question: { type: 'string', description: 'What to check, e.g. "Is the diagram balanced and are the six steps easy to follow?". Optional: a general design review.' },
+      elementIds: { type: 'array', items: { type: 'string' }, description: 'Show only these elements, zoomed in (small details, one icon). Optional.' },
     },
     required: ['slideId'],
   },

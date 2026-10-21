@@ -13130,3 +13130,25 @@ media attribute, preview and static markers through every reader). Checked
 by hand in Chromium: three old example decks and two real user decks with
 store refs open in the new shell, save under the new names only, and reopen
 with every picture.
+
+## 2026-10-21 — Agent screenshots: right crop at any UI zoom, and only the part asked for
+
+**Bug:** `review_slide`/`render_preview` crop `capturePage` to the slide rect
+the renderer reports, in CSS px. `capturePage` takes DIPs, which are CSS px
+times the page zoom, so with UI zoom (⌘±, `uizoom.ts`) set the crop was off:
+at 144 % only 44 % of the target was in the image, the rest editor chrome
+(checked in a hidden Electron window). Main now scales the rect by
+`wc.getZoomFactor()`.
+
+**Whole slide, always:** a zoomed-in canvas used to yield the visible
+fragment only. `canvas.frameForCapture` shows the slide at fit for the
+capture and `prepareCapture` puts the user's zoom and scroll back on the same
+timer that brings the chrome back (not if the user zoomed meanwhile; a
+second capture inside that window restores first, so the user's view is the
+one kept).
+
+**Only the part needed:** both tools (and `look_at_slide`) take `elementIds`
+(their rotated bounds plus a margin) or `area {x,y,w,h}` in slide px. The
+canvas zooms that part to fill the view, so a 24 px icon arrives at full
+resolution instead of as a few pixels of a whole-slide shot. No offscreen
+renderer: still only what can be shown on the canvas.

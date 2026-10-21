@@ -146,6 +146,9 @@ interface TopbarBuild {
 }
 
 /** Categories in the Settings dialog — see Editor.openSettings(). */
+/** A part of a slide, in slide px (agent screenshots). */
+type CaptureRegion = { x: number; y: number; w: number; h: number }
+
 type SettingsCategoryId = 'general' | 'shortcuts' | 'icons' | 'document' | 'ai' | 'customize'
 
 /** What openLayoutPicker's click should do with the chosen layout. */
@@ -5855,10 +5858,12 @@ export class Editor {
           })
           return
         }
-        // `rect` = where the slide is on screen, so main crops the capture to
-        // the slide (no editor chrome) — see prepareCapture
-        void this.prepareCapture().then((rect) =>
-          respond({ requestId: req.requestId, ok: true, result: { slideId: currentId, rect } }))
+        const region = currentId ? this.captureRegion(currentId, args) : undefined
+        if (typeof region === 'string') { respond({ requestId: req.requestId, ok: false, error: region }); return }
+        // `rect` = where the slide (or the asked part) is on screen, so main
+        // crops the capture to it (no editor chrome) — see prepareCapture
+        void this.prepareCapture(region).then((rect) =>
+          respond({ requestId: req.requestId, ok: true, result: { slideId: currentId, rect, ...(region ? { area: region } : {}) } }))
         return
       }
       case 'find_text': {
@@ -5896,12 +5901,15 @@ export class Editor {
           }
           this.store.goTo(idx)
         }
+        const region = this.captureRegion(sid, args)
+        if (typeof region === 'string') { respond({ requestId: req.requestId, ok: false, error: region }); return }
         const issues = checkLayout(this.store.doc, slide, { measure: this.layoutMeasure, canvas: this.agentCanvasSize(sid) })
         const elements = slide.elements.map((e) => agentFrameLine(e))
-        void this.prepareCapture().then((rect) => respond({
+        void this.prepareCapture(region).then((rect) => respond({
           requestId: req.requestId, ok: true,
           result: {
             slideId: sid, size: this.agentCanvasSize(sid), clean: issues.length === 0, issues, elements, rect,
+            ...(region ? { area: region } : {}),
             comments: commentEntries(this.store.doc, { slideId: sid, resolved: false, forAgent: true }),
           },
         }))
@@ -5914,23 +5922,69 @@ export class Editor {
 
   /** Hide editor chrome (selection handles, line handles, guides, comment
    *  pins) for the screenshot the main process takes right after this
-   *  query's response, and report where the slide is on screen. The chrome
-   *  comes back on a timer: main captures within milliseconds of the
-   *  response and there is no "done" leg to wait for. */
-  private async prepareCapture(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+   *  query's response, frame the slide (or `region`, slide px) to fill the
+   *  view, and report where it is on screen. Chrome and the user's zoom come
+   *  back on a timer: main captures within milliseconds of the response and
+   *  there is no "done" leg to wait for. */
+  private async prepareCapture(region?: CaptureRegion): Promise<{ x: number; y: number; width: number; height: number } | null> {
     const root = document.documentElement
     root.classList.add('ed-capturing')
     clearTimeout(this.captureTimer)
-    this.captureTimer = window.setTimeout(() => root.classList.remove('ed-capturing'), 1500)
-    // two frames, so the hidden chrome (and a slide switch) is painted before
-    // capturePage runs; the timeout covers a hidden window, where rAF stalls
+    this.captureRestore?.() // a capture still pending: the view to keep is the user's, not its framing
+    const { rect, restore } = this.canvas.frameForCapture(region)
+    this.captureRestore = restore
+    this.captureTimer = window.setTimeout(() => {
+      root.classList.remove('ed-capturing')
+      this.captureRestore?.()
+      this.captureRestore = undefined
+    }, 1500)
+    // two frames, so the hidden chrome (and a slide switch or zoom) is painted
+    // before capturePage runs; the timeout covers a hidden window, where rAF stalls
     await new Promise<void>((resolve) => {
       const timer = window.setTimeout(resolve, 150)
       requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(timer); resolve() }))
     })
-    return this.canvas.slideScreenRect()
+    return rect
   }
   private captureTimer = 0
+  private captureRestore: (() => void) | undefined
+
+  /** The part of `slideId` a render_preview / review_slide screenshot shows:
+   *  `elementIds` (their bounds plus a margin) or `area` (slide px), clamped
+   *  to the slide; undefined = the whole slide, a string = the error. */
+  private captureRegion(slideId: string, args: Record<string, unknown>): CaptureRegion | undefined | string {
+    const { width, height } = this.agentCanvasSize(slideId)
+    let box: CaptureRegion | undefined
+    if (Array.isArray(args.elementIds) && args.elementIds.length) {
+      const slide = resolveAgentSlide(this.store.doc, slideId)?.slide
+      const ids = args.elementIds.filter((v): v is string => typeof v === 'string')
+      const els = ids.map((id) => slide?.elements.find((e) => e.id === id))
+      const missing = ids.filter((_, i) => !els[i])
+      if (missing.length || !ids.length) return `No element ${missing.join(', ') || '(none given)'} on slide "${slideId}".`
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+      for (const e of els as SlideElement[]) {
+        // a rotated frame's corners, so the screenshot holds all of it
+        const rad = ((e.rotation ?? 0) * Math.PI) / 180
+        const hw = (Math.abs(e.w * Math.cos(rad)) + Math.abs(e.h * Math.sin(rad))) / 2
+        const hh = (Math.abs(e.w * Math.sin(rad)) + Math.abs(e.h * Math.cos(rad))) / 2
+        const cx = e.x + e.w / 2, cy = e.y + e.h / 2
+        x0 = Math.min(x0, cx - hw); y0 = Math.min(y0, cy - hh); x1 = Math.max(x1, cx + hw); y1 = Math.max(y1, cy + hh)
+      }
+      const pad = Math.max(16, 0.08 * Math.max(x1 - x0, y1 - y0)) // what sits next to them shows too
+      box = { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad }
+    } else if (args.area && typeof args.area === 'object') {
+      const a = args.area as Record<string, unknown>
+      const [x, y, w, h] = [a.x, a.y, a.w, a.h].map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN))
+      if ([x, y, w, h].some(Number.isNaN)) return 'area needs numbers x, y, w and h (slide px).'
+      box = { x, y, w, h }
+    }
+    if (!box) return undefined
+    const x = Math.max(0, box.x), y = Math.max(0, box.y)
+    const w = Math.min(width, box.x + box.w) - x, h = Math.min(height, box.y + box.h) - y
+    if (w < 4 || h < 4) return `That area is not on the ${width}x${height} slide.`
+    const r = Math.round
+    return { x: r(x), y: r(y), w: r(w), h: r(h) }
+  }
   /** Slides agents added or duplicated in this session (agentops.ts `delete`). */
   private agentCreatedSlides = new Set<string>()
   /** The `icons` tool's view of the icon library; its refs outlive one call. */

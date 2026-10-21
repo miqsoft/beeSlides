@@ -2081,11 +2081,14 @@ export function registerTerminalIpc(): void {
         const wc = docWebContentsFor(win)
         if (!wc) throw new Error('no doc view')
         // The renderer reports where the slide is (editor.ts prepareCapture,
-        // CSS px of the doc view = capturePage's DIP rect): crop to it, so
-        // the image is the slide alone, without the editor around it.
+        // CSS px of the doc view): crop to it, so the image is the slide
+        // alone, without the editor around it. capturePage takes DIPs, which
+        // are CSS px times the page zoom — with UI zoom (⌘±) set, an unscaled
+        // rect cut off part of the slide and took in editor chrome.
         const rect = (result.result as { rect?: { x: number; y: number; width: number; height: number } | null } | undefined)?.rect
+        const z = wc.getZoomFactor()
         const crop = rect && [rect.x, rect.y, rect.width, rect.height].every((v) => Number.isFinite(v)) && rect.width > 1 && rect.height > 1
-          ? { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) }
+          ? { x: Math.round(rect.x * z), y: Math.round(rect.y * z), width: Math.round(rect.width * z), height: Math.round(rect.height * z) }
           : undefined
         const image = await (crop ? wc.capturePage(crop) : wc.capturePage())
         const data = image.toPNG().toString('base64')

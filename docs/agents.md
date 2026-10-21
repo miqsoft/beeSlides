@@ -735,6 +735,8 @@ for the whole session. The details behind them:
 - **`render_preview`** — captures only the slide already on the editing
   canvas; there is no offscreen renderer. `slideId` asserts, it does not
   navigate. The image is cropped to the slide (no editor chrome).
+  `elementIds` (with a margin) or `area {x,y,w,h}` (slide px) shows just
+  that part, zoomed to fill the view.
 - **Layout guard (every write verb and `write_slide`)** — after your change,
   in the same undo step, the app runs `slides/src/layoutguard.ts` on that
   slide: (1) a changed text box that fitted before and no longer does grows to
@@ -755,8 +757,9 @@ for the whole session. The details behind them:
   as it is, without a "before": any partial overlap (containment, such as
   text on a card, is fine), overflowing text, text off the canvas. Returns
   `clean` or one line per issue.
-- **`review_slide({slideId})`** — for the design pass after an edit: the
-  slide's screenshot (cropped to the slide), one line per element
+- **`review_slide({slideId, elementIds?, area?})`** — for the design pass
+  after an edit: the slide's screenshot (cropped to the slide, or with
+  `elementIds`/`area` only that part, zoomed in), one line per element
   (`id type @x,y wxh "text"`, connectors as `from→to`) and the
   `check_layout` result. A deck slide that is not showing is navigated to
   first; a slide type or object must be the open surface.

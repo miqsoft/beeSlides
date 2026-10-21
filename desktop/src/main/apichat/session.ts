@@ -263,7 +263,8 @@ export class ApiChatSession {
     if (!vision) return { text: 'Error: no image-check model is set up for this profile.', images: [], isError: true }
     const slideId = typeof args.slideId === 'string' ? args.slideId : ''
     if (!slideId) return { text: 'Error: look_at_slide needs a slideId.', images: [], isError: true }
-    const shot = await this.canvas.run(() => this.callTool!('review_slide', { slideId }, signal))
+    const elementIds = Array.isArray(args.elementIds) ? args.elementIds.filter((v): v is string => typeof v === 'string') : []
+    const shot = await this.canvas.run(() => this.callTool!('review_slide', elementIds.length ? { slideId, elementIds } : { slideId }, signal))
     if (shot.isError) return { ...shot, images: [] }
     const image = shot.images[0]
     if (!image) return { text: `Error: no screenshot of "${slideId}" (the slide is not on screen).`, images: [], isError: true }

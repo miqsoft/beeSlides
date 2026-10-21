@@ -124,6 +124,15 @@ async function roundTrip(reqPrefix, resPrefix, payload, timeoutMs = TIMEOUT_MS) 
 // (list_reusable_objects) or a slide type's id (doc_info slideTypes); a write
 // to a slide type carries over to every deck slide using it.
 const SLIDE_ID = { type: 'string', description: 'Slide, reusable object or slide type id.' }
+/** render_preview / review_slide: screenshot only part of the slide. */
+const CAPTURE_REGION = {
+  elementIds: { type: 'array', items: { type: 'string' }, description: 'Screenshot only these elements (with a margin around them).' },
+  area: {
+    type: 'object', description: 'Screenshot only this part of the slide, in slide px.',
+    properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } },
+    required: ['x', 'y', 'w', 'h'],
+  },
+}
 
 // Grouped op tools (`deck`, …): generated from slides/src/agentops/spec.ts and
 // filled in by the app when it writes this file out
@@ -234,8 +243,9 @@ const TOOLS = [
     name: 'render_preview',
     description:
       'PNG of the slide currently on the editing canvas. Cannot navigate: ' +
-      'slideId only asserts which slide is showing.',
-    inputSchema: { type: 'object', properties: { slideId: { type: 'string' } } },
+      'slideId only asserts which slide is showing. elementIds or area ' +
+      'shows just that part, zoomed in.',
+    inputSchema: { type: 'object', properties: { slideId: { type: 'string' }, ...CAPTURE_REGION } },
   },
   {
     name: 'check_layout',
@@ -253,8 +263,9 @@ const TOOLS = [
     description:
       'Design review in one call: a screenshot of just the slide, every ' +
       'element as id/type/frame/text, and check_layout findings. Shows the ' +
-      'slide in the editor first if needed.',
-    inputSchema: { type: 'object', properties: { slideId: SLIDE_ID } },
+      'slide in the editor first if needed. elementIds or area: the ' +
+      'screenshot shows just that part, zoomed in (small details, one icon).',
+    inputSchema: { type: 'object', properties: { slideId: SLIDE_ID, ...CAPTURE_REGION } },
   },
   // --- write verbs -----------------------------------------------------------
   // Round-trip through agent-action files; the app dispatches on `verb`
@@ -648,7 +659,7 @@ async function callTool(name, args) {
             return `  ${c.id} ${where} "${c.text}"`
           }).join('\n')
         : '')
-    const content = [{ type: 'text', text }]
+    const content = [{ type: 'text', text: r.area ? `${text}\n\nScreenshot: area @${r.area.x},${r.area.y} ${r.area.w}x${r.area.h} of the slide.` : text }]
     if (r.image?.data) content.push({ type: 'image', data: r.image.data, mimeType: r.image.mimeType ?? 'image/png' })
     else content.push({ type: 'text', text: '(no screenshot: the slide is not on screen)' })
     return { content }
