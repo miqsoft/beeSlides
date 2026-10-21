@@ -27,7 +27,7 @@ import {
   isValidCommand, sanitizeProfile, sanitizeProfiles, resolveEnv, referencedVars, parseFunctionList, settingsFileFromFunction,
   configDirFromFunction, invokesClaude, mergeSettings, nameForFunction, tabLabel, type ApiProfile,
 } from '../desktop/src/main/aiprofiles.ts'
-import { claudeInstruction, claudeLaunchCommand } from '../desktop/src/main/claudeLaunch.ts'
+import { claudeInstruction, claudeLaunchCommand, dropInheritedSessionEnv } from '../desktop/src/main/claudeLaunch.ts'
 import { toAnthropicMessages, toAnthropicTools, anthropicAuth, anthropicReasoningBody } from '../desktop/src/main/apichat/providers/anthropic.ts'
 import { toOpenAIMessages, toOpenAITools } from '../desktop/src/main/apichat/providers/openai.ts'
 import { ApiChatSession, displayFromMessages } from '../desktop/src/main/apichat/session.ts'
@@ -93,6 +93,10 @@ let threw = false
 try { claudeLaunchCommand('c', 'c/s', { id: '11111111-1111-1111-1111-111111111111', resume: false }, undefined, false, 'claude; touch /tmp/x') } catch { threw = true }
 ok(threw, 'launch line builder refuses an unsafe command')
 ok(!launch.includes('secret'), 'no env values in the command string')
+// The app opened from a Claude Code session inherits its env; the panel's claude must not run as its child (no transcript, no resume).
+const ptyEnv: Record<string, string> = { CLAUDECODE: '1', CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_SESSION_ID: 'e4c41f6c-0b46-440f-9842-c89486cb0918', CLAUDE_CODE_MESSAGING_TOKEN: 't', CLAUDE_CONFIG_DIR: '/cfg', CLAUDE_CODE_USE_BEDROCK: '1', PATH: '/bin' }
+dropInheritedSessionEnv(ptyEnv)
+ok(Object.keys(ptyEnv).join() === 'CLAUDE_CONFIG_DIR,CLAUDE_CODE_USE_BEDROCK,PATH', 'another Claude Code session’s variables never reach the panel’s claude; the user’s own settings do')
 
 ok(parseFunctionList('claude-work\nclaude-gateway\nclaude-work\nclaude evil\nnotclaude\n\nclaude-x;y').join() === 'claude-gateway,claude-work', 'shell function list: de-duplicated, unsafe/foreign names dropped')
 const gwBody = 'claude-gateway () {\n\tANTHROPIC_AUTH_TOKEN="$GATEWAY_API_KEY" command claude --settings "$HOME/.claude/claude.gateway.local.json" "$@"\n}'

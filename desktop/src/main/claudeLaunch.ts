@@ -12,6 +12,23 @@ export const DECK_DIR_ENV = 'SLIDOMINGO_DECK_DIR'
  *  (`SLIDOMINGO_ADD_DIR_1`, `_2`, …), each to its own `--add-dir`. */
 export const ADD_DIR_ENV_PREFIX = 'SLIDOMINGO_ADD_DIR_'
 
+/** What a running Claude Code session sets for the processes it starts. The
+ *  app inherits them when that session opened it (`open deck.beeslides.html`)
+ *  and the panel's `claude` must not: with CLAUDE_CODE_CHILD_SESSION it runs
+ *  as that session's child and writes no transcript, so no tab can be
+ *  resumed. Anything the user's rc files set comes back in the `-lic` shell. */
+export const INHERITED_SESSION_ENV = [
+  'CLAUDECODE', 'CLAUDE_PID', 'CLAUDE_EFFORT',
+  'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_EXECPATH',
+  'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_SESSION_ATTENDED',
+  'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN',
+] as const
+
+/** Removes another Claude Code session's variables (INHERITED_SESSION_ENV) from a pty env. */
+export function dropInheritedSessionEnv(env: Record<string, string>): void {
+  for (const k of INHERITED_SESSION_ENV) delete env[k]
+}
+
 /** Which `claude` conversation a pty runs: a new one under the given id, or
  *  an earlier one of this deck, continued (`--resume`). */
 export interface ClaudeChat { id: string; resume: boolean }

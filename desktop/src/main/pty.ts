@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process'
 import { platform } from 'node:os'
 import { ensureClaudeTrust, claudeJsonPath } from './claudeTrust.ts'
 import { isChatId } from './chathistory.ts'
-import { ADD_DIR_ENV_PREFIX, claudeLaunchCommand, DECK_DIR_ENV, type ClaudeChat } from './claudeLaunch.ts'
+import { ADD_DIR_ENV_PREFIX, claudeLaunchCommand, DECK_DIR_ENV, dropInheritedSessionEnv, type ClaudeChat } from './claudeLaunch.ts'
 import { isValidCommand, resolveEnv, referencedVars, type ClaudeCodeProfile } from './aiprofiles.ts'
 
 export type { ClaudeChat }
@@ -129,6 +129,7 @@ export async function createPty(
   // and a stale deck dir from the user's shell must not leak in.
   const env = { ...(await loginShellEnv()) }
   delete env['CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD']
+  dropInheritedSessionEnv(env)
   delete env[DECK_DIR_ENV]
   if (deckDir) env[DECK_DIR_ENV] = deckDir
   for (const k of Object.keys(env)) if (k.startsWith(ADD_DIR_ENV_PREFIX)) delete env[k]
