@@ -261,7 +261,8 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
 
   /** Fires whenever one parallel `claude` session (terminal tab) closes —
    *  either its own ✕ or the whole panel closing — see terminalPanel.ts's
-   *  closeSession/disposePanel. The editor releases every slide lock that
+   *  closeSession/disposePanel — and whenever one finishes a turn
+   *  (startAgentWatcher). The editor releases every slide lock that
    *  sessionId held immediately (store.releaseSessionLocks), rather than
    *  waiting out the idle timeout. */
   onAgentSessionClosed: (cb: (info: { sessionId: string }) => void): void => {

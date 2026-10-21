@@ -160,6 +160,58 @@ await query('render_preview', {})
 await page.waitForTimeout(1700)
 ok(await zoomLabel() === userLabel, `back-to-back captures restore the user's zoom (${userLabel}, now ${await zoomLabel()})`)
 
+// 7) a slide that is NOT on the canvas: shot off screen (a standalone page main
+// renders in a hidden window), and the user's view stays where it is
+await page.waitForTimeout(1700)
+const added = await call('__agent', 'deck', { op: 'add' })
+const otherId = added.slideIds?.[0]
+ok(added.ok && otherId, `deck add: a second slide (${added.error ?? otherId})`)
+const BIG = { ...RED, x: 100, y: 100, w: 400, h: 300 }
+const big = await call('__agent', 'insert_elements', { slideId: otherId, elements: [BIG], nudge: false })
+ok(big.ok, `a big red box on the other slide (${big.error ?? 'ok'})`)
+const before = (await query('render_preview', {})).result?.slideId
+await page.waitForTimeout(1700)
+ok(before === slideId, `the user is on the first slide (${before})`)
+const away = await query('review_slide', { slideId: otherId })
+ok(away.ok && away.result.rect === null && typeof away.result.offscreen?.html === 'string', `review_slide of the other slide: an off-screen page, no on-screen rect (${away.error ?? 'ok'})`)
+ok(away.result?.offscreen?.width === size.width && away.result?.offscreen?.height === size.height && away.result?.elements?.length >= 1, `the page is the whole slide, ${size.width}x${size.height}, with its element list`)
+ok(!(await page.evaluate(() => document.documentElement.classList.contains('ed-capturing'))), 'no capture chrome toggled on the canvas')
+const after = (await query('render_preview', {})).result?.slideId
+await page.waitForTimeout(1700)
+ok(after === slideId, `the user's view did not move (${after})`)
+/** What main's hidden window would capture: the page at its own size. */
+async function shootPage(offscreen, name) {
+  const p = await browser.newPage({ viewport: { width: Math.round(offscreen.width), height: Math.round(offscreen.height) } })
+  await p.setContent(offscreen.html)
+  await p.waitForTimeout(200)
+  const buf = await p.screenshot()
+  await p.close()
+  if (shots) (await import('node:fs')).writeFileSync(join(shots, `${name}.png`), buf)
+  return page.evaluate(async (b64) => {
+    const img = new Image()
+    img.src = `data:image/png;base64,${b64}`
+    await img.decode()
+    const c = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height })
+    const g = c.getContext('2d')
+    g.drawImage(img, 0, 0)
+    const d = g.getImageData(0, 0, img.width, img.height).data
+    let red = 0
+    for (let i = 0; i < d.length; i += 4) if (d[i] > 200 && d[i + 1] < 60 && d[i + 2] < 60) red++
+    return red / (d.length / 4)
+  }, buf.toString('base64'))
+}
+const want = (BIG.w * BIG.h) / (size.width * size.height)
+const awayShare = await shootPage(away.result.offscreen, 'offscreen-whole')
+ok(Math.abs(awayShare - want) < want * 0.15, `the off-screen page draws the slide: the box covers ${(awayShare * 100).toFixed(1)} % (expected ${(want * 100).toFixed(1)} %)`)
+const awayPart = await query('render_preview', { slideId: otherId, elementIds: [big.elementIds[0]] })
+ok(awayPart.ok && awayPart.result.offscreen?.width === awayPart.result.area?.w, `render_preview of another slide with elementIds: a page of just that area (${JSON.stringify(awayPart.result?.area)})`)
+ok((await shootPage(awayPart.result.offscreen, 'offscreen-element')) > 0.5, 'the area page is mostly the element')
+const layoutId = await page.evaluate(() => window.beeslides.doc.layouts?.[0]?.id)
+if (layoutId) {
+  const lay = await query('review_slide', { slideId: layoutId })
+  ok(!lay.ok && /open in the editor/.test(lay.error ?? ''), `a slide type that is not open is refused (${lay.error})`)
+}
+
 await browser.close()
 console.log(`\n${checks - failures}/${checks} checks passed`)
 process.exit(failures ? 1 : 0)

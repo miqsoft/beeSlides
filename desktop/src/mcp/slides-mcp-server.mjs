@@ -242,8 +242,8 @@ const TOOLS = [
   {
     name: 'render_preview',
     description:
-      'PNG of the slide currently on the editing canvas. Cannot navigate: ' +
-      'slideId only asserts which slide is showing. elementIds or area ' +
+      'PNG of a slide: the one on the editing canvas, or slideId (rendered ' +
+      'off screen; the user\'s view does not move). elementIds or area ' +
       'shows just that part, zoomed in.',
     inputSchema: { type: 'object', properties: { slideId: { type: 'string' }, ...CAPTURE_REGION } },
   },
@@ -262,8 +262,8 @@ const TOOLS = [
     name: 'review_slide',
     description:
       'Design review in one call: a screenshot of just the slide, every ' +
-      'element as id/type/frame/text, and check_layout findings. Shows the ' +
-      'slide in the editor first if needed. elementIds or area: the ' +
+      'element as id/type/frame/text, and check_layout findings. Works for ' +
+      'any deck slide; the user\'s view does not move. elementIds or area: the ' +
       'screenshot shows just that part, zoomed in (small details, one icon).',
     inputSchema: { type: 'object', properties: { slideId: SLIDE_ID, ...CAPTURE_REGION } },
   },
@@ -661,7 +661,7 @@ async function callTool(name, args) {
         : '')
     const content = [{ type: 'text', text: r.area ? `${text}\n\nScreenshot: area @${r.area.x},${r.area.y} ${r.area.w}x${r.area.h} of the slide.` : text }]
     if (r.image?.data) content.push({ type: 'image', data: r.image.data, mimeType: r.image.mimeType ?? 'image/png' })
-    else content.push({ type: 'text', text: '(no screenshot: the slide is not on screen)' })
+    else content.push({ type: 'text', text: '(no screenshot of this slide)' })
     return { content }
   }
   if (name === 'check_layout') {

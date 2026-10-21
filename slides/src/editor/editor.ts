@@ -24,7 +24,7 @@ import { htmlToMarkdown, insertLiteralText, keptLines, markdownToHtml } from './
 import { outlineParts } from './outlinemodel'
 import { paletteOf, paletteSignature, resolveThemeRefs } from '../palette'
 import { SlideCanvas } from './canvas'
-import { exportDeckAsPdfDesktop, exportFigureAsPdfDesktop, exportFigureAsSvg, fitCanvasToContent } from './figureexport'
+import { exportDeckAsPdfDesktop, exportFigureAsPdfDesktop, exportFigureAsSvg, fitCanvasToContent, slideSnapshotHtml } from './figureexport'
 import { PropsPanel } from './panels'
 import { ElementEdits } from './elementactions'
 import { MiniToolbar, setLegacyQuickBarPlace } from './minitoolbar'
@@ -285,8 +285,10 @@ export class Editor {
       // A terminal tab (parallel `claude` session) closing releases every
       // slide lock it held immediately, rather than waiting out the idle
       // timeout — see store.ts's lock registry.
+      // A tab finishing its turn does the same (the slides are no longer
+      // being worked on).
       window.slidomingoDesktop?.onAgentSessionClosed?.(({ sessionId }) => this.store.releaseSessionLocks(sessionId))
-      this.store.on('locks', () => this.rebuildSidebar())
+      this.store.on('locks', () => { this.rebuildSidebar(); this.scheduleSelectionContext() })
       // The terminal panel is a fully separate renderer with no access to
       // this window's localStorage/theme state — it can't resolve the
       // app's own Auto/Light/Dark preference on its own, so it's pushed
@@ -783,10 +785,10 @@ export class Editor {
     // present. The tag sits on the group so Customize hides both halves.
     const presentB = tagTool(div('ed-split'), 'present')
     presentB.classList.add('ed-slides-only')
-    // Claude Code terminal + agent variant picker: desktop APIs, no browser
-    // equivalent — not built at all off desktop (never a silent no-op)
     presentB.append(btn(ICONS.slideshow, '', () => this.present(false, true),
       t('Start the slideshow fullscreen — F toggles fullscreen, S opens speaker view, Esc ends')), this.presentDropdown())
+    // Claude Code terminal + agent variant picker: desktop APIs, no browser
+    // equivalent — not built at all off desktop (never a silent no-op)
     const terminalB = tagTool(btn(ICONS.terminal, '', () => void window.slidomingoDesktop?.toggleTerminal(),
       t('Toggle Claude Code terminal (⌘`)')), 'terminal')
     window.slidomingoDesktop?.onTerminalStateChange?.((state) => {
@@ -1379,8 +1381,6 @@ export class Editor {
 
   // --- Save dropdown: copy / new deck / template -----------------------------
 
-  private saveDropdown(): HTMLElement {
-    const wrap = div('ed-dropdown')
   /** The titlebar Present caret: the Play menu's other present commands,
    *  run through the registry so they behave exactly like the menu. */
   private presentDropdown(): HTMLElement {
@@ -1408,6 +1408,8 @@ export class Editor {
     return wrap
   }
 
+  private saveDropdown(): HTMLElement {
+    const wrap = div('ed-dropdown')
     const menu = div('ed-menu ed-save-menu')
     const trigger = btn('<span class="ed-caret">▾</span>', '', () => {
       wrap.classList.toggle('open')
@@ -5441,6 +5443,14 @@ export class Editor {
       // open comments flagged for Claude on this slide — a count only; the
       // `comments` query verb has the content
       openAgentComments: (surfaceSlide.comments ?? []).filter((c) => c.forAgent && !c.resolved).length,
+      // Slides a chat tab wrote in its current turn (store.ts locks, released
+      // when the turn ends), so each tab's digest can name the OTHER tabs' work.
+      agentWork: [...this.store.locks].flatMap(([slideId, lock]) => {
+        const slide = resolveAgentSlide(doc, slideId)?.slide
+        if (!slide) return []
+        const idx = doc.slides.indexOf(slide)
+        return [{ slideId, number: idx >= 0 ? idx + 1 : null, name: slide.name ?? null, sessionId: lock.sessionId, at: new Date(lock.at).toISOString() }]
+      }),
     }
     window.slidomingoDesktop?.writeSelectionContext(JSON.stringify(ctx, null, 2))
   }
@@ -5872,28 +5882,25 @@ export class Editor {
         return
       }
       case 'render_preview': {
-        // Validation-only leg: this only confirms the requested slide (if any)
-        // is the one actually live on the editing canvas right now. The pixel
-        // capture itself happens in the MAIN process (terminalPanel.ts's
-        // slidomingo:agent-query-response handler, via webContents.capturePage()
-        // on this window's own doc view) — a spike-scoped limitation, not the
-        // eventual design: there is no offscreen render surface here, so only
-        // whatever slide is already on screen can be previewed.
+        // The pixel capture itself happens in the MAIN process (terminalPanel.ts's
+        // slidomingo:agent-query-response handler): of this window's doc view
+        // when the slide is on the canvas, else of `offscreen` (see snapshotFor).
         const currentId = this.store.doc.slides[this.store.currentIndex]?.id
         const wanted = typeof args.slideId === 'string' ? args.slideId : undefined
-        if (wanted && wanted !== currentId) {
-          respond({
-            requestId: req.requestId, ok: false,
-            error: `render_preview can only capture the slide currently live on the editing canvas (${currentId ?? 'none'}), not ${wanted}. This spike has no offscreen renderer — navigate to that slide first, or omit slideId to capture whatever is showing.`,
-          })
+        const sid = wanted ?? currentId
+        if (!sid) { respond({ requestId: req.requestId, ok: false, error: 'no-such-slide' }); return }
+        if (wanted && !this.onCanvas(wanted)) {
+          const shot = this.snapshotFor(wanted, args, 'render_preview')
+          if (typeof shot === 'string') { respond({ requestId: req.requestId, ok: false, error: shot }); return }
+          respond({ requestId: req.requestId, ok: true, result: { slideId: wanted, rect: null, offscreen: shot.offscreen, ...(shot.region ? { area: shot.region } : {}) } })
           return
         }
-        const region = currentId ? this.captureRegion(currentId, args) : undefined
+        const region = this.captureRegion(sid, args)
         if (typeof region === 'string') { respond({ requestId: req.requestId, ok: false, error: region }); return }
         // `rect` = where the slide (or the asked part) is on screen, so main
         // crops the capture to it (no editor chrome) — see prepareCapture
         void this.prepareCapture(region).then((rect) =>
-          respond({ requestId: req.requestId, ok: true, result: { slideId: currentId, rect, ...(region ? { area: region } : {}) } }))
+          respond({ requestId: req.requestId, ok: true, result: { slideId: sid, rect, ...(region ? { area: region } : {}) } }))
         return
       }
       case 'find_text': {
@@ -5918,36 +5925,52 @@ export class Editor {
       case 'review_slide': {
         // check_layout + a compact frame list + (added by main) a screenshot
         // cropped to the slide — one call for the agent's design-review pass.
-        // The capture needs the slide on screen, so a deck slide that isn't
-        // showing is navigated to first.
+        // A slide that isn't on the canvas is shot off screen (snapshotFor):
+        // the agent never moves the user's view.
         const sid = typeof args.slideId === 'string' ? args.slideId : this.store.slide.id
         const slide = resolveAgentSlide(this.store.doc, sid)?.slide
         if (!slide) { respond({ requestId: req.requestId, ok: false, error: 'no-such-slide' }); return }
-        if (this.store.slide.id !== sid) {
-          const idx = this.store.doc.slides.findIndex((s) => s.id === sid)
-          if (idx < 0 || this.store.editingSurface || this.layoutManagerOpen || this.slideSorterOpen || this.outlineViewOpen) {
-            respond({ requestId: req.requestId, ok: false, error: `review_slide can only show a deck slide while the normal slide view is open; "${sid}" is not on screen and cannot be navigated to right now.` })
-            return
-          }
-          this.store.goTo(idx)
-        }
-        const region = this.captureRegion(sid, args)
+        const shot = this.onCanvas(sid) ? null : this.snapshotFor(sid, args, 'review_slide')
+        if (typeof shot === 'string') { respond({ requestId: req.requestId, ok: false, error: shot }); return }
+        const region = shot ? shot.region : this.captureRegion(sid, args)
         if (typeof region === 'string') { respond({ requestId: req.requestId, ok: false, error: region }); return }
         const issues = checkLayout(this.store.doc, slide, { measure: this.layoutMeasure, canvas: this.agentCanvasSize(sid) })
         const elements = slide.elements.map((e) => agentFrameLine(e))
-        void this.prepareCapture(region).then((rect) => respond({
-          requestId: req.requestId, ok: true,
-          result: {
-            slideId: sid, size: this.agentCanvasSize(sid), clean: issues.length === 0, issues, elements, rect,
-            ...(region ? { area: region } : {}),
-            comments: commentEntries(this.store.doc, { slideId: sid, resolved: false, forAgent: true }),
-          },
-        }))
+        const result = (rect: { x: number; y: number; width: number; height: number } | null) => ({
+          slideId: sid, size: this.agentCanvasSize(sid), clean: issues.length === 0, issues, elements, rect,
+          ...(shot ? { offscreen: shot.offscreen } : {}),
+          ...(region ? { area: region } : {}),
+          comments: commentEntries(this.store.doc, { slideId: sid, resolved: false, forAgent: true }),
+        })
+        if (shot) { respond({ requestId: req.requestId, ok: true, result: result(null) }); return }
+        void this.prepareCapture(region).then((rect) => respond({ requestId: req.requestId, ok: true, result: result(rect) }))
         return
       }
       default:
         respond({ requestId: req.requestId, ok: false, error: `Unknown verb: ${req.verb}` })
     }
+  }
+
+  /** Whether `slideId` is what the editing canvas shows right now. */
+  private onCanvas(slideId: string): boolean {
+    return this.store.slide.id === slideId && !this.slideSorterOpen && !this.outlineViewOpen
+  }
+
+  /** A screenshot of a deck slide that is NOT on the canvas: a standalone
+   *  page of it (figureexport.ts slideSnapshotHtml) that main renders in a
+   *  hidden window — the user keeps working wherever they are. Open comment
+   *  areas for the agent are outlined, as on the canvas. A string = the error. */
+  private snapshotFor(slideId: string, args: Record<string, unknown>, verb: string):
+    { offscreen: { html: string; width: number; height: number }; region: CaptureRegion | undefined } | string {
+    const slide = this.store.doc.slides.find((s) => s.id === slideId)
+    if (!slide) return `${verb} can show a slide type or reusable object only while it is open in the editor; "${slideId}" is not.`
+    const region = this.captureRegion(slideId, args)
+    if (typeof region === 'string') return region
+    const { width, height } = this.agentCanvasSize(slideId)
+    const area = region ?? { x: 0, y: 0, w: width, h: height }
+    const outlines = commentEntries(this.store.doc, { slideId, resolved: false, forAgent: true })
+      .flatMap((c) => (c.anchor.type === 'area' ? [{ x: c.anchor.x, y: c.anchor.y, w: c.anchor.w, h: c.anchor.h }] : []))
+    return { offscreen: { html: slideSnapshotHtml(this.store.doc, slide, area, outlines), width: area.w, height: area.h }, region }
   }
 
   /** Hide editor chrome (selection handles, line handles, guides, comment

@@ -22,7 +22,7 @@ export const LOOK_TOOL_NAME = 'look_at_slide'
 
 export const LOOK_TOOL = {
   name: LOOK_TOOL_NAME,
-  description: 'You cannot see images: this asks a model that can. It gets a screenshot of the slide (shown in the editor first if needed) plus your question, and answers in text. Use it for what numbers cannot tell: visual balance, crowding, colour and contrast, whether pictures, charts and diagrams look right. Call it once per finished slide, after review_slide\'s numbers look right, not after every small write.',
+  description: 'You cannot see images: this asks a model that can. It gets a screenshot of the slide plus your question, and answers in text. Use it for what numbers cannot tell: visual balance, crowding, colour and contrast, whether pictures, charts and diagrams look right. Call it once per finished slide, after review_slide\'s numbers look right, not after every small write.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -86,7 +86,7 @@ declare global {
        *  never needs to. */
       onTerminalStateChange: (cb: (state: { open: boolean }) => void) => () => void
       /** Fires whenever one parallel `claude` session (terminal tab) closes —
-       *  its own tab, or the whole panel closing. The editor releases every
+       *  its own tab, or the whole panel closing — or finishes a turn. The editor releases every
        *  slide lock that sessionId held (store.releaseSessionLocks). */
       onAgentSessionClosed: (cb: (info: { sessionId: string }) => void) => void
       onFullscreenChange: (cb: (state: { fullscreen: boolean }) => void) => void

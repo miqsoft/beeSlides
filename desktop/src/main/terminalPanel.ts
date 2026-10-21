@@ -40,7 +40,7 @@
 // applyExternalSlideWrite, the actual lock-enforcement chokepoint. This file
 // only threads a `sessionId` through every forwarded request/response; it
 // holds no lock state of its own.
-import { BrowserWindow, WebContentsView, app, dialog, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { BrowserWindow, WebContentsView, app, dialog, type IpcMainEvent, type IpcMainInvokeEvent, type NativeImage, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { homedir } from 'node:os'
@@ -55,6 +55,7 @@ import { ApiChatSession, displayFromMessages, type DisplayItem, type UsageReadou
 import { BUILTIN_SKILLS, CUSTOMIZE_UI_SKILL_MD } from './apichat/skills/index.ts'
 import type { ChatEvent } from './apichat/types.ts'
 import { writeFileAtomic } from './fsutil.ts'
+import { captureSlideSnapshot, isSnapshotRequest } from './slidesnapshot.ts'
 import { addFolder, existingFolders, listFolders, removeFolder, retargetFolders, validateFolder } from './attachedfolders.ts'
 import { addRecord, backfillChats, belongsTo, findTranscript, getRecord, isChatId, listChats, retarget, type ChatSummary, type DeckKey } from './chathistory.ts'
 import { deckKeyFor, docWebContentsFor, draftsDir, layoutWindow, launchPathFor, windowForDocWebContents } from './windows.ts'
@@ -293,7 +294,7 @@ const CONTEXT_README =
   `Prefer the cheap ones; get_slide/write_slide move a whole slide's JSON:\n` +
   `  read:  doc_info, outline, find_text (search the deck), list_reusable_objects,\n` +
   `         measure, validate,\n` +
-  `         comments, recent_changes, render_preview (current canvas only),\n` +
+  `         comments, recent_changes, render_preview,\n` +
   `         check_layout, review_slide (screenshot + frames + findings),\n` +
   `         get_slide (view "summary" to read, "full" before write_slide).\n` +
   `  write: update_element (patch props of one element — the default edit),\n` +
@@ -1128,10 +1129,17 @@ function clearStaleSlideFiles(contextDir: string): void {
  *  regardless of verb) — adding release_slide needed no change here; only
  *  editor.ts's dispatch (applyAgentAction) knows verb-specific behavior. */
 function startAgentWatcher(panel: PanelState, session: SessionState): void {
+  // The slides a session writes stay marked as its work (store.ts locks: the
+  // thumbnail badge, and the "other chats" part of every other tab's editing
+  // context) until its turn ends: an API chat says so with busy:false, a
+  // `claude` tab through the Stop hook's turn-done file (createSession).
+  const turnDone = (): void => { docWebContentsFor(panel.hostWindow)?.send('slidomingo:agent-session-closed', { sessionId: session.id }) }
+  session.chat?.onEvent((ev) => { if (ev.type === 'busy' && !ev.busy) turnDone() })
   try {
     session.agentWatcher = watch(session.contextDir, (_event, filename) => {
       if (!filename) return
-      if (/^agent-query-(?!result-).+\.json$/.test(filename)) {
+      if (filename === 'turn-done') turnDone()
+      else if (/^agent-query-(?!result-).+\.json$/.test(filename)) {
         // Negative lookahead excludes agent-query-result-<id>.json — the
         // APP's own response file (slidomingo:agent-query-response handler
         // below) — for the same reason slide-write's does.
@@ -1286,12 +1294,17 @@ async function createSession(
       if (!parts.every((x) => /^[\w\s./@+=,:~-]+$/.test(x))) return null
       return `[ -f "${file}" ] && node ${parts.map((x) => `"${x}"`).join(' ')}; exit 0`
     }
-    const digest = hookCommand('selection-digest.mjs')
+    // The digest gets the session dir to tell this tab's own slides from
+    // the other tabs' (selection.json agentWork).
+    const digest = hookCommand('selection-digest.mjs', sessionDir)
     const note = hookCommand('session-note.mjs', sessionDir)
+    const turnFile = join(sessionDir, 'turn-done')
+    const turnDone = /^[\w\s./@+=,:~-]+$/.test(turnFile) ? `: > "${turnFile}"; exit 0` : null
     const ours = {
       hooks: {
         ...(digest && { UserPromptSubmit: [{ hooks: [{ type: 'command', command: digest, timeout: 5 }] }] }),
         ...(note && { SessionStart: [{ hooks: [{ type: 'command', command: note, timeout: 5 }] }] }),
+        ...(turnDone && { Stop: [{ hooks: [{ type: 'command', command: turnDone, timeout: 5 }] }] }),
       },
     }
     // `claude` honours only the LAST --settings; a profile whose command (a
@@ -2078,23 +2091,32 @@ export function registerTerminalIpc(): void {
     let finalResult: typeof result = result
     if (isPreview && result.ok) {
       try {
-        const wc = docWebContentsFor(win)
-        if (!wc) throw new Error('no doc view')
-        // The renderer reports where the slide is (editor.ts prepareCapture,
-        // CSS px of the doc view): crop to it, so the image is the slide
-        // alone, without the editor around it. capturePage takes DIPs, which
-        // are CSS px times the page zoom — with UI zoom (⌘±) set, an unscaled
-        // rect cut off part of the slide and took in editor chrome.
-        const rect = (result.result as { rect?: { x: number; y: number; width: number; height: number } | null } | undefined)?.rect
-        const z = wc.getZoomFactor()
-        const crop = rect && [rect.x, rect.y, rect.width, rect.height].every((v) => Number.isFinite(v)) && rect.width > 1 && rect.height > 1
-          ? { x: Math.round(rect.x * z), y: Math.round(rect.y * z), width: Math.round(rect.width * z), height: Math.round(rect.height * z) }
-          : undefined
-        const image = await (crop ? wc.capturePage(crop) : wc.capturePage())
+        const { offscreen, ...rest } = (result.result ?? {}) as { offscreen?: unknown; rect?: { x: number; y: number; width: number; height: number } | null }
+        let image: NativeImage
+        if (offscreen !== undefined) {
+          // A slide that is not on the canvas: the renderer sent a standalone
+          // page of it (editor.ts snapshotFor), shot in a hidden window.
+          if (!isSnapshotRequest(offscreen)) throw new Error('bad snapshot')
+          image = await captureSlideSnapshot(offscreen)
+        } else {
+          const wc = docWebContentsFor(win)
+          if (!wc) throw new Error('no doc view')
+          // The renderer reports where the slide is (editor.ts prepareCapture,
+          // CSS px of the doc view): crop to it, so the image is the slide
+          // alone, without the editor around it. capturePage takes DIPs, which
+          // are CSS px times the page zoom — with UI zoom (⌘±) set, an unscaled
+          // rect cut off part of the slide and took in editor chrome.
+          const rect = rest.rect
+          const z = wc.getZoomFactor()
+          const crop = rect && [rect.x, rect.y, rect.width, rect.height].every((v) => Number.isFinite(v)) && rect.width > 1 && rect.height > 1
+            ? { x: Math.round(rect.x * z), y: Math.round(rect.y * z), width: Math.round(rect.width * z), height: Math.round(rect.height * z) }
+            : undefined
+          image = await (crop ? wc.capturePage(crop) : wc.capturePage())
+        }
         const data = image.toPNG().toString('base64')
         finalResult = {
           ...result,
-          result: { ...(result.result as Record<string, unknown> | undefined), image: { data, mimeType: 'image/png' } },
+          result: { ...rest, image: { data, mimeType: 'image/png' } },
         }
       } catch (err) {
         finalResult = { requestId: result.requestId, ok: false, error: `capture-failed: ${String((err as Error)?.message ?? err)}` }

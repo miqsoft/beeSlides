@@ -24,5 +24,5 @@ declare module '*?nodeWorker' {
 
 // The selection digest is a standalone hook script that main also imports.
 declare module '*selection-digest.mjs' {
-  export function digest(ctx: unknown): string
+  export function digest(ctx: unknown, self?: string): string
 }

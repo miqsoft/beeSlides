@@ -7,7 +7,7 @@
 // (text stays fonts, shapes stay paths) — via a hidden window on desktop
 // (exportFigure IPC) or the print dialog in the browser build.
 
-import { inLinearFlow, pxToUnit, type SlidomingoDoc, type SlideElement } from '../model'
+import { inLinearFlow, pxToUnit, type Slide, type SlidomingoDoc, type SlideElement } from '../model'
 import { renderSlide } from '../render'
 import { exportFigureSvg } from '../svgexport'
 import { applyHoverDefault } from '../staticlayer'
@@ -44,6 +44,32 @@ export function figurePrintHtml(doc: SlidomingoDoc): string {
     `<style>@page{size:${w}px ${h}px;margin:0}html,body{margin:0;padding:0;width:${w}px;height:${h}px;overflow:hidden;background:transparent}` +
     `.beeslides-slide{position:relative;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style>` +
     `<body>${surface.outerHTML}`
+}
+
+/** A self-contained page showing `area` (slide px) of one slide at 1:1, for
+ *  an agent screenshot of a slide that is not on the canvas: desktop main
+ *  loads it in a hidden window and captures that, so the user's view never
+ *  moves. `outlines` are areas drawn dashed, like the canvas's comment areas. */
+export function slideSnapshotHtml(doc: SlidomingoDoc, slide: Slide, area: { x: number; y: number; w: number; h: number }, outlines: { x: number; y: number; w: number; h: number }[] = []): string {
+  const surface = renderSlide(slide, doc, { hidePlaceholders: true, inlineData: true, stillTrails: true })
+  for (const o of outlines) {
+    const box = document.createElement('div')
+    box.className = 'ed-comment-area'
+    Object.assign(box.style, { left: `${o.x}px`, top: `${o.y}px`, width: `${o.w}px`, height: `${o.h}px` })
+    surface.appendChild(box)
+  }
+  surface.style.transform = `translate(${-area.x}px,${-area.y}px)`
+  const page = document.createElement('div')
+  page.className = 'bp-page'
+  page.appendChild(surface)
+  applyHoverDefault(page, slide)
+  return `<!doctype html><meta charset="utf-8">` +
+    `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">` +
+    `<style>${allCss()}</style>` +
+    `<style>html,body{margin:0;padding:0;width:${area.w}px;height:${area.h}px;overflow:hidden;background:#fff}` +
+    `.bp-page{position:relative;width:${area.w}px;height:${area.h}px;overflow:hidden}` +
+    `.bp-page>.beeslides-slide{position:absolute;left:0;top:0;transform-origin:0 0}</style>` +
+    `<body>${page.outerHTML}`
 }
 
 /** Page geometry of a deck PDF: width normalised to 1600, the deck's aspect kept. */

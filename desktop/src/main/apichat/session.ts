@@ -4,7 +4,7 @@
 // One API chat tab: an MCP client on the chat's session folder, the neutral
 // message list, the display list the panel replays, and the loop.
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { ApiProfile } from '../aiprofiles.ts'
 import { digest } from '../../mcp/selection-digest.mjs'
 import { compactConversation } from './compact.ts'
@@ -227,7 +227,7 @@ export class ApiChatSession {
   }
 
   private selectionDigest(): string | null {
-    try { return digest(JSON.parse(readFileSync(join(this.o.sharedDir, 'selection.json'), 'utf8'))) } catch { return null }
+    try { return digest(JSON.parse(readFileSync(join(this.o.sharedDir, 'selection.json'), 'utf8')), basename(this.o.sessionDir).replace(/^session-/, '')) } catch { return null }
   }
 
   private skills(): Skill[] {
@@ -267,7 +267,7 @@ export class ApiChatSession {
     const shot = await this.canvas.run(() => this.callTool!('review_slide', elementIds.length ? { slideId, elementIds } : { slideId }, signal))
     if (shot.isError) return { ...shot, images: [] }
     const image = shot.images[0]
-    if (!image) return { text: `Error: no screenshot of "${slideId}" (the slide is not on screen).`, images: [], isError: true }
+    if (!image) return { text: `Error: no screenshot of "${slideId}" (a slide type or reusable object must be open in the editor).`, images: [], isError: true }
     try {
       const answer = await vision.describe(image, visionPrompt(shot.text, typeof args.question === 'string' ? args.question : undefined), signal)
       // The picture stays in the result for the panel; the text-only wire drops it.

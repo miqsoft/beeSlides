@@ -13152,3 +13152,22 @@ one kept).
 canvas zooms that part to fill the view, so a 24 px icon arrives at full
 resolution instead of as a few pixels of a whole-slide shot. No offscreen
 renderer: still only what can be shown on the canvas.
+
+## 2026-10-21 — Agent screenshots of other slides are rendered off screen; chats see each other's slides
+
+Supersedes "No offscreen renderer" above for deck slides. `review_slide` and
+`render_preview` used to navigate the editor to the asked slide, so a chat
+finishing an edit pulled the user away from where they were working.
+
+**Off screen:** a deck slide that is not on the canvas is rendered by
+`figureexport.ts slideSnapshotHtml` (standalone page, own CSP, the area asked
+for at 1:1) and main shoots it in a hidden window (`slidesnapshot.ts`, one at a
+time, in-memory session). The view, zoom and selection never move. A slide
+type or reusable object has no such page: it is shot only while open. The
+slide on the canvas keeps the on-canvas path.
+
+**Other chats:** the slide locks (they never refuse, see 2026-10-06) are now
+also `agentWork` in `selection.json`, and each digest lists the slides OTHER
+tabs wrote ("another chat is working on …"; a tab's own are left out via its
+session id). Locks are released when a turn ends (API chat `busy:false`, or a
+`claude` tab's `Stop` hook writing `turn-done`), not after 8 idle minutes.
