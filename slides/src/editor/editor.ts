@@ -2880,8 +2880,8 @@ export class Editor {
     if (clicks) item.appendChild(this.buildsBadge(clicks))
     const tools = div('ed-thumb-tools')
     tools.append(
-      btn(ICONS.copy, '', (ev) => { ev.stopPropagation(); this.duplicateSlide(i); this.focusSlidePanel() }, this.isIconset ? t('Duplicate icon') : t('Duplicate slide')),
-      btn(ICONS.trash, '', (ev) => { ev.stopPropagation(); this.deleteSlide(i); this.focusSlidePanel() }, this.isIconset ? t('Delete icon') : t('Delete slide')),
+      confirmBtn(ICONS.copy, t('Duplicate?'), () => { this.duplicateSlide(i); this.focusSlidePanel() }, this.isIconset ? t('Duplicate icon (click twice)') : t('Duplicate slide (click twice)')),
+      confirmBtn(ICONS.trash, t('Delete?'), () => { this.deleteSlide(i); this.focusSlidePanel() }, this.isIconset ? t('Delete icon (click twice)') : t('Delete slide (click twice)'), 'danger'),
     )
     item.append(num, surface, tools)
     item.dataset.slideId = slide.id
@@ -8283,6 +8283,30 @@ function btn(
   b.innerHTML = label ? `${icon}<span>${label}</span>` : icon
   if (title) b.title = title
   b.addEventListener('click', onClick)
+  return b
+}
+
+/** A small icon button that acts on the SECOND click: the first arms it
+ *  (it spells out `armedLabel`, e.g. “Delete?”), a second click within 3 s
+ *  — or a double click — runs `run`. Leaving it or waiting disarms. For the
+ *  thumbnail hover tools, where one stray click duplicated or deleted. */
+function confirmBtn(icon: string, armedLabel: string, run: () => void, title: string, tone?: 'danger'): HTMLElement {
+  let timer = 0
+  const disarm = () => {
+    window.clearTimeout(timer)
+    b.classList.remove('armed')
+    b.innerHTML = icon
+  }
+  const b = btn(icon, '', (ev) => {
+    ev.stopPropagation()
+    if (b.classList.contains('armed')) { disarm(); run(); return }
+    b.classList.add('armed')
+    b.innerHTML = `${icon}<span>${armedLabel}</span>`
+    timer = window.setTimeout(disarm, 3000)
+  }, title)
+  b.classList.add('ed-confirm-btn')
+  if (tone) b.classList.add(tone)
+  b.addEventListener('mouseleave', disarm)
   return b
 }
 
