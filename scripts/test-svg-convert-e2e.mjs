@@ -168,6 +168,15 @@ await roundtrip('styling', svg('d3', `<svg xmlns="http://www.w3.org/2000/svg" vi
   ok(grad && grad.fillGradient.stops.length === 2, 'a linear gradient becomes a gradient fill', grad?.fillGradient)
 } })
 
+// 3b. a radial gradient fading out (a glow) → a smaller, blurred shape in its inner colour, not a hard disc
+await roundtrip('glow', svg('d3b', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs><radialGradient id="rg"><stop offset="0" stop-color="#fb4" stop-opacity=".6"/><stop offset="1" stop-color="#fb4" stop-opacity="0"/></radialGradient></defs>
+  <circle cx="50" cy="50" r="40" fill="url(#rg)"/>
+</svg>`), { tol: 0.02, check: (out) => {
+  const glow = out.find((e) => e.shape === 'ellipse')
+  ok(glow && glow.blur > 0 && /^#ffbb44/i.test(glow.fill), 'a fading radial gradient → a blurred ellipse in its inner colour', glow && [glow.fill, glow.blur, glow.w])
+} })
+
 // 4. placement: a wide frame letterboxes the viewBox; rotation and flip of the element carry over
 await roundtrip('placement', svg('d4', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="0" y="0" width="100" height="100" fill="#fd0"/><circle cx="30" cy="30" r="20" fill="#d20"/><path d="M50 90 L90 50 L90 90 Z" fill="#05a"/></svg>`,
   { x: 150, y: 120, w: 500, h: 250 }, { rotation: 20, flipH: true }), { tol: 0.006 })

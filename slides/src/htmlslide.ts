@@ -308,19 +308,162 @@ export function parseLinearGradient(v: string): GradientFill | null {
   return { angle: round(((angle % 360) + 360) % 360), stops: stops.map((s) => ({ at: round(Math.max(0, Math.min(1, s.at!)), 1000), color: s.color })) }
 }
 
-/** A computed box-shadow list as ShadowSpec[] (inset and spread dropped). */
-function parseShadows(v: string): ShadowSpec[] {
+/** A computed box-shadow list as ShadowSpec[] (inset and spread dropped;
+ *  `lost` hears when one was). */
+function parseShadows(v: string, lost?: (what: string) => void): ShadowSpec[] {
   if (!v || v === 'none') return []
   const out: ShadowSpec[] = []
   for (const part of topLevelSplit(v)) {
-    if (/\binset\b/.test(part)) continue
+    if (/\binset\b/.test(part)) { lost?.('an inset shadow'); continue }
     const colorM = /(rgba?\([^)]*\)|#[0-9a-f]{3,8})/i.exec(part)
     const color = colorM ? cssToModelColor(colorM[1]) : '#000000'
     const nums = part.replace(colorM?.[1] ?? '', '').trim().split(/\s+/).map((n) => parseFloat(n)).filter((n) => Number.isFinite(n))
     if (!visibleColor(color) || nums.length < 2) continue
+    if (nums[3]) lost?.('a shadow spread')
     out.push({ x: round(nums[0]), y: round(nums[1]), blur: round(nums[2] ?? 0), color })
   }
   return out
+}
+
+/** The colour stops of any computed gradient (linear, radial, conic, the
+ *  repeating ones), positions as given or spread evenly — what a fallback
+ *  colour or a glow is made of. */
+function gradientStops(v: string): Array<{ at: number; color: string }> | null {
+  const m = /^(?:repeating-)?(linear|radial|conic)-gradient\((.*)\)$/.exec(v.trim())
+  if (!m) return null
+  const stops: Array<{ at?: number; color: string }> = []
+  for (const p of topLevelSplit(m[2])) {
+    const sm = /^(.*?)\s+(-?[\d.]+)(%|px)(?:\s+-?[\d.]+(?:%|px))?$/.exec(p)
+    const color = cssToModelColor(sm ? sm[1] : p)
+    if (color) stops.push({ color, at: sm && sm[3] === '%' ? Number(sm[2]) / 100 : undefined })
+  }
+  if (stops.length < 2) return null
+  stops.forEach((s, i) => { if (s.at === undefined) s.at = i / (stops.length - 1) })
+  return stops as Array<{ at: number; color: string }>
+}
+
+/** The colour a gradient reads as from a distance: its middle stop. */
+const middleColor = (stops: Array<{ at: number; color: string }>): string =>
+  stops.reduce((best, s) => (Math.abs(s.at - 0.5) < Math.abs(best.at - 0.5) ? s : best)).color
+
+const alphaOf = (c: string): number => {
+  if (c === 'transparent') return 0
+  const m = /^rgba\([^)]*,\s*([\d.]+)\)$/.exec(c)
+  return m ? Number(m[1]) : 1
+}
+
+/**
+ * A radial gradient that fades out (a glow, a spotlight) as what the format
+ * can draw: an ellipse in its inner colour, blurred, centred where the
+ * gradient is and reaching as far as the gradient's last visible stop.
+ */
+function radialGlow(v: string, f: Frame): { frame: Frame; color: string; blur: number } | null {
+  const m = /^radial-gradient\((.*)\)$/.exec(v.trim())
+  const stops = gradientStops(v)
+  if (!m || !stops || alphaOf(stops[stops.length - 1].color) > 0.05 || alphaOf(stops[0].color) === 0) return null
+  const head = topLevelSplit(m[1])[0]
+  const at = /\bat\s+(-?[\d.]+)(%|px)\s+(-?[\d.]+)(%|px)/.exec(head)
+  const cx = at ? (at[2] === '%' ? f.w * Number(at[1]) / 100 : Number(at[1])) : f.w / 2
+  const cy = at ? (at[4] === '%' ? f.h * Number(at[3]) / 100 : Number(at[3])) : f.h / 2
+  // the gradient ray: to the farthest corner unless the shape names a size
+  const circle = /\bcircle\b/.test(head)
+  const sized = /(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/.exec(head.replace(/\bat\b.*$/, ''))
+  const far = (a: number, b: number) => Math.max(a, b - a)
+  let rx = Math.SQRT2 * far(cx, f.w), ry = Math.SQRT2 * far(cy, f.h)
+  if (/closest-side/.test(head)) { rx = Math.min(cx, f.w - cx); ry = Math.min(cy, f.h - cy) }
+  else if (/farthest-side/.test(head)) { rx = far(cx, f.w); ry = far(cy, f.h) }
+  if (sized) { rx = Number(sized[1]); ry = Number(sized[2] ?? sized[1]) }
+  if (circle && !sized) { const r = /side/.test(head) ? Math.min(rx, ry) : Math.hypot(far(cx, f.w), far(cy, f.h)); rx = r; ry = r }
+  const lastVisible = [...stops].reverse().find((s) => alphaOf(s.color) > 0.05)?.at ?? 1
+  const reach = Math.max(0.15, Math.min(1, (lastVisible + stops[stops.length - 1].at) / 2))
+  const w = 2 * rx * reach, h = 2 * ry * reach
+  return {
+    frame: { x: round(f.x + cx - w / 2), y: round(f.y + cy - h / 2), w: round(w), h: round(h), rotation: 0 },
+    color: stops[0].color,
+    blur: round(Math.min(w, h) * 0.18),
+  }
+}
+
+/** CSS blend modes the format passes on (render.ts writes `blend` as mix-blend-mode). */
+const BLEND_MODES = new Set(['multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'exclusion', 'hue', 'saturation', 'color', 'luminosity', 'plus-lighter'])
+
+interface Effects { blur?: number; blend?: string; backdropFilter?: number; shadow?: ShadowSpec[] }
+
+/**
+ * `filter`, `backdrop-filter` and `mix-blend-mode` as the element fields
+ * the format has for them: blur(), drop-shadow() (the format's shadows ARE
+ * drop shadows), a backdrop blur, a blend mode. Anything else is reported.
+ */
+function effectsOf(cs: CSSStyleDeclaration, lost: (what: string) => void): Effects {
+  const out: Effects = {}
+  const fns = (v: string) => (v && v !== 'none' ? v.match(/[a-z-]+\((?:[^()]|\([^()]*\))*\)/gi) ?? [] : [])
+  for (const fn of fns(cs.filter)) {
+    const blur = /^blur\(([\d.]+)px\)$/.exec(fn)
+    if (blur) { out.blur = round(Number(blur[1])); continue }
+    const ds = /^drop-shadow\((.*)\)$/.exec(fn)
+    if (ds) { out.shadow = [...(out.shadow ?? []), ...parseShadows(ds[1])]; continue }
+    lost(`filter ${fn.split('(')[0]}()`)
+  }
+  for (const fn of fns(cs.getPropertyValue('backdrop-filter') || cs.getPropertyValue('-webkit-backdrop-filter'))) {
+    const blur = /^blur\(([\d.]+)px\)$/.exec(fn)
+    if (blur) out.backdropFilter = round(Number(blur[1]))
+    else lost(`backdrop-filter ${fn.split('(')[0]}()`)
+  }
+  const blend = cs.mixBlendMode
+  if (blend && blend !== 'normal') {
+    if (BLEND_MODES.has(blend)) out.blend = blend
+    else lost(`mix-blend-mode ${blend}`)
+  }
+  return out
+}
+
+/** `fx` on an element; `own` = false for the text of a painted box, which
+ *  shares the box's blur and blend but not its backdrop or drop shadow. */
+function applyEffects(el: { blur?: number; blend?: string; backdropFilter?: number; shadow?: ShadowSpec | ShadowSpec[] }, fx: Effects, own = true) {
+  if (fx.blur) el.blur = fx.blur
+  if (fx.blend) el.blend = fx.blend
+  if (!own) return
+  if (fx.backdropFilter) el.backdropFilter = fx.backdropFilter
+  if (fx.shadow?.length) {
+    const all = [...(el.shadow ? (Array.isArray(el.shadow) ? el.shadow : [el.shadow]) : []), ...fx.shadow]
+    el.shadow = all.length === 1 ? all[0] : all
+  }
+}
+
+/** Whether a box's background is painted into its glyphs (gradient text). */
+const clipsToText = (cs: CSSStyleDeclaration) =>
+  cs.getPropertyValue('background-clip') === 'text' || cs.getPropertyValue('-webkit-background-clip') === 'text'
+
+/** `-webkit-text-stroke` as the format's textStroke (`fill:'none'` = hollow glyphs). */
+function strokeOf(cs: CSSStyleDeclaration): { width: number; color: string } | null {
+  const width = px(cs.getPropertyValue('-webkit-text-stroke-width'))
+  const color = cssToModelColor(cs.getPropertyValue('-webkit-text-stroke-color'))
+  return width > 0 && visibleColor(color) ? { width: round(width), color } : null
+}
+
+/** The glyph colour actually painted: -webkit-text-fill-color wins over color. */
+function glyphColor(cs: CSSStyleDeclaration): string | null {
+  const fill = cs.getPropertyValue('-webkit-text-fill-color')
+  return cssToModelColor(fill && fill !== cs.color ? fill : cs.color)
+}
+
+/**
+ * A `clip-path` as a shape: polygon() → a path shape in the box's own
+ * coordinates, circle()/ellipse() reaching the sides → an ellipse.
+ */
+function clipShape(cs: CSSStyleDeclaration, f: Frame): { shape: 'path'; d: string } | { shape: 'ellipse' } | null | 'none' {
+  const v = cs.clipPath
+  if (!v || v === 'none') return 'none'
+  const len = (s: string, full: number) => (s.endsWith('%') ? full * parseFloat(s) / 100 : parseFloat(s))
+  const poly = /^polygon\((?:(?:nonzero|evenodd)\s*,\s*)?(.*)\)$/.exec(v)
+  if (poly) {
+    const pts = topLevelSplit(poly[1]).map((p) => p.trim().split(/\s+/))
+    if (pts.length < 3 || pts.some((p) => p.length !== 2 || p.some((n) => !/^-?[\d.]+(px|%)?$/.test(n)))) return null
+    const d = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${round(len(x, f.w))} ${round(len(y, f.h))}`).join(' ') + ' Z'
+    return { shape: 'path', d }
+  }
+  if (/^(circle|ellipse)\((50%|closest-side)?(\s+(50%|closest-side))?(\s+at\s+(50%|center)\s+(50%|center))?\)$/.test(v.replace(/\s+/g, ' '))) return { shape: 'ellipse' }
+  return null
 }
 
 function rotationOf(cs: CSSStyleDeclaration): number {
@@ -388,8 +531,10 @@ function frameOf(el: Element, rotation: number): Frame {
   if (Math.abs(rotation) < 0.01) return { x: round(r.left), y: round(r.top), w: round(r.width), h: round(r.height), rotation: 0 }
   // rotated: the bounding rect is the rotated box's hull; its centre is the
   // box's centre, the box's own size is the untransformed layout size
+  // an inline <svg> is no HTMLElement and has no offset size: its laid-out CSS size
   const h = el as HTMLElement
-  const w = h.offsetWidth, hh = h.offsetHeight
+  const cs = h.offsetWidth === undefined ? el.ownerDocument.defaultView!.getComputedStyle(el) : null
+  const w = cs ? px(cs.width) : h.offsetWidth, hh = cs ? px(cs.height) : h.offsetHeight
   const cx = r.left + r.width / 2, cy = r.top + r.height / 2
   return { x: round(cx - w / 2), y: round(cy - hh / 2), w, h: hh, rotation: round(((rotation % 360) + 540) % 360 - 180) }
 }
@@ -436,6 +581,10 @@ function textList(ctx: Ctx, el: Element): boolean {
 }
 
 const isFlexOrGrid = (d: string) => /flex|grid/.test(d)
+
+/** A ul/ol whose items show no marker. */
+const bulletless = (ctx: Ctx, list: Element) => (list.tagName === 'UL' || list.tagName === 'OL')
+  && Array.from(list.children).every((li) => ctx.win.getComputedStyle(li).listStyleType === 'none')
 
 /** A line of a multi-line text: a plain div/p in the flow, no box of its own
  *  (no margin, padding, border or paint) and the text style of its block —
@@ -513,7 +662,13 @@ function richHtml(ctx: Ctx, el: Element, base: CSSStyleDeclaration): string {
     const cs = ctx.win.getComputedStyle(c)
     if (cs.display === 'none') continue
     if (tag === 'BR') { out += '<br>'; continue }
-    if (tag === 'UL' || tag === 'OL' || tag === 'LI') { out += `<${tag.toLowerCase()}>${richHtml(ctx, c, base)}</${tag.toLowerCase()}>`; continue }
+    if (tag === 'UL' || tag === 'OL' || tag === 'LI') {
+      // a list without markers (list-style: none, often with its own ::before ticks) is lines
+      const owner = tag === 'LI' ? c.parentElement : c
+      if (owner && bulletless(ctx, owner)) { out += tag === 'LI' ? `<div>${richHtml(ctx, c, base)}</div>` : richHtml(ctx, c, base); continue }
+      out += `<${tag.toLowerCase()}>${richHtml(ctx, c, base)}</${tag.toLowerCase()}>`
+      continue
+    }
     if (tag === 'DIV' || tag === 'P' || /^H[1-6]$/.test(tag)) { out += `<div>${richHtml(ctx, c, cs)}</div>`; continue }
     let open = '', close = ''
     const wrap = (t: string) => { open += `<${t}>`; close = `</${t}>` + close }
@@ -524,9 +679,13 @@ function richHtml(ctx: Ctx, el: Element, base: CSSStyleDeclaration): string {
     const dec = decorations(cs), baseDec = decorations(base)
     if (dec.includes('underline') && !baseDec.includes('underline') && tag !== 'A') wrap('u')
     if (dec.includes('line-through') && !baseDec.includes('line-through')) wrap('s')
+    // a run carries only colour and size (render.ts sanitizeRunStyle)
+    const family = (s: string) => s.replace(/["']/g, '').split(',')[0].trim()
+    if (tag !== 'CODE' && tag !== 'KBD' && family(cs.fontFamily) !== family(base.fontFamily) && hasText(c)) ctx.notes.add(`Text in ${family(cs.fontFamily)} inside a text in ${family(base.fontFamily)} shows in ${family(base.fontFamily)}: a run inside a text keeps only bold, italics, colour and size. Give it an element of its own for another typeface.`)
+    if (!isBold(cs.fontWeight) && isBold(base.fontWeight) && hasText(c)) ctx.notes.add('A lighter run inside bold text shows bold: a run can only add bold. Give it an element of its own.')
     const styles: string[] = []
-    const color = cssToModelColor(cs.color)
-    if (color && color !== cssToModelColor(base.color) && tag !== 'A') styles.push(`color:${color}`)
+    const color = runColor(ctx, cs, base)
+    if (color && tag !== 'A') styles.push(`color:${color}`)
     if (Math.abs(px(cs.fontSize) - px(base.fontSize)) > 0.25 && tag !== 'CODE') styles.push(`font-size:${round(px(cs.fontSize))}px`)
     if (styles.length) { open += `<span style="${styles.join(';')}">`; close = '</span>' + close }
     out += open + richHtml(ctx, c, cs) + close
@@ -534,8 +693,33 @@ function richHtml(ctx: Ctx, el: Element, base: CSSStyleDeclaration): string {
   return out
 }
 
+/** A run's own glyph colour, or null when it paints like its text: a
+ *  gradient clipped to part of a text becomes its middle colour; transparent
+ *  glyphs show the paint of the text around them. */
+function runColor(ctx: Ctx, cs: CSSStyleDeclaration, base: CSSStyleDeclaration): string | null {
+  if (clipsToText(cs) && cs.backgroundImage !== 'none') {
+    const stops = gradientStops(topLevelSplit(cs.backgroundImage)[0])
+    if (stops) {
+      ctx.notes.add('A gradient on part of a text became its middle colour (a whole text element can carry a gradient).')
+      return middleColor(stops)
+    }
+  }
+  const c = glyphColor(cs)
+  if (!visibleColor(c)) return null
+  return c === glyphColor(base) ? null : c
+}
+
 const ALIGN = (cs: CSSStyleDeclaration): TextElement['align'] => {
   const a = cs.textAlign
+  // a flex or grid box centring its one run (a number in a circle) centres the text
+  if ((a === 'start' || a === 'left') && /flex|grid/.test(cs.display)) {
+    const across = /grid/.test(cs.display) ? cs.justifyItems : cs.flexDirection.startsWith('column') ? cs.alignItems : cs.justifyContent
+    const along = /grid/.test(cs.display) ? cs.justifyContent : null
+    for (const v of [across, along]) {
+      if (v === 'center' || v === 'safe center') return 'center'
+      if (v === 'flex-end' || v === 'end' || v === 'right') return 'right'
+    }
+  }
   if (a === 'center' || a === '-webkit-center') return 'center'
   if (a === 'right' || a === 'end' || a === '-webkit-right') return cs.direction === 'rtl' && a === 'end' ? 'left' : 'right'
   return 'left'
@@ -604,10 +788,46 @@ function shrinkWrappedLine(ctx: Ctx, el: Element, f: Frame): boolean {
  *  width it cannot wrap its last word onto a second line */
 const ONE_LINE_SLACK = 2
 
-function emitText(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, f: Frame, id: string, html: string, opacity: number, role?: string) {
+/** A note about what part of an element's styling was left out. */
+const lostFor = (ctx: Ctx, id: string) => (what: string) => { ctx.notes.add(`#${id}: ${what} was left out.`) }
+
+/**
+ * The glyph paint of a text: a gradient clipped to the text (`background-clip:
+ * text`) → colorGradient over its middle colour; transparent glyphs with
+ * nothing behind them would vanish, so they get the text colour back.
+ */
+function glyphPaint(ctx: Ctx, cs: CSSStyleDeclaration, id: string, stroked = false): { color: string; gradient?: GradientFill } {
+  const color = glyphColor(cs)
+  if (clipsToText(cs) && cs.backgroundImage !== 'none') {
+    const layer = topLevelSplit(cs.backgroundImage)[0]
+    const stops = gradientStops(layer)
+    if (stops) {
+      const grad = parseLinearGradient(layer)
+      if (!grad) ctx.notes.add(`#${id}: a gradient that is not linear in the text became its middle colour.`)
+      // the colour stays what CSS says where it is visible: it is the
+      // fallback a reader without gradient text shows
+      const own = cssToModelColor(cs.color)
+      return { color: grad && visibleColor(own) ? own : middleColor(stops), ...(grad ? { gradient: grad } : {}) }
+    }
+  }
+  if (!visibleColor(color)) {
+    const plain = cssToModelColor(cs.color)
+    const fallback = visibleColor(plain) ? plain : '#000000'
+    // hollow glyphs (outline text) are drawn by the stroke; the colour is only their fallback
+    if (!stroked) ctx.notes.add(`#${id}: the text is transparent (nothing is painted into it); it shows in ${fallback}.`)
+    return { color: stroked ? strokeOf(cs)!.color : fallback }
+  }
+  return { color }
+}
+
+function emitText(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, f: Frame, id: string, html: string, opacity: number, role?: string, painted = false) {
   const heading = role === 'title' || /^H[1-6]$/.test(el.tagName)
-  // a box with room to spare keeps its width, so writing a slide back adds nothing
-  if (f.rotation === 0 && shrinkWrappedLine(ctx, el, f)) {
+  // vertical text (writing-mode) is a text turned a quarter: same centre, sides swapped
+  if (/^(vertical|sideways)/.test(cs.writingMode)) {
+    const cx = f.x + f.w / 2, cy = f.y + f.h / 2, w = f.h + ONE_LINE_SLACK
+    f = { x: round(cx - w / 2), y: round(cy - f.w / 2), w: round(w), h: f.w, rotation: round(f.rotation + (cs.writingMode === 'sideways-lr' ? -90 : 90)) }
+  } else if (f.rotation === 0 && shrinkWrappedLine(ctx, el, f)) {
+    // a box with room to spare keeps its width, so writing a slide back adds nothing
     const a = ALIGN(cs)
     f = { ...f, w: round(f.w + ONE_LINE_SLACK), x: round(a === 'center' ? f.x - ONE_LINE_SLACK / 2 : a === 'right' ? f.x - ONE_LINE_SLACK : f.x) }
   }
@@ -616,57 +836,166 @@ function emitText(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, f: Frame, id: 
   const dec = decorations(cs)
   if (dec.includes('underline')) content = `<u>${content}</u>`
   if (dec.includes('line-through')) content = `<s>${content}</s>`
+  const stroke = strokeOf(cs)
+  const paint = glyphPaint(ctx, cs, id, !!stroke)
   const text: TextElement = {
     id, type: 'text', ...base(f, opacity),
     html: content,
     fontSize: round(px(cs.fontSize)),
     fontFamily: fontFamilyFor(ctx, cs, heading && role === 'title'),
     fontWeight: Number(cs.fontWeight) || (isBold(cs.fontWeight) ? 700 : 400),
-    color: cssToModelColor(cs.color) ?? '#000000',
+    color: paint.color,
     align: ALIGN(cs),
     valign: valignOf(el, cs),
     lineHeight: lineHeightOf(cs),
   }
+  if (paint.gradient) text.colorGradient = paint.gradient
+  if (stroke) text.textStroke = { ...stroke, ...(!paint.gradient && !visibleColor(glyphColor(cs)) ? { fill: 'none' } : {}) }
   if (cs.letterSpacing !== 'normal' && px(cs.letterSpacing)) text.letterSpacing = round(px(cs.letterSpacing))
   if (role) text.role = role
   const shadows = parseShadows(cs.textShadow)
   if (shadows.length) text.shadow = shadows.length === 1 ? shadows[0] : shadows
+  // a painted box already carries the backdrop blur and drop shadow (and
+  // reported what was lost)
+  applyEffects(text, effectsOf(cs, painted ? () => undefined : lostFor(ctx, id)), !painted)
   ctx.out.push(text)
 }
 
-/** A painted box: background, uniform border, radius, shadow. Uneven
- *  borders become thin rects of their own (an accent bar on one side). */
-function emitPaint(ctx: Ctx, cs: CSSStyleDeclaration, f: Frame, id: string, opacity: number): boolean {
-  const bgColor = cssToModelColor(cs.backgroundColor)
+/** One paint of a box, bottom to top: a colour, a linear gradient, or a
+ *  fading radial gradient drawn as a soft ellipse of its own (`glow`). */
+interface BoxPaint { fill: string; gradient?: GradientFill; glow?: { frame: Frame; blur: number }; image?: { src: string; fit: ImageElement['fit'] } }
+
+/** A box's background, bottom to top: the colour, then the image layers from
+ *  the last one (CSS draws the first on top). `glyphs`: the background is
+ *  painted into the text (background-clip: text), not into the box. */
+function boxPaints(ctx: Ctx, cs: CSSStyleDeclaration, f: Frame, id: string, glyphs: boolean): BoxPaint[] {
+  if (glyphs) return []
+  const out: BoxPaint[] = []
+  const color = cssToModelColor(cs.backgroundColor)
+  if (visibleColor(color)) out.push({ fill: color })
   const img = cs.backgroundImage
-  const grad = img && img !== 'none' ? parseLinearGradient(topLevelSplit(img)[0]) : null
-  if (img && img !== 'none' && !grad) ctx.notes.add(`A background on #${id} that is not one linear gradient was left out.`)
+  // a background tiled smaller than its box is a pattern (dots, grids, stripes)
+  const sizes = topLevelSplit(cs.backgroundSize || 'auto')
+  const tiled = (i: number) => {
+    const v = sizes[i % sizes.length] ?? 'auto'
+    if (/^(auto|cover|contain)$/.test(v) || /^(auto|100%)( (auto|100%))?$/.test(v)) return false
+    const [w, h] = v.split(/\s+/).map((n, k) => (n.endsWith('%') ? parseFloat(n) / 100 * (k ? f.h : f.w) : parseFloat(n)))
+    return (w || f.w) < f.w - 1 || (h ?? w ?? f.h) < f.h - 1
+  }
+  const layers = img && img !== 'none' ? topLevelSplit(img) : []
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i]
+    if (layer === 'none') continue
+    // a picture behind the box (a hero photo): a picture element of the box's size
+    const pic = /^url\(\s*["']?(data:image\/[^"')\s]+)["']?\s*\)$/.exec(layer)
+    if (pic) {
+      const size = sizes[i % sizes.length] ?? 'auto'
+      const fit: ImageElement['fit'] = size === 'contain' ? 'contain' : /^100% 100%$/.test(size) ? 'fill' : 'cover'
+      if (!/^(cover|contain|100% 100%)$/.test(size)) ctx.notes.add(`#${id}: a background picture of size ${size} fills the box (cover).`)
+      const pos = topLevelSplit(cs.backgroundPosition || '')[i] ?? ''
+      if (fit === 'cover' && pos && pos !== '50% 50%') ctx.notes.add(`#${id}: a background picture is cropped around its centre (background-position ${pos} was left out).`)
+      out.push({ fill: 'transparent', image: { src: pic[1], fit } })
+      continue
+    }
+    if (tiled(i)) { ctx.notes.add(`#${id}: a repeating background pattern was left out (the format has no tiling; draw a few shapes or use <img>).`); continue }
+    const grad = parseLinearGradient(layer)
+    if (grad) { out.push({ fill: grad.stops[0].color, gradient: grad }); continue }
+    const glow = f.rotation === 0 ? radialGlow(layer, f) : null
+    if (glow) {
+      out.push({ fill: glow.color, glow: { frame: glow.frame, blur: glow.blur } })
+      ctx.notes.add(`#${id}: a radial gradient that fades out became a soft (blurred) ellipse; check it with review_slide.`)
+      continue
+    }
+    const stops = gradientStops(layer)
+    if (stops) {
+      out.push({ fill: middleColor(stops) })
+      ctx.notes.add(`#${id}: a ${layer.split('(')[0]} became its middle colour (a box keeps linear gradients only).`)
+      continue
+    }
+    ctx.notes.add(`#${id}: a background image that is neither a gradient nor a data: picture was left out.`)
+  }
+  return out
+}
+
+/** A painted box: background layers, uniform border, radius, shadow, effects.
+ *  Several background layers stack as shapes of their own (`<id>-layer2` …),
+ *  uneven borders become thin rects (an accent bar on one side). */
+function emitPaint(ctx: Ctx, cs: CSSStyleDeclaration, f: Frame, id: string, opacity: number, glyphs = false): boolean {
+  const lost = lostFor(ctx, id)
   const sides = (['Top', 'Right', 'Bottom', 'Left'] as const).map((s) => ({
     s, w: px(cs.getPropertyValue(`border-${s.toLowerCase()}-width`)),
     color: cssToModelColor(cs.getPropertyValue(`border-${s.toLowerCase()}-color`)),
     style: cs.getPropertyValue(`border-${s.toLowerCase()}-style`),
   })).map((b) => ({ ...b, on: b.w > 0 && b.style !== 'none' && b.style !== 'hidden' && visibleColor(b.color) }))
-  const shadows = parseShadows(cs.boxShadow)
-  const fill = grad ? grad.stops[0].color : bgColor
+  const paints = boxPaints(ctx, cs, f, id, glyphs)
+  const shadows = parseShadows(cs.boxShadow, lost)
+  const fx = effectsOf(cs, lost)
   const anyBorder = sides.some((b) => b.on)
-  if (!visibleColor(fill) && !anyBorder && !shadows.length) return false
+  if (!paints.length && !anyBorder && !shadows.length && !fx.shadow?.length && !fx.backdropFilter) {
+    // an outline alone draws around the box; the box itself paints nothing, so its text keeps the id
+    emitOutline(ctx, cs, f, id, opacity, 'rect', px(cs.borderTopLeftRadius))
+    return false
+  }
+  // the box itself: at least one shape the size of the box carries id, border, shadow
+  const boxy = (p: BoxPaint) => !p.glow && !p.image
+  if (!paints.some(boxy) && (anyBorder || shadows.length || fx.shadow?.length || fx.backdropFilter)) paints.unshift({ fill: 'transparent' })
   const uniform = sides.every((b) => b.on === sides[0].on && b.w === sides[0].w && b.color === sides[0].color && b.style === sides[0].style)
   const radii = [cs.borderTopLeftRadius, cs.borderTopRightRadius, cs.borderBottomRightRadius, cs.borderBottomLeftRadius]
   const pct = radii.map((r) => (r.endsWith('%') ? parseFloat(r) : null))
-  const ellipse = pct.every((p) => p !== null && p >= 50) || (f.w === f.h && radii.every((r) => !r.endsWith('%') && px(r) >= f.w / 2 - 0.5))
+  const clip = clipShape(cs, f)
+  if (clip === null) lost(`clip-path ${cs.clipPath.split('(')[0]}()`)
+  const ellipse = (clip !== 'none' && clip?.shape === 'ellipse') || pct.every((p) => p !== null && p >= 50) || (f.w === f.h && radii.every((r) => !r.endsWith('%') && px(r) >= f.w / 2 - 0.5))
+  const path = clip !== 'none' && clip?.shape === 'path' ? clip.d : null
   const r0 = radii[0].endsWith('%') ? (parseFloat(radii[0]) / 100) * Math.min(f.w, f.h) : px(radii[0].split(' ')[0])
-  const shape: ShapeElement = {
-    id, type: 'shape', shape: ellipse ? 'ellipse' : 'rect', ...base(f, opacity),
-    fill: visibleColor(fill) ? fill : 'transparent',
-    stroke: uniform && sides[0].on ? sides[0].color! : 'transparent',
-    strokeWidth: uniform && sides[0].on ? round(sides[0].w) : 0,
-    radius: ellipse ? 0 : round(Math.min(r0, f.w / 2, f.h / 2)),
+  const main = paints.findIndex(boxy)
+  const top = paints.length - 1 - [...paints].reverse().findIndex(boxy)
+  // a picture over the topmost shape would hide the border: it goes on a shape of its own, on top
+  const borderOnTop = uniform && sides[0].on && paints.some((p, i) => p.image && i > top)
+  const radius = ellipse ? round(Math.min(f.w, f.h) / 2) : round(Math.min(r0, f.w / 2, f.h / 2))
+  paints.forEach((p, i) => {
+    const pid = i === main || (main < 0 && i === 0) ? id : claimId(ctx, id, p.glow ? `-glow${i + 1}` : p.image ? `-image${i + 1}` : `-layer${i + 1}`)
+    if (p.image) {
+      if (path) ctx.notes.add(`#${id}: a background picture inside a clip-path keeps the box's rectangle.`)
+      const image: ImageElement = { id: pid, type: 'image', ...base(f, opacity), src: p.image.src, fit: p.image.fit, radius: path ? 0 : radius }
+      applyEffects(image, fx, false)
+      ctx.out.push(image)
+      return
+    }
+    if (p.glow) {
+      const glow: ShapeElement = {
+        id: pid, type: 'shape', shape: 'ellipse', ...base(p.glow.frame, opacity),
+        fill: p.fill, stroke: 'transparent', strokeWidth: 0, radius: 0,
+      }
+      applyEffects(glow, { ...fx, blur: round((fx.blur ?? 0) + p.glow.blur) }, false)
+      ctx.out.push(glow)
+      return
+    }
+    const stroke = i === top && uniform && sides[0].on && !borderOnTop
+    const shape: ShapeElement = {
+      id: pid, type: 'shape', shape: path ? 'path' : ellipse ? 'ellipse' : 'rect', ...base(f, opacity),
+      fill: visibleColor(p.fill) ? p.fill : 'transparent',
+      stroke: stroke ? sides[0].color! : 'transparent',
+      strokeWidth: stroke ? round(sides[0].w) : 0,
+      radius: ellipse || path ? 0 : round(Math.min(r0, f.w / 2, f.h / 2)),
+    }
+    if (path) { shape.d = path; shape.pathBox = [0, 0, round(f.w), round(f.h)] }
+    if (p.gradient) shape.fillGradient = p.gradient
+    if (stroke && (sides[0].style === 'dashed' || sides[0].style === 'dotted')) shape.strokeStyle = sides[0].style
+    if (i === main) {
+      if (shadows.length) shape.shadow = shadows.length === 1 ? shadows[0] : shadows
+      applyEffects(shape, fx)
+    } else applyEffects(shape, fx, false)
+    ctx.out.push(shape)
+  })
+  if (borderOnTop) {
+    ctx.out.push({
+      id: claimId(ctx, id, '-border'), type: 'shape', shape: path ? 'path' : ellipse ? 'ellipse' : 'rect', ...base(f, opacity),
+      fill: 'transparent', stroke: sides[0].color!, strokeWidth: round(sides[0].w), radius: ellipse || path ? 0 : radius,
+      ...(path ? { d: path, pathBox: [0, 0, round(f.w), round(f.h)] } : {}),
+    } as ShapeElement)
   }
-  if (grad) shape.fillGradient = grad
-  if (uniform && sides[0].on && (sides[0].style === 'dashed' || sides[0].style === 'dotted')) shape.strokeStyle = sides[0].style
-  if (shadows.length) shape.shadow = shadows.length === 1 ? shadows[0] : shadows
-  if (!ellipse && new Set(radii).size > 1) ctx.notes.add(`#${id}: corners with different radii became one radius.`)
-  ctx.out.push(shape)
+  emitOutline(ctx, cs, f, id, opacity, ellipse ? 'ellipse' : 'rect', ellipse ? 0 : r0)
+  if (!ellipse && !path && new Set(radii).size > 1) ctx.notes.add(`#${id}: corners with different radii became one radius.`)
   if (!uniform) {
     const rad = (r: string) => (r.endsWith('%') ? (parseFloat(r) / 100) * Math.min(f.w, f.h) : px(r.split(' ')[0]))
     const [tl, tr, br, bl] = radii.map(rad)
@@ -686,6 +1015,22 @@ function emitPaint(ctx: Ctx, cs: CSSStyleDeclaration, f: Frame, id: string, opac
       ctx.out.push(el)
     }
   }
+  return true
+}
+
+/** `outline` (drawn outside the border box, `outline-offset` away) as a
+ *  stroke-only shape around the box (`<id>-outline`). */
+function emitOutline(ctx: Ctx, cs: CSSStyleDeclaration, f: Frame, id: string, opacity: number, shape: 'rect' | 'ellipse', r: number): boolean {
+  const w = px(cs.outlineWidth), color = cssToModelColor(cs.outlineColor)
+  if (!w || cs.outlineStyle === 'none' || cs.outlineStyle === 'auto' || !visibleColor(color)) return false
+  const grow = px(cs.outlineOffset) + w / 2
+  const frame = inset(f, -grow, -grow, -grow, -grow)
+  const el: ShapeElement = {
+    id: claimId(ctx, id, '-outline'), type: 'shape', shape, ...base(frame, opacity),
+    fill: 'transparent', stroke: color, strokeWidth: round(w), radius: shape === 'ellipse' || r <= 0 ? 0 : round(r + grow),
+  }
+  if (cs.outlineStyle === 'dashed' || cs.outlineStyle === 'dotted') el.strokeStyle = cs.outlineStyle
+  ctx.out.push(el)
   return true
 }
 
@@ -774,8 +1119,9 @@ function emitImage(ctx: Ctx, el: HTMLImageElement, cs: CSSStyleDeclaration, f: F
   }
   const alt = el.getAttribute('alt')
   if (alt !== null) image.alt = alt
-  const shadows = parseShadows(cs.boxShadow)
+  const shadows = parseShadows(cs.boxShadow, lostFor(ctx, id))
   if (shadows.length) image.shadow = shadows.length === 1 ? shadows[0] : shadows
+  applyEffects(image, effectsOf(cs, lostFor(ctx, id)))
   const n = el.getAttribute('data-bs-img')
   if (n !== null) ctx.imageIds.set(n, id)
   ctx.out.push(image)
@@ -1007,6 +1353,17 @@ function visit(ctx: Ctx, el: Element) {
     }
   }
 
+  // an empty box covering the slide whose paint no shape can carry (a radial
+  // or layered background) is the slide's backdrop: the slide background
+  if (!ctx.background && !ctx.out.length && !el.children.length && !hasText(el) && fullSlide(ctx, f)) {
+    const bg = slideBackground(cs)
+    if (bg && !parseLinearGradient(bg) && !cssToModelColor(bg) && !parseShadows(cs.boxShadow).length && px(cs.borderTopWidth) === 0 && cs.filter === 'none') {
+      ctx.background = bg
+      if (topLevelSplit(cs.backgroundImage).length > 1) ctx.notes.add(`#${wanted ?? 'backdrop'}: only the top layer of a layered slide background was kept.`)
+      return
+    }
+  }
+  if (el.localName !== 'svg') reportUnkept(ctx, el, cs, wanted)
   if (el.localName === 'svg') { emitSvg(ctx, el, f, claimId(ctx, wanted), opacity); return }
   if (tag === 'IMG') { emitImage(ctx, el as HTMLImageElement, cs, f, claimId(ctx, wanted), opacity); return }
   if (tag === 'HR') {
@@ -1035,15 +1392,39 @@ function visit(ctx: Ctx, el: Element) {
     else emitChart(ctx, el, painted ? contentBox(f, cs) : f, id, opacity)
     return
   }
-  const painted = emitPaint(ctx, cs, f, id, opacity)
+  const painted = emitPaint(ctx, cs, f, id, opacity, clipsToText(cs))
   if (isTextBlock(ctx, el, cs)) {
     // a list is its own text: the ul/ol itself becomes the list in the html
-    const list = tag === 'UL' || tag === 'OL' ? tag.toLowerCase() : null
+    const list = (tag === 'UL' || tag === 'OL') && !bulletless(ctx, el) ? tag.toLowerCase() : null
     const html = list ? `<${list}>${richHtml(ctx, el, cs)}</${list}>` : richHtml(ctx, el, cs)
-    emitText(ctx, el, cs, contentBox(f, cs), painted ? claimId(ctx, id, '-text') : id, html, opacity, roleFor(ctx, el))
+    emitText(ctx, el, cs, contentBox(f, cs), painted ? claimId(ctx, id, '-text') : id, html, opacity, roleFor(ctx, el), painted)
     return
   }
   visitChildren(ctx, el, cs, f, id, opacity)
+}
+
+const fullSlide = (ctx: Ctx, f: Frame) => Math.abs(f.x) < 1 && Math.abs(f.y) < 1 && Math.abs(f.w - ctx.size.width) < 1 && Math.abs(f.h - ctx.size.height) < 1 && f.rotation === 0
+
+/** What an element does that no slide element can: said in the result, so
+ *  the author can choose another way instead of finding it gone. */
+function reportUnkept(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, wanted: string | null) {
+  const who = wanted ? `#${wanted}` : `A <${el.tagName.toLowerCase()}>`
+  const t = cs.transform
+  const m = t && t !== 'none' ? /^matrix\(([^)]*)\)$/.exec(t) : null
+  if (m) {
+    const [a, b, c, d] = m[1].split(',').map(Number)
+    const sx = Math.hypot(a, b), sy = Math.hypot(c, d)
+    if (Math.abs(sx - 1) > 0.01 || Math.abs(sy - 1) > 0.01 || Math.abs(a * c + b * d) > 0.01) ctx.notes.add(`${who}: a scale or skew transform was left out (only rotate() is kept); size it with width/height and font-size instead.`)
+  } else if (t && t !== 'none') ctx.notes.add(`${who}: a 3D transform was left out (only rotate() is kept).`)
+  if ((cs.getPropertyValue('mask-image') || cs.getPropertyValue('-webkit-mask-image') || 'none') !== 'none') ctx.notes.add(`${who}: a mask was left out.`)
+  if (el.tagName === 'IMG' && cs.clipPath !== 'none') ctx.notes.add(`${who}: clip-path on a picture was left out (border-radius is kept).`)
+  if (cs.animationName && cs.animationName !== 'none') ctx.notes.add(`${who}: a CSS animation was left out; give it fx after writing (elements edit: enter, step, loop, countUp).`)
+  if (Number(cs.columnCount) > 1) ctx.notes.add(`${who}: text in ${cs.columnCount} columns became one column; write a text box per column.`)
+  if (cs.textOverflow === 'ellipsis' && /nowrap/.test(cs.whiteSpace)) ctx.notes.add(`${who}: text cut off with an ellipsis wraps instead; shorten it.`)
+  if (/^(vertical|sideways)/.test(cs.writingMode) && cs.textOrientation === 'upright') ctx.notes.add(`${who}: upright vertical letters became a text turned a quarter.`)
+  if (['top', 'right', 'bottom', 'left'].some((side) => cs.getPropertyValue(`border-${side}-style`) === 'double' && px(cs.getPropertyValue(`border-${side}-width`)) > 0)) ctx.notes.add(`${who}: a double border became a single one.`)
+  const deco = cs.textDecorationStyle
+  if (cs.textDecorationLine && cs.textDecorationLine !== 'none' && deco && deco !== 'solid') ctx.notes.add(`${who}: a ${deco} ${cs.textDecorationLine} became a plain one.`)
 }
 
 /** A background the slide itself can carry: a colour or one linear gradient. */
@@ -1055,6 +1436,66 @@ function slideBackground(cs: CSSStyleDeclaration): string | null {
   }
   const c = cssToModelColor(cs.backgroundColor)
   return visibleColor(c) ? c : null
+}
+
+/** The text a computed `content` value puts on the page: quoted strings
+ *  only (null for counters, attr(), quotes and pictures). */
+export function contentText(v: string): string | null {
+  const parts = v.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\S+/g) ?? []
+  let out = ''
+  for (const p of parts) {
+    if (!/^["']/.test(p)) return null
+    out += p.slice(1, -1).replace(/\\([0-9a-fA-F]{1,6})\s?|\\(.)/g, (_, hex: string | undefined, ch: string | undefined) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : ch ?? ''))
+  }
+  return out
+}
+
+/** Properties a pseudo element's copy must not take over. */
+const PSEUDO_SKIP = new Set(['content', 'display'])
+
+/**
+ * Every ::before / ::after that draws something becomes a real element in
+ * the laid-out page (`<host id>-before` / `-after`), styled with the pseudo
+ * element's computed style, and the pseudo element is switched off: what
+ * CSS draws with them (badges, accent bars, quote marks, bullets) is then
+ * walked like any other box. Content other than text (counters, pictures)
+ * is reported.
+ */
+function materializePseudos(d: Document, notes: Set<string>) {
+  const win = d.defaultView!
+  const found: Array<{ host: Element; which: 'before' | 'after'; style: Array<[string, string]>; display: string; text: string }> = []
+  for (const host of Array.from(d.body.querySelectorAll('*'))) {
+    if (host.closest('svg') || /^(IMG|BR|HR|INPUT|STYLE|TABLE|TBODY|THEAD|TR)$/.test(host.tagName)) continue
+    for (const which of ['before', 'after'] as const) {
+      const ps = win.getComputedStyle(host, `::${which}`)
+      if (!ps.content || ps.content === 'none' || ps.content === 'normal' || ps.display === 'none') continue
+      const text = contentText(ps.content)
+      if (text === null) { notes.add(`::${which} content that is not text (${ps.content.slice(0, 40)}) was left out.`); continue }
+      const style: Array<[string, string]> = []
+      for (let i = 0; i < ps.length; i++) {
+        const prop = ps[i]
+        if (!prop.startsWith('--') && !PSEUDO_SKIP.has(prop)) style.push([prop, ps.getPropertyValue(prop)])
+      }
+      found.push({ host, which, style, display: ps.display, text })
+    }
+  }
+  if (!found.length) return
+  const off = d.createElement('style')
+  off.textContent = '[data-bs-pseudo~="before"]::before,[data-bs-pseudo~="after"]::after{content:none!important}'
+  d.head.appendChild(off)
+  const taken = new Set(Array.from(d.querySelectorAll('[id]'), (e) => e.id))
+  for (const p of found) {
+    const node = d.createElement('span')
+    for (const [prop, value] of p.style) node.style.setProperty(prop, value)
+    // an inline pseudo element stays a run of its host's text
+    node.style.setProperty('display', p.display === 'inline' ? 'inline' : p.display)
+    node.textContent = p.text
+    const id = p.host.id ? `${p.host.id}-${p.which}` : ''
+    if (id && !taken.has(id)) { node.id = id; taken.add(id) }
+    p.host.setAttribute('data-bs-pseudo', `${p.host.getAttribute('data-bs-pseudo') ?? ''} ${p.which}`.trim())
+    if (p.which === 'before') p.host.prepend(node)
+    else p.host.append(node)
+  }
 }
 
 /** A short, stable tag per slide for generated ids (no accidental morphs
@@ -1078,6 +1519,7 @@ export async function compileSlideHtml(doc: SlidomingoDoc, slide: Slide, src: Ht
   const fonts = resolveSlideFonts(doc, slide)
   const result = await withLaidOut(doc, slide, size, src, (raw) => resolveImgSrc(lookup, raw)?.loadable ?? null, notes, (d, embeds) => {
     const win = d.defaultView!
+    materializePseudos(d, notes)
     // the theme fonts as THIS document spells them back in computed styles
     // (Chrome rewrites e.g. BlinkMacSystemFont to "system-ui"): a text in the
     // theme font keeps fontFamily '' and follows later theme changes
@@ -1149,6 +1591,16 @@ export const HTML_OWNED: Readonly<Record<string, readonly string[]>> = {
 }
 const FRAME_OWNED = ['x', 'y', 'w', 'h', 'rotation', 'opacity']
 
+/** Owned like HTML_OWNED since the effects mapping (filter, backdrop-filter,
+ *  mix-blend-mode, gradient text, clip-path); kept apart so the signature of
+ *  a slide written before it, where they are all absent, stays the same. */
+const EFFECTS_OWNED: Readonly<Record<string, readonly string[]>> = {
+  text: ['colorGradient', 'textStroke', 'blur', 'blend', 'backdropFilter'],
+  shape: ['d', 'pathBox', 'blur', 'blend', 'backdropFilter'],
+  image: ['blur', 'blend', 'backdropFilter'],
+}
+const owned = (type: string): readonly string[] => [...(HTML_OWNED[type] ?? []), ...(EFFECTS_OWNED[type] ?? [])]
+
 /**
  * The slide's new element list: the compiled elements in their order, each
  * one that has an existing twin (same id, same type) keeping the twin's
@@ -1165,7 +1617,7 @@ export function mergeCompiled(existing: readonly SlideElement[], compiled: reado
     updated.push(c.id)
     if (prev === c || !HTML_OWNED[c.type]) return { ...prev, x: c.x, y: c.y, w: c.w, h: c.h, rotation: c.rotation } as SlideElement
     const out = { ...prev } as Record<string, unknown>
-    for (const k of [...HTML_OWNED[c.type], ...FRAME_OWNED]) {
+    for (const k of [...owned(c.type), ...FRAME_OWNED]) {
       const v = (c as unknown as Record<string, unknown>)[k]
       if (v === undefined) delete out[k]
       else out[k] = v
@@ -1175,7 +1627,7 @@ export function mergeCompiled(existing: readonly SlideElement[], compiled: reado
     // a theme reference to a colour the HTML just replaced no longer holds
     if (out.themeRefs && typeof out.themeRefs === 'object') {
       const refs = { ...(out.themeRefs as Record<string, string>) }
-      for (const k of Object.keys(refs)) if (HTML_OWNED[c.type].includes(k) && (prev as unknown as Record<string, unknown>)[k] !== out[k]) delete refs[k]
+      for (const k of Object.keys(refs)) if (owned(c.type).includes(k) && (prev as unknown as Record<string, unknown>)[k] !== out[k]) delete refs[k]
       if (Object.keys(refs).length) out.themeRefs = refs
       else delete out.themeRefs
     }
@@ -1203,6 +1655,7 @@ export function htmlSignature(elements: readonly SlideElement[], background: str
     const r = e as unknown as Record<string, unknown>
     parts.push(e.id, e.type, ...['x', 'y', 'w', 'h', 'rotation'].map((k) => Math.round(Number(r[k] ?? 0) * 2) / 2), r.opacity ?? 1,
       ...(HTML_OWNED[e.type] ?? []).map((k) => r[k] ?? null))
+    for (const k of EFFECTS_OWNED[e.type] ?? []) if (r[k] !== undefined) parts.push(k, r[k])
   }
   const s = JSON.stringify(parts)
   let h1 = 2166136261, h2 = 5381

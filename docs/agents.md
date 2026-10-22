@@ -176,10 +176,31 @@ elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
   `<iframe srcdoc>` → an `embed` (sandboxed widget). A root box covering the
   slide (or `body`'s background) → the slide background. `transform:
   rotate()` → rotation.
-- **Left out** (the result says so): scripts, video, forms, frames with an
-  outside `src`, and every `url()` that is not a `data:` URI. Nothing in the
-  HTML runs or loads while it is converted. Icons from the user's library go
-  in with `icons` afterwards.
+- **Effects carry over.** `filter: blur()` → `blur`, `filter: drop-shadow()`
+  → a shadow, `backdrop-filter: blur()` → frosted glass, `mix-blend-mode` →
+  `blend`, gradient text (`background-clip: text`) → `colorGradient`, several
+  background layers → stacked shapes (`<id>-layer2` …), a radial gradient
+  that fades out (a glow) → a soft blurred ellipse (`<id>-glow2`; any other
+  radial or conic gradient → its middle colour), `clip-path: polygon()` → a
+  path shape (circle/ellipse → ellipse), `::before`/`::after` with text or
+  paint → elements of their own (`<id>-before`, `<id>-after`), an empty box
+  covering the slide with a radial background → the slide background, a
+  `background: url(data:…)` picture → a picture behind the box's content
+  (`<id>-image2`; cover/contain, cropped around the centre),
+  `-webkit-text-stroke` → outlined or hollow text, `list-style: none` → lines
+  (no bullets; `::before` ticks stay), `writing-mode: vertical-*` → a text
+  turned a quarter, `outline` → a stroke-only shape around the box
+  (`<id>-outline`).
+- **Left out** (the result says so, one line each): scripts, video, forms,
+  frames with an outside `src`, every `url()` that is not a `data:` URI,
+  repeating background patterns (`background-size` tiles), masks, scale/skew
+  and 3D transforms (only `rotate()`), other filters (`grayscale()` …), CSS
+  animations (use `fx`), text columns, ellipsis cut-offs, double borders,
+  wavy/dotted underlines. A run
+  inside a text keeps bold, italics, colour and size only: a word in another
+  typeface, or lighter than its bold text, needs an element of its own. Nothing
+  in the HTML runs or loads while it is converted. Icons from the user's
+  library go in with `icons` afterwards.
 - **Ids are identity.** Give every element an `id`: it becomes the element id.
   Writing the slide again with the same ids updates those elements in place —
   animations (`fx`), links, locks and comments stay — and removes the ones
@@ -342,7 +363,7 @@ Clicking a tile plays its section (→ walks it, hidden slides included) and zoo
 - [ ] At least one **motion moment** (ken-burns / loop / count-up), especially the cover?
 - [ ] A drill-down that would work better as a **state slide**?
 - [ ] Lists of concepts/features/steps: does each item carry an **icon** from the library (`icons`)?
-- [ ] One accent colour, at most two typefaces, **96px** side margins (right-most x ≤ 1184)?
+- [ ] One palette (one or two accents) used alike on every slide, at most two typefaces, **96px** side margins (right-most x ≤ 1184)?
 - [ ] **Speaker notes** written on each slide (they travel in the file and double as the talk track)?
 - [ ] **Have you actually looked at it?** Open the deck and page through every
       slide. Text overflowing its box, two elements crowding each other, a
@@ -689,7 +710,7 @@ without them — and elements should carry the full field set shown.
   Every row ends flush at x = 1184. Vertically, a title band of `y:72 h:84`
   over content starting at `y:208` leaves 416 px of content height above a
   96 px bottom margin.
-- One accent color; 2 typefaces max. `theme` sets deck defaults.
+- One palette (one or two accents), 2 typefaces max, used the same way on every slide. `theme` sets deck defaults.
 - Fonts: `doc.fonts` (`{family, asset, weight}`) + woff2 data URIs in
   `doc.assets` if you need embedded faces; otherwise stick to system stacks.
   **A `fontFamily` naming a face the document does not carry falls back

@@ -24,7 +24,8 @@
 //
 // WHAT IS NOT CARRIED OVER, and said so in `notes` rather than dropped quietly:
 // filters, masks, clip paths, patterns, <image>, <use>, markers, radial
-// gradients (flattened to one colour), CSS animations and hover rules, and the
+// gradients (one that fades out becomes a soft, blurred shape in its inner
+// colour; any other is flattened to one colour), CSS animations and hover rules, and the
 // element's own shadow/blur/reflection/fx. Nothing here fetches or runs
 // anything: the markup was already sanitized to be drawn.
 
@@ -146,10 +147,7 @@ function linearFill(g: Element, node: SVGGraphicsElement, m: Mat, box: { x: numb
   const kind = g.localName.toLowerCase()
   const stops = stopsOf(g, ctx.root)
   if (!stops.length) return null
-  if (kind === 'radialgradient') {
-    ctx.notes.add('radial gradients became one flat colour')
-    return null
-  }
+  if (kind === 'radialgradient') return null
   if (kind !== 'lineargradient') return null
   if (g.getAttribute('gradientTransform')) ctx.notes.add('a gradient transform was ignored')
   const lg = g as SVGLinearGradientElement
@@ -182,6 +180,23 @@ function linearFill(g: Element, node: SVGGraphicsElement, m: Mat, box: { x: numb
   return { angle: Math.round(angle * 10) / 10, stops: mapped.map((s) => ({ at: Math.round(s.at * 1000) / 1000, color: s.color })) }
 }
 
+const alphaOfHex = (c: string) => (c.length === 9 ? parseInt(c.slice(7), 16) / 255 : 1)
+
+/**
+ * A radial gradient that fades out (a glow) as what the format can draw: the
+ * shape in the gradient's inner colour, shrunk to where the gradient fades
+ * (`reach`, a share of the shape's box, around `cx`/`cy`) and blurred.
+ */
+function radialGlowOf(g: Element, root: SVGSVGElement): { color: string; reach: number; cx: number; cy: number } | null {
+  const stops = stopsOf(g, root)
+  if (stops.length < 2 || alphaOfHex(stops.at(-1)!.color) > 0.05 || alphaOfHex(stops[0].color) === 0) return null
+  if ((g.getAttribute('gradientUnits') ?? 'objectBoundingBox') === 'userSpaceOnUse') return null
+  const frac = (n: string, dflt: number) => { const v = g.getAttribute(n); if (v === null) return dflt; const x = parseFloat(v); return v.trim().endsWith('%') ? x / 100 : x }
+  const lastVisible = [...stops].reverse().find((s) => alphaOfHex(s.color) > 0.05)?.at ?? 1
+  const reach = Math.max(0.15, Math.min(1, (lastVisible + stops.at(-1)!.at) / 2)) * frac('r', 0.5) / 0.5
+  return { color: stops[0].color, reach, cx: frac('cx', 0.5), cy: frac('cy', 0.5) }
+}
+
 /** A flat colour standing in for a paint server that cannot be carried over. */
 function flatOf(g: Element | null, root: SVGSVGElement): string {
   const stops = g ? stopsOf(g, root) : []
@@ -198,6 +213,8 @@ interface Style {
   strokeJoin?: ShapeElement['strokeJoin']
   evenodd: boolean
   opacity: number
+  /** a fading radial gradient: draw the shape soft (radialGlowOf) */
+  glow?: { reach: number; cx: number; cy: number }
 }
 
 function styleOf(node: SVGGraphicsElement, m: Mat, box: { x: number; y: number; w: number; h: number }, alpha: number, ctx: Ctx): Style {
@@ -209,8 +226,14 @@ function styleOf(node: SVGGraphicsElement, m: Mat, box: { x: number; y: number; 
   else if (fp.kind === 'url') {
     const g = byId(ctx.root, fp.id)
     const grad = g ? linearFill(g, node, m, box, ctx) : null
+    const glow = !grad && g && g.localName.toLowerCase() === 'radialgradient' ? radialGlowOf(g, ctx.root) : null
     if (grad) { st.fillGradient = grad; st.fill = grad.stops[0].color }
-    else {
+    else if (glow) {
+      st.fill = glow.color
+      st.glow = glow
+      ctx.notes.add('a radial gradient that fades out became a soft (blurred) shape')
+    } else {
+      if (g && g.localName.toLowerCase() === 'radialgradient') ctx.notes.add('radial gradients became one flat colour')
       st.fill = flatOf(g, ctx.root)
       if (g && g.localName.toLowerCase() === 'pattern') ctx.notes.add('a pattern fill became one flat colour')
     }
@@ -300,17 +323,21 @@ function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat,
   if (st.fill === 'none' && st.stroke === 'none') return // invisible
   if (native === 'rect' || native === 'ellipse') {
     const half = st.strokeWidth / 2
+    // a glow: the fading part of the gradient becomes the blur around a smaller shape
+    const box = st.glow ? { x: bb.x + st.glow.cx * bb.w - (bb.w * st.glow.reach) / 2, y: bb.y + st.glow.cy * bb.h - (bb.h * st.glow.reach) / 2, w: bb.w * st.glow.reach, h: bb.h * st.glow.reach } : bb
     const el = defaultShape(native, {
-      x: round2(bb.x - half), y: round2(bb.y - half), w: round2(bb.w + st.strokeWidth), h: round2(bb.h + st.strokeWidth),
+      x: round2(box.x - half), y: round2(box.y - half), w: round2(box.w + st.strokeWidth), h: round2(box.h + st.strokeWidth),
       fill: st.fill, ...(st.fillGradient ? { fillGradient: st.fillGradient } : {}),
       stroke: st.stroke, strokeWidth: st.strokeWidth, radius: native === 'rect' ? round2(rx * sx + (rx ? half : 0)) : 0,
       opacity: st.opacity,
       ...(st.strokeStyle ? { strokeStyle: st.strokeStyle } : {}),
+      ...(st.glow ? { blur: round2(Math.min(box.w, box.h) * 0.18) } : {}),
     })
     ctx.out.push(el)
     return
   }
   const shape = pathShape(placed, st)
+  if (shape && st.glow) shape.blur = round2(Math.min(shape.w, shape.h) * st.glow.reach * 0.18)
   if (shape) ctx.out.push(shape)
 }
 

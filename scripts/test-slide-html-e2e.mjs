@@ -369,6 +369,106 @@ small{font-size:20px;font-weight:400;color:#7678ED}`,
       ok(!t?.style.fontFamily && list.filter((e) => e.type === 'text').every((e) => !e.fontFamily), 'text in the theme font keeps fontFamily "" (follows a later theme change)', [t?.style.fontFamily, ...list.filter((e) => e.type === 'text' && e.fontFamily).map((e) => `${e.id}: ${e.fontFamily}`)])
     },
   },
+  {
+    name: 'effects',
+    title: 'What models reach for: glows, glass, gradient text, layers, ::before, clip-path, blend',
+    html: `<main id="bg" class="bg">
+  <div id="glow" class="glow"></div>
+  <div id="spot" class="spot"></div>
+  <h1 id="t" class="grad">Gradient text</h1>
+  <div id="glass" class="glass"><p id="gp">Glass card</p></div>
+  <div id="badge" class="badge"><p id="bp">Card with a badge</p></div>
+  <div id="tri" class="tri"></div>
+  <div id="layers" class="layers"></div>
+  <div id="blend" class="blend"></div>
+  <div id="dots" class="dots"></div>
+  <p id="mixed" class="mixed">Bold with <span class="serif">a serif run</span></p>
+  <div id="num" class="num">3</div>
+  <svg id="rot" viewBox="0 0 10 10" style="position:absolute;left:1100px;top:630px;width:60px;height:60px;transform:rotate(30deg)"><rect x="1" y="1" width="8" height="4" fill="#fff"/></svg>
+</main>`,
+    css: `.bg{position:absolute;inset:0;background:radial-gradient(circle at 20% 20%,#3b2a8f,#0b0b1e 60%)}
+.glow{position:absolute;left:820px;top:-80px;width:420px;height:420px;border-radius:50%;background:#7c5cff;filter:blur(60px);opacity:.6}
+.spot{position:absolute;left:40px;top:420px;width:300px;height:300px;background:radial-gradient(circle,rgba(255,138,0,.55),transparent 70%)}
+.grad{position:absolute;left:96px;top:60px;margin:0;font-size:84px;font-weight:900;background:linear-gradient(90deg,#ff8a00,#e52e71);-webkit-background-clip:text;background-clip:text;color:transparent}
+.glass{position:absolute;left:96px;top:220px;width:400px;height:180px;padding:28px;border-radius:24px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(20px);color:#fff}
+.glass p,.badge p{margin:0}
+.badge{position:absolute;left:560px;top:220px;width:300px;height:180px;padding:28px;border-radius:24px;background:#1c1c3a;color:#fff}
+.badge::before{content:'NEW';position:absolute;right:-12px;top:-12px;background:#e52e71;color:#fff;font-size:16px;font-weight:800;padding:6px 12px;border-radius:999px}
+.tri{position:absolute;left:920px;top:220px;width:220px;height:180px;background:#00d4ff;clip-path:polygon(50% 0,100% 100%,0 100%)}
+.layers{position:absolute;left:400px;top:460px;width:300px;height:120px;border-radius:20px;background:linear-gradient(90deg,rgba(255,255,255,.35),transparent),linear-gradient(#ff8a00,#e52e71)}
+.blend{position:absolute;left:760px;top:460px;width:140px;height:140px;border-radius:50%;background:#00d4ff;mix-blend-mode:screen}
+.dots{position:absolute;left:960px;top:460px;width:220px;height:140px;background:radial-gradient(circle,rgba(255,255,255,.08) 1px,transparent 1.5px) 0 0/16px 16px}
+.mixed{position:absolute;left:96px;top:620px;margin:0;font-size:28px;font-weight:800;color:#fff}
+.serif{font-family:Georgia,serif}
+.num{position:absolute;left:1000px;top:630px;width:60px;height:60px;border-radius:50%;background:#ff8a00;color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800}`,
+    tolerance: 0.03,
+    async check(sid) {
+      const list = await els(sid), m = byId(list)
+      const r = this.result ?? ''
+      const glow = m.get('glow')
+      ok(glow?.shape === 'ellipse' && glow.blur === 60 && glow.opacity === 0.6, 'filter: blur() → blur (a soft glow, not a hard disc)', glow && [glow.shape, glow.blur, glow.opacity])
+      const spot = m.get('spot')
+      ok(spot?.shape === 'ellipse' && spot.blur > 0 && spot.w < 300 && /^#FF8A00|rgba\(255, 138, 0/i.test(spot.fill), 'a radial gradient fading out → a soft ellipse in its inner colour', spot && [spot.shape, spot.w, spot.blur, spot.fill])
+      const t = m.get('t')
+      ok(t?.type === 'text' && t.colorGradient?.stops.length === 2 && t.colorGradient.angle === 90 && !list.some((e) => e.type === 'shape' && e.fillGradient && e.y < 200), 'gradient text → colorGradient on the text (no bar behind it)', t && [t.type, t.colorGradient, t.color])
+      ok(t?.color && t.color !== 'transparent', 'gradient text keeps a visible fallback colour', t?.color)
+      ok(m.get('glass')?.backdropFilter === 20 && !m.get('gp')?.backdropFilter, 'backdrop-filter: blur() → backdropFilter on the box, not its text')
+      const before = m.get('badge-before'), beforeText = m.get('badge-before-text')
+      ok(before?.type === 'shape' && before.fill === '#E52E71' && beforeText?.type === 'text' && /NEW/.test(beforeText.html) && before.x > 800 && before.y < 220, '::before badge → a box and its text of their own (badge-before)', [before && [before.x, before.y, before.fill], beforeText?.html])
+      const tri = m.get('tri')
+      ok(tri?.shape === 'path' && /^M110 0 L220 180 L0 180 Z$/.test(tri.d) && tri.pathBox?.join(',') === '0,0,220,180', 'clip-path: polygon() → a path shape', tri && [tri.shape, tri.d, tri.pathBox])
+      const lay = m.get('layers'), lay2 = m.get('layers-layer2')
+      ok(lay?.fillGradient?.stops[0].color === '#FF8A00' && lay2?.fillGradient && list.indexOf(lay2) > list.indexOf(lay) && lay.radius === 20 && lay2.radius === 20, 'several background layers → stacked shapes, the bottom one first', [lay?.fillGradient, lay2?.fillGradient])
+      ok(m.get('blend')?.blend === 'screen', 'mix-blend-mode → blend')
+      ok(this.background?.startsWith?.('radial-gradient') || (await slideOf(sid)).background?.startsWith('radial-gradient'), 'the radial root background → the slide background')
+      ok(/#dots: a repeating background pattern was left out/.test(r), 'a tiled pattern is reported, not silently flattened', r)
+      ok(/Text in Georgia inside a text in .* shows in/.test(r), 'a run in another typeface is reported', r)
+      const num = m.get('num-text')
+      ok(num?.align === 'center' && num.valign === 'middle', 'a number centred by flexbox stays centred (align and valign)', num && [num.align, num.valign])
+      const rot = m.get('rot-1')
+      ok(rot?.type === 'shape' && (rot.shape === 'path' || Math.abs(rot.rotation - 30) < 0.5) && rot.w > 40, 'a rotated inline <svg> converts (the rotation in its pieces), not "nothing in this diagram"', rot && [rot.type, rot.shape, rot.rotation, rot.w])
+    },
+  },
+  {
+    name: 'more',
+    title: 'A photo behind text, outline text, ticks instead of bullets, vertical text, an outline',
+    html: `<main id="r2" class="r2">
+  <div id="hero" class="hero"><p id="ht">Text over a photo</p></div>
+  <h2 id="hollow" class="hollow">OUTLINE</h2>
+  <ul id="ticks" class="ticks"><li>First point</li><li>Second point</li></ul>
+  <div id="vert" class="vert">VERTICAL</div>
+  <div id="ring" class="ring"></div>
+  <div id="spin" class="spin"></div>
+</main>`,
+    css: `.r2{position:absolute;inset:0;background:#f6f3ee}
+.hero{position:absolute;left:96px;top:60px;width:400px;height:220px;border-radius:16px;border:3px solid #264653;background:url(${PHOTO}) center/cover;padding:24px;color:#fff;font-size:24px}
+.hero p{margin:0}
+.hollow{position:absolute;left:560px;top:60px;margin:0;font-size:72px;font-weight:900;color:transparent;-webkit-text-stroke:2px #e52e71}
+.ticks{position:absolute;left:96px;top:340px;width:400px;margin:0;padding:0;list-style:none;font-size:24px}
+.ticks li::before{content:"\\2713  ";color:#2a9d8f;font-weight:800}
+.vert{position:absolute;left:1120px;top:300px;writing-mode:vertical-rl;font-size:28px;font-weight:800;color:#264653}
+.ring{position:absolute;left:600px;top:340px;width:160px;height:100px;background:#e9c46a;outline:4px solid #264653;outline-offset:6px}
+@keyframes p{to{opacity:.5}}
+.spin{position:absolute;left:860px;top:340px;width:80px;height:80px;border-radius:50%;background:#ff8a00;animation:p 1s infinite}`,
+    tolerance: 0.03,
+    async check(sid) {
+      const list = await els(sid), m = byId(list)
+      const r = this.result ?? ''
+      const pic = list.find((e) => e.type === 'image' && e.id.startsWith('hero'))
+      const text = m.get('hero-text') ?? m.get('ht')
+      ok(pic?.fit === 'cover' && pic.radius === 16 && pic.w === 400 && text && list.indexOf(text) > list.indexOf(pic), 'background: url(data:) cover → a picture behind the text', pic && [pic.id, pic.fit, pic.radius, pic.w])
+      ok(list.some((e) => e.id.startsWith('hero') && e.type === 'shape' && e.strokeWidth === 3 && list.indexOf(e) > list.indexOf(pic)), 'its border is drawn over the picture, not under it')
+      const h = m.get('hollow')
+      ok(h?.textStroke?.width === 2 && h.textStroke.color === '#E52E71' && h.textStroke.fill === 'none', '-webkit-text-stroke on transparent text → hollow textStroke', h?.textStroke)
+      const t = m.get('ticks')
+      ok(t?.type === 'text' && !/<ul|<li/.test(t.html) && (t.html.match(/<div>/g) ?? []).length === 2 && /\u2713/.test(t.html), 'list-style:none with ::before ticks → lines with the tick, no bullets', t?.html)
+      const v = m.get('vert')
+      ok(v?.rotation === 90 && v.w > v.h, 'writing-mode: vertical-rl → a text turned a quarter', v && [v.rotation, v.w, v.h])
+      const o = m.get('ring-outline')
+      ok(o?.stroke === '#264653' && o.strokeWidth === 4 && o.x === 592 && o.radius === 0, 'outline → a stroke-only shape outline-offset away', o && [o.x, o.y, o.w, o.radius])
+      ok(/#spin: a CSS animation was left out/.test(r), 'a CSS animation is reported (use fx)', r)
+    },
+  },
 ]
 
 console.log('-- cases: HTML → slide, compared by eye --')

@@ -13416,3 +13416,53 @@ reports (build-deck.md). Three things made that possible:
 **Not done:** the user's own edits during a program still join its undo group
 (as before); a contact-sheet review (one image for many slides) is a
 possible next step.
+
+## 2026-10-22 — slide_html: what models reach for carries over, the rest is said; decks get an art direction
+
+**Why.** The same 3-slide brief written four ways (free HTML by Opus; the
+in-app build-deck rules on Opus and on Sonnet; Opus with an art-direction step
+and a list of what converts) showed that the in-app decks looked plainer for
+two reasons, not the model. (1) The converter broke the effects models write
+by default, silently: a blurred glow became a hard disc, gradient text
+vanished (its background became a bar), only the top background layer
+survived, `::before`/`::after` were dropped, a `clip-path` triangle became a
+square; free Opus HTML lost ~3.5 of 10 points in conversion. The format
+already had `blur`, `blend`, `backdropFilter` and text `colorGradient` — only
+the converter did not map them. (2) build-deck said "do not invent a look" and
+"one accent colour", so on the default theme every deck came out the same
+white-and-brown. Opus vs Sonnet under the same rules was ~1 point; the
+instructions were ~2.
+
+**Decision.** `htmlslide.ts` maps `filter: blur()/drop-shadow()`,
+`backdrop-filter: blur()`, `mix-blend-mode`, gradient text, several background
+layers (stacked shapes `<id>-layer2…`), radial gradients that fade out (a
+soft blurred ellipse `<id>-glow2`; svgconvert does the same for SVG
+`<radialGradient>`), `clip-path: polygon()` (a path shape), `::before`/`::after`
+(materialized as real elements `<id>-before/-after` before the walk), an empty
+full-slide box with a radial background (the slide background), flex/grid
+centring of a text, rotated inline `<svg>`, `background: url(data:)` (a
+picture behind the content, the border on a shape above it),
+`-webkit-text-stroke` (textStroke, hollow when the fill is transparent),
+`list-style: none` (lines instead of a list), vertical `writing-mode` (a text
+turned a quarter) and `outline` (a stroke shape `<id>-outline`). What it
+cannot keep is said in the result, one line each: tiled background patterns,
+masks, scale/skew/3D transforms, other filters, other radial/conic gradients
+(middle colour), CSS animations (use fx), text columns, ellipsis cut-offs,
+double borders, wavy/dotted underlines, and a run in another typeface or a
+lighter weight (runs carry colour and size only).
+`htmlemit.ts` writes the new fields back; they are merge-owned
+(`EFFECTS_OWNED`) but enter `htmlSignature` only when present, so slides
+written before keep their remembered source. build-deck.md: the look comes
+from the request, else the deck's own look, else the model decides a
+three-line art direction (palette, type treatment, one recurring motif) and
+applies it with `deck_settings` theme.
+
+**Measured** (same rig, by eye, 1–10): free Opus HTML in BeeSlides 5.5 → 8.5
+(cover 9% → 1.6% of pixels off); in-app rules Opus 6 → 7.5, Sonnet 5 → 6.5.
+
+**Not done.** Runs in another typeface (needs a format change: an allowlisted
+`font-family` in `sanitizeRunStyle`, e.g. the deck's own faces); component
+text sizes (steps body 16px, 18px at `data-size="l"` — every agent found it
+small); components read the theme, not `--bs-*` overridden in a slide's CSS;
+a pixel comparison of HTML vs slide inside the tool (the desktop app could
+screenshot both).

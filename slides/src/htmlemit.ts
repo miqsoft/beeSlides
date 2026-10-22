@@ -72,7 +72,7 @@ function kindOf(el: SlideElement): Kind {
   switch (el.type) {
     case 'text': {
       const t = el as TextElement
-      if (!plainText(t.html ?? '').trim() || t.colorGradient?.stops?.length || t.textStroke?.width) return 'keep'
+      if (!plainText(t.html ?? '').trim()) return 'keep'
       return 'text'
     }
     case 'shape': {
@@ -131,7 +131,7 @@ function planTree(_doc: SlidomingoDoc, slide: Slide, size: { width: number; heig
     if (paired.has(e.id)) continue
     const node: Node = { el: e, kind: kindOf(e), children: [] }
     const t = els[i + 1]
-    if (!allAbsolute && node.kind === 'box' && t && t.id === `${e.id}-text` && kindOf(t) === 'text' && t.rotation === e.rotation
+    if (!allAbsolute && node.kind === 'box' && t && t.id === `${e.id}-text` && kindOf(t) === 'text' && t.rotation === e.rotation && !(t as TextElement).colorGradient
       && inside(frameOf(t), frameOf(e)) && padding(e as ShapeElement, t).every((p) => p >= -0.01) && !flatten.has(`pair:${e.id}`)) {
       node.text = t as TextElement
       paired.add(t.id)
@@ -271,6 +271,8 @@ function textStyle(t: TextElement | CodeElement): string[] {
   if (t.align !== 'left') out.push(`text-align:${t.align}`)
   if (t.type === 'text' && t.letterSpacing) out.push(`letter-spacing:${pxv(t.letterSpacing)}`)
   if (t.type === 'text' && t.shadow) out.push(`text-shadow:${shadowCss(t.shadow)}`)
+  if (t.type === 'text' && t.textStroke?.width) out.push(`-webkit-text-stroke:${pxv(t.textStroke.width)} ${t.textStroke.color}`, ...(t.textStroke.fill === 'none' ? ['-webkit-text-fill-color:transparent'] : []))
+  if (t.type === 'text' && t.colorGradient?.stops?.length) out.push(`background-image:${gradientCss(t.colorGradient)}`, '-webkit-background-clip:text', 'background-clip:text', '-webkit-text-fill-color:transparent')
   return out
 }
 
@@ -303,6 +305,9 @@ function emit(doc: SlidomingoDoc, slide: Slide, size: { width: number; height: n
   const common = (e: SlideElement) => [
     ...((e.opacity ?? 1) < 1 ? [`opacity:${n2(e.opacity)}`] : []),
     ...(e.rotation ? [`transform:rotate(${n2(e.rotation)}deg)`] : []),
+    ...(e.blur ? [`filter:blur(${pxv(e.blur)})`] : []),
+    ...(e.backdropFilter ? [`backdrop-filter:blur(${pxv(e.backdropFilter)})`] : []),
+    ...(e.blend && /^[a-z-]+$/.test(e.blend) ? [`mix-blend-mode:${e.blend}`] : []),
   ]
 
   const node = (n: Node, pos: string[], indent: string, flexMain: 'w' | 'h' | null = null): string => {
