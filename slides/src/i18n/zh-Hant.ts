@@ -4,6 +4,8 @@
 import type { Catalog } from '../i18n'
 
 export const zhHant: Catalog = {
+  "Code Mode (experimental)": "程式碼模式（實驗性）",
+  "Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.": "Claude Code 聊天可以撰寫一個簡短的程式，一步完成涉及多張投影片的工作，而不必進行許多次個別的工具呼叫。對變更後開啟的聊天生效。",
   "AI wrote a slide from HTML ({n} elements)": "AI 根據 HTML 編寫了投影片（{n} 個元素）",
   "AI ran a program on this deck (one undo step)": "AI 在此簡報上執行了一個程式（可一步復原）",
   "Style & canvas": "樣式和畫布",

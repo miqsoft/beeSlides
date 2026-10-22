@@ -726,6 +726,16 @@ function apiSearch(query) {
   return scored.map(({ e }) => `## ${e.title}\n${e.body}`).join('\n\n')
 }
 
+const CODE_MODE_INSTRUCTIONS =
+  'Code Mode is on: the execute tool runs a JavaScript program against the open deck. ' +
+  'Any job that touches several slides or would take more than about three write calls ' +
+  '(building or extending a deck, restyling, translating, fixing every slide) is ONE execute program, ' +
+  'or a few for a large deck, not a chain of tool calls: add the slides, write each slide\'s HTML from shared ' +
+  'functions, set notes and transitions, and return the new ids and any warnings. ' +
+  'Call api_search once first (empty query, then "examples") instead of guessing the deck API. ' +
+  'Reading to decide, one small edit, and looking at the result (review_slide, render_preview) stay plain tool calls. ' +
+  'If a program throws, nothing changed: fix it and run it again.'
+
 if (CODE_MODE) {
   TOOLS.push(
     {
@@ -1003,6 +1013,9 @@ rl.on('line', (line) => {
       protocolVersion: params?.protocolVersion ?? '2024-11-05',
       capabilities: { tools: {} },
       serverInfo: { name: 'beeslides', version: '1.0.0' },
+      // The client puts this in the model's system prompt; without it nothing
+      // tells the model when execute beats a chain of tool calls.
+      ...(CODE_MODE ? { instructions: CODE_MODE_INSTRUCTIONS } : {}),
     })
     return
   }

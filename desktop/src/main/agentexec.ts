@@ -24,12 +24,17 @@
 import { BrowserWindow, session, type Session } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { forwardAgentRequest, registerMainVerb, type AgentChannel, type AgentResult } from './agentbridge.ts'
+import { handleFrom } from './ipcguard.ts'
+import { readSettings, updateSettings } from './settings.ts'
 import { DEFAULT_BUDGET_S, MAX_BUDGET_S, PAGE, driveProgram, type ProgramOutcome } from './programrun.ts'
 
-/** Off unless BEESLIDES_CODE_MODE=1 — a prototype, measured against the
- *  plain tools before it is offered by default. */
+/** Code Mode forced on for this run (tests, e2e); the setting can't turn it off. */
+const codeModeFromEnv = (): boolean => process.env.BEESLIDES_CODE_MODE === '1'
+
+/** Off unless Settings ▸ AI ▸ Advanced turns it on (or BEESLIDES_CODE_MODE=1)
+ *  — a prototype, measured against the plain tools before it is on by default. */
 export function codeModeEnabled(): boolean {
-  return process.env.BEESLIDES_CODE_MODE === '1'
+  return codeModeFromEnv() || readSettings().codeMode === true
 }
 
 let execSession: Session | null = null
@@ -115,11 +120,20 @@ export async function runProgram(win: BrowserWindow, sessionId: string, code: st
 /** The `execute` tool's args → a run. */
 export function runExecuteTool(win: BrowserWindow, sessionId: string, args: unknown): Promise<ProgramOutcome> {
   const a = (args && typeof args === 'object' ? args : {}) as { code?: unknown; timeoutSeconds?: unknown }
-  if (!codeModeEnabled()) return Promise.resolve({ ok: false, logs: [], calls: 0, writes: 0, error: 'Code mode is off (BEESLIDES_CODE_MODE=1).' })
+  if (!codeModeEnabled()) return Promise.resolve({ ok: false, logs: [], calls: 0, writes: 0, error: 'Code Mode is off (Settings ▸ AI ▸ Advanced).' })
   if (typeof a.code !== 'string' || !a.code.trim()) return Promise.resolve({ ok: false, logs: [], calls: 0, writes: 0, error: 'code is empty.' })
   return runProgram(win, sessionId, a.code, typeof a.timeoutSeconds === 'number' ? a.timeoutSeconds : DEFAULT_BUDGET_S)
 }
 
-export function registerAgentExec(): void {
+/** `onChange` runs after the setting flips (agentendpoint.ts rewrites its
+ *  server copy); chats opened from then on get the tools or lose them. */
+export function registerAgentExec(onChange?: () => void): void {
   registerMainVerb('execute', async (win, sessionId, args) => ({ ...await runExecuteTool(win, sessionId, args) }))
+  handleFrom('app-shell', 'slidomingo:code-mode-get', () => ({ on: codeModeEnabled(), forced: codeModeFromEnv() }))
+  handleFrom('app-shell', 'slidomingo:code-mode-set', (_ev, on: unknown) => {
+    if (typeof on !== 'boolean') return { refused: true, error: 'on must be a boolean' }
+    updateSettings({ codeMode: on || undefined })
+    onChange?.()
+    return { on: codeModeEnabled(), forced: codeModeFromEnv() }
+  })
 }

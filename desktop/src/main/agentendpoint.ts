@@ -160,6 +160,13 @@ export function startAgentEndpoint(): void {
   server = s
 }
 
+/** Rewrites the server outside AI apps start, after Code Mode flipped
+ *  (their next start gets the new tool list). No-op while the endpoint is off. */
+export function refreshAgentEndpointServer(): void {
+  if (!server) return
+  try { writeFileAtomic(join(agentDir(), 'beeslides-mcp.mjs'), mcpServerSource()) } catch { /* best effort */ }
+}
+
 export function stopAgentEndpoint(): void {
   try { server?.close() } catch { /* already closed */ }
   server = null

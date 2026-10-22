@@ -4,6 +4,8 @@
 import type { Catalog } from '../i18n'
 
 export const es: Catalog = {
+  "Code Mode (experimental)": "Modo código (experimental)",
+  "Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.": "Los chats de Claude Code pueden escribir un programa breve que hace en un solo paso un trabajo de varias diapositivas, en lugar de muchas llamadas a herramientas por separado. Se aplica a los chats abiertos después del cambio.",
   "AI wrote a slide from HTML ({n} elements)": "La IA escribió una diapositiva desde HTML ({n} elementos)",
   "AI ran a program on this deck (one undo step)": "La IA ejecutó un programa en esta presentación (se deshace en un paso)",
   "Style & canvas": "Estilo y lienzo",

@@ -25,7 +25,7 @@ import { registerPictureIpc } from './pictures.ts'
 import { buildMenu, registerMenuIpc } from './menu.ts'
 import { registerAgentBridgeIpc } from './agentbridge.ts'
 import { registerAgentExec } from './agentexec.ts'
-import { startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
+import { refreshAgentEndpointServer, startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
 import { claudeWorkspacesRoot, isTerminalRendererUrl, isValidGenerateRequest, registerTerminalIpc, requestGenerate, toggleTerminalPanel } from './terminalPanel.ts'
 import { sweepWorkspaces } from './workspaces.ts'
 import { addRecent, listRecent, pinRecent, removeRecent } from './recent.ts'
@@ -180,7 +180,7 @@ if (!gotLock) {
     buildMenu()
     registerTerminalIpc()
     registerAgentBridgeIpc()
-    registerAgentExec()
+    registerAgentExec(refreshAgentEndpointServer)
     registerDocumentIpc()
     registerFigureIpc()
     registerPresentIpc()

@@ -26,6 +26,8 @@ interface AiBridge {
   importAiShellFunctions(): Promise<{ profiles: ClaudeCodeProfile[]; error?: string }>
   testAiProfile(profile: Profile): Promise<{ ok: boolean; message: string }>
   openAiSkillsFolder?(): Promise<{ ok: boolean; path: string; error?: string }>
+  getCodeMode?(): Promise<{ on: boolean; forced: boolean }>
+  setCodeMode?(on: boolean): Promise<{ on: boolean; forced: boolean }>
 }
 
 const bridge = (): AiBridge | null => {
@@ -171,6 +173,29 @@ export function renderAiCategory(host: HTMLElement, toast: (msg: string) => void
     })
     actions.append(addCc, presetSel, imp, skillsBtn)
     host.append(actions)
+
+    // Advanced: app-wide agent switches (desktop/src/main/agentexec.ts).
+    if (api.getCodeMode && api.setCodeMode) {
+      const setCodeMode = api.setCodeMode
+      const codeMode = el('input')
+      codeMode.type = 'checkbox'
+      codeMode.disabled = true
+      const advanced = el('details')
+      const adv = el('summary', undefined, t('Advanced'))
+      adv.style.cssText = 'cursor:pointer;margin:6px 0'
+      advanced.append(adv, checkField(t('Code Mode (experimental)'), codeMode,
+        t('Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.')))
+      host.append(advanced)
+      void api.getCodeMode().then((r) => {
+        codeMode.checked = r.on
+        codeMode.disabled = r.forced
+        advanced.open = r.on
+      })
+      codeMode.addEventListener('change', async () => {
+        const r = await setCodeMode(codeMode.checked)
+        codeMode.checked = r.on
+      })
+    }
   }
 
   const renderForm = (orig: Profile, isNew = false): void => {

@@ -13332,3 +13332,17 @@ Signatures (`sigOf`/`computeDeckSigs`) decide what re-renders: slide JSON minus 
 plus position when it holds a `{{field}}`; plus the whole deck when it has a zoom tile;
 any deck-level change (theme, slide types, fonts, terms) re-renders everything.
 Rig: `scripts/test-present-live-edit-e2e.mjs`.
+
+## 2026-10-22 — Code Mode is a setting, and the model is told when to use it
+
+**Decision.** Code Mode stays off by default, but it is switched on in
+Settings ▸ AI ▸ Advanced (`AppSettings.codeMode`), not only with an
+environment variable; `BEESLIDES_CODE_MODE=1` still forces it on (tests).
+The switch applies to chats opened afterwards (`mcpServerSource` is keyed by
+it; the endpoint rewrites its server copy). With Code Mode on, the server
+sends MCP `instructions` (`CODE_MODE_INSTRUCTIONS`) saying when `execute`
+beats a chain of tool calls, and build-deck.md has an "if `execute` is
+available" line. **Why:** with the tools alone the model kept making one call
+per step: everything it reads (workspace README, skills) describes tool
+calls, and `api_search`, which explained when to use `execute`, is only
+called once the model has already decided to.

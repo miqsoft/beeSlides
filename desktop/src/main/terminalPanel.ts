@@ -78,12 +78,18 @@ import SLIDES_MCP_SERVER from '../mcp/slides-mcp-server.mjs?raw'
 import { serverWithAgentAreas, serverWithCodeMode } from './agenttools.ts'
 import { codeModeEnabled } from './agentexec.ts'
 
-let mcpServerFilled: string | null = null
+// Keyed by Code Mode: the setting can flip while the app runs.
+const mcpServerFilled = new Map<boolean, string>()
 /** The server as written to disk: with the grouped `deck`/… tools filled in
  *  (agenttools.ts). Without its placeholder it still works, minus those.
  *  Also the copy outside AI apps run (agentendpoint.ts). */
 export function mcpServerSource(): string {
-  try { return (mcpServerFilled ??= serverWithCodeMode(serverWithAgentAreas(SLIDES_MCP_SERVER), codeModeEnabled())) } catch { return SLIDES_MCP_SERVER }
+  const on = codeModeEnabled()
+  try {
+    let s = mcpServerFilled.get(on)
+    if (s === undefined) mcpServerFilled.set(on, s = serverWithCodeMode(serverWithAgentAreas(SLIDES_MCP_SERVER), on))
+    return s
+  } catch { return SLIDES_MCP_SERVER }
 }
 // The UserPromptSubmit hook that attaches a selection.json digest to every
 // prompt — see ../mcp/selection-digest.mjs and createSession's settings.json.

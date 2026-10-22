@@ -554,6 +554,9 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   testAiProfile: (profile: unknown): Promise<{ ok: boolean; message: string }> => ipcRenderer.invoke('slidomingo:ai-profiles-test', profile),
   /** Opens userData/api-skills (created first) in the file manager. */
   openAiSkillsFolder: (): Promise<{ ok: boolean; path: string; error?: string }> => ipcRenderer.invoke('slidomingo:ai-open-skills-folder'),
+  /** Code Mode (main/agentexec.ts): `forced` = BEESLIDES_CODE_MODE=1, the setting can't turn it off. */
+  getCodeMode: (): Promise<{ on: boolean; forced: boolean }> => ipcRenderer.invoke('slidomingo:code-mode-get'),
+  setCodeMode: (on: boolean): Promise<{ on: boolean; forced: boolean }> => ipcRenderer.invoke('slidomingo:code-mode-set', on),
   /** View ▸ New Chat With… : the profiles to pick from, and a new tab with one. */
   newChatWith: (profileId?: string): void => { ipcRenderer.send('slidomingo:new-chat-with', profileId) },
 

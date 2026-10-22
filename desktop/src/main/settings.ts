@@ -27,6 +27,8 @@ export interface AppSettings {
   defaultAiProfileId?: string
   /** UI zoom, a Chromium zoom level (uizoom.ts); absent = 100 %. */
   uiZoomLevel?: number
+  /** Code Mode (agentexec.ts), Settings ▸ AI ▸ Advanced; absent = off. */
+  codeMode?: boolean
 }
 
 const storePath = (): string => join(app.getPath('userData'), 'app-settings.json')
