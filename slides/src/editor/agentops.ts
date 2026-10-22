@@ -1106,7 +1106,8 @@ const SLIDE_HTML: AreaHandlers['slide_html'] = {
       ? `Slide ${slide.id} as HTML — the source it was written from (the slide has not changed since).`
       : `Slide ${slide.id} as HTML — generated from the slide (${r.flowGroups} flex row/column group${r.flowGroups === 1 ? '' : 's'}, the rest absolutely positioned); laid out again it gives the slide's exact frames.`
     const parts = [head, ...r.notes.map((n) => `Note: ${n}`), '', '<style>', r.css ?? '', '</style>', r.html]
-    return { ok: true, summary: parts.join('\n'), toast: '' }
+    // html/css apart too, for a program (the execute tool) to work on
+    return { ok: true, summary: parts.join('\n'), toast: '', html: r.html, css: r.css ?? '' }
   },
 }
 

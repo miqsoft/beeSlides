@@ -971,7 +971,7 @@ for (const wire of ['anthropic', 'openai'] as const) {
   ok(runUiProfileTool({ ...svc, disabled: true }, { op: 'get' }, 'agent').isError, 'SLIDOMINGO_NO_UI_PROFILE: the tool refuses')
 
   // the MCP server advertises the same tool, and a request round-trips through a
-  // stand-in for main's intercept (terminalPanel.ts → uiprofile.ts answerUiProfileRequest)
+  // stand-in for main's intercept (agentbridge.ts → uiprofile.ts uiProfileToolResult)
   const mcpDir = mkdtempSync(join(tmpdir(), 'ui-mcp-'))
   const child = spawn(process.execPath, [serverScript, mcpDir], { stdio: ['pipe', 'pipe', 'ignore'] })
   const replies = new Map<number, any>()

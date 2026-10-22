@@ -40,7 +40,7 @@
 // applyExternalSlideWrite, the actual lock-enforcement chokepoint. This file
 // only threads a `sessionId` through every forwarded request/response; it
 // holds no lock state of its own.
-import { BrowserWindow, WebContentsView, app, dialog, type IpcMainEvent, type IpcMainInvokeEvent, type NativeImage, type WebContents } from 'electron'
+import { BrowserWindow, WebContentsView, app, dialog, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { homedir } from 'node:os'
@@ -55,7 +55,7 @@ import { ApiChatSession, displayFromMessages, type DisplayItem, type UsageReadou
 import { BUILTIN_SKILLS, CUSTOMIZE_UI_SKILL_MD } from './apichat/skills/index.ts'
 import type { ChatEvent } from './apichat/types.ts'
 import { writeFileAtomic } from './fsutil.ts'
-import { captureSlideSnapshot, isSnapshotRequest } from './slidesnapshot.ts'
+import { forwardAgentRequest, isSafeId, type AgentChannel } from './agentbridge.ts'
 import { addFolder, existingFolders, listFolders, removeFolder, retargetFolders, validateFolder } from './attachedfolders.ts'
 import { addRecord, backfillChats, belongsTo, clip, findTranscript, getRecord, isChatId, listChats, retarget, tailTranscriptTitle, type ChatSummary, type DeckKey, type TitleTail } from './chathistory.ts'
 import { deckKeyFor, docWebContentsFor, draftsDir, layoutWindow, launchPathFor, windowForDocWebContents } from './windows.ts'
@@ -63,7 +63,6 @@ import { isInside } from './docfile.ts'
 import { guardNavigation } from './navguard.ts'
 import { handleFrom, onFrom } from './ipcguard.ts'
 import { ensureWorkspace, isUntitledKey, workspaceKey } from './workspaces.ts'
-import { answerUiProfileRequest } from './uiprofile.ts'
 // Bundled straight into the built main.js (see raw-modules.d.ts) so a
 // generate request's context dir carries the reference docs `claude` needs
 // without a separate copy-at-build step or a runtime fetch of the repo.
@@ -76,13 +75,15 @@ import GENERATE_BRIEF from '../../../docs/generate-brief.md?raw'
 // Same trick for the get_slide/write_slide MCP server — see
 // ../mcp/slides-mcp-server.mjs and its own header comment.
 import SLIDES_MCP_SERVER from '../mcp/slides-mcp-server.mjs?raw'
-import { serverWithAgentAreas } from './agenttools.ts'
+import { serverWithAgentAreas, serverWithCodeMode } from './agenttools.ts'
+import { codeModeEnabled } from './agentexec.ts'
 
 let mcpServerFilled: string | null = null
 /** The server as written to disk: with the grouped `deck`/… tools filled in
- *  (agenttools.ts). Without its placeholder it still works, minus those. */
-function mcpServerSource(): string {
-  try { return (mcpServerFilled ??= serverWithAgentAreas(SLIDES_MCP_SERVER)) } catch { return SLIDES_MCP_SERVER }
+ *  (agenttools.ts). Without its placeholder it still works, minus those.
+ *  Also the copy outside AI apps run (agentendpoint.ts). */
+export function mcpServerSource(): string {
+  try { return (mcpServerFilled ??= serverWithCodeMode(serverWithAgentAreas(SLIDES_MCP_SERVER), codeModeEnabled())) } catch { return SLIDES_MCP_SERVER }
 }
 // The UserPromptSubmit hook that attaches a selection.json digest to every
 // prompt — see ../mcp/selection-digest.mjs and createSession's settings.json.
@@ -269,15 +270,6 @@ interface PanelState {
    *  rebuilt view (pop-out / dock) reopens on instead of always the first
    *  tab. May name a tab closed since: read it via activeSessionIdFor. */
   activeSessionId: string | null
-  /** requestId -> sessionId, populated the moment a request file (slide-
-   *  request/-write, agent-query/-action) is forwarded to the renderer, and
-   *  consumed (then deleted) when the renderer's response comes back — the
-   *  only way the ipcMain response handlers below know WHICH session's
-   *  subfolder to write the answer into, since the response IPC channels
-   *  only carry a requestId, not a sessionId. Entries are also swept on a
-   *  timeout in case a response never arrives (window closed mid-flight),
-   *  mirroring the existing pendingRenderPreviewRequests pattern. */
-  pendingRequestSession: Map<string, string>
 }
 
 const CONTEXT_README =
@@ -481,10 +473,6 @@ async function loadTerminalRenderer(view: WebContentsView): Promise<void> {
 function activeSessionIdFor(panel: PanelState): string | null {
   if (panel.activeSessionId && panel.sessions.has(panel.activeSessionId)) return panel.activeSessionId
   return [...panel.sessions.keys()][0] ?? null
-}
-
-function isSafeId(id: unknown): id is string {
-  return typeof id === 'string' && /^[A-Za-z0-9-]{1,100}$/.test(id)
 }
 
 // --- chat history ------------------------------------------------------------
@@ -1009,25 +997,6 @@ function processGenerateFile(panel: PanelState): void {
   docWebContentsFor(panel.hostWindow)?.send('slidomingo:generate-result', payload)
 }
 
-/** Records that `requestId` belongs to `sessionId` so the matching response
- *  IPC handler below (slidomingo:slide-response et al) knows which session's
- *  subfolder to write the answer into — leaked entries (a response that never
- *  arrives, e.g. the window closed mid-flight) are swept after well past the
- *  MCP server's own 5s round-trip timeout. */
-function trackRequestSession(panel: PanelState, requestId: string, sessionId: string): void {
-  panel.pendingRequestSession.set(requestId, sessionId)
-  setTimeout(() => panel.pendingRequestSession.delete(requestId), 15_000)
-}
-
-/** Resolves which session a response belongs to and clears the tracking
- *  entry — returns null (nothing written) if the requestId is unknown or the
- *  session it named has since closed its tab. */
-function sessionForResponse(panel: PanelState, requestId: string): SessionState | null {
-  const sessionId = panel.pendingRequestSession.get(requestId)
-  if (sessionId) panel.pendingRequestSession.delete(requestId)
-  return sessionId ? (panel.sessions.get(sessionId) ?? null) : null
-}
-
 /** Watches a session's own subfolder for the get_slide/write_slide MCP tools'
  *  per-request files (see ../mcp/slides-mcp-server.mjs) and forwards each to
  *  the document renderer over the matching IPC channel once its write
@@ -1041,14 +1010,14 @@ function startSlideWatcher(panel: PanelState, session: SessionState): void {
     session.slideWatcher = watch(session.contextDir, (_event, filename) => {
       if (!filename) return
       if (/^slide-request-.+\.json$/.test(filename)) {
-        claimRequestFile(session, filename, (payload) => processSlideRequestFile(panel, session, payload))
+        claimRequestFile(session, filename, (payload) => forwardRequestFile(panel, session, 'slide-request', payload))
       } else if (/^slide-write-(?!result-).+\.json$/.test(filename)) {
         // The negative lookahead excludes slide-write-result-<id>.json — the
         // APP's own response file, written by the slidomingo:apply-slide-write-result
         // handler below into this same watched directory. Without it, that
         // write would be misread as a fresh incoming write request and
         // bounced back through applyExternalSlideWrite as a malformed one.
-        claimRequestFile(session, filename, (payload) => processSlideWriteFile(panel, session, payload))
+        claimRequestFile(session, filename, (payload) => forwardRequestFile(panel, session, 'slide-write', payload))
       }
     })
   } catch { /* best effort — an unwatchable contextDir just means no MCP write-back */ }
@@ -1087,16 +1056,26 @@ function claimRequestFile(session: SessionState, filename: string, run: (payload
   run(payload)
 }
 
-function processSlideRequestFile(panel: PanelState, session: SessionState, payload: unknown): void {
-  const requestId = payload && typeof payload === 'object' ? (payload as { requestId?: unknown }).requestId : undefined
-  if (isSafeId(requestId)) trackRequestSession(panel, requestId, session.id)
-  docWebContentsFor(panel.hostWindow)?.send('slidomingo:slide-request', { ...(payload as object), sessionId: session.id })
+/** The answer file the MCP server waits for, per request kind
+ *  (slides-mcp-server.mjs roundTrip). */
+const RESPONSE_PREFIX: Record<AgentChannel, string> = {
+  'slide-request': 'slide-response',
+  'slide-write': 'slide-write-result',
+  'agent-query': 'agent-query-result',
+  'agent-action': 'agent-action-result',
 }
 
-function processSlideWriteFile(panel: PanelState, session: SessionState, payload: unknown): void {
-  const requestId = payload && typeof payload === 'object' ? (payload as { requestId?: unknown }).requestId : undefined
-  if (isSafeId(requestId)) trackRequestSession(panel, requestId, session.id)
-  docWebContentsFor(panel.hostWindow)?.send('slidomingo:apply-slide-write', { ...(payload as object), sessionId: session.id })
+/** Hands a claimed request file to the editor (agentbridge.ts) and writes the
+ *  answer back as `<response prefix>-<requestId>.json` in the session's own
+ *  subfolder, removing the request file. */
+function forwardRequestFile(panel: PanelState, session: SessionState, channel: AgentChannel, payload: unknown): void {
+  // sessionId is what lets editor.ts's applyAgentAction attribute the slide
+  // lock a write verb acquires to THIS tab, and refuse a conflicting write
+  // from a different one — see slides/src/store.ts's lock registry.
+  forwardAgentRequest(panel.hostWindow, session.id, channel, payload, (result) => {
+    try { writeFileAtomic(join(session.contextDir, `${RESPONSE_PREFIX[channel]}-${result.requestId}.json`), JSON.stringify(result, null, 2)) } catch { /* best effort */ }
+    try { rmSync(join(session.contextDir, `${channel}-${result.requestId}.json`), { force: true }) } catch { /* best effort */ }
+  })
 }
 
 /** Removes any leftover slide-request-…, slide-response-…, slide-write-…, or
@@ -1146,55 +1125,14 @@ function startAgentWatcher(panel: PanelState, session: SessionState): void {
         // Negative lookahead excludes agent-query-result-<id>.json — the
         // APP's own response file (slidomingo:agent-query-response handler
         // below) — for the same reason slide-write's does.
-        claimRequestFile(session, filename, (payload) => processAgentQueryFile(panel, session, payload))
+        claimRequestFile(session, filename, (payload) => forwardRequestFile(panel, session, 'agent-query', payload))
       } else if (/^agent-action-(?!result-).+\.json$/.test(filename)) {
-        claimRequestFile(session, filename, (payload) => processAgentActionFile(panel, session, payload))
+        claimRequestFile(session, filename, (payload) => forwardRequestFile(panel, session, 'agent-action', payload))
       }
     })
   } catch { /* best effort — an unwatchable contextDir just means no MCP write-back */ }
 }
 
-
-/** requestIds of in-flight `render_preview` agent-query calls — populated
- *  here just before forwarding to the renderer, consumed in the
- *  slidomingo:agent-query-response handler below. render_preview is the one
- *  agent-query verb where the renderer's response is not the final answer:
- *  the renderer only validates the requested slide is the one live on the
- *  canvas (editor.ts respondAgentQuery); the actual pixel capture happens
- *  HERE, via webContents.capturePage(), once that validation comes back ok.
- *  A Set (not a per-session field) is enough — requestIds are globally unique
- *  (crypto.randomUUID(), minted in slides-mcp-server.mjs) and short-lived. */
-const pendingRenderPreviewRequests = new Set<string>()
-
-function processAgentQueryFile(panel: PanelState, session: SessionState, payload: unknown): void {
-  if (payload && typeof payload === 'object') {
-    const requestId = (payload as { requestId?: unknown }).requestId
-    if (isSafeId(requestId)) trackRequestSession(panel, requestId, session.id)
-    const verb = (payload as { verb?: unknown }).verb
-    if ((verb === 'render_preview' || verb === 'review_slide') && isSafeId(requestId)) {
-      pendingRenderPreviewRequests.add(requestId)
-      // Safety net: the MCP server's own round trip times out at 5s, so if
-      // the renderer never answers (window closed mid-flight, etc.) this
-      // Set entry would otherwise leak forever.
-      setTimeout(() => pendingRenderPreviewRequests.delete(requestId), 10_000)
-    }
-  }
-  docWebContentsFor(panel.hostWindow)?.send('slidomingo:agent-query', { ...(payload as object), sessionId: session.id })
-}
-
-function processAgentActionFile(panel: PanelState, session: SessionState, payload: unknown): void {
-  const requestId = payload && typeof payload === 'object' ? (payload as { requestId?: unknown }).requestId : undefined
-  // ui_profile customizes the APP, not this deck: main answers it (uiprofile.ts)
-  if ((payload as { verb?: unknown } | undefined)?.verb === 'ui_profile' && isSafeId(requestId)) {
-    answerUiProfileRequest(session.contextDir, requestId, (payload as { args?: unknown }).args)
-    return
-  }
-  if (isSafeId(requestId)) trackRequestSession(panel, requestId, session.id)
-  // sessionId is what lets editor.ts's applyAgentAction attribute the slide
-  // lock a write verb acquires to THIS tab, and refuse a conflicting write
-  // from a different one — see slides/src/store.ts's lock registry.
-  docWebContentsFor(panel.hostWindow)?.send('slidomingo:agent-action', { ...(payload as object), sessionId: session.id })
-}
 
 /** Removes any leftover agent-query-…/agent-query-result-…/agent-action-…/
  *  agent-action-result-….json from a PRIOR session — mirrors
@@ -1443,7 +1381,6 @@ async function openPanel(win: BrowserWindow, opts?: { initialTask?: string; comp
     sessions: new Map([[session.id, session]]),
     lastInputSessionId: null,
     activeSessionId: session.id,
-    pendingRequestSession: new Map(),
   }
   panels.set(win.id, panel)
   panelWidths.set(win.id, opts?.compactWidth ? MIN_PANEL_WIDTH : loadPersistedWidth())
@@ -2068,107 +2005,5 @@ export function registerTerminalIpc(): void {
     const { sessionId: _sessionId, ...toWrite } = result
     try { writeFileSync(join(session.contextDir, 'edit-result.json'), JSON.stringify(toWrite, null, 2), 'utf8') } catch { /* best effort */ }
     try { rmSync(join(session.contextDir, 'edit.json'), { force: true }) } catch { /* best effort */ }
-  })
-
-  // Reverse leg of get_slide's write-back channel (see processSlideRequestFile
-  // above): the editor answers through slide-response-<id>.json, and its
-  // matching slide-request-<id>.json is removed here — same shape as
-  // slidomingo:apply-edit-result. requestId always originates from the MCP
-  // server's own crypto.randomUUID(), but is re-validated here anyway before
-  // it's used to build a filesystem path. sessionForResponse resolves which
-  // session's subfolder to use (see trackRequestSession/processSlideRequestFile).
-  onFrom('app-shell', 'slidomingo:slide-response', (ev, result: { requestId: string; ok: boolean; slide?: unknown; error?: string }) => {
-    const win = windowForDocWebContents(ev.sender.id)
-    if (!win) return
-    const panel = panels.get(win.id)
-    if (!panel || !isSafeId(result.requestId)) return
-    const session = sessionForResponse(panel, result.requestId)
-    if (!session) return
-    try { writeFileAtomic(join(session.contextDir, `slide-response-${result.requestId}.json`), JSON.stringify(result, null, 2)) } catch { /* best effort */ }
-    try { rmSync(join(session.contextDir, `slide-request-${result.requestId}.json`), { force: true }) } catch { /* best effort */ }
-  })
-
-  // Reverse leg of write_slide's write-back channel (see
-  // processSlideWriteFile above) — same shape as slidomingo:slide-response.
-  onFrom('app-shell', 'slidomingo:apply-slide-write-result', (ev, result: { requestId: string; ok: boolean; summary?: string; error?: string; warnings?: unknown[] }) => {
-    const win = windowForDocWebContents(ev.sender.id)
-    if (!win) return
-    const panel = panels.get(win.id)
-    if (!panel || !isSafeId(result.requestId)) return
-    const session = sessionForResponse(panel, result.requestId)
-    if (!session) return
-    try { writeFileAtomic(join(session.contextDir, `slide-write-result-${result.requestId}.json`), JSON.stringify(result, null, 2)) } catch { /* best effort */ }
-    try { rmSync(join(session.contextDir, `slide-write-${result.requestId}.json`), { force: true }) } catch { /* best effort */ }
-  })
-
-  // Reverse leg of the agent-query read verbs (doc_info/outline/measure/
-  // validate/comments/recent_changes/check_layout/find_text/render_preview/review_slide — see
-  // processAgentQueryFile above) — same shape as slidomingo:slide-response,
-  // EXCEPT for render_preview and review_slide: the
-  // renderer's `result` there is a validation-only stub (see editor.ts
-  // respondAgentQuery), and on an ok response this handler replaces it with
-  // an actual screen capture before writing the file — capturePage() must
-  // run in the main process against the doc view's own webContents, which
-  // the renderer has no access to. Async (an ipcMain.on listener may be),
-  // so every path below still writes exactly once.
-  onFrom('app-shell', 'slidomingo:agent-query-response', async (ev, result: { requestId: string; ok: boolean; result?: unknown; error?: string }) => {
-    const win = windowForDocWebContents(ev.sender.id)
-    if (!win) return
-    const panel = panels.get(win.id)
-    if (!panel || !isSafeId(result.requestId)) return
-    const session = sessionForResponse(panel, result.requestId)
-    if (!session) return
-    const isPreview = pendingRenderPreviewRequests.delete(result.requestId)
-    let finalResult: typeof result = result
-    if (isPreview && result.ok) {
-      try {
-        const { offscreen, ...rest } = (result.result ?? {}) as { offscreen?: unknown; rect?: { x: number; y: number; width: number; height: number } | null }
-        let image: NativeImage
-        if (offscreen !== undefined) {
-          // A slide that is not on the canvas: the renderer sent a standalone
-          // page of it (editor.ts snapshotFor), shot in a hidden window.
-          if (!isSnapshotRequest(offscreen)) throw new Error('bad snapshot')
-          image = await captureSlideSnapshot(offscreen)
-        } else {
-          const wc = docWebContentsFor(win)
-          if (!wc) throw new Error('no doc view')
-          // The renderer reports where the slide is (editor.ts prepareCapture,
-          // CSS px of the doc view): crop to it, so the image is the slide
-          // alone, without the editor around it. capturePage takes DIPs, which
-          // are CSS px times the page zoom — with UI zoom (⌘±) set, an unscaled
-          // rect cut off part of the slide and took in editor chrome.
-          const rect = rest.rect
-          const z = wc.getZoomFactor()
-          const crop = rect && [rect.x, rect.y, rect.width, rect.height].every((v) => Number.isFinite(v)) && rect.width > 1 && rect.height > 1
-            ? { x: Math.round(rect.x * z), y: Math.round(rect.y * z), width: Math.round(rect.width * z), height: Math.round(rect.height * z) }
-            : undefined
-          image = await (crop ? wc.capturePage(crop) : wc.capturePage())
-        }
-        const data = image.toPNG().toString('base64')
-        finalResult = {
-          ...result,
-          result: { ...rest, image: { data, mimeType: 'image/png' } },
-        }
-      } catch (err) {
-        finalResult = { requestId: result.requestId, ok: false, error: `capture-failed: ${String((err as Error)?.message ?? err)}` }
-      }
-    }
-    try { writeFileAtomic(join(session.contextDir, `agent-query-result-${result.requestId}.json`), JSON.stringify(finalResult, null, 2)) } catch { /* best effort */ }
-    try { rmSync(join(session.contextDir, `agent-query-${result.requestId}.json`), { force: true }) } catch { /* best effort */ }
-  })
-
-  // Reverse leg of the agent-action write verbs (insert_elements/set_frame/
-  // duplicate_element/delete_element/reorder_element/apply_change_pattern/
-  // release_slide — see processAgentActionFile above) — same shape as
-  // slidomingo:apply-slide-write-result.
-  onFrom('app-shell', 'slidomingo:agent-action-result', (ev, result: { requestId: string; ok: boolean; [key: string]: unknown }) => {
-    const win = windowForDocWebContents(ev.sender.id)
-    if (!win) return
-    const panel = panels.get(win.id)
-    if (!panel || !isSafeId(result.requestId)) return
-    const session = sessionForResponse(panel, result.requestId)
-    if (!session) return
-    try { writeFileAtomic(join(session.contextDir, `agent-action-result-${result.requestId}.json`), JSON.stringify(result, null, 2)) } catch { /* best effort */ }
-    try { rmSync(join(session.contextDir, `agent-action-${result.requestId}.json`), { force: true }) } catch { /* best effort */ }
   })
 }

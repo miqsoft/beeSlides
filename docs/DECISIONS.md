@@ -13262,6 +13262,51 @@ a set per slide and the badge on each thumbnail; not done until it is asked
 for. The `slide-designs` API-chat skill therefore does one slide per call.
 Rig: `scripts/test-slide-variants-e2e.mjs`.
 
+## 2026-10-22 — Outside AI apps reach the open decks; Code Mode (`execute`) as a flagged prototype
+
+**Decision.** BeeSlides is driven from the chat people already use, not only
+from its own panel. Every agent tool call now takes ONE path into a document
+window, `desktop/src/main/agentbridge.ts`, whatever carried it: a panel tab's
+request file (unchanged) or a client of the new local endpoint
+(`agentendpoint.ts`). An outside app (Claude Code in a terminal, Claude
+Desktop, Cursor, …) runs the same `slides-mcp-server.mjs` as
+`--endpoint <userData>/agent`; it talks to a unix socket (a named pipe on
+Windows) with a per-install token, and starts the app if it isn't running.
+No network port. The panel keeps its file relay for now (the bench harness
+stands in for main through it). The maintainer settled (2026-10-22): agents
+edit the running app only (no file-first path); stdio shim + local socket;
+the API chat stays as the zero-setup mode.
+
+**Code Mode.** Two more tools, `execute` and `api_search`: the agent writes a
+JavaScript program against a `deck` API instead of making dozens of calls,
+and only its result enters the model's context (Cloudflare's "Code Mode",
+Anthropic's "Code execution with MCP"). It pairs with `slide_html`: a program
+builds slides from one function (shared spacing, ids stable across slides
+for morph) and edits existing ones through a real DOM.
+- **Where it runs:** a hidden window of its own (`agentexec.ts`): own
+  renderer process, sandbox, no preload, an in-memory session that cancels
+  every request, a CSP without network; destroyed at the time budget.
+  QuickJS was rejected: no DOM, and HTML is the authoring language.
+- **How it talks:** it doesn't. Main pulls the program's pending calls
+  (`__bs.next()`), checks them (`programrun.ts checkCall`: tool channels
+  only; `execute`, `program`, `ui_profile` refused) and sends them through
+  the bridge like any tool call. The page can initiate nothing.
+- **Undo:** the editor brackets a run (`program` begin/commit/rollback,
+  `store.ts beginUndoGroup`): one undo step; a throw or timeout rolls it back.
+  Known gap: a user edit made DURING a run joins its step (and its rollback).
+  Planned replacement: the program works on a copy of the deck and a
+  three-way merge per slide applies it (conflict → nothing applied).
+
+**Both are off by default** (`BEESLIDES_AGENT_ENDPOINT=1`,
+`BEESLIDES_CODE_MODE=1`): the endpoint until a first connection asks the
+user (any program running as the user can read the token file), Code Mode
+until a benchmark against the plain tools says it wins. New flags say
+`BEESLIDES_`, not `SLIDOMINGO_`: nothing depends on them yet.
+
+Rigs: `scripts/test-agent-endpoint.mjs`, `scripts/test-agent-exec-e2e.ts`
+(headless Chromium), `scripts/test-undo-group.ts`,
+`desktop/scripts/e2e-agent-endpoint.mjs` (Electron).
+
 ## 2026-10-22 — Live edits during a show: the show runs on a copy and takes updates by slide id
 
 Edits made while presenting (an agent write, a reload from disk, undo, `beeslides.loadDoc`)

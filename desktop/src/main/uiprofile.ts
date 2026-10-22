@@ -20,7 +20,6 @@ import { apiKeyFor, getProfiles } from './aiprofilesStore.ts'
 import type { ApiProfile } from './aiprofiles.ts'
 import { CUSTOMIZE_CHAT_ID, CustomizeChat } from './apichat/customizechat.ts'
 import { transcriptPath } from './apichat/transcript.ts'
-import { writeFileAtomic } from './fsutil.ts'
 import { runUiProfileTool } from './uiprofiletool.ts'
 import { CUSTOMIZE_UI_SKILL_MD } from './apichat/skills/index.ts'
 import {
@@ -47,14 +46,12 @@ export function uiProfileService(): UiProfileService {
   return service
 }
 
-/** An agent's `ui_profile` call through the slides MCP server: the request
- *  file lands in a terminal session's folder like any agent-action, but the
- *  profile is the app's, not the deck's — so main answers it here instead of
- *  forwarding it to the editor (terminalPanel.ts processAgentActionFile). */
-export function answerUiProfileRequest(contextDir: string, requestId: string, args: unknown): void {
-  const r = runUiProfileTool(uiProfileService(), args && typeof args === 'object' && !Array.isArray(args) ? args as Record<string, unknown> : {}, 'agent')
-  try { writeFileAtomic(join(contextDir, `agent-action-result-${requestId}.json`), JSON.stringify({ requestId, ok: true, ...r })) } catch { /* the server times out */ }
-  try { rmSync(join(contextDir, `agent-action-${requestId}.json`), { force: true }) } catch { /* best effort */ }
+/** An agent's `ui_profile` call through the slides MCP server: it arrives
+ *  like any agent-action, but the profile is the app's, not the deck's — so
+ *  main answers it here instead of forwarding it to the editor
+ *  (agentbridge.ts forwardAgentRequest). */
+export function uiProfileToolResult(args: unknown): Record<string, unknown> {
+  return { ok: true, ...runUiProfileTool(uiProfileService(), args && typeof args === 'object' && !Array.isArray(args) ? args as Record<string, unknown> : {}, 'agent') }
 }
 
 /** What a renderer may say it is: its own Settings or an Import. Chat and

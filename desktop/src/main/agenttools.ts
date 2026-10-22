@@ -32,3 +32,12 @@ export function serverWithAgentAreas(source: string): string {
   // A function replacement: a `$` in a help text must not act as a pattern.
   return source.replace(AGENT_AREAS_PLACEHOLDER, () => JSON.stringify(agentAreaTools()))
 }
+
+export const CODE_MODE_PLACEHOLDER = '/*@CODE_MODE@*/false'
+
+/** The server source with Code Mode's execute/api_search tools switched on
+ *  (agentexec.ts). Throws when the placeholder is gone, like the areas. */
+export function serverWithCodeMode(source: string, on: boolean): string {
+  if (!source.includes(CODE_MODE_PLACEHOLDER)) throw new Error('slides-mcp-server.mjs has no CODE_MODE placeholder')
+  return on ? source.replace(CODE_MODE_PLACEHOLDER, 'true') : source
+}

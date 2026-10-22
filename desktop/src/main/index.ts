@@ -23,6 +23,9 @@ import { registerFigureIpc } from './figureexport.ts'
 import { registerPresentIpc } from './present.ts'
 import { registerPictureIpc } from './pictures.ts'
 import { buildMenu, registerMenuIpc } from './menu.ts'
+import { registerAgentBridgeIpc } from './agentbridge.ts'
+import { registerAgentExec } from './agentexec.ts'
+import { startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
 import { claudeWorkspacesRoot, isTerminalRendererUrl, isValidGenerateRequest, registerTerminalIpc, requestGenerate, toggleTerminalPanel } from './terminalPanel.ts'
 import { sweepWorkspaces } from './workspaces.ts'
 import { addRecent, listRecent, pinRecent, removeRecent } from './recent.ts'
@@ -176,6 +179,8 @@ if (!gotLock) {
     registerMenuIpc()
     buildMenu()
     registerTerminalIpc()
+    registerAgentBridgeIpc()
+    registerAgentExec()
     registerDocumentIpc()
     registerFigureIpc()
     registerPresentIpc()
@@ -187,6 +192,9 @@ if (!gotLock) {
     registerUiProfileIpc()
     registerCustomizeChatIpc()
     registerThumbnailIpc()
+    // Outside AI apps reach the open decks through this (agentendpoint.ts;
+    // BEESLIDES_AGENT_ENDPOINT=1 for now).
+    startAgentEndpoint()
 
     handleFrom('app-shell', 'slidomingo:get-launch-path', (ev) => launchPathFor(ev.sender.id))
 
@@ -271,6 +279,8 @@ if (!gotLock) {
       app.quit()
     })
   })
+
+  app.on('will-quit', () => stopAgentEndpoint())
 
   // Under `npm run dev` (scripts/dev-all.mjs) closing the last window ends
   // the app on macOS too, and with it the whole dev stack.

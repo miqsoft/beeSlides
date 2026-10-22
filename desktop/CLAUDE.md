@@ -52,6 +52,13 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 - The trust prompt cannot be reliably pre-accepted through `~/.claude.json` (`claudeTrust.ts`). This is a known limitation, so don't try more JSON workarounds without new evidence.
 - `edit.json` still works but is deliberately not advertised to Claude.
 
+## Agent bridge, endpoint, Code Mode (DECISIONS 2026-10-22)
+
+- Every agent request reaches a document window through `agentbridge.ts forwardAgentRequest`; never send `slidomingo:agent-*` from anywhere else. Verbs main answers itself go through `registerMainVerb` (`execute`), or the `ui_profile` intercept there.
+- `agentendpoint.ts` (`BEESLIDES_AGENT_ENDPOINT=1`): socket + token in `userData/agent/`. It must never listen on a network port.
+- Code Mode (`BEESLIDES_CODE_MODE=1`): Electron glue in `agentexec.ts`, everything testable in `programrun.ts` (no Electron imports). The sandbox page never gets a preload or an IPC channel: main pulls. Keep `programrun.ts` RUNTIME and the server's `API_REFERENCE` in step.
+- E2E: `scripts/e2e-agent-endpoint.mjs` (needs `slides/dist-single` and `npx electron-vite build`).
+
 ## AI profiles, API chat, tokens
 
 - Read `docs/DECISIONS.md` (2026-10-07) before changing profiles (`aiprofiles.ts` pure, `aiprofilesStore.ts` for safeStorage and IPC).

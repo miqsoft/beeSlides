@@ -12,13 +12,21 @@
 // import (terminalPanel.ts) and written out into each window's contextDir at
 // panel-open time; process.argv[2] is that contextDir, absolute, passed only
 // through mcp-config.json — never shell-interpolated.
+//
+// `--endpoint <agentDir>` instead is how an AI app outside BeeSlides (Claude
+// Desktop, Claude Code in a terminal, …) runs it: requests then go over the
+// app's local socket (main/agentendpoint.ts), whose address and token the app
+// keeps in <agentDir>, and the app is started if it isn't running.
 import { existsSync, readFileSync, renameSync, rmSync, watch, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { connect } from 'node:net'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 
-const contextDir = process.argv[2]
-if (!contextDir) {
+const endpointDir = process.argv[2] === '--endpoint' ? process.argv[3] : null
+const contextDir = endpointDir ? null : process.argv[2]
+if (!contextDir && !endpointDir) {
   process.stderr.write('slides-mcp-server: missing contextDir argument\n')
   process.exit(1)
 }
@@ -78,7 +86,11 @@ function fileWaker(filename, ms) {
  * `panel-closed` error if contextDir itself disappears mid-poll (the app
  * closed the window/panel) rather than waiting out the full timeout.
  */
-async function roundTrip(reqPrefix, resPrefix, payload, timeoutMs = TIMEOUT_MS) {
+function roundTrip(reqPrefix, resPrefix, payload, timeoutMs = TIMEOUT_MS) {
+  return endpointDir ? socketRoundTrip(reqPrefix, payload, timeoutMs) : fileRoundTrip(reqPrefix, resPrefix, payload, timeoutMs)
+}
+
+async function fileRoundTrip(reqPrefix, resPrefix, payload, timeoutMs) {
   const id = randomUUID()
   const reqPath = join(contextDir, `${reqPrefix}-${id}.json`)
   const resPath = join(contextDir, `${resPrefix}-${id}.json`)
@@ -115,6 +127,112 @@ async function roundTrip(reqPrefix, resPrefix, payload, timeoutMs = TIMEOUT_MS) 
     try { rmSync(tmpPath, { force: true }) } catch { /* renamed away, the normal case */ }
     try { rmSync(reqPath, { force: true }) } catch { /* already consumed by the app, or never written */ }
     try { rmSync(resPath, { force: true }) } catch { /* already consumed, or never existed */ }
+  }
+}
+
+// ---- --endpoint mode: the app's local socket ----------------------------------
+// One JSON object per line each way. The first line is a hello carrying the
+// token from <agentDir>/token; every request after it is answered by a
+// response line with the same requestId (main/agentendpoint.ts).
+
+/** How long a call waits for BeeSlides to start before giving up. */
+const LAUNCH_WAIT_MS = 30000
+
+let link = null // { socket, waiting: Map<requestId, resolve> } once connected
+let linking = null // the connect in progress
+
+function readEndpoint() {
+  try { return JSON.parse(readFileSync(join(endpointDir, 'endpoint.json'), 'utf8')) } catch { return null }
+}
+
+/** One attempt: connect, say hello, resolve the link — or null. */
+function tryConnect() {
+  const ep = readEndpoint()
+  let token = ''
+  try { token = readFileSync(join(endpointDir, 'token'), 'utf8').trim() } catch { /* the app writes it on first start */ }
+  if (!ep?.socket || !token) return Promise.resolve(null)
+  return new Promise((resolve) => {
+    const socket = connect(ep.socket)
+    const waiting = new Map()
+    let helloDone = false
+    let buf = ''
+    const fail = () => { if (!helloDone) { helloDone = true; resolve(null) } }
+    socket.setEncoding('utf8')
+    socket.on('error', fail)
+    socket.on('close', () => {
+      fail()
+      if (link?.socket === socket) link = null
+      for (const done of waiting.values()) done({ ok: false, error: 'app-closed' })
+      waiting.clear()
+    })
+    socket.on('connect', () => socket.write(JSON.stringify({ type: 'hello', token, client: process.env.BEESLIDES_CLIENT || 'mcp' }) + '\n'))
+    socket.on('data', (chunk) => {
+      buf += chunk
+      let nl
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl)
+        buf = buf.slice(nl + 1)
+        let msg
+        try { msg = JSON.parse(line) } catch { continue }
+        if (msg.type === 'hello') {
+          helloDone = true
+          if (msg.ok) resolve({ socket, waiting })
+          else { try { process.stderr.write(`[slides-mcp] endpoint refused: ${msg.error}\n`) } catch { /* log is best effort */ } socket.destroy(); resolve(null) }
+        } else if (msg.type === 'response' && msg.result?.requestId) {
+          const done = waiting.get(msg.result.requestId)
+          waiting.delete(msg.result.requestId)
+          done?.(msg.result)
+        }
+      }
+    })
+  })
+}
+
+/** Starts BeeSlides the way endpoint.json says it was started, detached, so
+ *  it outlives this process. */
+function launchApp() {
+  const launch = readEndpoint()?.launch
+  if (!launch?.command) return false
+  try {
+    const env = { ...process.env }
+    delete env.ELECTRON_RUN_AS_NODE // this process may be the app's binary run as node
+    spawn(launch.command, Array.isArray(launch.args) ? launch.args : [], { detached: true, stdio: 'ignore', env }).unref()
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function ensureLink() {
+  if (link) return link
+  linking ??= (async () => {
+    let l = await tryConnect()
+    if (!l && launchApp()) {
+      const deadline = Date.now() + LAUNCH_WAIT_MS
+      while (!l && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 300))
+        l = await tryConnect()
+      }
+    }
+    return l
+  })()
+  try { link = await linking } finally { linking = null }
+  return link
+}
+
+async function socketRoundTrip(channel, payload, timeoutMs) {
+  const id = randomUUID()
+  const started = Date.now()
+  try {
+    const l = await ensureLink()
+    if (!l) return { requestId: id, ok: false, error: 'BeeSlides is not running and could not be started' }
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => { l.waiting.delete(id); resolve({ requestId: id, ok: false, error: 'timeout' }) }, timeoutMs)
+      l.waiting.set(id, (result) => { clearTimeout(timer); resolve(result) })
+      l.socket.write(JSON.stringify({ type: 'request', channel, payload: { requestId: id, ...payload } }) + '\n')
+    })
+  } finally {
+    try { process.stderr.write(`[slides-mcp] ${payload.verb ?? channel} ${Date.now() - started}ms\n`) } catch { /* log is best effort */ }
   }
 }
 
@@ -506,6 +624,135 @@ const TOOLS = [
 ]
 TOOLS.push(...AGENT_AREAS.map((a) => a.def))
 
+// ---- Code Mode (prototype): execute + api_search ---------------------------
+// Filled in (true) by the app when BEESLIDES_CODE_MODE=1
+// (desktop/src/main/agenttools.ts serverWithCodeMode). The program runs in the
+// app (main/agentexec.ts), whose `deck` object this reference describes.
+const CODE_MODE = /*@CODE_MODE@*/false
+const MAX_PROGRAM_S = 300
+
+const API_REFERENCE = [
+  {
+    title: 'overview',
+    body: `execute runs a JavaScript program against the open deck: the body of an async function, so use await and end with return.
+- \`deck\` reads and edits the deck (below). \`console.log\` output comes back with the result.
+- Return something JSON-able and small: counts, ids, the findings you need, not whole slides.
+- ALL edits of one run are ONE undo step. If the program throws or runs out of time (timeoutSeconds, default 60, max 300) NOTHING changes: every edit of the run is rolled back.
+- A real DOM is there (DOMParser, document, querySelector) to build and edit slide HTML. No network, no files, no timers you need.
+- Plain JavaScript, not TypeScript. Calls are async: await them; Promise.all runs reads together.
+- Use execute for work on several slides or many steps; one small edit is still a plain tool call.
+- Look at the result afterwards with review_slide / render_preview: a program cannot see.`,
+  },
+  {
+    title: 'deck',
+    body: `deck.info()                     → doc_info: title, size {width,height}, theme, slideCount, slideTypes
+deck.outline()                  → [{id, index, name, hidden, stateOf, elementCount, roles, text}] one row per slide
+deck.slides()                   → the outline rows, each with .ref = deck.slide(id)
+deck.slide(id)                  → a slide ref (see "slide"); also a slide type's or reusable object's id
+deck.find(query, limit?)        → find_text hits [{slideId, index, elementId, field, snippet}]; "a|b" = either
+deck.validate({measure?, margin?}) → findings [{code, severity, message, slide?, element?}]
+deck.measure(spec)              → {height, width, lines, fits?} for {html, w, fontSize?, lineHeight?, …}
+deck.comments()                 → comment threads
+deck.op(tool, op, args)         → any grouped tool op (deck, deck_settings, icons, elements, slide_html): resolves to its result ({summary, …}); throws on an error
+deck.query(verb, args) / deck.action(verb, args) → any other read / write tool by name (e.g. action('insert_elements', {...}))
+deck.parse(html, css?)          → a Document of slide HTML;  deck.esc(text) → text escaped for HTML`,
+  },
+  {
+    title: 'slide',
+    body: `const s = deck.slide('s3')
+await s.get()                   → the slide JSON (elements, background, notes, …)
+await s.elements()              → its elements
+await s.html()                  → {html, css}: the slide as HTML (slide_html read; verified: writing it back unchanged changes nothing)
+await s.dom()                   → that HTML as a Document to edit with DOM methods (its css is a <style> in head)
+await s.write(html, css?)       → slide_html write; also s.write(document) or s.write({html, css}); {reflow:false} as 3rd arg. Resolves to the write report (layout check included)
+await s.update(elementId, props) → update_element: patch one element ({color:'#c00'}, {fontSize: 40}, {html:'New'})
+await s.check()                 → check_layout findings for the slide`,
+  },
+  {
+    title: 'html',
+    body: `Slides are written as HTML exactly as with the slide_html tool (slide_html {op:"help", about:"write"} for the rules: theme variables --bs-*, ids are identity, data-keep, data-role, what becomes what).
+Edit an existing slide through the DOM:
+  const d = await deck.slide('s4').dom()
+  d.querySelector('#c3')?.remove()
+  d.querySelector('.cards').style.gap = '40px'
+  return await deck.slide('s4').write(d)
+Build several slides from ONE function, so they share spacing and sizes, and keep ids stable across slides so transition:"morph" pairs them:
+  const css = '.slide{width:100%;height:100%;padding:72px var(--bs-margin);display:flex;flex-direction:column;gap:24px} .dot{width:28px;height:28px;border-radius:50%;background:#ccc} .dot.on{background:var(--bs-accent)} .track{display:flex;gap:16px}'
+  const step = (i, title, text) => '<main class="slide"><h1 id="title">' + deck.esc(title) + '</h1><div class="track">' +
+    [0, 1, 2].map((k) => '<div id="dot' + k + '" class="dot' + (k === i ? ' on' : '') + '"></div>').join('') +
+    '</div><p id="body">' + deck.esc(text) + '</p></main>'
+  for (const [i, s] of steps.entries()) await deck.slide(ids[i]).write(step(i, s.title, s.text), css)
+Text from the deck or the user goes through deck.esc() before it goes into HTML.`,
+  },
+  {
+    title: 'examples',
+    body: `Restyle every title:
+  let n = 0
+  for (const row of await deck.outline()) {
+    const t = (await deck.slide(row.id).elements()).find((e) => e.role === 'title')
+    if (t) { await deck.slide(row.id).update(t.id, { fontSize: 40, color: '#1a2b5c' }); n++ }
+  }
+  return { changed: n }
+New slides, then content (every op: api_search "deck"):
+  const { slideIds } = await deck.op('deck', 'add', { count: 2, names: ['Plan', 'Risks'] })
+  for (const id of slideIds) await deck.slide(id).write('<h1 id="title">…</h1>')
+Find and fix overflowing text:
+  const over = (await deck.validate()).filter((w) => w.code === 'text-overflow')
+  for (const w of over) await deck.slide(w.slide).update(w.element, { fontSize: 20 })
+  return over.map((w) => w.slide + '/' + w.element)`,
+  },
+]
+
+/** api_search: the reference sections and every grouped tool's op help,
+ *  ranked by how many query words they contain. */
+function apiSearch(query) {
+  const words = String(query ?? '').toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length > 1)
+  const entries = [
+    ...API_REFERENCE.map((s) => ({ title: s.title, body: s.body })),
+    ...AGENT_AREAS.flatMap((a) => Object.entries(a.help).filter(([op]) => op !== '*').map(([op, body]) => ({ title: `deck.op('${a.def.name}', '${op}', …)`, body }))),
+  ]
+  if (!words.length) {
+    return `${API_REFERENCE[0].body}\n\nSections: ${API_REFERENCE.map((s) => s.title).join(', ')}; and every grouped tool op, e.g. api_search "slide_html write" or "deck add".`
+  }
+  const scored = entries
+    .map((e) => {
+      const hay = `${e.title}\n${e.body}`.toLowerCase()
+      return { e, score: words.reduce((n, w) => n + (hay.includes(w) ? 1 + (e.title.toLowerCase().includes(w) ? 2 : 0) : 0), 0) }
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+  if (!scored.length) return `Nothing about "${query}". Sections: ${API_REFERENCE.map((s) => s.title).join(', ')}.`
+  return scored.map(({ e }) => `## ${e.title}\n${e.body}`).join('\n\n')
+}
+
+if (CODE_MODE) {
+  TOOLS.push(
+    {
+      name: 'execute',
+      description:
+        'Run a JavaScript program against the open deck: multi-step or multi-slide work in ONE call. ' +
+        '`deck` reads and edits it (deck.outline(), deck.slide(id).dom() / .write(html | document) / .update(elementId, props), ' +
+        'deck.op(tool, op, args) for every grouped tool; api_search for the reference). A real DOM is there for slide HTML; no network. ' +
+        'All edits of a run are ONE undo step; if the program throws or times out NOTHING changes. ' +
+        'Return a small JSON-able value; it comes back with console.log output. Plain JavaScript, await allowed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          code: { type: 'string', description: 'The body of an async function: await the deck calls, end with return.' },
+          timeoutSeconds: { type: 'number', description: `Default 60, at most ${MAX_PROGRAM_S}.` },
+        },
+        required: ['code'],
+      },
+    },
+    {
+      name: 'api_search',
+      description: 'Look up the `deck` API execute programs use: functions, slide HTML, the grouped tools\' ops, examples. Empty query = overview.',
+      inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Words, e.g. "slide write", "add slides", "examples".' } } },
+    },
+  )
+}
+
 const QUERY_VERBS = new Set(['doc_info', 'outline', 'find_text', 'list_reusable_objects', 'measure', 'validate', 'comments', 'recent_changes', 'check_layout'])
 const ACTION_VERBS = new Set([
   'update_element', 'insert_elements', 'set_frame', 'duplicate_element', 'delete_element', 'reorder_element',
@@ -682,6 +929,15 @@ async function callTool(name, args) {
     const result = await roundTrip('agent-query', 'agent-query-result', { verb: name, args: args ?? {} })
     if (!result.ok) return { content: [{ type: 'text', text: `Error: ${result.error ?? 'unknown error'}` }], isError: true }
     return { content: [{ type: 'text', text: formatCheck(result.result) }] }
+  }
+  if (CODE_MODE && name === 'api_search') return { content: [{ type: 'text', text: apiSearch(args?.query) }] }
+  if (CODE_MODE && name === 'execute') {
+    const seconds = Math.min(MAX_PROGRAM_S, Math.max(1, Number(args?.timeoutSeconds) || 60))
+    const result = await roundTrip('agent-action', 'agent-action-result', { verb: 'execute', args: args ?? {} }, (seconds + 20) * 1000)
+    const logs = Array.isArray(result.logs) && result.logs.length ? `\n\nconsole:\n${result.logs.join('\n')}` : ''
+    if (!result.ok) return { content: [{ type: 'text', text: `The program failed. ${result.error ?? 'unknown error'}${logs}` }], isError: true }
+    const stats = `\n\n(${result.calls ?? 0} deck call(s)${result.writes ? `, ${result.writes} of them edits — one undo step` : ', nothing changed'})`
+    return { content: [{ type: 'text', text: `Result: ${result.value ?? 'null'}${logs}${stats}` }] }
   }
   const area = AGENT_AREAS.find((a) => a.def.name === name)
   if (area) {
