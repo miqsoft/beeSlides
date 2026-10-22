@@ -326,10 +326,40 @@ export class Store {
    *  recordAction() call — see checkpoint()/recordAction(). */
   private pendingBeforeJson: string | null = null
 
+  /** An agent program's run (the `execute` tool): while set, only its first
+   *  checkpoint reaches the undo stack, so the whole run is ONE undo step —
+   *  and rollbackUndoGroup can take it back. */
+  private undoGroup: { entry: HistoryEntry | null } | null = null
+
+  beginUndoGroup() {
+    this.undoGroup = { entry: null }
+  }
+
+  endUndoGroup() {
+    this.undoGroup = null
+  }
+
+  /** Back to the document as it was at beginUndoGroup, leaving no undo or
+   *  redo step behind. False when an undo/redo since then moved past it. */
+  rollbackUndoGroup(): boolean {
+    const entry = this.undoGroup?.entry
+    this.undoGroup = null
+    if (!entry) return true
+    if (this.undoStack[this.undoStack.length - 1] !== entry) return false
+    this.undo()
+    this.redoStack.pop()
+    return true
+  }
+
   /** Snapshot current doc state onto the undo stack. Call BEFORE a mutation. */
   checkpoint() {
     this.pendingBeforeJson = JSON.stringify(this.doc)
+    // inside a group, its first snapshot covers this edit — unless an undo
+    // took that snapshot off the stack meanwhile
+    const group = this.undoGroup
+    if (group?.entry && this.undoStack[this.undoStack.length - 1] === group.entry) return
     this.undoStack.push({ doc: this.pendingBeforeJson, view: this.captureView() })
+    if (group) group.entry = this.undoStack[this.undoStack.length - 1]
     if (this.undoStack.length > MAX_UNDO) this.undoStack.shift()
     this.redoStack.length = 0
   }

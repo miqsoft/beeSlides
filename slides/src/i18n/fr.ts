@@ -5,6 +5,7 @@ import type { Catalog } from '../i18n'
 
 export const fr: Catalog = {
   "AI wrote a slide from HTML ({n} elements)": "L’IA a écrit une diapositive à partir de HTML ({n} éléments)",
+  "AI ran a program on this deck (one undo step)": "L’IA a exécuté un programme sur cette présentation (annulable en une étape)",
   "Style & canvas": "Style et plan de travail",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Affiche les icônes dans l’un des styles du jeu — un style ne fait que repeindre, rien n’est redessiné",
   "Add or edit styles…": "Ajouter ou modifier des styles…",

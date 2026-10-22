@@ -5,6 +5,7 @@ import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
   "AI wrote a slide from HTML ({n} elements)": "AI 根据 HTML 编写了幻灯片（{n} 个元素）",
+  "AI ran a program on this deck (one undo step)": "AI 在此演示文稿上运行了一个程序（可一步撤销）",
   "Style & canvas": "样式和画布",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "以这套图标的某种样式显示图标 — 样式只重新上色，不会重新绘制",
   "Add or edit styles…": "添加或编辑样式…",

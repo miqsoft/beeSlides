@@ -6141,6 +6141,22 @@ export class Editor {
       return null
     }
 
+    // An agent program (the `execute` tool, desktop agentexec.ts) brackets its
+    // calls: every edit between begin and commit is ONE undo step, and a
+    // program that fails is rolled back whole.
+    if (cmd.verb === 'program') {
+      const op = args.op
+      if (op === 'begin') this.store.beginUndoGroup()
+      else if (op === 'commit') {
+        this.store.endUndoGroup()
+        if (args.changed) this.toast(t('AI ran a program on this deck (one undo step)'))
+      } else if (op === 'rollback') {
+        if (!this.store.rollbackUndoGroup()) { respond({ requestId: cmd.requestId, ok: false, error: 'An undo since the program started: nothing was rolled back.' }); return }
+      } else { respond({ requestId: cmd.requestId, ok: false, error: 'op must be begin, commit or rollback.' }); return }
+      respond({ requestId: cmd.requestId, ok: true })
+      return
+    }
+
     // Grouped op tools (`deck`, …): agentops.ts checks the args against
     // ../agentops/spec.ts and runs the op as one undo step.
     if (isAreaTool(cmd.verb)) {
