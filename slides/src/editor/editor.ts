@@ -160,6 +160,9 @@ type LayoutPickAction =
   /** "Change layout…" — `slideId` (default: the current slide) follows the pick */
   | { kind: 'change'; slideId?: string }
 
+/** Quiet time after the last edit before a running show takes the new deck: a burst of writes lands as one update. */
+const LIVE_EDIT_SETTLE_MS = 200
+
 export class Editor {
   private canvas!: SlideCanvas
   private panel!: PropsPanel
@@ -4165,7 +4168,13 @@ export class Editor {
     this.flushMenuSync()
     this.miniToolbar.update()
     this.quickBar.update()
-    startPresentation(this.store.doc, fromStart ? 0 : this.store.currentIndex, (last) => {
+    // Edits made while the show runs (Claude, a reload from disk, undo) reach
+    // it live: the show presents its own copy and takes each new state, a
+    // beat after the last change so a burst of writes lands as one.
+    let liveTimer = 0
+    let stopLive = () => {}
+    const session = startPresentation(this.store.doc, fromStart ? 0 : this.store.currentIndex, (last) => {
+      stopLive()
       this.presenting = false
       if (placed) void desk!.presentEnd?.()
       this.flushMenuSync()
@@ -4174,6 +4183,11 @@ export class Editor {
       this.miniToolbar.update()
       this.quickBar.update()
     }, { fullscreen, kiosk })
+    const offDoc = this.store.on('doc', () => {
+      clearTimeout(liveTimer)
+      liveTimer = window.setTimeout(() => session.update(this.store.doc), LIVE_EDIT_SETTLE_MS)
+    })
+    stopLive = () => { offDoc(); clearTimeout(liveTimer) }
   }
 
   // --- menu commands (native menu bar on desktop) ---------------------------------
@@ -5924,10 +5938,10 @@ export class Editor {
         const wanted = typeof args.slideId === 'string' ? args.slideId : undefined
         const sid = wanted ?? currentId
         if (!sid) { respond({ requestId: req.requestId, ok: false, error: 'no-such-slide' }); return }
-        if (wanted && !this.onCanvas(wanted)) {
-          const shot = this.snapshotFor(wanted, args, 'render_preview')
+        if (!this.onCanvas(sid)) {
+          const shot = this.snapshotFor(sid, args, 'render_preview')
           if (typeof shot === 'string') { respond({ requestId: req.requestId, ok: false, error: shot }); return }
-          respond({ requestId: req.requestId, ok: true, result: { slideId: wanted, rect: null, offscreen: shot.offscreen, ...(shot.region ? { area: shot.region } : {}) } })
+          respond({ requestId: req.requestId, ok: true, result: { slideId: sid, rect: null, offscreen: shot.offscreen, ...(shot.region ? { area: shot.region } : {}) } })
           return
         }
         const region = this.captureRegion(sid, args)
@@ -5986,9 +6000,11 @@ export class Editor {
     }
   }
 
-  /** Whether `slideId` is what the editing canvas shows right now. */
+  /** Whether `slideId` is what the editing canvas shows right now. Never
+   *  during a show: the window shows the presentation, so a capture of it
+   *  would be whatever slide the audience sees. */
   private onCanvas(slideId: string): boolean {
-    return this.store.slide.id === slideId && !this.slideSorterOpen && !this.outlineViewOpen
+    return this.store.slide.id === slideId && !this.slideSorterOpen && !this.outlineViewOpen && !this.presenting
   }
 
   /** A screenshot of a deck slide that is NOT on the canvas: a standalone

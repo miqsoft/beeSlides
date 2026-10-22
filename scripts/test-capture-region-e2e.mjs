@@ -212,6 +212,28 @@ if (layoutId) {
   ok(!lay.ok && /open in the editor/.test(lay.error ?? ''), `a slide type that is not open is refused (${lay.error})`)
 }
 
+// 8) during a show the window shows the presentation, not the canvas: even the
+// slide the editor is on is shot off screen, never captured from the window
+await page.waitForTimeout(1700)
+await page.evaluate(() => window.beeslides.menu.run('play.inTab'))
+await page.waitForSelector('.beeslides-present-overlay section.present', { timeout: 15000 })
+await page.waitForTimeout(500)
+await page.keyboard.press('ArrowRight') // the audience now sees the other slide
+await page.waitForTimeout(400)
+const shown = await page.evaluate(() => document.querySelector('.beeslides-present-overlay section.present > .beeslides-slide')?.getAttribute('data-slide-id'))
+ok(shown === otherId, `the show is on the other slide (${shown})`)
+const live = await query('render_preview', {})
+ok(live.ok && live.result.slideId === slideId && live.result.rect === null && typeof live.result.offscreen?.html === 'string',
+  `render_preview mid-show: the editor's slide, as an off-screen page (${live.error ?? JSON.stringify({ slideId: live.result?.slideId, rect: live.result?.rect })})`)
+ok(!(await page.evaluate(() => document.documentElement.classList.contains('ed-capturing'))), 'no capture framing under the show')
+const wantSmall = (RED.w * RED.h) / (size.width * size.height)
+const liveShare = await shootPage(live.result.offscreen, 'during-show')
+ok(Math.abs(liveShare - wantSmall) < wantSmall * 0.3, `the page is the slide asked for, not the one on stage (${(liveShare * 100).toFixed(2)} % red, expected ${(wantSmall * 100).toFixed(2)} %)`)
+const liveReview = await query('review_slide', { slideId })
+ok(liveReview.ok && liveReview.result.rect === null && typeof liveReview.result.offscreen?.html === 'string', `review_slide mid-show: off screen too (${liveReview.error ?? 'ok'})`)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(300)
+
 await browser.close()
 console.log(`\n${checks - failures}/${checks} checks passed`)
 process.exit(failures ? 1 : 0)

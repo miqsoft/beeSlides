@@ -142,6 +142,11 @@ name entries there).
 - `motion-path speeds[]` stays 1:1 with on-curve anchors (`serializeBezier` emits one per node).
 - Reduce-motion and presenter ink are viewer state; never in the doc.
 - `openingSpeaker` guards `onFsChange` against the fullscreen bounce ending the show.
+- The show runs on its own clone of the doc (DECISIONS 2026-10-22). Mid-show edits arrive ONLY via
+  `PresentSession.update` (sections matched by slide id); anything derived from the doc at start
+  (`railIndices`, `visibleTotal`, `plans`, speaker thumbs, index-keyed caches) must be recomputed
+  there. Per-slide listeners go on the surface, not the section (a re-render replaces the surface).
+  Rig `scripts/test-present-live-edit-e2e.mjs`.
 
 ## Comments and agents
 

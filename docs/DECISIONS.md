@@ -13261,3 +13261,29 @@ shows a warning, since Use replaces it.
 a set per slide and the badge on each thumbnail; not done until it is asked
 for. The `slide-designs` API-chat skill therefore does one slide per call.
 Rig: `scripts/test-slide-variants-e2e.mjs`.
+
+## 2026-10-22 — Live edits during a show: the show runs on a copy and takes updates by slide id
+
+Edits made while presenting (an agent write, a reload from disk, undo, `beeslides.loadDoc`)
+used to reach the show by mutating the very `doc` object `startPresentation` had been
+handed — its sections, build plans, rail and indices were all built once at start, so an
+inserted or deleted slide desynced navigation, builds and notes ("weird stuff"), and a
+whole-document replacement never reached the show at all.
+
+**Decision.** `startPresentation` `structuredClone`s its document; nothing outside can
+change it. The editor subscribes to `store.on('doc')` for the length of the show and,
+200 ms after the last change (`LIVE_EDIT_SETTLE_MS`), hands the new document to
+`PresentSession.update`. `update` matches sections to slides **by id**: an untouched
+slide keeps its section (running clip, loops, ink); a changed one is re-rendered in
+place; the slide on screen stays on screen at the click it stood at (no entrance replay,
+no slide change — Reveal's own `slidechanged` for a moved index is ignored via
+`syncing`). If the edit deleted the slide on screen, the show cuts (no transition) to the
+nearest slide after it, else before it. Ink moves to the re-rendered surface (`moveInk`);
+zoom frames are dropped when slide order changed; the speaker view's rail and grid are
+re-rendered. Editor commands stay blocked while presenting — live edits come from agents
+and external writers, not from a second UI.
+
+Signatures (`sigOf`/`computeDeckSigs`) decide what re-renders: slide JSON minus notes;
+plus position when it holds a `{{field}}`; plus the whole deck when it has a zoom tile;
+any deck-level change (theme, slide types, fonts, terms) re-renders everything.
+Rig: `scripts/test-present-live-edit-e2e.mjs`.

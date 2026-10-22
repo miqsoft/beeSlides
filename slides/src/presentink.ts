@@ -27,6 +27,8 @@ export interface PresentInk {
   hasInk(): boolean
   /** the slide on screen changed */
   slideChanged(): void
+  /** a live edit re-rendered a slide: its drawing moves onto the new surface */
+  moveInk(from: HTMLElement, to: HTMLElement): void
   destroy(): void
 }
 
@@ -293,6 +295,13 @@ export function createPresentInk(opts: {
     slideChanged() {
       if (live) endStroke()
       if (tool) { const s = opts.currentSurface(); if (s) layerOf(s, true) }
+    },
+    moveInk(from, to) {
+      if (live) endStroke()
+      const layer = layerOf(from, false)
+      if (layer) to.appendChild(layer)
+      const list = strokes.get(from)
+      if (list) { strokes.set(to, list); strokes.delete(from) }
     },
     destroy() {
       endStroke()

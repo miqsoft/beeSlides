@@ -39,6 +39,8 @@ const MORPH_EASE = 'power2.inOut'
 
 export interface PresentSession {
   exit(): void
+  /** The deck was edited mid-show: show `next` without leaving the slide on screen. */
+  update(next: SlidomingoDoc): void
 }
 
 export function startPresentation(
@@ -50,6 +52,11 @@ export function startPresentation(
   // advanceAfter decide, and K can switch kiosk on or off mid-show.
   opts: { fullscreen?: boolean; kiosk?: { seconds: number; loop: boolean } } = {},
 ): PresentSession {
+  // The show runs on its OWN copy. The editor keeps editing its document while
+  // this is on screen (Claude, a reload from disk, undo); those edits reach the
+  // show only through update(), never by changing this object under it — the
+  // sections, plans and indices below would no longer match it.
+  doc = structuredClone(doc)
   MORPH_DURATION = Math.min(6, Math.max(0.1, doc.present?.morphSeconds ?? MORPH_DURATION_DEFAULT))
 
   const overlay = document.createElement('div')
@@ -83,8 +90,54 @@ export function startPresentation(
     return isDrawnTransition(slide.transition) ? 'fade' : slide.transition
   }
 
-  doc.slides.forEach((slide, i) => {
-    const section = document.createElement('section')
+  // ——— what each section was rendered from (live edits re-render only what changed) ———
+  // `deckSig` is what every slide's render reads from outside doc.slides (theme,
+  // slide types, fonts, terms…); a change there re-renders the whole deck. A
+  // section's own signature is its slide, minus the notes (they are only text
+  // beside the slide), plus where the slide sits when a field such as {{page}}
+  // reads that, or the whole deck when a zoom tile draws other slides.
+  const renderedAs = new WeakMap<HTMLElement, string>()
+  let deckSig = ''
+  let shapeSig = ''
+  /** recompute both deck-wide signatures; true when `deckSig` changed */
+  const computeDeckSigs = (): boolean => {
+    const { slides, assets, modified: _m, guides: _g, layoutGrid: _l, reusableObjects: _r, ...rest } = doc
+    const before = deckSig
+    deckSig = JSON.stringify(rest) + Object.keys(assets ?? {}).join(',')
+    shapeSig = JSON.stringify(slides.map(({ elements: _e, notes: _n, ...s }) => s))
+    return deckSig !== before
+  }
+  const sigOf = (i: number): string => {
+    const slide = doc.slides[i]
+    const own = JSON.stringify({ ...slide, notes: undefined })
+    if (slide.elements.some(isZoomElement)) return `${JSON.stringify(doc.slides)}${own}`
+    return own.includes('{{') ? `${i}${shapeSig}${own}` : own
+  }
+  computeDeckSigs()
+
+  /** Render slide `i` into `section` (replacing what it showed), its click builds standing at `step`. */
+  const fillSection = (section: HTMLElement, i: number, step = 0) => {
+    const slide = doc.slides[i]
+    const surface = renderSlide(slide, doc, { hidePlaceholders: true, liveMedia: true })
+    markZoomTiles(doc, slide, surface)
+    // click builds: the slide opens at click 0, so what only arrives later stays hidden
+    const plan = buildPlan(slide)
+    plans[i] = plan
+    if (plan.steps.length) {
+      tagBuilds(surface, plan)
+      applyBuildState(surface, plan, visibleAt(slide, Math.min(step, plan.steps.length), plan))
+    }
+    // reveal slides start with only the default hover set visible
+    if (slide.hover?.type === 'reveal') applyRevealSet(surface, slide.hover.default ?? null, slide.hover.default)
+    const old = section.querySelector(':scope > .beeslides-slide')
+    if (old) old.replaceWith(surface)
+    else section.prepend(surface)
+    renderedAs.set(section, sigOf(i))
+    setSectionMeta(section, i)
+  }
+  /** What a section carries besides its render: transition, state dimming, notes. Cheap; set on every update. */
+  const setSectionMeta = (section: HTMLElement, i: number) => {
+    const slide = doc.slides[i]
     // Morph slides swap instantly; the Flip animation supplies the motion.
     //
     // A slide that PRECEDES a morph must not fade OUT either. Reveal takes the
@@ -102,24 +155,21 @@ export function startPresentation(
     // "before" frame costs less than a dissolve painted over the morph itself.
     section.dataset.transition = staticTransition(i)
     if (!inLinearFlow(slide)) section.dataset.beeslidesState = '1' // dimmed in overview
-    const surface = renderSlide(slide, doc, { hidePlaceholders: true, liveMedia: true })
-    markZoomTiles(doc, slide, surface)
-    // click builds: the slide opens at click 0, so what only arrives later stays hidden
-    const plan = buildPlan(slide)
-    plans[i] = plan
-    if (plan.steps.length) {
-      tagBuilds(surface, plan)
-      applyBuildState(surface, plan, visibleAt(slide, 0, plan))
-    }
-    // reveal slides start with only the default hover set visible
-    if (slide.hover?.type === 'reveal') applyRevealSet(surface, slide.hover.default ?? null, slide.hover.default)
-    section.appendChild(surface)
+    else delete section.dataset.beeslidesState
+    let aside = section.querySelector<HTMLElement>(':scope > aside.notes')
     if (slide.notes) {
-      const aside = document.createElement('aside')
-      aside.className = 'notes'
+      if (!aside) {
+        aside = document.createElement('aside')
+        aside.className = 'notes'
+        section.appendChild(aside)
+      }
       aside.textContent = slide.notes
-      section.appendChild(aside)
-    }
+    } else aside?.remove()
+  }
+
+  doc.slides.forEach((_, i) => {
+    const section = document.createElement('section')
+    fillSection(section, i)
     slidesEl.appendChild(section)
   })
 
@@ -386,10 +436,11 @@ export function startPresentation(
     return wrap && railIndices.length > 1
   }
   const visibleIndex = (i: number) => doc.slides.slice(0, i + 1).filter((s) => paginates(s, doc)).length
-  const visibleTotal = doc.slides.filter((s) => paginates(s, doc)).length
+  // both are recounted when a live edit changes the deck (update)
+  let visibleTotal = doc.slides.filter((s) => paginates(s, doc)).length
   // real slide indices that appear in linear navigation (states are excluded) —
   // the presenter-view thumbnail rail and grid iterate this.
-  const railIndices = doc.slides.map((_, i) => i).filter((i) => !isState(i))
+  let railIndices = doc.slides.map((_, i) => i).filter((i) => !isState(i))
   const goFirst = () => slideTo(railIndices[0] ?? 0)
   const goLast = () => slideTo(railIndices[railIndices.length - 1] ?? 0)
 
@@ -897,6 +948,8 @@ export function startPresentation(
   // dedicated gesture, and the layout is cached in ../screens. Here we just read
   // the chosen display synchronously when the notes open.
   const nextVisibleIndex = (from: number) => presentNext(doc, from)
+  /** set while a speaker view is open: re-render its rail and grid after a live edit */
+  let redrawSpeakerThumbs: (() => void) | null = null
   /** `step` given = the slide as it looks after that many clicks; omitted = every element */
   const svSlide = (idx: number, w: number, step?: number): HTMLElement => {
     const frame = document.createElement('div')
@@ -1207,6 +1260,11 @@ export function startPresentation(
       if (show) updateSpeakerControls()
     }
     grid.addEventListener('click', (ev) => { if (ev.target === grid) toggleGrid(false) }, { signal: sessionAbort.signal })
+    redrawSpeakerThumbs = () => {
+      d.title = `${doc.title} — ${t('Speaker view')}`
+      rail.replaceChildren(...railIndices.map((idx) => thumb(idx, 150)))
+      if (gridBuilt) gridInner.replaceChildren(...railIndices.map((idx) => thumb(idx, 240)))
+    }
 
     const doNav = (k: string) => {
       if (k === 'first') goFirst()
@@ -1577,10 +1635,12 @@ export function startPresentation(
     }
   }, { passive: true })
 
+  // true while update() re-syncs Reveal: a moved index is not a slide change
+  let syncing = false
   deck.on('slidechanged', ((event: any) => {
     const from = event.previousSlide as HTMLElement | undefined
     const to = event.currentSlide as HTMLElement
-    if (!to) return
+    if (!to || syncing) return
     wrapBackUntil = 0 // an armed wrap is for slide 1 only
     cancelPark()
     const svgFresh = unparkSvgAnimations(to)
@@ -1740,26 +1800,166 @@ export function startPresentation(
     const first = slidesEl.children[startIndex] as HTMLElement | undefined
     if (first) {
       parkSvgAnimations(slidesEl, first, 0) // nothing is fading yet
-      if (!reduceMotion) {
-        const plan = plans[startIndex]
-        const vis = plan?.steps.length ? visibleAt(doc.slides[startIndex], curStep, plan) : undefined
-        runEnterFx(doc.slides[startIndex], first, vis)
-        runAmbientFx(doc.slides[startIndex], first, vis)
-        restartSvgAnimations(first)
-      }
-      wireHoverFocus(doc.slides[startIndex], first)
-      // the opening slide never gets a slidechanged, so capture its symbols
-      // here or the very first morph would have no from-side to travel from
-      cacheSlideSymbols(doc, first, startIndex)
-      mountLiveCharts(doc.slides[startIndex], first)
-      startMediaIn(first)
-      startAuto(startIndex)
-      armKiosk()
+      bringToLife(startIndex, first, true)
     }
     if (!reduceMotion) warmMotionPaths(doc)
+    // an edit made while Reveal was still starting up
+    if (pendingDoc) { const next = pendingDoc; pendingDoc = null; update(next) }
   })
 
-  return { exit }
+  /** Start section `i` on screen without a slide change doing it: the opening
+   *  slide, or one a live edit put there. `enter` plays its entrances. */
+  const bringToLife = (i: number, section: HTMLElement, enter: boolean) => {
+    const slide = doc.slides[i]
+    if (!reduceMotion) {
+      const plan = plans[i]
+      const vis = plan?.steps.length ? visibleAt(slide, curStep, plan) : undefined
+      if (enter) runEnterFx(slide, section, vis)
+      runAmbientFx(slide, section, vis)
+      restartSvgAnimations(section)
+    }
+    wireHoverFocus(slide, section)
+    // the opening slide never gets a slidechanged, so capture its symbols
+    // here or the very first morph would have no from-side to travel from
+    cacheSlideSymbols(doc, section, i)
+    mountLiveCharts(slide, section)
+    startMediaIn(section)
+    startAuto(i)
+    armKiosk()
+  }
+
+  // ——— live edits: the editor hands over its document while the show runs ———
+  // Sections are matched to slides by id, not position. A slide the edit did
+  // not touch keeps its section as it is (a running clip, loops, ink); one it
+  // changed is re-rendered in place; the slide on screen stays on screen, at
+  // the click it stood at, wherever it moved to. If the edit deleted it, the
+  // show cuts to the nearest slide that is left — a cut, not a transition:
+  // the audience should not see an edit as a deliberate move.
+  let pendingDoc: SlidomingoDoc | null = null
+  const update = (next: SlidomingoDoc) => {
+    if (exited || !next.slides.length) return // an empty deck: keep showing the last one
+    if (!deckReady) { pendingDoc = next; return }
+    const before = doc
+    const curIdx = deck.getIndices().h
+    const curSection = sectionOf(curIdx)
+    const curId = before.slides[curIdx]?.id
+    // nothing half-done outlives the edit: a drawn transition lands, timers stop
+    cancelTx?.()
+    cancelTx = null
+    restoreTransitions()
+    txPending = null
+    zoomPending = null
+    stopAuto()
+    stopKiosk()
+
+    const sectionById = new Map<string, HTMLElement>()
+    before.slides.forEach((s, i) => { const sec = sectionOf(i); if (sec) sectionById.set(s.id, sec) })
+    doc = structuredClone(next)
+    MORPH_DURATION = Math.min(6, Math.max(0.1, doc.present?.morphSeconds ?? MORPH_DURATION_DEFAULT))
+    overlay.style.setProperty('--beeslides-accent', doc.theme.accent)
+    const deckChanged = computeDeckSigs()
+    const sameOrder = before.slides.length === doc.slides.length && before.slides.every((s, i) => s.id === doc.slides[i].id)
+
+    let target = doc.slides.findIndex((s) => s.id === curId)
+    const stays = target >= 0
+    if (!stays) {
+      // the nearest survivor, looking ahead first (where the talk was going)
+      const order = [...before.slides.slice(curIdx + 1), ...before.slides.slice(0, curIdx).reverse()]
+      const near = order.find((s) => doc.slides.some((n) => n.id === s.id))
+      target = near ? doc.slides.findIndex((s) => s.id === near.id) : 0
+    }
+
+    const sections: HTMLElement[] = []
+    const rerendered = new Set<HTMLElement>()
+    doc.slides.forEach((slide, i) => {
+      let section = sectionById.get(slide.id)
+      sectionById.delete(slide.id)
+      if (!section) section = document.createElement('section')
+      else if (!deckChanged && renderedAs.get(section) === sigOf(i)) {
+        plans[i] = buildPlan(slide) // the same plan, at its new index
+        setSectionMeta(section, i)
+        sections.push(section)
+        return
+      }
+      const onScreen = section === curSection
+      if (onScreen) {
+        // a morph, entrance or loop still running on what is about to be replaced
+        clearMorphGhosts(section)
+        for (const node of section.querySelectorAll<HTMLElement>('.beeslides-el')) stopLoops(node)
+        disposeLiveCharts(before.slides[curIdx], section)
+        pauseMediaIn(section)
+      }
+      const old = section.querySelector<HTMLElement>(':scope > .beeslides-slide')
+      fillSection(section, i, onScreen ? curStep : 0)
+      if (old) ink.moveInk(old, section.querySelector<HTMLElement>(':scope > .beeslides-slide')!)
+      rerendered.add(section)
+      sections.push(section)
+    })
+    plans.length = doc.slides.length
+    // what is left belonged to deleted slides
+    for (const [id, gone] of sectionById) {
+      disposeLiveCharts(before.slides.find((s) => s.id === id)!, gone)
+      pauseMediaIn(gone)
+      gone.remove()
+    }
+    // put the sections in deck order, moving only those out of place (a moved
+    // section restarts its iframes)
+    let ref: ChildNode | null = slidesEl.firstChild
+    for (const section of sections) {
+      if (section === ref) ref = section.nextSibling
+      else slidesEl.insertBefore(section, ref)
+    }
+
+    visibleTotal = doc.slides.filter((s) => paginates(s, doc)).length
+    railIndices = doc.slides.map((_, i) => i).filter((i) => !isState(i))
+    // zoom frames and formula measurements are kept by slide index
+    if (!sameOrder) zoomStack.length = 0
+    symCache.clear()
+    structCache.clear()
+
+    const cfg = deck.getConfig()
+    const want = {
+      width: doc.size.width,
+      height: doc.size.height,
+      controls: doc.present?.controls ?? false,
+      progress: doc.present?.progress ?? true,
+    }
+    if ((Object.keys(want) as Array<keyof typeof want>).some((k) => cfg[k] !== want[k])) deck.configure(want)
+    // Reveal re-reads the sections; slide() puts the past/present/future
+    // classes right. Moving the slide on screen to a new index would count as
+    // a slide change — handled here, not by slidechanged.
+    // A slide that takes over from a deleted one cuts in: its section is put on
+    // 'none' across the move, as prepTransition does for a drawn pair.
+    if (!stays) {
+      const s = sectionOf(target)
+      if (s) { s.dataset.transition = 'none'; txOverride.push(target) }
+    }
+    syncing = true
+    try {
+      deck.sync()
+      deck.slide(target, 0)
+    } finally {
+      syncing = false
+    }
+    restoreTransitions()
+
+    const now = sectionOf(target)!
+    if (!stays) {
+      curStep = 0
+      bringToLife(target, now, true)
+    } else {
+      curStep = Math.min(curStep, stepsOn(target))
+      if (rerendered.has(now)) bringToLife(target, now, false) // the edit is not an entrance
+      else { cacheSlideSymbols(doc, now, target); startAuto(target); armKiosk() }
+    }
+    cancelPark()
+    cancelPark = parkSvgAnimations(slidesEl, now, 0)
+    ink.slideChanged()
+    if (speaker && !speaker.closed) redrawSpeakerThumbs?.()
+    updateSpeaker()
+  }
+
+  return { exit, update }
 }
 
 // --- zoom tiles -----------------------------------------------------------------
@@ -2554,8 +2754,11 @@ function applyRevealSet(root: HTMLElement, group: string | null, def?: string | 
  * matching showOnHover set (in-slide content swap — no state slides needed).
  */
 function wireHoverFocus(slide: Slide, section: HTMLElement) {
-  if (!slide?.hover || section.dataset.hoverWired) return
-  section.dataset.hoverWired = '1'
+  // wired on the surface, not the section: a live edit re-renders the surface
+  // (and so drops these listeners) while the section stays
+  const root = section.querySelector<HTMLElement>(':scope > .beeslides-slide') ?? section
+  if (!slide?.hover || root.dataset.hoverWired) return
+  root.dataset.hoverWired = '1'
   const mode = slide.hover.type
   const dim = slide.hover.dim ?? 0.13
   const def = slide.hover.default ?? null
@@ -2564,20 +2767,20 @@ function wireHoverFocus(slide: Slide, section: HTMLElement) {
     if (group === current) return
     current = group
     if (mode === 'reveal') {
-      applyRevealSet(section, group, def)
+      applyRevealSet(root, group, def)
       return
     }
-    for (const node of section.querySelectorAll<HTMLElement>('[data-group]')) {
+    for (const node of root.querySelectorAll<HTMLElement>('[data-group]')) {
       const other = group !== null && node.dataset.group !== group
       node.style.transition = 'opacity .25s ease'
       node.style.opacity = other ? String(dim) : ''
     }
   }
-  section.addEventListener('mouseover', (ev) => {
+  root.addEventListener('mouseover', (ev) => {
     const hit = (ev.target as HTMLElement).closest<HTMLElement>('[data-group]')
     apply(hit ? hit.dataset.group! : null)
   })
-  section.addEventListener('mouseleave', () => apply(null))
+  root.addEventListener('mouseleave', () => apply(null))
 }
 
 // --- morph ------------------------------------------------------------------
