@@ -13389,3 +13389,30 @@ type: `contentArea`). `<hr data-arrow="end|start|both">` became the way to an
 arrow line (`lineStart`/`lineEnd`); lines go back as `data-keep`, as before.
 Rigs: `test-slide-html-e2e.mjs` (morph-stable ids, data-show, arrows,
 escaping, notes, round trip), `test-html-components.ts` (docs name every kind).
+
+## 2026-10-22 — Parallel deck building: queued programs, a write gate, the skills in Claude Code
+
+**Decision.** A larger deck is planned once and written in parallel: the main
+chat writes the first slide as the reference, subagents (the API chat's
+`task`, Claude Code's Agent tool) each write 2–3 slides from a
+self-contained brief and review their own, the main chat validates and
+reports (build-deck.md). Three things made that possible:
+- **Programs queue instead of being refused** (`programrun.ts keyedQueue`,
+  up to 120 s; the server's `execute` wait includes it). Writers spend their
+  time generating code; a run's share in the app is seconds.
+- **While a program runs, it is the deck's only writer.** The store's undo
+  group is deck-wide, so another agent's write during a run joined it and a
+  rollback threw it away. Such writes are now refused at once with "not
+  applied, try again" (reads pass) — not held, because the MCP server stops
+  waiting after 5 s and a write landing later would surprise its sender.
+  Subagents of one chat share its session, so the gate is per window and the
+  program's own calls carry a flag, not a session check.
+- **Claude Code gets the deck skills.** Its workspaces had only customize-ui:
+  Claude Code never saw build-deck (it probed and read format.md instead).
+  All built-in skills are now project skills there, with one note mapping
+  `task` → Agent tool and `read_reference` → the context directory, and the
+  system prompt names slide_html, components, the layout brief and build-deck
+  (it still described insert_elements/write_slide only).
+**Not done:** the user's own edits during a program still join its undo group
+(as before); a contact-sheet review (one image for many slides) is a
+possible next step.

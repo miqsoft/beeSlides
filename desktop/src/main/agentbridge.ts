@@ -8,6 +8,7 @@
 
 import type { BrowserWindow, IpcMainEvent, NativeImage } from 'electron'
 import { type AgentChannel, type AgentResult } from './agentchannels.ts'
+import { writeBlocked } from './programrun.ts'
 import { onFrom } from './ipcguard.ts'
 import { captureSlideSnapshot, isSnapshotRequest } from './slidesnapshot.ts'
 import { uiProfileToolResult } from './uiprofile.ts'
@@ -54,11 +55,25 @@ export function registerMainVerb(verb: string, run: MainVerb): void {
   mainVerbs.set(verb, run)
 }
 
+/** Windows running an agent program (agentexec.ts). While one runs, its run
+ *  is the deck's only writer: the program's undo group would otherwise take
+ *  in another agent's write (a subagent's, another tab's), and a rollback
+ *  would throw that write away with the program's own. Such a write is
+ *  refused at once, never held: the MCP server stops waiting after a few
+ *  seconds, and a held write landing after that would surprise its sender. */
+const programRunning = new Set<number>()
+export function setProgramRunning(winId: number, on: boolean): void {
+  if (on) programRunning.add(winId)
+  else programRunning.delete(winId)
+}
+export const PROGRAM_BUSY = 'A program is running on this deck right now, so this edit was NOT applied. Try it again in a moment, or put it in an execute program (programs wait their turn).'
+
 /** Sends one request to `win`'s editor; `reply` is called exactly once with
  *  the answer, or never if the window goes away first (the caller's own
  *  timeout covers that). `sessionId` is whose slide locks a write takes
- *  (store.ts) — a terminal tab's id, or an endpoint client's. */
-export function forwardAgentRequest(win: BrowserWindow, sessionId: string, channel: AgentChannel, payload: unknown, reply: AgentReply): void {
+ *  (store.ts) — a terminal tab's id, or an endpoint client's. `program`:
+ *  the call comes from the running program itself (agentexec.ts). */
+export function forwardAgentRequest(win: BrowserWindow, sessionId: string, channel: AgentChannel, payload: unknown, reply: AgentReply, opts: { program?: boolean } = {}): void {
   const body = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {}
   const requestId = body.requestId
   if (!isSafeId(requestId)) return
@@ -73,6 +88,10 @@ export function forwardAgentRequest(win: BrowserWindow, sessionId: string, chann
       (r) => reply({ ...r, requestId } as AgentResult),
       (err) => reply({ requestId, ok: false, error: String((err as Error)?.message ?? err) }),
     )
+    return
+  }
+  if (writeBlocked(programRunning.has(win.id), !!opts.program, channel, body)) {
+    reply({ requestId, ok: false, error: PROGRAM_BUSY })
     return
   }
   const wc = docWebContentsFor(win)

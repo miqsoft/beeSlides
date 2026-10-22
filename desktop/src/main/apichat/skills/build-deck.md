@@ -19,4 +19,16 @@ Build the deck the user asked for. Work in this order and keep the user informed
 5. **Audit.** For every slide call `review_slide` once, fix what the screenshot or the layout findings show with the smallest verb (at most 2 polish rounds per slide), then `validate` once for the whole deck. Walk the self-audit checklist at the end of the "Make a GREAT deck" section.
 6. **Report** in two or three lines: what was built, what was left for the user (missing images, anything `deck` help lists as not available yet), nothing else.
 
-When the deck has more than about 6 slides to fill, create all slides first, then hand disjoint batches of them to subagents with `task` (one slide each when the user asks for that; otherwise 2-3, which keeps the style more consistent). Each prompt is self-contained: the outline rows, the slide ids it owns, the style decisions, the rules above. Subagents fill slides; only you add, move or delete them. Do the audit yourself afterwards.
+## Larger decks: plan once, write in parallel
+
+When more than about 5 slides need filling and you can start subagents (`task` in the built-in chat, the Agent tool in Claude Code — writers can run on a faster model, e.g. sonnet), split the writing; the time a deck takes is mostly the writing, and writers work at the same time.
+
+1. **You plan and prove the look.** Steps 1–3 as above, then add every slide in one `deck` `add` call. Write the FIRST content slide yourself and `review_slide` it once: it is the reference every writer copies (title placement, `contentArea`, component choices, font sizes, colours).
+2. **Hand out disjoint batches of 2–3 slides** (one each only if the user asks), all subagents started in ONE message so they run together. Each prompt is self-contained — a subagent knows nothing else:
+   - the slide ids it owns and their outline rows (message, content kind, component);
+   - the reference slide's HTML and CSS (from `slide_html` `read`), and: "copy its title placement and spacing; lay content out in the slide type's contentArea [x,y,w,h]";
+   - the rules: write each slide with `slide_html` — or, if the `execute` tool exists, ONE program for all its slides; diagrams as `data-component` (steps, sequence, cards, compare, flow); ids unique per slide, the same id on consecutive slides for morph; speaker notes with `deck` `notes`; animations in one `elements` `edit` per slide; never add, move or delete slides;
+   - then `review_slide` each of its slides once and fix with the smallest verb (at most 2 rounds);
+   - "if a write answers that a program is running on this deck, wait a moment and do it again";
+   - "answer with ONE line per slide: id — done, or what is left".
+3. **You finish:** read the one-line answers, run `validate` once for the whole deck, delete leftover empty slides you added, and report. Do not re-review slides a writer already reviewed unless its line says something is left.

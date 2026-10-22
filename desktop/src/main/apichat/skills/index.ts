@@ -23,3 +23,20 @@ export const BUILTIN_SKILLS: Skill[] = [
 /** The customize-ui skill's SKILL.md text — also written into every Claude
  *  Code workspace (workspaces.ts) so `/customize-ui` works in the terminal. */
 export const CUSTOMIZE_UI_SKILL_MD: string = customizeUi
+
+/** Two names in the skills belong to the built-in chat; in Claude Code they
+ *  are something else. Said once, right under the frontmatter. */
+const CLAUDE_CODE_NOTE = '_In Claude Code: `task` is the Agent tool (subagents), and `read_reference("agents.md")` means reading agents.md in the context directory named in your instructions._\n\n'
+const forClaudeCode = (md: string): string => md.replace(/^(---\n[\s\S]*?\n---\n\n?)/, (head) => head + CLAUDE_CODE_NOTE)
+
+/** Every built-in skill as Claude Code project skills (name → SKILL.md),
+ *  written into each workspace (workspaces.ts): without them a Claude Code
+ *  chat had only customize-ui, and built decks without build-deck. */
+export const CLAUDE_CODE_SKILLS: Record<string, string> = {
+  'build-deck': forClaudeCode(buildDeck),
+  'polish-deck': forClaudeCode(polishDeck),
+  'slide-designs': forClaudeCode(slideDesigns),
+  'translate-deck': forClaudeCode(translateDeck),
+  'draw-icons': forClaudeCode(drawIcons),
+  'customize-ui': customizeUi,
+}

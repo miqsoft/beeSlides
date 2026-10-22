@@ -176,8 +176,42 @@ function checkCall(c: unknown): { id: string; channel: AgentChannel; payload: Re
   return { id: o.id, channel: o.channel, payload }
 }
 
+/** Runs jobs one at a time per key (a deck's window), in arrival order. A
+ *  job that waits longer than `maxWaitMs` for those before it is not run and
+ *  resolves 'late'; the ones after it do not wait for it. A job that throws
+ *  still lets the next one go. */
+export function keyedQueue(maxWaitMs: number) {
+  const tails = new Map<number, Promise<void>>()
+  return async function run<T>(key: number, job: () => Promise<T>): Promise<T | 'late'> {
+    const before = tails.get(key) ?? Promise.resolve()
+    let done!: () => void
+    const mine = new Promise<void>((resolve) => { done = resolve })
+    const tail = before.then(() => mine)
+    tails.set(key, tail)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const turn = await Promise.race([
+      before.then(() => 'go' as const),
+      new Promise<'late'>((resolve) => { timer = setTimeout(() => resolve('late'), maxWaitMs) }),
+    ])
+    clearTimeout(timer)
+    try {
+      return turn === 'late' ? 'late' : await job()
+    } finally {
+      done()
+      if (tails.get(key) === tail) tails.delete(key)
+    }
+  }
+}
+
+/** Ops of the grouped tools that change nothing. */
+const READ_OPS = new Set(['read', 'search', 'help'])
 export const isRead = (channel: AgentChannel, payload: Record<string, unknown>): boolean =>
-  channel === 'slide-request' || channel === 'agent-query' || (payload.args as { op?: unknown } | undefined)?.op === 'read'
+  channel === 'slide-request' || channel === 'agent-query' || READ_OPS.has(String((payload.args as { op?: unknown } | undefined)?.op))
+
+/** While a program runs on a deck, only it writes there (agentbridge.ts):
+ *  a write that is not one of its own calls is refused; reads always pass. */
+export const writeBlocked = (programRunning: boolean, fromProgram: boolean, channel: AgentChannel, payload: Record<string, unknown>): boolean =>
+  programRunning && !fromProgram && !isRead(channel, payload)
 
 /** Where a program runs and what its deck calls reach. */
 export interface ProgramHost {

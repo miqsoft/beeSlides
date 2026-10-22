@@ -630,6 +630,8 @@ TOOLS.push(...AGENT_AREAS.map((a) => a.def))
 // app (main/agentexec.ts), whose `deck` object this reference describes.
 const CODE_MODE = /*@CODE_MODE@*/false
 const MAX_PROGRAM_S = 300
+/** How long a program waits for those queued before it (agentexec.ts QUEUE_MAX_S). */
+const PROGRAM_QUEUE_S = 120
 
 const API_REFERENCE = [
   {
@@ -755,7 +757,7 @@ if (CODE_MODE) {
         'Run a JavaScript program against the open deck: multi-step or multi-slide work in ONE call. ' +
         '`deck` reads and edits it (deck.outline(), deck.slide(id).dom() / .write(html | document) / .update(elementId, props), ' +
         'deck.op(tool, op, args) for every grouped tool; api_search for the reference). A real DOM is there for slide HTML; no network. ' +
-        'All edits of a run are ONE undo step; if the program throws or times out NOTHING changes. ' +
+        'All edits of a run are ONE undo step; if the program throws or times out NOTHING changes. Programs on one deck run one at a time (a second waits its turn), so subagents can each run their own. ' +
         'Return a small JSON-able value; it comes back with console.log output. Plain JavaScript, await allowed.',
       inputSchema: {
         type: 'object',
@@ -954,7 +956,8 @@ async function callTool(name, args) {
   if (CODE_MODE && name === 'api_search') return { content: [{ type: 'text', text: apiSearch(args?.query) }] }
   if (CODE_MODE && name === 'execute') {
     const seconds = Math.min(MAX_PROGRAM_S, Math.max(1, Number(args?.timeoutSeconds) || 60))
-    const result = await roundTrip('agent-action', 'agent-action-result', { verb: 'execute', args: args ?? {} }, (seconds + 20) * 1000)
+    // a program may first wait for the ones queued before it on this deck
+    const result = await roundTrip('agent-action', 'agent-action-result', { verb: 'execute', args: args ?? {} }, (seconds + 20 + PROGRAM_QUEUE_S) * 1000)
     const logs = Array.isArray(result.logs) && result.logs.length ? `\n\nconsole:\n${result.logs.join('\n')}` : ''
     if (!result.ok) return { content: [{ type: 'text', text: `The program failed. ${result.error ?? 'unknown error'}${logs}` }], isError: true }
     const stats = `\n\n(${result.calls ?? 0} deck call(s)${result.writes ? `, ${result.writes} of them edits — one undo step` : ', nothing changed'})`

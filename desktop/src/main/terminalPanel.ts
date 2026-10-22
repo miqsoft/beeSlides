@@ -52,7 +52,7 @@ import { createPty, loginShellEnv, type ClaudeChat, type PtyHandle } from './pty
 import { apiKeyFor, apiSkillsDir, getProfile, getProfiles, resolveRoles } from './aiprofilesStore.ts'
 import { mergeSettings, REASONING_EFFORTS, tabLabel, type AiProfile, type ClaudeCodeProfile, type ReasoningEffort } from './aiprofiles.ts'
 import { ApiChatSession, displayFromMessages, type DisplayItem, type UsageReadout } from './apichat/session.ts'
-import { BUILTIN_SKILLS, CUSTOMIZE_UI_SKILL_MD } from './apichat/skills/index.ts'
+import { BUILTIN_SKILLS, CLAUDE_CODE_SKILLS } from './apichat/skills/index.ts'
 import type { ChatEvent } from './apichat/types.ts'
 import { writeFileAtomic } from './fsutil.ts'
 import { forwardAgentRequest, isSafeId, type AgentChannel } from './agentbridge.ts'
@@ -421,7 +421,7 @@ export const claudeWorkspacesRoot = (): string => join(app.getPath('userData'), 
 function workspaceForWindow(win: BrowserWindow): string {
   const path = launchPathForWindow(win)
   const key = workspaceKey(deckKeyForWindow(win).docId, win.id)
-  return ensureWorkspace(claudeWorkspacesRoot(), key, path ? basename(path) : null, !!deckDirOf(path), { 'customize-ui': CUSTOMIZE_UI_SKILL_MD })
+  return ensureWorkspace(claudeWorkspacesRoot(), key, path ? basename(path) : null, !!deckDirOf(path), CLAUDE_CODE_SKILLS)
 }
 
 /** The folder of a SAVED deck (a draft under userData/Drafts has none worth

@@ -23,10 +23,10 @@
 
 import { BrowserWindow, session, type Session } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { forwardAgentRequest, registerMainVerb, type AgentChannel, type AgentResult } from './agentbridge.ts'
+import { forwardAgentRequest, registerMainVerb, setProgramRunning, type AgentChannel, type AgentResult } from './agentbridge.ts'
 import { handleFrom } from './ipcguard.ts'
 import { readSettings, updateSettings } from './settings.ts'
-import { DEFAULT_BUDGET_S, MAX_BUDGET_S, PAGE, driveProgram, type ProgramOutcome } from './programrun.ts'
+import { DEFAULT_BUDGET_S, MAX_BUDGET_S, PAGE, driveProgram, keyedQueue, type ProgramOutcome } from './programrun.ts'
 
 /** Code Mode forced on for this run (tests, e2e); the setting can't turn it off. */
 const codeModeFromEnv = (): boolean => process.env.BEESLIDES_CODE_MODE === '1'
@@ -48,11 +48,17 @@ function getSession(): Session {
 
 // ---- running ---------------------------------------------------------------
 
-/** One program per document window at a time: the undo group is the editor's. */
-const running = new Set<number>()
+/** One program per document window at a time (the undo group is the
+ *  editor's), the others wait their turn: subagents writing slides in
+ *  parallel spend their time writing code, and a run's share is seconds. */
+/** The longest a program waits for the one before it (the MCP server's wait
+ *  for `execute` allows for it: slides-mcp-server.mjs PROGRAM_QUEUE_S). */
+export const QUEUE_MAX_S = 120
+const inTurn = keyedQueue(QUEUE_MAX_S * 1000)
 
+/** The program's own calls: through the bridge, past the write gate its run set. */
 function toEditor(win: BrowserWindow, sessionId: string, channel: AgentChannel, payload: Record<string, unknown>): Promise<AgentResult> {
-  return new Promise((resolve) => forwardAgentRequest(win, sessionId, channel, { ...payload, requestId: randomUUID() }, resolve))
+  return new Promise((resolve) => forwardAgentRequest(win, sessionId, channel, { ...payload, requestId: randomUUID() }, resolve, { program: true }))
 }
 
 /** The run's bracket (begin/commit/rollback): answered at once by a live
@@ -65,15 +71,29 @@ function bracket(win: BrowserWindow, sessionId: string, op: string, extra: Recor
   ])
 }
 
-/** Runs `code` against `win`'s deck as session `sessionId`. Never rejects. */
+/** Runs `code` against `win`'s deck as session `sessionId`, after the
+ *  programs already queued for it. Never rejects. */
 export async function runProgram(win: BrowserWindow, sessionId: string, code: string, budgetS = DEFAULT_BUDGET_S): Promise<ProgramOutcome> {
   const none: ProgramOutcome = { ok: false, logs: [], calls: 0, writes: 0 }
-  if (running.has(win.id)) return { ...none, error: 'Another program is still running on this deck.' }
-  const budgetMs = Math.min(MAX_BUDGET_S, Math.max(1, budgetS || DEFAULT_BUDGET_S)) * 1000
-  running.add(win.id)
-  const begun = await bracket(win, sessionId, 'begin')
-  if (!begun.ok) { running.delete(win.id); return { ...none, error: String(begun.error ?? 'The deck refused the program.') } }
+  const out = await inTurn(win.id, () => win.isDestroyed() ? Promise.resolve({ ...none, error: 'The deck was closed.' }) : runNow(win, sessionId, code, budgetS))
+  return out === 'late' ? { ...none, error: `Other programs kept this deck busy for ${QUEUE_MAX_S}s; this one did not run. Try again.` } : out
+}
 
+async function runNow(win: BrowserWindow, sessionId: string, code: string, budgetS: number): Promise<ProgramOutcome> {
+  const none: ProgramOutcome = { ok: false, logs: [], calls: 0, writes: 0 }
+  const budgetMs = Math.min(MAX_BUDGET_S, Math.max(1, budgetS || DEFAULT_BUDGET_S)) * 1000
+  const begun = await bracket(win, sessionId, 'begin')
+  if (!begun.ok) return { ...none, error: String(begun.error ?? 'The deck refused the program.') }
+  setProgramRunning(win.id, true)
+  try {
+    return await runBracketed(win, sessionId, code, budgetMs)
+  } finally {
+    setProgramRunning(win.id, false)
+  }
+}
+
+/** The run itself, between the editor's begin and its commit/rollback. */
+async function runBracketed(win: BrowserWindow, sessionId: string, code: string, budgetMs: number): Promise<ProgramOutcome> {
   const sandbox = new BrowserWindow({
     show: false,
     width: 1280,
@@ -113,7 +133,6 @@ export async function runProgram(win: BrowserWindow, sessionId: string, code: st
     const back = await bracket(win, sessionId, 'rollback')
     out.error = `${out.error}\n${back.ok ? (out.writes ? 'Nothing was changed: every edit of this run was rolled back.' : 'Nothing was changed.') : String(back.error)}`
   }
-  running.delete(win.id)
   return out
 }
 

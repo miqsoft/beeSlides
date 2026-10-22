@@ -40,7 +40,7 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 
 ## Claude terminal panel
 
-- `claude` runs in a pty per window, in the app-owned workspace `userData/claude-workspaces/<docId>` (`workspaces.ts`). It must NEVER run in the deck's folder, whose CLAUDE.md, hooks, and git must not become the project.
+- `claude` runs in a pty per window, in the app-owned workspace `userData/claude-workspaces/<docId>` (`workspaces.ts`). Every built-in skill is written there as a project skill (`CLAUDE_CODE_SKILLS`, with a note mapping `task`/`read_reference` to Claude Code); before 2026-10-22 only customize-ui was, and Claude Code built decks without build-deck. It must NEVER run in the deck's folder, whose CLAUDE.md, hooks, and git must not become the project.
 - The deck folder and attached folders reach `claude` only through env vars (`--add-dir "$SLIDOMINGO_DECK_DIR"`, `"$SLIDOMINGO_ADD_DIR_<n>"`). Never splice paths or file names into the shell line or `generateTask`.
 - A profile's `command` is the only user-controlled text in the launch line (`claudeLaunch.ts`). Keep it behind `isValidCommand`.
 - `claude` honours only the LAST `--settings`, so `createSession` merges a profile's `settingsFile` into the session settings.
@@ -57,6 +57,7 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 - Every agent request reaches a document window through `agentbridge.ts forwardAgentRequest`; never send `slidomingo:agent-*` from anywhere else. Verbs main answers itself go through `registerMainVerb` (`execute`), or the `ui_profile` intercept there.
 - `agentendpoint.ts` (`BEESLIDES_AGENT_ENDPOINT=1`): socket + token in `userData/agent/`. It must never listen on a network port.
 - Code Mode (Settings ▸ AI ▸ Advanced = `AppSettings.codeMode`; `BEESLIDES_CODE_MODE=1` forces it on): applies to chats opened after the switch (`mcpServerSource` is keyed by it). When to use `execute` is told by the server's `CODE_MODE_INSTRUCTIONS` (MCP `instructions`) and build-deck.md, not by `api_search`, which a model only calls once it has decided. Electron glue in `agentexec.ts`, everything testable in `programrun.ts` (no Electron imports). The sandbox page never gets a preload or an IPC channel: main pulls. Keep `programrun.ts` RUNTIME and the server's `API_REFERENCE` in step.
+- Programs on one deck run one at a time and QUEUE (`programrun.ts keyedQueue`, `QUEUE_MAX_S` = the server's `PROGRAM_QUEUE_S`). While one runs, `agentbridge.ts` refuses every other write to that deck at once (`writeBlocked`; reads pass): the store's undo group is deck-wide, so a rollback would take another agent's write with it. Never hold such a write instead: the server stops waiting after 5 s and a late write surprises its sender. Rig: `scripts/test-program-queue.ts`.
 - E2E: `scripts/e2e-agent-endpoint.mjs` (needs `slides/dist-single` and `npx electron-vite build`).
 
 ## AI profiles, API chat, tokens

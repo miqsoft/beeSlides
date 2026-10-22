@@ -72,6 +72,10 @@ export const claudeInstruction = (sharedDir: string): string =>
   `When doc_info says kind "iconset", the document is an icon set (one icon per slide, the slide name is the icon): draw icons only from ` +
   `path elements like doc_info iconset.pathElement (d in grid units, inside the padding, in the set style), each with an iconPart (body, detail or accent); ` +
   `a look the user describes for the whole set is one icons({op:"style"}) call, never a redraw. ` +
+  `To create or restructure a slide, write it as HTML with slide_html({op:"write"}): diagrams are one data-component ` +
+  `(steps, sequence, cards, compare, flow) with the data as JSON, and doc_info slideTypes gives each slide type its placeholders ` +
+  `and contentArea, so no probe slide is needed. To build or extend a deck from a topic, follow the build-deck skill ` +
+  `(a larger deck: plan and write the first slide yourself, then parallel subagents write the rest). ` +
   `Skip get_slide when the context line ` +
   `already says enough; find content with find_text (not one get_slide per ` +
   `slide) and read a slide with get_slide view "summary" unless you are about ` +
