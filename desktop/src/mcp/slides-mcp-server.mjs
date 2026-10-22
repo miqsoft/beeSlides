@@ -682,7 +682,12 @@ Build several slides from ONE function, so they share spacing and sizes, and kee
     [0, 1, 2].map((k) => '<div id="dot' + k + '" class="dot' + (k === i ? ' on' : '') + '"></div>').join('') +
     '</div><p id="body">' + deck.esc(text) + '</p></main>'
   for (const [i, s] of steps.entries()) await deck.slide(ids[i]).write(step(i, s.title, s.text), css)
-Text from the deck or the user goes through deck.esc() before it goes into HTML.`,
+Text from the deck or the user goes through deck.esc() before it goes into HTML.
+Diagrams are components: data instead of markup (slide_html {op:"help", about:"write"} lists them):
+  const q = (v) => JSON.stringify(v).replace(/'/g, '&#39;')   // JSON inside a single-quoted attribute
+  const seq = (show) => '<div id="hs" data-component="sequence" data-show="' + show + '" style="position:absolute;left:50px;top:149px;width:1180px;height:479px"'
+    + " data-actors='" + q(['Client', 'Server']) + "' data-messages='" + q(msgs) + "'></div>"
+  for (const [i, id] of ids.entries()) await deck.slide(id).write(title(i) + seq(i + 1))   // one message more per slide; with transition morph it builds up`,
   },
   {
     title: 'examples',
@@ -736,7 +741,8 @@ const CODE_MODE_INSTRUCTIONS =
   'If a program throws, nothing changed: fix it and run it again.\n\n' +
   'Fast programs: write a slide whole (s.write) and fill its slide type\'s placeholders by their ids, placed at their frames, and lay content out in its contentArea (doc_info slideTypes); ' +
   'set many elements at once with deck.op("elements", "edit", {slideId, changes: [{id, fx: …}, …]}) — one call per slide, ' +
-  'not deck.slide(id).update per element. Reads, and writes to different slides, can run together: await Promise.all([...]).\n\n' +
+  'not deck.slide(id).update per element. Reads, and writes to different slides, can run together: await Promise.all([...]). ' +
+  'Diagrams (steps, sequence, cards, compare, flow) are slide_html components: a few hundred characters of data per slide instead of hand-made markup.\n\n' +
   // the core of the reference, so the first program needs no lookups; api_search has the rest
   `The deck API (api_search has the grouped ops' arguments, slide HTML rules and examples):\n` +
   API_REFERENCE.filter((e) => e.title === 'deck' || e.title === 'slide').map((e) => e.body).join('\n')

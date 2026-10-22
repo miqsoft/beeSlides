@@ -13368,3 +13368,24 @@ found by timing a real Code Mode chat on an imported 16-slide template
   1.8 s as single updates). The chat had made 7 `api_search` calls first.
 **Not changed:** `insert_elements` still nudges +20/+20 by default (2026-10-13
 decision); agents pass `nudge:false` for exact frames.
+
+## 2026-10-22 — slide_html components: diagrams as data
+
+**Decision.** `slide_html` expands `<div id data-component="steps|sequence|
+cards|compare|flow" data-…='JSON'>` into ordinary HTML + CSS before the
+source is made inert and laid out (`htmlcomponents.ts`, called first in
+`htmlslide.ts inertSource`). **Why:** the model writing slide markup was most
+of a deck build's time (~47k output tokens for 8 slides); a component slide
+is ~500 characters, against 3–5k hand-written, and looks the same on every
+slide. **How it stays safe and editable:** the expansion is plain HTML that
+goes through the same sanitizing and compile as anything an agent writes (no
+new trust boundary); all component text is escaped; child ids derive from the
+component's id, so the same component on the next slide morphs, and
+`data-active` / `data-show` step through it without moving anything; colours
+are computed from the theme (tints mixed in code, since HTML colours become
+literal values); the slide remembers the component source, so `read` gives it
+back as written. A component fills the box its container gets (on a slide
+type: `contentArea`). `<hr data-arrow="end|start|both">` became the way to an
+arrow line (`lineStart`/`lineEnd`); lines go back as `data-keep`, as before.
+Rigs: `test-slide-html-e2e.mjs` (morph-stable ids, data-show, arrows,
+escaping, notes, round trip), `test-html-components.ts` (docs name every kind).

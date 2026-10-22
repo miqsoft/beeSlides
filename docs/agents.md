@@ -13,6 +13,9 @@ ordinary CSS — flexbox, grid, padding, gap — and the app lays it out in the
 browser and turns every box into a slide element, so no frame is computed by
 hand. `slide_html({op:"read", slideId})` gives a slide back as HTML to edit and
 write again. See "Slides as HTML" below.
+Diagrams (steps, a message sequence, cards, a comparison, a flow) are one
+`<div data-component=…>` with the data as JSON: far less to write, the same
+look on every slide — see "Components" below.
 
 Edit through the `beeslides` MCP tools. The smallest verb wins:
 `update_element({slideId, elementId, props})` for any property change,
@@ -166,7 +169,8 @@ elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
   picture already in the deck; nothing is downloaded). `<table>` → table
   (`thead`/`th` header, padding, borders, colours, zebra, `colspan`/`rowspan`
   read from the CSS; its rows share the height evenly). `<pre>` → code. `<hr>`
-  → line. `<div data-chart='{"preset":"bar","option":{…}}'>` → chart. An
+  → line; `data-arrow="end|start|both"` gives it arrowheads (it runs left to
+  right; rotate it for other directions). `<div data-chart='{"preset":"bar","option":{…}}'>` → chart. An
   inline `<svg>` drawing → native shapes, paths and text, one group (as
   Convert to objects does — never an opaque svg). A self-contained
   `<iframe srcdoc>` → an `embed` (sandboxed widget). A root box covering the
@@ -185,6 +189,30 @@ elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
   is the title); `data-valign="middle"` centres text vertically.
 - **`<div id="x" data-keep>`** keeps the existing element `x` (an icon, a
   line, a video …) at the place this box takes in the new layout.
+- **Components** write a diagram as data. Give the `<div>` an `id`, a place
+  and a size (on a slide type: its `contentArea` from `doc_info`); it fills
+  that box in the deck's colours, and its parts get ids from yours (`hs-dot2`,
+  `seq-m3`, …), so the same component on the next slide with
+  `transition:"morph"` animates. Text is plain (escaped).
+  - `steps`: `data-items` `["…"]` or `[{title, text}]`; `data-active` (1-based)
+    marks done / current / upcoming.
+  - `sequence`: `data-actors` `["Client","Server"]` (2-5), `data-messages`
+    `[{from, to, label, note}]` (from/to: an actor's name or 1-based index; the
+    same actor twice = a step on its lifeline); `data-show` (the first n:
+    reveal message by message, nothing moves), `data-active` (one highlighted).
+  - `cards`: `data-items` `[{title, text, badge}]`, `data-columns`, `data-active`.
+  - `compare`: `data-columns` `[{title, items:["…"]}]` (2-4), `data-active`.
+  - `flow`: `data-nodes` `["…"]` or `[{title, text}]` (2-6), `data-labels` (one
+    per arrow), `data-active`.
+  - `data-size="s|l"` scales the text. A JSON attribute in single quotes
+    writes `'` as `&#39;`.
+
+  ```html
+  <div id="hs" data-component="sequence" data-show="2" style="position:absolute;left:50px;top:149px;width:1180px;height:479px"
+       data-actors='["Client","Server"]'
+       data-messages='[{"from":"Client","to":"Server","label":"ClientHello","note":"versions, key share"},
+                       {"from":"Server","to":"Client","label":"ServerHello"},{"from":"Server","to":"Client","label":"Finished"}]'></div>
+  ```
 - **Each write is one undo step**, followed by the layout guard like every
   agent write. Then look at it: `review_slide`.
 

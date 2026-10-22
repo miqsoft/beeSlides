@@ -19,7 +19,8 @@
 //   - a box with paint (background, border, shadow) → a rect/ellipse shape,
 //   - a block holding only inline content → a text element (its content
 //     box; inline styling becomes the rich-text subset sanitizeHtml keeps),
-//   - <img> → image, <table> → table, <pre> → code, <hr> → line,
+//   - <img> → image, <table> → table, <pre> → code, <hr> → line (data-arrow → arrowheads),
+//     [data-component] → expanded first into plain HTML (htmlcomponents.ts),
 //     [data-chart] → chart, [data-keep] → the existing element of that id,
 //     <svg> → native shapes/paths/text (svgconvert.ts, as Convert to objects),
 //     <iframe srcdoc> → an embed (the format's sandboxed widget; never run here).
@@ -33,6 +34,7 @@ import type {
   ChartElement, CodeElement, GradientFill, ImageElement, ShadowSpec, ShapeElement, Slide, SlideElement, SlidomingoDoc, SvgElement, TableCell, TableElement, TextElement,
 } from './model'
 import { convertSvgToObjects } from './svgconvert'
+import { expandComponents, type ComponentTheme } from './htmlcomponents'
 import { resolveSlideFonts, sanitizeHtml } from './render'
 import { sanitizeElement } from './untrusted'
 
@@ -106,10 +108,12 @@ const DROP_TAGS = ['script', 'iframe', 'object', 'embed', 'link', 'meta', 'base'
  * iframe's sandbox and CSP refuse the same things again; this pass is what
  * lets the result say what was dropped.
  */
-function inertSource(src: HtmlSlideSource, resolveImg: (raw: string) => string | null, notes: Set<string>): { body: string; css: string; embeds: string[] } {
+function inertSource(src: HtmlSlideSource, resolveImg: (raw: string) => string | null, notes: Set<string>, theme: ComponentTheme): { body: string; css: string; embeds: string[] } {
   const tpl = document.createElement('template')
   tpl.innerHTML = src.html
   const root = tpl.content
+  // components first: what they expand into is cleaned like everything else
+  expandComponents(root, theme, notes)
   numberImages(root)
   // a self-contained frame (srcdoc, no src) is a widget the deck can carry as
   // an `embed` (allow-scripts only, null origin); it is laid out as an empty
@@ -215,7 +219,7 @@ function fontFaces(doc: SlidomingoDoc): string {
  *  to `read`; the iframe is gone afterwards whatever happens. */
 async function withLaidOut<T>(doc: SlidomingoDoc, slide: Slide, size: { width: number; height: number }, src: HtmlSlideSource,
   resolveImg: (raw: string) => string | null, notes: Set<string>, read: (d: Document, embeds: string[]) => T): Promise<T> {
-  const { body, css, embeds } = inertSource(src, resolveImg, notes)
+  const { body, css, embeds } = inertSource(src, resolveImg, notes, doc.theme)
   const frame = document.createElement('iframe')
   frame.setAttribute('sandbox', 'allow-same-origin')
   frame.setAttribute('data-beeslides-transient', '')
@@ -1008,7 +1012,10 @@ function visit(ctx: Ctx, el: Element) {
   if (tag === 'HR') {
     const w = Math.max(px(cs.borderTopWidth), px(cs.borderBottomWidth), 1)
     const color = cssToModelColor(cs.borderTopColor) ?? '#000000'
-    ctx.out.push({ id: claimId(ctx, wanted), type: 'shape', shape: 'line', ...base({ ...f, h: w }, opacity), fill: color, stroke: 'transparent', strokeWidth: w, radius: 0 } as ShapeElement)
+    // data-arrow="end|start|both": arrowheads (the line runs left to right)
+    const arrow = (el.getAttribute('data-arrow') ?? '').toLowerCase()
+    const ends = { ...(arrow === 'start' || arrow === 'both' ? { lineStart: 'arrow' as const } : {}), ...(arrow === 'end' || arrow === 'both' ? { lineEnd: 'arrow' as const } : {}) }
+    ctx.out.push({ id: claimId(ctx, wanted), type: 'shape', shape: 'line', ...base({ ...f, h: w }, opacity), fill: color, stroke: 'transparent', strokeWidth: w, radius: 0, ...ends } as ShapeElement)
     return
   }
   const id = claimId(ctx, wanted)

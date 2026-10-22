@@ -424,6 +424,50 @@ console.log('-- read: remembered, then generated --')
   ok(/src="element:photo"/.test(g.summary), 'generated HTML points at the picture (element:photo)')
 }
 
+console.log('-- components (htmlcomponents.ts) and arrow lines --')
+const J = (v) => JSON.stringify(v).replace(/'/g, '&#39;')
+let seqSid = null
+{
+  // steps through data-active on three slides: same ids, nothing moves (morph pairs)
+  const STEPS = [{ title: 'ClientHello', text: 'offers' }, { title: 'ServerHello', text: 'chooses' }, { title: 'Finished', text: 'confirms' }]
+  const sids = [await addSlide(), await addSlide(), await addSlide()]
+  for (const [k, sid] of sids.entries()) {
+    const r = await act('slide_html', { op: 'write', slideId: sid, html: `<div id="hs" data-component="steps" data-active="${k + 1}" style="position:absolute;left:96px;top:150px;width:1088px;height:400px" data-items='${J(STEPS)}'></div>` })
+    ok(r.ok, `steps, data-active ${k + 1}: written`, r.error)
+  }
+  const lists = await Promise.all(sids.map(els))
+  const key = (l) => l.map((e) => e.id).sort().join()
+  ok(key(lists[0]) === key(lists[1]) && key(lists[1]) === key(lists[2]) && lists[0].some((e) => e.id === 'hs-dot2'), 'steps: the same ids on every slide (they morph)', key(lists[0]))
+  const frame = (l, id) => { const e = l.find((x) => x.id === id); return e && [e.x, e.y, e.w, e.h].map(Math.round).join() }
+  ok(['hs-dot1', 'hs-title3', 'hs-bar2'].every((id) => frame(lists[0], id) === frame(lists[2], id)), 'steps: stepping data-active moves nothing')
+  ok(lists[0].find((e) => e.id === 'hs-dot3')?.fill !== lists[2].find((e) => e.id === 'hs-dot3')?.fill, 'steps: the active step is painted differently')
+  const r = await act('slide_html', { op: 'read', slideId: sids[0] })
+  ok(r.ok && /the source it was written from/.test(r.summary) && r.summary.includes('data-component="steps"'), 'read after a write: the component as written, not its expansion')
+
+  // a sequence revealed message by message: shown messages stay where they were
+  const MSGS = [{ from: 'Client', to: 'Server', label: 'ClientHello', note: '<b>key share</b>' }, { from: 'Server', to: 'Client', label: 'ServerHello' }, { from: 2, to: 1, label: 'Finished' }]
+  const a = await addSlide(), b = await addSlide()
+  const seq = (show) => `<div id="seq" data-component="sequence" data-show="${show}" style="position:absolute;left:96px;top:120px;width:1088px;height:520px" data-actors='${J(['Client', 'Server'])}' data-messages='${J(MSGS)}'></div>`
+  await act('slide_html', { op: 'write', slideId: a, html: seq(1) })
+  await act('slide_html', { op: 'write', slideId: b, html: seq(3) })
+  const [la, lb] = [await els(a), await els(b)]
+  ok(frame(la, 'seq-m1') && frame(la, 'seq-m1') === frame(lb, 'seq-m1') && !la.some((e) => e.id === 'seq-m3') && lb.some((e) => e.id === 'seq-m3'), 'sequence: data-show adds messages without moving the shown ones')
+  const mb = byId(lb)
+  ok(mb.get('seq-m1')?.shape === 'line' && mb.get('seq-m1')?.lineEnd === 'arrow' && !mb.get('seq-m1')?.lineStart, 'sequence: a message to the right is an arrow line pointing right')
+  ok(mb.get('seq-m2')?.lineStart === 'arrow' && !mb.get('seq-m2')?.lineEnd && mb.get('seq-m3')?.lineStart === 'arrow', 'sequence: messages to the left (by name or 1-based index) point left')
+  const note = mb.get('seq-m1-note')?.html ?? ''
+  ok(note.includes('&lt;b&gt;') && !note.includes('<b>'), 'component text is escaped, never markup', note)
+  seqSid = b
+
+  // the arrow mapping on its own, and what bad data says
+  const c = await addSlide()
+  await act('slide_html', { op: 'write', slideId: c, html: '<hr id="both" data-arrow="both" style="position:absolute;left:100px;top:100px;width:400px;border:0;border-top:3px solid #333;margin:0"><hr id="plain" style="position:absolute;left:100px;top:200px;width:400px;margin:0">' })
+  const mc = byId(await els(c))
+  ok(mc.get('both')?.lineStart === 'arrow' && mc.get('both')?.lineEnd === 'arrow' && !mc.get('plain')?.lineEnd, '<hr data-arrow="both"> has two arrowheads; a plain <hr> none')
+  const bad = await act('slide_html', { op: 'write', slideId: c, html: '<div id="x1" data-component="cards" data-items="nope"></div><div id="x2" data-component="gantt"></div>' })
+  ok(bad.ok && /x1: data-items must be a JSON array/.test(bad.summary) && /no component "gantt"/.test(bad.summary), 'bad component data and unknown kinds are reported, not fatal', bad.summary?.split('\n').filter((l) => /Note/.test(l)).join(' | '))
+}
+
 /** read → write back the generated HTML → every frame where it was */
 async function roundTrip(sid, label) {
   const before = await els(sid)
@@ -457,6 +501,14 @@ for (const c of CASES.slice(1, 4)) {
   await act('elements', { op: 'edit', slideId: c.sid, changes: [{ id: first.id, opacity: 0.99 }] })
   const rt = await roundTrip(c.sid, c.name)
   ok(rt.ok && rt.exact && rt.worst <= 1 && !rt.missing.length, `${c.name}: generated HTML written back moves nothing (worst ${rt.worst?.toFixed?.(2)}px ${rt.worstId}, ${rt.groups} flex groups)`, rt.why ?? rt.missing)
+}
+{
+  // a component's expansion, arrow lines included, survives the way back too
+  const first = (await els(seqSid))[0]
+  await act('elements', { op: 'edit', slideId: seqSid, changes: [{ id: first.id, opacity: 0.99 }] })
+  const rt = await roundTrip(seqSid, 'sequence component')
+  const arrows = (await els(seqSid)).filter((e) => e.lineStart === 'arrow' || e.lineEnd === 'arrow').length
+  ok(rt.ok && rt.worst <= 1 && !rt.missing.length && arrows === 3, `sequence component: generated HTML written back moves nothing, arrows kept (worst ${rt.worst?.toFixed?.(2)}px ${rt.worstId}, ${arrows} arrows)`, rt.why ?? rt.missing)
 }
 
 console.log('-- round trip on real decks --')
