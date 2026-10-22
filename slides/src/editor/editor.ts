@@ -18,7 +18,8 @@ import { THEME_CHOICES, onThemeChange, resolvedTheme, setTheme, themeChoice } fr
 import { offlineEnabled, setOffline } from '../../../kernel/src/net.ts'
 import { renderSlide, renderThumbnail, sanitizeHtml } from '../render'
 import { stepCount } from '../builds'
-import { isFullBleed, overflowFindings, validateDoc, type Finding, type ValidateOpts } from '../validate'
+import { isFullBleed, marginFor, overflowFindings, validateDoc, type Finding, type ValidateOpts } from '../validate'
+import { layoutBrief } from '../layoutbrief'
 import { checkLayout, deriveContainerChildren, guardLayout, reanchorEditedChildren, snapshotSlide, type GuardResult } from '../layoutguard'
 import { htmlToMarkdown, insertLiteralText, keptLines, markdownToHtml } from './markdown'
 import { outlineParts } from './outlinemodel'
@@ -5569,7 +5570,7 @@ export class Editor {
    *  write verb check for overflow" has one answer, not one per call site. */
   private warningsForSlide(sid: string): Finding[] {
     const doc = this.store.doc
-    const findings = validateDoc(doc, { measure: true }).findings.filter((f) => f.slide === sid)
+    const findings = validateDoc(doc, { measure: true, measureOnly: sid }).findings.filter((f) => f.slide === sid)
     // validateDoc only walks doc.slides — a slide type / reusable object gets
     // at least the TEXT OVERFLOW check, the one an agent most needs back.
     if (!doc.slides.some((s) => s.id === sid)) {
@@ -5769,7 +5770,9 @@ export class Editor {
       // `sourceId`/`layoutId` values for create_slide_type/rename_slide_type/
       // reorder_slide_type/promote_to_reusable_object without guessing —
       // added alongside those MCP verbs (2026-09-20 redesign, part 4).
-      slideTypes: (doc.layouts ?? []).map((l) => ({ id: l.id, name: l.name, parentId: l.parentId, ...(l.parentOnly ? { parentOnly: true } : {}) })),
+      // placeholders + contentArea (layoutbrief.ts): where a slide of the
+      // type takes its content, so filling one needs no probe slide.
+      slideTypes: (doc.layouts ?? []).map((l) => ({ id: l.id, name: l.name, parentId: l.parentId, ...(l.parentOnly ? { parentOnly: true } : {}), ...layoutBrief(doc, l, marginFor(doc)) })),
       // What deck section_* ops address (agentops.ts).
       sections: sectionRows(this.store),
       // What deck_settings header_footer / theme set (read back after a write).

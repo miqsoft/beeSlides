@@ -64,6 +64,10 @@ export interface ValidateResult {
 export interface ValidateOpts {
   /** measure text overflow (needs a DOM). Default true when one exists. */
   measure?: boolean
+  /** measure only this slide's text; every other check still walks the whole
+   *  deck. Measuring is the expensive part (a layout per text box), so a
+   *  caller that keeps one slide's findings must not pay for the deck. */
+  measureOnly?: string
   /** side margin in px on a 1280-wide canvas; scaled to the deck. 0 disables. */
   margin?: number
 }
@@ -511,7 +515,7 @@ export function validateDoc(doc: SlidomingoDoc, opts: ValidateOpts = {}): Valida
   }
 
   // ---- measured checks -----------------------------------------------------
-  if (measure) measureOverflow(doc, add)
+  if (measure) measureOverflow(doc, add, opts.measureOnly === undefined ? doc.slides : doc.slides.filter((s) => s.id === opts.measureOnly))
 
   const counts = { error: 0, warning: 0, info: 0 }
   for (const f of findings) counts[f.severity]++

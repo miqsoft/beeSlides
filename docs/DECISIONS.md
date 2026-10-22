@@ -13346,3 +13346,25 @@ available" line. **Why:** with the tools alone the model kept making one call
 per step: everything it reads (workspace README, skills) describes tool
 calls, and `api_search`, which explained when to use `execute`, is only
 called once the model has already decided to.
+
+## 2026-10-22 — Agent writes measure one slide; doc_info briefs slide types; Code Mode instructions carry the API
+
+**Decision.** Three changes that make building a deck faster in both modes,
+found by timing a real Code Mode chat on an imported 16-slide template
+(9.7 min: ~60 % the model writing, 17 % `execute`).
+- **Warnings measure only the written slide.** `warningsForSlide` ran
+  `validateDoc({measure:true})` over the whole deck and kept one slide's
+  findings: 89 % of every agent write (each text box laid out). `validateDoc`
+  gained `measureOnly`; an `update_element` went from 428 ms to 61 ms on that
+  deck. Plain tool calls gain the same.
+- **`doc_info` slideTypes carry a brief** (`layoutbrief.ts`): each type's
+  placeholders `{id, role, frame}` and a `contentArea`. The chat had written a
+  probe slide and read format.md nine times to learn where content goes. A
+  placeholder is filled by an element of slide_html with its id, placed at its
+  frame (the HTML decides the position; laid out in flow, a title moved 50 px).
+- **The Code Mode instructions carry the API core** (the `deck` and `slide`
+  reference entries, from `API_REFERENCE` so they stay in step) and say to
+  set a slide's animations in one `elements` `edit` (26 elements: 69 ms vs
+  1.8 s as single updates). The chat had made 7 `api_search` calls first.
+**Not changed:** `insert_elements` still nudges +20/+20 by default (2026-10-13
+decision); agents pass `nudge:false` for exact frames.

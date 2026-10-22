@@ -307,7 +307,7 @@ const TOOLS = [
   // --- cheap read verbs (progressive disclosure — check before you commit) --
   {
     name: 'doc_info',
-    description: 'Deck summary: title, size, theme, meta, slideCount, slideTypes [{id,name,parentId}]. Start here.',
+    description: 'Deck summary: title, size, theme, meta, slideCount, slideTypes [{id,name,parentId,placeholders,contentArea}]. Start here. A slide type\'s placeholders [{id,role,frame}] are filled by giving an element of slide_html that id, placed at its frame to keep the template\'s look (#<id>{position:absolute;left:<x>px;top:<y>px;width:<w>px}); its other elements stay as they are. contentArea [x,y,w,h] is the free space below its header and above its footer.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
@@ -732,9 +732,14 @@ const CODE_MODE_INSTRUCTIONS =
   '(building or extending a deck, restyling, translating, fixing every slide) is ONE execute program, ' +
   'or a few for a large deck, not a chain of tool calls: add the slides, write each slide\'s HTML from shared ' +
   'functions, set notes and transitions, and return the new ids and any warnings. ' +
-  'Call api_search once first (empty query, then "examples") instead of guessing the deck API. ' +
   'Reading to decide, one small edit, and looking at the result (review_slide, render_preview) stay plain tool calls. ' +
-  'If a program throws, nothing changed: fix it and run it again.'
+  'If a program throws, nothing changed: fix it and run it again.\n\n' +
+  'Fast programs: write a slide whole (s.write) and fill its slide type\'s placeholders by their ids, placed at their frames, and lay content out in its contentArea (doc_info slideTypes); ' +
+  'set many elements at once with deck.op("elements", "edit", {slideId, changes: [{id, fx: …}, …]}) — one call per slide, ' +
+  'not deck.slide(id).update per element. Reads, and writes to different slides, can run together: await Promise.all([...]).\n\n' +
+  // the core of the reference, so the first program needs no lookups; api_search has the rest
+  `The deck API (api_search has the grouped ops' arguments, slide HTML rules and examples):\n` +
+  API_REFERENCE.filter((e) => e.title === 'deck' || e.title === 'slide').map((e) => e.body).join('\n')
 
 if (CODE_MODE) {
   TOOLS.push(

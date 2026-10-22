@@ -156,6 +156,9 @@ name entries there).
 - `commentAuthor()` is sync and never prompts; empty author is valid.
 - `window.beeslides.comments()` = typed-anchor list for agents.
 - Agent writes go through `editor.commitAgentWrite` (layout guard).
+- An agent write's warnings measure ONLY that slide (`validateDoc` `measureOnly`): measuring the whole deck per write
+  made each edit cost ~0.4 s on a 16-slide imported deck. Never re-measure the deck in a per-write path.
+- `doc_info` `slideTypes` carry `layoutBrief` (`layoutbrief.ts`): placeholders + contentArea, so agents need no probe slide.
 - Import repair: a converter code a model could restore goes in `importrepair.ts REPAIRABLE`;
   one the format cannot express never does.
 - `slide_html` (DECISIONS 2026-10-20): HTML is laid out only in `htmlslide.ts withLaidOut` (sandbox
