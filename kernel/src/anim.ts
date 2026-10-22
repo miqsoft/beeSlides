@@ -10,7 +10,8 @@
 //     plain numeric props on non-element targets (countUp state objects)
 //   vars: duration (s), delay (s), ease ('none'|'linear'|'power1..3.in/out/
 //         inOut'|'sine.inOut'), repeat (-1 = forever), yoyo, transformOrigin,
-//         onUpdate, onComplete
+//         onUpdate, onComplete, timer (a countdown, not motion: a stall
+//         never jumps it to its end)
 //   anim.killTweensOf(target | targets), anim.getTweensOf(target) → .progress()
 //   anim.setTimeScale(n) and manual clock (anim.manual/tick) for tests.
 //
@@ -273,12 +274,14 @@ export interface TweenVars {
   yoyo?: boolean
   overwrite?: string // accepted for call-site compat; overwrite is always per-channel
   transformOrigin?: string
+  /** a countdown on the engine clock, not motion: a stall never finishes it early */
+  timer?: boolean
   onUpdate?: () => void
   onComplete?: () => void
   [channel: string]: unknown
 }
 
-const CONTROL = new Set(['duration', 'delay', 'ease', 'repeat', 'yoyo', 'overwrite', 'transformOrigin', 'onUpdate', 'onComplete'])
+const CONTROL = new Set(['duration', 'delay', 'ease', 'repeat', 'yoyo', 'overwrite', 'transformOrigin', 'timer', 'onUpdate', 'onComplete'])
 
 type Apply = (t: number) => void
 
@@ -420,6 +423,25 @@ export class Tween {
     return Math.min(this.elapsed / total, 1)
   }
 
+  /** Wall-clock seconds until it ends, delay included (Infinity for a loop, 0 once over). */
+  remaining(): number {
+    if (this.dead) return 0
+    if (this.repeat === -1) return Infinity
+    const left = Math.max(this.delay, 0) + this.duration * (1 + this.repeat) - this.elapsed
+    return Math.max(left, 0) / (timeScale || 1)
+  }
+
+  /** True once it has had a frame (its delay counts). */
+  get underway(): boolean {
+    return this.ticked && !this.dead
+  }
+
+  /** Jump to the end — final values, onUpdate, onComplete — as if it had run out. Loops and timers are left alone. */
+  finish() {
+    if (this.dead || this.repeat === -1 || this.vars.timer) return
+    this.tick(1e9)
+  }
+
   /** advance by dt seconds; returns false when finished. `capFirst` (the rAF
    *  clock only): a tween's first frame advances at most one frame, so a slide
    *  change that blocked for 150 ms still shows its motion from the start
@@ -490,6 +512,13 @@ function tweensOf(target: unknown): Tween[] {
 }
 
 const FIRST_FRAME = 1 / 60
+/**
+ * A gap between frames this long (ms) is a stall, not a slow frame: a hidden
+ * tab, a window the OS stopped drawing, a long freeze. A fade caught in one
+ * used to resume where it froze, crawling at the 0.25 s clamp — an element
+ * that should be fully in read as greyed out until a 2.8 s net snapped it.
+ */
+const STALL_MS = 400
 let running = false
 let last = 0
 let timeScale = 1
@@ -504,10 +533,16 @@ function tickerOn() {
 
 function loop(now: number) {
   if (manual) { running = false; return }
+  const stalled = now - last > STALL_MS
   // clamp long gaps (throttled tabs) so loops don't leap wildly
   const dt = Math.min((now - last) / 1000, 0.25) * timeScale
   last = now
-  for (const tw of [...live]) tw.tick(dt, true)
+  // After a stall, what was already moving lands at its end; what had not had
+  // a frame yet still plays from the start (capFirst), and loops just go on.
+  for (const tw of [...live]) {
+    if (stalled && tw.underway && !tw.infinite) tw.finish()
+    else tw.tick(dt, true)
+  }
   if (live.size) requestAnimationFrame(loop)
   else running = false
 }
@@ -551,5 +586,10 @@ export const anim = {
   },
   get activeCount() {
     return live.size
+  },
+  /** False while the render loop is stalled (no frame for STALL_MS with tweens live).
+   *  The manual test clock always counts as drawing: its time is the test's. */
+  get drawing() {
+    return manual || !running || performance.now() - last <= STALL_MS
   },
 }

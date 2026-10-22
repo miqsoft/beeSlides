@@ -160,7 +160,7 @@ export function startPresentation(
   // tests drive (anim.setManual/tick) moves them exactly like it moves tweens.
   const wait = (seconds: number, fn: () => void): (() => void) => {
     const o = { p: 0 }
-    anim.to(o, { p: 1, duration: Math.max(0.05, seconds), ease: 'none', onComplete: fn })
+    anim.to(o, { p: 1, duration: Math.max(0.05, seconds), ease: 'none', timer: true, onComplete: fn })
     return () => anim.killTweensOf(o)
   }
   let cancelAuto: (() => void) | null = null
@@ -1947,8 +1947,8 @@ export function playBuildStep(slide: Slide, root: HTMLElement, plan: BuildPlan, 
     if (instant) { finish(); continue }
     const spec = exitSpec(el.fx?.exit ?? 'fade', el.fx?.exitDur)
     anim.to(node, { ...spec.to, duration: spec.duration, ease: spec.ease, onComplete: finish })
-    // wall-clock net for starved render loops (throttled tabs): never stay half-gone
-    setTimeout(finish, spec.duration * 1000 + 2800)
+    // net for a stalled render loop: never stay half-gone
+    afterTweens([node], finish)
   }
 
   // within one click `order` only staggers; equal values enter together
@@ -1975,12 +1975,12 @@ export function playBuildStep(slide: Slide, root: HTMLElement, plan: BuildPlan, 
     if (fx.countUp && t.para === undefined) runCountUp(node)
   }
   if (!instant && entering.length) {
-    setTimeout(() => {
+    afterTweens(entering.map(({ node }) => node), () => {
       for (const { t, el, node } of entering) {
         if (!node.isConnected || node.classList.contains(BUILD_HIDDEN)) continue
         if (anim.getTweensOf(node).some((tw) => !tw.infinite && tw.progress() < 1)) settleBuildNode(node, el, t)
       }
-    }, 2800)
+    })
   }
   for (const { node } of entering) startMediaIn(node)
   // what just arrived gets its loops / ken-burns now (what is on screen already keeps running)
@@ -2186,7 +2186,7 @@ function settleGuarantee(pairs: Array<[HTMLElement, SlideElement]>) {
   // element (a real bug once: orbit dots died 2.8s after every morph entry).
   pairs = pairs.filter(([, el]) => !el.fx?.loop && el.fx?.ambient !== 'kenburns')
   if (!pairs.length) return
-  setTimeout(() => {
+  afterTweens(pairs.map(([node]) => node), () => {
     for (const [node, el] of pairs) {
       if (!node.isConnected) continue
       const tweens = anim.getTweensOf(node)
@@ -2196,7 +2196,33 @@ function settleGuarantee(pairs: Array<[HTMLElement, SlideElement]>) {
         resetXform(node)
       }
     }
-  }, 2800)
+  })
+}
+
+/** How long past its own end a tween may run before its net steps in (s). */
+const SETTLE_SLACK = 0.4
+
+/**
+ * The net under entrances, build exits and morph ghosts: `then` runs once the
+ * finite tweens on `nodes` should be over (plus SETTLE_SLACK) — and if one is
+ * still running while the engine keeps drawing frames, it waits for that one
+ * instead, so a slow-but-live render loop finishes its own motion rather than
+ * snapping. Only a stalled loop gets snapped. Was a flat 2.8 s, which left a
+ * stalled fade greyed out that long. `then` must check what is still undone:
+ * it runs whether the tweens finished, were killed or stalled.
+ */
+function afterTweens(nodes: Element[], then: () => void) {
+  const left = () => {
+    let s = 0
+    for (const n of nodes) for (const tw of anim.getTweensOf(n)) if (!tw.infinite) s = Math.max(s, tw.remaining())
+    return s
+  }
+  const check = () => {
+    const s = left()
+    if (s > 0 && anim.drawing) setTimeout(check, (s + SETTLE_SLACK) * 1000)
+    else then()
+  }
+  setTimeout(check, (left() + SETTLE_SLACK) * 1000)
 }
 
 /** Animate every number in the element's text from 0 to its final value. */
@@ -2522,14 +2548,14 @@ function startGenericLoop(node: HTMLElement, el: SlideElement, loop: GenericLoop
     if (loopGen.get(node) !== gen || !node.isConnected) return
     if ((loop.delay ?? 0) > 0) {
       const o = { p: 0 }
-      anim.to(o, { p: 1, duration: loop.delay!, ease: 'none', onComplete: () => { if (loopGen.get(node) === gen && node.isConnected) go() } })
+      anim.to(o, { p: 1, duration: loop.delay!, ease: 'none', timer: true, onComplete: () => { if (loopGen.get(node) === gen && node.isConnected) go() } })
     } else go()
   }
   const busy = () => frameMorphing.has(node) || anim.getTweensOf(node).some((tw) => !tw.infinite && tw.progress() < 1)
   if (!busy()) return launch()
   const probe = { p: 0 }
   anim.to(probe, {
-    p: 1, duration: 30, ease: 'none',
+    p: 1, duration: 30, ease: 'none', timer: true,
     onUpdate() {
       if (loopGen.get(node) !== gen) { anim.killTweensOf(probe); return }
       if (!busy()) { anim.killTweensOf(probe); launch() }
@@ -3139,7 +3165,7 @@ function runMorph(
   }
   // the ghosts' own wall-clock net: on a starved render loop their fades
   // crawl, and a ghost left behind would sit in the slide for good
-  if (ghosts.length) setTimeout(() => { for (const g of ghosts) g.remove() }, 2800)
+  if (ghosts.length) afterTweens(ghosts, () => { for (const g of ghosts) g.remove() })
   if (!matchedFrom.length) return
 
   // Geometry straight from the model — no DOM measuring needed (both sides'
