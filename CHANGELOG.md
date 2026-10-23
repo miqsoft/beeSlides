@@ -3,11 +3,17 @@
 All notable changes to BeeSlides. The app version is baked into every shell
 as `APP_VERSION` (from `slides/package.json`) and shown in the About dialog.
 
-The format (`slidomingo/slides`, version `1`) is additive and stable: every
-version opens files from every earlier version, and unknown fields are
-preserved.
+The format (`beeslides/slides`, version `1`; files saved before 1.2.0 say
+`slidomingo/slides`) is additive and stable: every version opens files from
+every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
+
+## [1.2.0] — 2026-10-23
+
+Claude designs and builds slides as HTML, several chats can build one deck at
+once, icon sets are a new kind of document, and a show takes edits while it
+runs.
 
 - **Claude can offer you design options for a slide:** ask for a few designs
   and Claude writes them (as HTML, laid out by the browser); you compare them
@@ -20,9 +26,28 @@ preserved.
   browser and turns every box into normal, editable slide elements — text,
   boxes, pictures, tables, charts, code, SVG diagrams (as editable shapes)
   and embedded figures — so slides Claude builds line up exactly. An HTML
-  slide deck can be converted slide by slide this way. It can also read any slide back as HTML, change it and write it
-  again; animations, links and comments stay. Nothing in the HTML runs or
+  slide deck can be converted slide by slide this way. It can also read any
+  slide back as HTML, change it and write it again; animations, links and
+  comments stay. Nothing in the HTML runs or
   loads from the network.
+- **Slides from HTML keep their look:** blur and drop shadows, gradient text,
+  layered backgrounds, soft radial glows, clipped shapes, `::before` /
+  `::after`, outlined and vertical text and more now become slide elements
+  instead of being dropped; anything that can't be kept is listed, one line
+  each. Diagrams can be written as components (steps, sequence, cards,
+  compare, flow) that fill the box they are given in the deck's colours, and
+  `<hr data-arrow>` draws an arrow. When you don't say how a deck should
+  look, Claude picks a short art direction (palette, type, one motif) first.
+- **Several chats build one deck at once:** Claude splits a larger deck
+  across parallel writers, each checking its own slides. Every chat sees
+  which slides other chats are working on, and screenshots of other slides
+  are taken off screen, so the editor no longer jumps around. Screenshots
+  are cropped right at any UI zoom and can show just part of a slide.
+  Claude Code chats now get all the built-in deck skills.
+- **Code Mode (experimental, off by default):** in Settings ▸ AI ▸ Advanced,
+  Claude can run a short program against the deck instead of one tool call
+  per step. A program runs in a sandbox with no network, counts as one undo
+  step and is rolled back if it fails.
 - **The browser editor gets the desktop chrome:** in a desktop-width browser
   tab, BeeSlides now shows the same labelled ribbon as the desktop app and a
   menu bar (File, Edit, Insert, Slide, Arrange, View, Play, Help) drawn from
@@ -94,6 +119,37 @@ preserved.
   icons show a faint circle instead of "Not drawn yet" on every tile. Text
   prompts (comments, names, Paste style) now look like the rest of the app
   instead of a plain browser box.
+- **Edit while you present:** changes made during a show (by you, by
+  Claude, undo, or a reload from disk) appear in the show right away. The
+  slide on screen stays where it is, without replaying its entrance, and
+  if it was deleted the show moves to the nearest slide. The speaker view
+  follows.
+- **More ways to present from the title bar:** the Present button has a
+  dropdown, like Save: Present without Speaker View (desktop), Present in
+  tab and Kiosk.
+- **No more accidental slide deletes:** Duplicate and Delete on a slide
+  thumbnail ask for a second click ("Delete?"). Keyboard, context menu and
+  the Slide Sorter still act at once.
+- **A calmer chat panel:** each tab is named after its chat, the header
+  switches between open and earlier chats, and the terminal takes the app's
+  warm colours with larger text. Ctrl+Tab steps through tabs.
+- **Files say BeeSlides:** decks are now saved with `beeslides` names
+  throughout. Files saved by earlier versions open as before and switch to
+  the new names on their next save.
+- **The MCP server is called `beeslides`:** Claude Code shows the tools as
+  `mcp__beeslides__…`. An "always allow" given under the old name is asked
+  once more.
+
+### Fixes
+
+- A fade no longer stays greyed out when the window stopped drawing
+  mid-animation.
+- Linux: the window lays out again after maximize, restore and full screen.
+- Desktop: chats in the panel are saved and can be resumed when the app
+  was started from a Claude Code session.
+- Icon libraries with tens of thousands of icons no longer look like an
+  unreachable server, and a refused request says why.
+- `window.beeslides.loadDoc` applies the new deck's embedded fonts.
 
 ## [1.1.0] — 2026-10-14
 

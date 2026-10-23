@@ -1,8 +1,7 @@
 # Releasing a BeeSlides app
 
-BeeSlides has not cut a public release yet. This is the process for the
-first ones: a release is a tagged commit plus the built single-file shell
-attached to a GitHub release. There is no update server, no signed manifest
+A release is a tagged commit plus the built single-file shell attached to a
+GitHub release. There is no update server, no signed manifest
 and no download channel — shipped files never check for updates (removed in
 the 2026-09 decoupling, see `docs/DECISIONS.md`).
 
