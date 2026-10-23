@@ -77,7 +77,8 @@ import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
 import { renderIconSources } from './iconsettings'
 import { openLibraryPanel } from './librarypanel'
 import { openSaveSelectionDialog } from './saveselection'
-import { copyPicture } from './copypicture'
+import { copySpecial, type CopyFormat } from './copyspecial'
+import { openCopySpecialMenu, renderCopySettings } from './copyspecialmenu'
 import { closeVariantPicker, MAX_VARIANTS, openVariantPicker, type PendingVariant, type PendingVariants } from './variantpicker'
 import { colorForSession } from './sessioncolor'
 import { flipMenuIfNeeded, positionFloating } from './floatingposition'
@@ -154,7 +155,7 @@ interface TopbarBuild {
 /** A part of a slide, in slide px (agent screenshots). */
 type CaptureRegion = { x: number; y: number; w: number; h: number }
 
-type SettingsCategoryId = 'general' | 'shortcuts' | 'icons' | 'document' | 'ai' | 'customize'
+type SettingsCategoryId = 'general' | 'shortcuts' | 'copy' | 'icons' | 'document' | 'ai' | 'customize'
 
 /** What openLayoutPicker's click should do with the chosen layout. */
 type LayoutPickAction =
@@ -527,7 +528,7 @@ export class Editor {
       copySelection: () => this.copySelection(),
       cutSelection: () => this.cutSelection(),
       pasteFromClipboardAsync: () => this.pasteFromClipboardAsync(),
-      copyPicture: () => this.copyPicture(),
+      copySpecial: (x, y) => this.openCopySpecial({ x, y }),
     }, () => this.customizer)
     this.canvas.onContextMenu = (elId, x, y, stack) => this.contextMenu.open(elId, x, y, stack)
     this.formatPainter = new FormatPainter(this.store, this.canvas)
@@ -4455,7 +4456,13 @@ export class Editor {
     reg('edit.redo', () => this.redo())
     reg('edit.formatPainter', () => this.toggleFormatPainter())
     reg('edit.reapply', () => this.toggleReapplyChange())
-    reg('edit.copyPicture', () => this.copyPicture())
+    reg('edit.copySpecial', () => this.openCopySpecial())
+    reg('edit.copyAsPicture', () => this.copyAs('picture'))
+    reg('edit.copyAsPng', () => this.copyAs('png'))
+    reg('edit.copyAsSvg', () => this.copyAs('svg'))
+    reg('edit.copyAsSvgCode', () => this.copyAs('svgCode'))
+    reg('edit.copyAsHtml', () => this.copyAs('html'))
+    reg('edit.copySettings', () => this.openSettings('copy'))
     reg('edit.find', () => this.openFind(false), { enabled: noLM })
     reg('edit.replace', () => this.openFind(true), { enabled: noLM })
     const oneTable = () => this.store.selectedElements.length === 1 && this.store.selectedElements[0].type === 'table'
@@ -7168,7 +7175,7 @@ export class Editor {
       [`${mod}S`, t('Save')],
       [`${mod}Z · ${mod}⇧Z`, t('Undo · redo')],
       [`${mod}C · ${mod}V`, t('Copy · paste — elements, or the whole slide when nothing is selected')],
-      [`${mod}⇧C`, t('Copy for PowerPoint: a picture of the selection, or of the slide')],
+      [`${mod}⇧C`, t('Copy special: picture, PNG, SVG or HTML — then press 1–5')],
       [`${mod}D`, t('Duplicate selection')],
       [mod === '⌘' ? '⌘F · ⌥⌘F' : 'Ctrl+F · Ctrl+H', t('Find · find and replace (text, tables, charts, notes)')],
       ['G · ⇧G', t('Group / ungroup the selection · always ungroup')],
@@ -7507,11 +7514,11 @@ export class Editor {
       // copy/cut/paste events — wireCopy and wirePaste — so they can write
       // the clipboard without a permission and receive images and cross-deck
       // payloads. Nothing to do here; returning keeps plain-letter shortcuts
-      // below from seeing them. ⇧⌘C (Figma's "Copy as PNG") is Copy for
-      // PowerPoint: a picture, which no copy event can carry.
+      // below from seeing them. ⇧⌘C opens Copy special (pictures, SVG,
+      // HTML), which no copy event can carry.
       if (mod && ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'c') {
         ev.preventDefault()
-        this.copyPicture()
+        this.openCopySpecial()
         return
       }
       if (mod && ['c', 'x', 'v'].includes(ev.key.toLowerCase())) return
@@ -7639,12 +7646,33 @@ export class Editor {
     })
   }
 
-  /** The context menu's Copy for PowerPoint: the selected elements, or the
-   *  current slide, as a picture any app pastes (editor/copypicture.ts). */
-  copyPicture() {
+  /** Copy special (⇧⌘C, right-click, Edit): the formats of
+   *  editor/copyspecial.ts as a numbered popup at `at`, or under the
+   *  selection (the canvas's middle with none). */
+  openCopySpecial(at?: { x: number; y: number }) {
+    const n = this.store.selectedElements.length
+    if (!at) {
+      const boxes = this.store.selection
+        .map((id) => document.querySelector(`.ed-stage-scale .beeslides-el[data-el-id="${CSS.escape(id)}"]`)?.getBoundingClientRect())
+        .filter((r): r is DOMRect => !!r)
+      const stage = document.querySelector('.ed-stage-scale')?.getBoundingClientRect()
+      at = boxes.length
+        ? { x: Math.min(...boxes.map((r) => r.left)), y: Math.max(...boxes.map((r) => r.bottom)) + 8 }
+        : stage ? { x: stage.left + stage.width / 2 - 140, y: stage.top + stage.height / 3 } : { x: 200, y: 200 }
+    }
+    openCopySpecialMenu({
+      ...at,
+      caption: n === 0 ? t('Copy the slide as') : n === 1 ? t('Copy the object as') : t('Copy {n} objects as', { n }),
+      pick: (f) => this.copyAs(f),
+      settings: () => this.openSettings('copy'),
+    })
+  }
+
+  /** The selected elements, or the current slide, onto the clipboard as `format`. */
+  copyAs(format: CopyFormat) {
     const els = this.store.selectedElements
-    copyPicture(this.store.doc, this.store.slide, els.length ? els : null).then(
-      ({ warnings }) => this.toast(warnings[0] ?? t('Copied as a picture — paste it into PowerPoint, Keynote or Google Slides')),
+    copySpecial(format, this.store.doc, this.store.slide, els.length ? els : null).then(
+      (msg) => this.toast(msg),
       () => this.toast(t('Could not copy')),
     )
   }
@@ -7804,6 +7832,7 @@ export class Editor {
   private static readonly SETTINGS_CATEGORIES: Array<{ id: SettingsCategoryId; icon: string; label: () => string; title: () => string; keywords: () => string }> = [
     { id: 'general', icon: ICONS.settings, label: () => t('General'), title: () => t('General app preferences'), keywords: () => `language locale translation appearance theme dark light offline network quick-format toolbar ${t('Language')} ${t('Appearance')} ${t('Offline mode — block all network features')}` },
     { id: 'shortcuts', icon: ICONS.keyboard, label: () => t('Keyboard shortcuts'), title: () => t('Every command and its keys — search, change, reset'), keywords: () => `keys keymap hotkeys accelerator ${t('Shortcut')}` },
+    { id: 'copy', icon: ICONS.copy, label: () => t('Copy special'), title: () => t('Picture resolution, background and text outlines for Copy special'), keywords: () => `clipboard png svg html powerpoint picture ${t('Picture resolution')}` },
     { id: 'customize', icon: ICONS.paintbrush, label: () => t('Customize'), title: () => t('Your own tabs, buttons, menus, styles and look for this editor'), keywords: () => 'customise ui profile' },
     { id: 'ai', icon: ICONS.terminal, label: () => t('AI chat'), title: () => t('Profiles for the chat panel: Claude Code commands and API chats'), keywords: () => 'claude api key model provider openai anthropic profile' },
     { id: 'icons', icon: ICONS.sparkle, label: () => t('Icon library'), title: () => t('Manage the icon library used when inserting icons'), keywords: () => 'icons server folder token source' },
@@ -7901,6 +7930,7 @@ export class Editor {
       content.scrollTop = 0
       if (id === 'general') this.renderGeneralCategory(content)
       else if (id === 'shortcuts') renderKeymapPane(content, { profiles: this.customizer!.profiles, toast: (m) => this.toast(m), query: o.query, openHelp: () => { close(); this.openHelp() } })
+      else if (id === 'copy') renderCopySettings(content)
       else if (id === 'icons') this.renderIconsCategory(content)
       else if (id === 'ai') renderAiCategory(content, (m) => this.toast(m))
       else if (id === 'customize') {

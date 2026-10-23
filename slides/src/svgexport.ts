@@ -27,8 +27,11 @@ import { t } from './i18n'
 export interface FigureSvgOpts {
   /** Convert text to <path> outlines (needs readable font files). */
   outlineText?: boolean
-  /** Export only these elements (a selection) and no slide background. */
+  /** Export only these elements (a selection) — then no slide background
+   *  unless `background` asks for it. */
   only?: ReadonlySet<string>
+  /** Paint the slide's background colour (default: unless `only` is set). */
+  background?: boolean
   /** The part of the slide to export, in slide px (default: all of it). */
   area?: { x: number; y: number; w: number; h: number }
   /** width/height attributes, e.g. "240pt" (default: the figure's size, or px). */
@@ -265,7 +268,7 @@ export async function exportFigureSvg(doc: SlidomingoDoc, slide: Slide, opts: Fi
     const { width: W, height: H } = doc.size
     const defs: string[] = []
     const body: string[] = []
-    if (!opts.only) {
+    if (opts.background ?? !opts.only) {
       const bg = paint(getComputedStyle(surface).backgroundColor)
       if (bg) body.push(`<rect width="${num(W)}" height="${num(H)}"${fillAttr(getComputedStyle(surface).backgroundColor)}/>`)
       if (getComputedStyle(surface).backgroundImage !== 'none') warnings.add(t('A background image/gradient is not exported — only its colour'))

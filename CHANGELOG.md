@@ -9,12 +9,16 @@ every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
 
-- **Copy for PowerPoint:** right-click ▸ Copy for PowerPoint (or ⇧⌘C /
-  Ctrl+Shift+C, or Edit ▸ Copy for PowerPoint) puts the selected objects on
-  the clipboard as a picture that pastes into PowerPoint at the size it had
-  on the slide, with a transparent background (and into any other app that
-  takes a pasted picture). With nothing selected it copies the whole slide. Design tools
-  that read SVG also get the vector.
+- **Copy special:** ⇧⌘C / Ctrl+Shift+C (or right-click ▸ Copy special…)
+  opens a small menu; press 1–5 to copy the selected objects, or the whole
+  slide, as **1 Picture** (pastes into PowerPoint at the size it had on the
+  slide, transparent around it), **2 PNG**, **3 SVG** (vector, for Figma or
+  Illustrator), **4 SVG code** (as text) or **5 HTML** (text and tables stay
+  editable text, for Word, mail or Google Docs; other objects come along as
+  pictures). Every format is also under Edit ▸ Copy as, and each can get its
+  own key in Keyboard shortcuts. Settings ▸ Copy special sets the picture
+  resolution (1×, 2×, 4×), whether selected objects keep the slide's
+  background, and text as outlines.
 
 ## [1.2.0] — 2026-10-23
 

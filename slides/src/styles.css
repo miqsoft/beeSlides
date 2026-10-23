@@ -6622,6 +6622,16 @@ button.ed-sd-from:focus-visible { outline: 2px solid var(--blue); outline-offset
 .ed-ctx-menu .ed-ctx-custom { display: flex; align-items: center; gap: 8px; }
 .ed-ctx-menu .ed-ctx-custom svg { width: 15px; height: 15px; flex: none; }
 .ed-ctx-key { margin-inline-start: auto; padding-inline-start: 16px; color: var(--muted); font-size: 12px; }
+.ed-copy-special { min-width: 280px; }
+.ed-copy-special .ed-arrange-cap { width: auto; }
+.ed-copy-special .ed-cs-row { gap: 10px; align-items: center; text-align: start; }
+.ed-cs-num {
+  flex: none; width: 20px; height: 20px; display: inline-grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 5px; font: 600 11px/1 ui-monospace, monospace; color: var(--muted);
+}
+.ed-cs-num:empty { visibility: hidden; }
+.ed-cs-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ed-cs-text small { color: var(--muted); font-size: 11px; }
 .ed-minibar .ed-minibar-custom { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* ————— Settings ▸ Customize (customize/settingspane.ts, settingsparts.ts) ————— */
 .ed-cz { display: flex; flex-direction: column; gap: 12px; }

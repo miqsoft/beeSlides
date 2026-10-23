@@ -13478,3 +13478,29 @@ Nothing keyed on them: the dev userData folder is pinned as the literal
 `productName`, and the test rigs' `slidomingo-slides` is the kernel `appId`
 (storage prefixes), which stays. Every other item on the 2026-10-20 kept list
 is unchanged.
+
+## 2026-10-23 — Copy special: one chosen clipboard format, not one button for every app
+
+A copy can carry several formats at once, but the app pasting it picks one,
+so a single "Copy for PowerPoint" button (PNG + an `<img>` of it in HTML +
+SVG) left Figma taking the PNG and could never give editable HTML. Copy
+special (`editor/copyspecial.ts`, popup `copyspecialmenu.ts`) writes ONE
+chosen format: Picture (that bundle, still the best paste into PowerPoint),
+PNG, SVG, SVG code (text), or HTML (text, tables and code with their computed
+styles written inline, other objects as `<img>`, top-to-bottom order). ⇧⌘C
+opens a numbered popup (keys 1–5) instead of copying a fixed format; each
+format is also an Edit ▸ Copy as command, so a profile can bind its own key.
+Settings (resolution, background, outlines) are per browser
+(`slidomingo-copy-special-v1`), never in the file.
+
+**Checked by hand in PowerPoint for Mac (2026-10-23):** the Picture bundle
+pastes as a picture at the selection's slide size (PowerPoint reads the
+`<img>` width/height; Chromium re-encodes clipboard PNGs and drops pHYs, so
+the size cannot ride on the PNG). An SVG alone does not paste at all; a PDF
+alone pastes as a picture no sharper than the 2× PNG and cannot be written
+from a browser. So no PDF flavour; editable PowerPoint shapes need a .pptx
+writer, not the clipboard.
+
+**Keys run actions directly.** The popup's digit/Enter handlers call the row's
+action rather than `button.click()`: right after a press on the canvas, Gesto
+swallows the next synthetic click.

@@ -58,7 +58,13 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'edit.redo': { label: 'Redo', accel: 'Shift+CmdOrCtrl+Z' },
   'edit.formatPainter': { label: 'Format Painter' },
   'edit.reapply': { label: 'Reapply Change' },
-  'edit.copyPicture': { label: 'Copy for PowerPoint', accel: 'Shift+CmdOrCtrl+C' },
+  'edit.copySpecial': { label: 'Copy special…', accel: 'Shift+CmdOrCtrl+C' },
+  'edit.copyAsPicture': { label: 'Picture' },
+  'edit.copyAsPng': { label: 'PNG' },
+  'edit.copyAsSvg': { label: 'SVG' },
+  'edit.copyAsSvgCode': { label: 'SVG code' },
+  'edit.copyAsHtml': { label: 'HTML' },
+  'edit.copySettings': { label: 'Copy settings…' },
   'edit.find': { label: 'Find…', accel: 'CmdOrCtrl+F' },
   'edit.replace': { label: 'Find and replace…', accel: 'Alt+CmdOrCtrl+F' },
   // the selected cells of a table (editor/tablerange.ts TABLE_OPS)
@@ -198,7 +204,9 @@ export const MENU_MODEL: MenuSection[] = [
   },
   {
     key: 'edit', label: 'Edit', items: [
-      'edit.undo', 'edit.redo', '-', { slot: 'edit-roles' }, 'edit.copyPicture', '-', 'edit.find', 'edit.replace', '-', 'edit.formatPainter', 'edit.reapply',
+      'edit.undo', 'edit.redo', '-', { slot: 'edit-roles' }, 'edit.copySpecial',
+      { label: 'Copy as', items: ['edit.copyAsPicture', 'edit.copyAsPng', 'edit.copyAsSvg', 'edit.copyAsSvgCode', 'edit.copyAsHtml', '-', 'edit.copySettings'] },
+      '-', 'edit.find', 'edit.replace', '-', 'edit.formatPainter', 'edit.reapply',
       {
         label: 'Table', items: [
           'table.merge', 'table.split', '-', 'table.rowAbove', 'table.rowBelow', 'table.colLeft', 'table.colRight',

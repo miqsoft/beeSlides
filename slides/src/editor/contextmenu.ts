@@ -23,8 +23,8 @@ export interface ContextMenuActions {
   copySelection(): void
   cutSelection(): void
   pasteFromClipboardAsync(): Promise<void>
-  /** the selection, or with none the whole slide, as a picture (copypicture.ts) */
-  copyPicture(): void
+  /** the Copy special popup at this point (copyspecialmenu.ts) */
+  copySpecial(x: number, y: number): void
 }
 
 const TYPE_ICON: Record<string, string> = {
@@ -143,7 +143,7 @@ export class ContextMenu {
     if (!elId) {
       // Empty canvas: nothing to cut/copy/duplicate/delete/reorder.
       item(t('Paste'), () => void this.actions.pasteFromClipboardAsync(), true, 'paste')
-      item(t('Copy slide for PowerPoint'), () => this.actions.copyPicture(), true, 'copy-picture')
+      item(t('Copy special…'), () => this.actions.copySpecial(clientX, clientY), true, 'copy-special')
       const nHidden = this.store.slide.elements.filter((e) => e.hidden).length
       if (nHidden) {
         item(nHidden === 1 ? t('Show 1 hidden element') : t('Show {n} hidden elements', { n: nHidden }),
@@ -158,7 +158,7 @@ export class ContextMenu {
       item(t('Cut'), () => this.actions.cutSelection(), true, 'cut')
       item(t('Copy'), () => this.actions.copySelection(), true, 'copy')
       item(t('Paste'), () => void this.actions.pasteFromClipboardAsync(), true, 'paste')
-      item(t('Copy for PowerPoint'), () => this.actions.copyPicture(), true, 'copy-picture')
+      item(t('Copy special…'), () => this.actions.copySpecial(clientX, clientY), true, 'copy-special')
       sep()
       // a lone table: the cell commands, on the right-clicked cell (or the
       // selected range it lies in — canvas.pickCellAt)
