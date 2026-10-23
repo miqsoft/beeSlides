@@ -272,6 +272,7 @@ export const MINIBAR_SCOPES: readonly string[] = ['*', 'shape', 'line', 'text', 
  *  is not listed: it can't be hidden. */
 export const CONTEXT_ITEMS: readonly CatalogItem[] = [
   { id: 'cut', label: 'Cut' }, { id: 'copy', label: 'Copy' }, { id: 'paste', label: 'Paste' },
+  { id: 'copy-picture', label: 'Copy for PowerPoint' },
   { id: 'show-hidden', label: 'Show hidden elements' }, { id: 'comment-here', label: 'Add comment here' },
   { id: 'table', label: 'Table' }, { id: 'edit-equation', label: 'Edit equation…' }, { id: 'convert-svg', label: 'Convert to objects' }, { id: 'go-to-target', label: 'Go to target' },
   { id: 'duplicate', label: 'Duplicate' }, { id: 'delete', label: 'Delete' },

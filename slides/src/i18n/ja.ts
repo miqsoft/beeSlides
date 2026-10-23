@@ -4,6 +4,10 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Copy for PowerPoint: a picture of the selection, or of the slide": "PowerPoint 用にコピー: 選択範囲またはスライドの画像",
+  "Copy for PowerPoint": "PowerPoint 用にコピー",
+  "Copy slide for PowerPoint": "スライドを PowerPoint 用にコピー",
+  "Copied as a picture — paste it into PowerPoint, Keynote or Google Slides": "画像としてコピーしました — PowerPoint、Keynote、Google スライドに貼り付けられます",
   "Code Mode (experimental)": "コードモード（試験的）",
   "Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.": "Claude Code のチャットが、複数のスライドにまたがる作業を、個別のツール呼び出しを何度も行う代わりに、短いプログラム 1 つで一度に実行できるようにします。変更後に開いたチャットに適用されます。",
   "AI wrote a slide from HTML ({n} elements)": "AI が HTML からスライドを作成しました（{n} 個の要素）",

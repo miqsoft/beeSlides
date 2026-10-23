@@ -4,6 +4,10 @@
 import type { Catalog } from '../i18n'
 
 export const zhHant: Catalog = {
+  "Copy for PowerPoint: a picture of the selection, or of the slide": "複製到 PowerPoint：所選內容或投影片的圖片",
+  "Copy for PowerPoint": "複製到 PowerPoint",
+  "Copy slide for PowerPoint": "將投影片複製到 PowerPoint",
+  "Copied as a picture — paste it into PowerPoint, Keynote or Google Slides": "已複製為圖片 — 可貼到 PowerPoint、Keynote 或 Google 簡報",
   "Code Mode (experimental)": "程式碼模式（實驗性）",
   "Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.": "Claude Code 聊天可以撰寫一個簡短的程式，一步完成涉及多張投影片的工作，而不必進行許多次個別的工具呼叫。對變更後開啟的聊天生效。",
   "AI wrote a slide from HTML ({n} elements)": "AI 根據 HTML 編寫了投影片（{n} 個元素）",

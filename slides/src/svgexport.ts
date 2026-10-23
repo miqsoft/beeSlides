@@ -27,6 +27,12 @@ import { t } from './i18n'
 export interface FigureSvgOpts {
   /** Convert text to <path> outlines (needs readable font files). */
   outlineText?: boolean
+  /** Export only these elements (a selection) and no slide background. */
+  only?: ReadonlySet<string>
+  /** The part of the slide to export, in slide px (default: all of it). */
+  area?: { x: number; y: number; w: number; h: number }
+  /** width/height attributes, e.g. "240pt" (default: the figure's size, or px). */
+  size?: { width: string; height: string }
 }
 export interface FigureSvgResult { svg: string; warnings: string[] }
 
@@ -259,20 +265,24 @@ export async function exportFigureSvg(doc: SlidomingoDoc, slide: Slide, opts: Fi
     const { width: W, height: H } = doc.size
     const defs: string[] = []
     const body: string[] = []
-    const bg = paint(getComputedStyle(surface).backgroundColor)
-    if (bg) body.push(`<rect width="${num(W)}" height="${num(H)}"${fillAttr(getComputedStyle(surface).backgroundColor)}/>`)
-    if (getComputedStyle(surface).backgroundImage !== 'none') warnings.add(t('A background image/gradient is not exported — only its colour'))
+    if (!opts.only) {
+      const bg = paint(getComputedStyle(surface).backgroundColor)
+      if (bg) body.push(`<rect width="${num(W)}" height="${num(H)}"${fillAttr(getComputedStyle(surface).backgroundColor)}/>`)
+      if (getComputedStyle(surface).backgroundImage !== 'none') warnings.add(t('A background image/gradient is not exported — only its colour'))
+    }
     for (const node of Array.from(surface.children) as HTMLElement[]) {
       if (!node.classList.contains('beeslides-el') || node.style.display === 'none') continue
+      if (opts.only && !opts.only.has(node.dataset.elId ?? '')) continue
       const g = await elementToSvg(node, slide, ctx, defs)
       if (g) body.push(g)
     }
     const f = doc.figure
-    const wAttr = f ? `${num(f.width)}${f.unit}` : `${num(W)}`
-    const hAttr = f ? `${num(f.height)}${f.unit}` : `${num(H)}`
+    const a = opts.area ?? { x: 0, y: 0, w: W, h: H }
+    const wAttr = opts.size?.width ?? (f ? `${num(f.width)}${f.unit}` : `${num(W)}`)
+    const hAttr = opts.size?.height ?? (f ? `${num(f.height)}${f.unit}` : `${num(H)}`)
     const svg =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
-      `<svg xmlns="${SVG_NS}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${wAttr}" height="${hAttr}" viewBox="0 0 ${num(W)} ${num(H)}">\n` +
+      `<svg xmlns="${SVG_NS}" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${wAttr}" height="${hAttr}" viewBox="${num(a.x)} ${num(a.y)} ${num(a.w)} ${num(a.h)}">\n` +
       `<title>${esc(doc.title)}</title>\n` +
       (defs.length ? `<defs>${defs.join('')}</defs>\n` : '') +
       body.join('\n') + '\n</svg>\n'

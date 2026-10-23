@@ -9,6 +9,13 @@ every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
 
+- **Copy for PowerPoint:** right-click ▸ Copy for PowerPoint (or ⇧⌘C /
+  Ctrl+Shift+C, or Edit ▸ Copy for PowerPoint) puts the selected objects on
+  the clipboard as a picture that pastes into PowerPoint at the size it had
+  on the slide, with a transparent background (and into any other app that
+  takes a pasted picture). With nothing selected it copies the whole slide. Design tools
+  that read SVG also get the vector.
+
 ## [1.2.0] — 2026-10-23
 
 Claude designs and builds slides as HTML, several chats can build one deck at

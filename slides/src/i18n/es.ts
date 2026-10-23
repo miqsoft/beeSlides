@@ -4,6 +4,10 @@
 import type { Catalog } from '../i18n'
 
 export const es: Catalog = {
+  "Copy for PowerPoint: a picture of the selection, or of the slide": "Copiar para PowerPoint: una imagen de la selección o de la diapositiva",
+  "Copy for PowerPoint": "Copiar para PowerPoint",
+  "Copy slide for PowerPoint": "Copiar diapositiva para PowerPoint",
+  "Copied as a picture — paste it into PowerPoint, Keynote or Google Slides": "Copiado como imagen: pégalo en PowerPoint, Keynote o Presentaciones de Google",
   "Code Mode (experimental)": "Modo código (experimental)",
   "Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.": "Los chats de Claude Code pueden escribir un programa breve que hace en un solo paso un trabajo de varias diapositivas, en lugar de muchas llamadas a herramientas por separado. Se aplica a los chats abiertos después del cambio.",
   "AI wrote a slide from HTML ({n} elements)": "La IA escribió una diapositiva desde HTML ({n} elementos)",

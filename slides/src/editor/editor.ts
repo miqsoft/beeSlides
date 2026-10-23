@@ -77,6 +77,7 @@ import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
 import { renderIconSources } from './iconsettings'
 import { openLibraryPanel } from './librarypanel'
 import { openSaveSelectionDialog } from './saveselection'
+import { copyPicture } from './copypicture'
 import { closeVariantPicker, MAX_VARIANTS, openVariantPicker, type PendingVariant, type PendingVariants } from './variantpicker'
 import { colorForSession } from './sessioncolor'
 import { flipMenuIfNeeded, positionFloating } from './floatingposition'
@@ -526,6 +527,7 @@ export class Editor {
       copySelection: () => this.copySelection(),
       cutSelection: () => this.cutSelection(),
       pasteFromClipboardAsync: () => this.pasteFromClipboardAsync(),
+      copyPicture: () => this.copyPicture(),
     }, () => this.customizer)
     this.canvas.onContextMenu = (elId, x, y, stack) => this.contextMenu.open(elId, x, y, stack)
     this.formatPainter = new FormatPainter(this.store, this.canvas)
@@ -4453,6 +4455,7 @@ export class Editor {
     reg('edit.redo', () => this.redo())
     reg('edit.formatPainter', () => this.toggleFormatPainter())
     reg('edit.reapply', () => this.toggleReapplyChange())
+    reg('edit.copyPicture', () => this.copyPicture())
     reg('edit.find', () => this.openFind(false), { enabled: noLM })
     reg('edit.replace', () => this.openFind(true), { enabled: noLM })
     const oneTable = () => this.store.selectedElements.length === 1 && this.store.selectedElements[0].type === 'table'
@@ -7165,6 +7168,7 @@ export class Editor {
       [`${mod}S`, t('Save')],
       [`${mod}Z · ${mod}⇧Z`, t('Undo · redo')],
       [`${mod}C · ${mod}V`, t('Copy · paste — elements, or the whole slide when nothing is selected')],
+      [`${mod}⇧C`, t('Copy for PowerPoint: a picture of the selection, or of the slide')],
       [`${mod}D`, t('Duplicate selection')],
       [mod === '⌘' ? '⌘F · ⌥⌘F' : 'Ctrl+F · Ctrl+H', t('Find · find and replace (text, tables, charts, notes)')],
       ['G · ⇧G', t('Group / ungroup the selection · always ungroup')],
@@ -7503,7 +7507,13 @@ export class Editor {
       // copy/cut/paste events — wireCopy and wirePaste — so they can write
       // the clipboard without a permission and receive images and cross-deck
       // payloads. Nothing to do here; returning keeps plain-letter shortcuts
-      // below from seeing them.
+      // below from seeing them. ⇧⌘C (Figma's "Copy as PNG") is Copy for
+      // PowerPoint: a picture, which no copy event can carry.
+      if (mod && ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'c') {
+        ev.preventDefault()
+        this.copyPicture()
+        return
+      }
       if (mod && ['c', 'x', 'v'].includes(ev.key.toLowerCase())) return
       if (ev.key === 'Delete' || ev.key === 'Backspace') {
         if (this.store.selection.length) {
@@ -7627,6 +7637,16 @@ export class Editor {
     void this.writeClipboard(clip.text).then((ok) => {
       if (ok && clip.kind === 'slide') this.toast(t('Slide copied — ⌘V in any deck to paste it'))
     })
+  }
+
+  /** The context menu's Copy for PowerPoint: the selected elements, or the
+   *  current slide, as a picture any app pastes (editor/copypicture.ts). */
+  copyPicture() {
+    const els = this.store.selectedElements
+    copyPicture(this.store.doc, this.store.slide, els.length ? els : null).then(
+      ({ warnings }) => this.toast(warnings[0] ?? t('Copied as a picture — paste it into PowerPoint, Keynote or Google Slides')),
+      () => this.toast(t('Could not copy')),
+    )
   }
 
   /** Context-menu Cut: copy, then delete — no separate clipboard state, so
