@@ -13,9 +13,10 @@ append, don't relitigate). Subsystem notes: `slides/src/CLAUDE.md`,
 `beeslides` (`#beeslides-doc`, `beeslides/slides`, `beeslides-store:`,
 `window.beeslides`, CSS classes). Files saved before 2026-10-20 say
 `slidomingo`: every reader accepts both (`kernel/src/legacynames.ts`), every
-writer writes only the new names. Storage keys, IPC channels, appId, package
-and TS names stay `slidomingo` (never in a file). Recognise both
-`.beeslides.html` and `.slidomingo.html` (`kernel/src/docext.ts`).
+writer writes only the new names. Storage keys, IPC channels, appId and TS
+names stay `slidomingo` (never in a file); npm package names say
+`beeslides`. Recognise both `.beeslides.html` and `.slidomingo.html`
+(`kernel/src/docext.ts`).
 
 ## Hard rules
 

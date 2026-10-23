@@ -13466,3 +13466,15 @@ text sizes (steps body 16px, 18px at `data-size="l"` — every agent found it
 small); components read the theme, not `--bs-*` overridden in a slide's CSS;
 a pixel comparison of HTML vs slide inside the tool (the desktop app could
 screenshot both).
+
+## 2026-10-23 — npm package names say `beeslides` (amends the 2026-10-20 kept list)
+
+Owner's call: `npm run setup` (and every `npm run`) echoed
+`> slidomingo-slides@… build:single`, the one old name a person still saw.
+The packages are now `beeslides`, `beeslides-slides` and
+`beeslides-desktop` (both `package.json` and the lockfiles' own entries).
+Nothing keyed on them: the dev userData folder is pinned as the literal
+`slidomingo-desktop` in `desktop/src/main/index.ts`, the app name comes from
+`productName`, and the test rigs' `slidomingo-slides` is the kernel `appId`
+(storage prefixes), which stays. Every other item on the 2026-10-20 kept list
+is unchanged.
