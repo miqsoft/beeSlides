@@ -4,6 +4,11 @@
 import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
+  "PowerPoint": "PowerPoint",
+  "Editable shapes and text": "可编辑的形状和文本",
+  "In the desktop app": "在桌面应用中",
+  "Copied for PowerPoint — paste it there as editable shapes": "已复制到 PowerPoint — 在其中粘贴为可编辑形状",
+  "Copy special: PowerPoint, picture, PNG, SVG or HTML — then press 1–6": "选择性复制：PowerPoint、图片、PNG、SVG 或 HTML — 然后按 1–6",
   "PNG": "PNG",
   "SVG": "SVG",
   "HTML": "HTML",
@@ -27,7 +32,6 @@ export const zhHans: Catalog = {
   "What Copy special puts on the clipboard. Kept in this browser, never in the file.": "选择性复制放到剪贴板上的内容。保存在此浏览器中，不会写入文件。",
   "Selected objects on the slide’s background colour (else transparent)": "所选对象带幻灯片背景色（否则透明）",
   "Text as outlines in SVG and pictures (needs the network once)": "在 SVG 和图片中将文字转为轮廓（首次需要网络）",
-  "Copy special: picture, PNG, SVG or HTML — then press 1–5": "选择性复制：图片、PNG、SVG 或 HTML — 然后按 1–5",
   "Copy the slide as": "将幻灯片复制为",
   "Copy the object as": "将对象复制为",
   "Copy {n} objects as": "将 {n} 个对象复制为",

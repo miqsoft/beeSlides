@@ -4,14 +4,18 @@
 //
 // Copy special (editor/copyspecial.ts, copyspecialmenu.ts) in a real
 // (headless) browser, reading the clipboard back:
-//   right-click ▸ Copy special… and ⇧⌘C open the numbered popup; 1 Picture
+//   right-click ▸ Copy special… and ⇧⌘C open the numbered popup (1 PowerPoint
+//   is offered but off in a browser: desktop only); 2 Picture
 //   = PNG at 2× the rotated, shadow-grown selection box (drawn, transparent
-//   around) + an HTML <img> sized as on a 7.5 in slide + SVG; 2 PNG only;
-//   3 SVG only; 4 the SVG as text; 5 HTML whose text keeps its font, size
+//   around) + an HTML <img> sized as on a 7.5 in slide + SVG; 3 PNG only;
+//   4 SVG only; 5 the SVG as text; 6 HTML whose text keeps its font, size
 //   and bold inline and whose shape is an <img>; Esc copies nothing;
 //   Settings ▸ Copy special (resolution, background) changes the picture;
 //   each format is also an Edit ▸ Copy as command; an empty-canvas
-//   right-click copies the whole slide. What PowerPoint does with it was
+//   right-click copies the whole slide. 1 PowerPoint with the desktop bridge
+//   stood in for: the package handed to main holds native text (fields
+//   resolved), shapes and tables, a picture for $math$ and an equation, plus
+//   a PNG for other apps. What PowerPoint does with all of it was
 //   checked by hand (macOS: pastes the HTML picture at that size; SVG alone,
 //   or a PDF, it takes no better).
 //
@@ -24,6 +28,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
+import { readZip } from '../kernel/src/convert/zip.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
@@ -147,7 +152,7 @@ try {
   const aw = Math.ceil(Math.max(820 + 1, 380 + hw)) - x0
   const ah = Math.ceil(400 + hh) - y0
 
-  console.log('— right-click ▸ Copy special… ▸ 1 Picture')
+  console.log('— right-click ▸ Copy special… ▸ 2 Picture')
   {
     const t = await centre('t1')
     await p.mouse.click(t.x, t.y)
@@ -166,9 +171,14 @@ try {
     check(opened, 'the context menu offers Copy special…')
     await p.waitForTimeout(150)
     const shown = await popup()
-    check(shown?.caption === 'Copy 2 objects as' && shown.rows.length === 6, 'the popup says what it copies and offers 5 formats + settings', shown)
-    check(/^1Picture/.test(shown?.rows[0] ?? '') && /^5HTML/.test(shown?.rows[4] ?? ''), 'the formats are numbered', shown?.rows)
+    check(shown?.caption === 'Copy 2 objects as' && shown.rows.length === 7, 'the popup says what it copies and offers 6 formats + settings', shown)
+    check(/^2Picture/.test(shown?.rows[1] ?? '') && /^6HTML/.test(shown?.rows[5] ?? ''), 'the formats are numbered', shown?.rows)
+    const pp = await p.evaluate(() => { const b = document.querySelector('.ed-copy-special .ed-cs-row'); return { text: b?.textContent, disabled: b?.disabled } })
+    check(/^1PowerPoint.*desktop app/.test(pp.text ?? '') && pp.disabled, '1 PowerPoint: offered, off in a browser (desktop app only)', pp)
     await p.keyboard.press('1')
+    await p.waitForTimeout(150)
+    check(!!(await popup()), '…and its key does nothing there')
+    await p.keyboard.press('2')
     await p.waitForTimeout(1500)
     check(/PowerPoint/.test(await toastText()), 'a toast says where to paste it')
     check(!(await popup()), 'the popup closed')
@@ -183,9 +193,9 @@ try {
     check(/alt="Hello PowerPoint"/.test(r.html), 'alt text comes from the text box')
   }
 
-  console.log('— ⇧⌘C ▸ 5 HTML')
+  console.log('— ⇧⌘C ▸ 6 HTML')
   {
-    const shown = await viaKeys('5')
+    const shown = await viaKeys('6')
     check(shown?.caption === 'Copy 2 objects as', 'Ctrl+Shift+C opens the same popup', shown)
     const r = await readBack()
     check(JSON.stringify(r.types.slice().sort()) === '["text/html","text/plain"]', 'only HTML and plain text', r.types)
@@ -196,26 +206,26 @@ try {
     check(r.text.trim() === 'Hello PowerPoint', 'plain text is the words', r.text)
   }
 
-  console.log('— 2 PNG · 3 SVG · 4 SVG code, Esc')
+  console.log('— 3 PNG · 4 SVG · 5 SVG code, Esc')
   {
     await p.keyboard.press('Escape')
     const c = await centre('s2')
     await p.mouse.click(c.x, c.y)
     await p.waitForTimeout(200)
-    const shown = await viaKeys('2')
+    const shown = await viaKeys('3')
     check(shown?.caption === 'Copy the object as', 'one object', shown?.caption)
     let r = await readBack([[0.5, 0.5]])
-    check(JSON.stringify(r.types) === '["image/png"]', '2 = only the PNG (the key right after a canvas click)', { types: r.types, errors })
+    check(JSON.stringify(r.types) === '["image/png"]', '3 = only the PNG (the key right after a canvas click)', { types: r.types, errors })
     // the circle 900..1160 × 320..580, grown by half its 2px stroke (1)
     check(r.png && r.png.w === 262 * 2 && near(r.png.px[0], '#F59E0B'), 'the circle, drawn', r.png && [r.png.w, r.png.px[0]])
     if (svgOk) {
-      await viaKeys('3')
+      await viaKeys('4')
       r = await readBack()
-      check(JSON.stringify(r.types) === '["image/svg+xml"]' && /<ellipse|<path|<circle/.test(r.svg), '3 = only the SVG', r.types)
-    } else console.log('  skip  3 = SVG (this Chromium cannot write it)')
-    await viaKeys('4')
+      check(JSON.stringify(r.types) === '["image/svg+xml"]' && /<ellipse|<path|<circle/.test(r.svg), '4 = only the SVG', r.types)
+    } else console.log('  skip  4 = SVG (this Chromium cannot write it)')
+    await viaKeys('5')
     r = await readBack()
-    check(JSON.stringify(r.types) === '["text/plain"]' && /<svg[^>]*viewBox="899 319 262 262"/.test(r.text), '4 = the SVG code as text', r.text.slice(0, 200))
+    check(JSON.stringify(r.types) === '["text/plain"]' && /<svg[^>]*viewBox="899 319 262 262"/.test(r.text), '5 = the SVG code as text', r.text.slice(0, 200))
     await viaKeys('Escape')
     r = await readBack()
     check(r.text === 'stale' && !(await popup()), 'Esc closes it and copies nothing')
@@ -224,7 +234,7 @@ try {
   console.log('— Settings ▸ Copy special')
   {
     await p.evaluate(() => localStorage.setItem('slidomingo-copy-special-v1', JSON.stringify({ scale: 1, background: true })))
-    await viaKeys('2')
+    await viaKeys('3')
     const r = await readBack([[0.02, 0.02]])
     check(r.png && r.png.w === 262, '1× resolution', r.png?.w)
     check(r.png && near(r.png.px[0], BG), 'on the slide background', r.png?.px[0])
@@ -242,6 +252,43 @@ try {
     check(JSON.stringify(r.types) === '["image/png"]' && r.png?.w === 262 * 2, 'Edit ▸ Copy as ▸ PNG copies the selection', { ran, types: r.types })
   }
 
+  console.log('— 1 PowerPoint (desktop bridge stood in for)')
+  {
+    await p.keyboard.press('Escape')
+    await p.evaluate(() => {
+      const d = JSON.parse(JSON.stringify(window.beeslides.doc))
+      d.slides[0].elements.push(
+        { id: 'pg', type: 'text', x: 80, y: 600, w: 400, h: 60, rotation: 0, opacity: 1, html: 'Page {{page}} of <b>{{pages}}</b>', fontSize: 28,
+          fontFamily: 'Georgia, serif', fontWeight: 400, color: '#111111', align: 'left', valign: 'top', lineHeight: 1.2 },
+        { id: 'mx', type: 'text', x: 520, y: 600, w: 300, h: 60, rotation: 0, opacity: 1, html: 'So $x^2$', fontSize: 28,
+          fontFamily: 'Georgia, serif', fontWeight: 400, color: '#111111', align: 'left', valign: 'top', lineHeight: 1.2 },
+        { id: 'eq', type: 'math', x: 860, y: 600, w: 200, h: 80, rotation: 0, opacity: 1, tex: '\\frac{a}{b}', fontSize: 32, color: '#1E3A8A' },
+      )
+      window.beeslides.loadDoc(JSON.stringify(d))
+      window.slidomingoDesktop = { copyOffice: async (req) => { window.__office = { gvml: Array.from(req.gvml), png: req.png ? Array.from(req.png) : null }; return { ok: true } } }
+    })
+    await p.waitForTimeout(600)
+    const row = await p.evaluate(() => { const b = document.querySelector('.ed-copy-special .ed-cs-row'); return b && { disabled: b.disabled } })
+    await p.keyboard.press('Control+Shift+C')
+    await p.waitForTimeout(200)
+    const on = await p.evaluate(() => { const b = document.querySelector('.ed-copy-special .ed-cs-row'); return { text: b?.textContent, disabled: b?.disabled } })
+    check(!row && /^1PowerPointEditable shapes and text/.test(on.text ?? '') && !on.disabled, 'with the desktop bridge, 1 PowerPoint is on', on)
+    await p.keyboard.press('1')
+    await p.waitForFunction(() => !!window.__office, null, { timeout: 15_000 }).catch(() => {})
+    const got = await p.evaluate(() => window.__office ?? null)
+    check(!!got && got.gvml[0] === 0x50 && got.gvml[1] === 0x4b && got.png?.[0] === 0x89, 'main gets a zip and a PNG', got && [got.gvml.length, got.png?.length])
+    if (got) {
+      const z = await readZip(new Uint8Array(got.gvml))
+      const xml = new TextDecoder().decode(z.get('clipboard/drawings/drawing1.xml'))
+      const kinds = [...xml.matchAll(/<a:cNvPr id="\d+" name="([A-Za-z]+) \d+"/g)].map((m) => m[1])
+      check(kinds.join() === 'TextBox,Rectangle,Oval,TextBox,Picture,Picture', 'whole slide in z-order: text, shapes, then a picture for $math$ and the equation', kinds)
+      check(/<a:t>Page 1 of <\/a:t><\/a:r><a:r><a:rPr [^>]*b="1"[^>]*>[^]*?<a:t>1<\/a:t>/.test(xml) && !/\{\{/.test(xml), 'fields are resolved (page 1 of 1), never sent as {{tokens}}', [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]))
+      check(/descr="So \$x\^2\$"/.test(xml) && /descr="\\frac\{a\}\{b\}"/.test(xml), 'the pictures carry their text / TeX as alt text')
+      check([...z.keys()].filter((k) => k.startsWith('clipboard/media/')).length === 2, 'two pictures in the package')
+    }
+    await p.evaluate(() => { delete window.slidomingoDesktop; delete window.__office })
+  }
+
   console.log('— empty canvas: the whole slide')
   {
     await p.keyboard.press('Escape')
@@ -254,7 +301,7 @@ try {
     await p.evaluate(() => document.querySelector('.ed-ctx-menu [data-ui-item="copy-special"]')?.click())
     await p.waitForTimeout(150)
     check((await popup())?.caption === 'Copy the slide as', 'nothing selected: the slide')
-    await p.keyboard.press('1')
+    await p.keyboard.press('2')
     await p.waitForTimeout(1500)
     const r = await readBack([[0.97, 0.05], [1030 / W, 450 / H]])
     check(r.png && r.png.w === W * 2 && r.png.h === H * 2, 'the PNG is the slide at 2×', r.png && [r.png.w, r.png.h])

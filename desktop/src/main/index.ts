@@ -20,6 +20,7 @@ import { handleFrom, onFrom } from './ipcguard.ts'
 import { installDefaultGuards, openExternalFromUser } from './navguard.ts'
 import { registerDocumentIpc, pruneAllBackups } from './documents.ts'
 import { registerFigureIpc } from './figureexport.ts'
+import { registerOfficeClipIpc } from './officeclip.ts'
 import { registerPresentIpc } from './present.ts'
 import { registerPictureIpc } from './pictures.ts'
 import { buildMenu, registerMenuIpc } from './menu.ts'
@@ -183,6 +184,7 @@ if (!gotLock) {
     registerAgentExec(refreshAgentEndpointServer)
     registerDocumentIpc()
     registerFigureIpc()
+    registerOfficeClipIpc()
     registerPresentIpc()
     registerPictureIpc()
     registerFlushIpc()

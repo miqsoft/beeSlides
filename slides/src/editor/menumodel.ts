@@ -59,6 +59,7 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'edit.formatPainter': { label: 'Format Painter' },
   'edit.reapply': { label: 'Reapply Change' },
   'edit.copySpecial': { label: 'Copy special…', accel: 'Shift+CmdOrCtrl+C' },
+  'edit.copyAsPowerPoint': { label: 'PowerPoint' },
   'edit.copyAsPicture': { label: 'Picture' },
   'edit.copyAsPng': { label: 'PNG' },
   'edit.copyAsSvg': { label: 'SVG' },
@@ -205,7 +206,7 @@ export const MENU_MODEL: MenuSection[] = [
   {
     key: 'edit', label: 'Edit', items: [
       'edit.undo', 'edit.redo', '-', { slot: 'edit-roles' }, 'edit.copySpecial',
-      { label: 'Copy as', items: ['edit.copyAsPicture', 'edit.copyAsPng', 'edit.copyAsSvg', 'edit.copyAsSvgCode', 'edit.copyAsHtml', '-', 'edit.copySettings'] },
+      { label: 'Copy as', items: ['edit.copyAsPowerPoint', 'edit.copyAsPicture', 'edit.copyAsPng', 'edit.copyAsSvg', 'edit.copyAsSvgCode', 'edit.copyAsHtml', '-', 'edit.copySettings'] },
       '-', 'edit.find', 'edit.replace', '-', 'edit.formatPainter', 'edit.reapply',
       {
         label: 'Table', items: [

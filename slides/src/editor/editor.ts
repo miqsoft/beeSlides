@@ -77,7 +77,7 @@ import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
 import { renderIconSources } from './iconsettings'
 import { openLibraryPanel } from './librarypanel'
 import { openSaveSelectionDialog } from './saveselection'
-import { copySpecial, type CopyFormat } from './copyspecial'
+import { canCopyFormat, copySpecial, type CopyFormat } from './copyspecial'
 import { openCopySpecialMenu, renderCopySettings } from './copyspecialmenu'
 import { closeVariantPicker, MAX_VARIANTS, openVariantPicker, type PendingVariant, type PendingVariants } from './variantpicker'
 import { colorForSession } from './sessioncolor'
@@ -4457,6 +4457,7 @@ export class Editor {
     reg('edit.formatPainter', () => this.toggleFormatPainter())
     reg('edit.reapply', () => this.toggleReapplyChange())
     reg('edit.copySpecial', () => this.openCopySpecial())
+    reg('edit.copyAsPowerPoint', () => this.copyAs('powerpoint'), { enabled: () => canCopyFormat('powerpoint') })
     reg('edit.copyAsPicture', () => this.copyAs('picture'))
     reg('edit.copyAsPng', () => this.copyAs('png'))
     reg('edit.copyAsSvg', () => this.copyAs('svg'))
@@ -7175,7 +7176,7 @@ export class Editor {
       [`${mod}S`, t('Save')],
       [`${mod}Z · ${mod}⇧Z`, t('Undo · redo')],
       [`${mod}C · ${mod}V`, t('Copy · paste — elements, or the whole slide when nothing is selected')],
-      [`${mod}⇧C`, t('Copy special: picture, PNG, SVG or HTML — then press 1–5')],
+      [`${mod}⇧C`, t('Copy special: PowerPoint, picture, PNG, SVG or HTML — then press 1–6')],
       [`${mod}D`, t('Duplicate selection')],
       [mod === '⌘' ? '⌘F · ⌥⌘F' : 'Ctrl+F · Ctrl+H', t('Find · find and replace (text, tables, charts, notes)')],
       ['G · ⇧G', t('Group / ungroup the selection · always ungroup')],

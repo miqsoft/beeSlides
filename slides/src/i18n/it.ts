@@ -4,6 +4,11 @@
 import type { Catalog } from '../i18n'
 
 export const it: Catalog = {
+  "PowerPoint": "PowerPoint",
+  "Editable shapes and text": "Forme e testo modificabili",
+  "In the desktop app": "Nell’app desktop",
+  "Copied for PowerPoint — paste it there as editable shapes": "Copiato per PowerPoint — incollalo lì come forme modificabili",
+  "Copy special: PowerPoint, picture, PNG, SVG or HTML — then press 1–6": "Copia speciale: PowerPoint, immagine, PNG, SVG o HTML — poi premi 1–6",
   "PNG": "PNG",
   "SVG": "SVG",
   "HTML": "HTML",
@@ -27,7 +32,6 @@ export const it: Catalog = {
   "What Copy special puts on the clipboard. Kept in this browser, never in the file.": "Cosa mette negli appunti la copia speciale. Resta in questo browser, mai nel file.",
   "Selected objects on the slide’s background colour (else transparent)": "Oggetti selezionati sul colore di sfondo della diapositiva (altrimenti trasparente)",
   "Text as outlines in SVG and pictures (needs the network once)": "Testo come tracciati in SVG e immagini (richiede la rete una volta)",
-  "Copy special: picture, PNG, SVG or HTML — then press 1–5": "Copia speciale: immagine, PNG, SVG o HTML — poi premi 1–5",
   "Copy the slide as": "Copia la diapositiva come",
   "Copy the object as": "Copia l’oggetto come",
   "Copy {n} objects as": "Copia {n} oggetti come",

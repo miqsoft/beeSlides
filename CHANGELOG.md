@@ -9,11 +9,19 @@ every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
 
+- **Copy for PowerPoint as editable shapes (desktop app):** Copy special ▸
+  **1 PowerPoint** (⇧⌘C then 1, or Edit ▸ Copy as ▸ PowerPoint) puts the
+  selected objects on the clipboard in PowerPoint's own format. Text boxes
+  (with bold, italic, colours, links and bullets), shapes (with outlines,
+  gradients, rotation and shadows), pictures (with crop), tables (with merged
+  cells) and groups paste into PowerPoint as native objects you can edit;
+  charts, diagrams and equations come along as pictures. Other apps get a
+  picture. Tested on PowerPoint for Mac; on Windows it is untested so far.
 - **Copy special:** ⇧⌘C / Ctrl+Shift+C (or right-click ▸ Copy special…)
-  opens a small menu; press 1–5 to copy the selected objects, or the whole
-  slide, as **1 Picture** (pastes into PowerPoint at the size it had on the
-  slide, transparent around it), **2 PNG**, **3 SVG** (vector, for Figma or
-  Illustrator), **4 SVG code** (as text) or **5 HTML** (text and tables stay
+  opens a small menu; press 2–6 to copy the selected objects, or the whole
+  slide, as **2 Picture** (pastes into PowerPoint at the size it had on the
+  slide, transparent around it), **3 PNG**, **4 SVG** (vector, for Figma or
+  Illustrator), **5 SVG code** (as text) or **6 HTML** (text and tables stay
   editable text, for Word, mail or Google Docs; other objects come along as
   pictures). Every format is also under Edit ▸ Copy as, and each can get its
   own key in Keyboard shortcuts. Settings ▸ Copy special sets the picture

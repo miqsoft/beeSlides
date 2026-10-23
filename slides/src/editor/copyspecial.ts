@@ -5,6 +5,11 @@
 // the system clipboard in ONE chosen format, so the app it is pasted into
 // cannot pick a different one (copyspecialmenu.ts is the ⇧⌘C / right-click
 // popup):
+//   powerpoint — PowerPoint's own drawing package (kernel/src/convert/gvml.ts):
+//              text, shapes, pictures, tables and groups paste as native,
+//              editable objects, anything else as a picture of it; + a PNG
+//              of the whole selection for other apps. Desktop app only: a
+//              browser cannot write that clipboard type (main/officeclip.ts)
 //   picture  — image/png + text/html (an <img> of that PNG with its size on
 //              the slide: what a browser's own "Copy image" writes; PowerPoint
 //              pastes this one, at that size) + image/svg+xml where the
@@ -27,14 +32,16 @@
 // re-encodes clipboard images and drops it.
 
 import type { Slide, SlidomingoDoc, SlideElement } from '../model'
-import { renderSlide } from '../render'
+import { fieldContext, renderSlide, resolveFields, sanitizeHtml } from '../render'
+import { emuPerPxFor, writeGvml } from '../../../kernel/src/convert/gvml.ts'
+import type { WElement } from '../../../kernel/src/convert/drawingml-write.ts'
 import { exportFigureSvg } from '../svgexport'
 import { fontFaceCss } from '../fonts'
 import { t } from '../i18n'
 import { lsJson, lsSetJson } from '../../../kernel/src/storage.ts'
 
-export type CopyFormat = 'picture' | 'png' | 'svg' | 'svgCode' | 'html'
-export const COPY_FORMATS: readonly CopyFormat[] = ['picture', 'png', 'svg', 'svgCode', 'html']
+export type CopyFormat = 'powerpoint' | 'picture' | 'png' | 'svg' | 'svgCode' | 'html'
+export const COPY_FORMATS: readonly CopyFormat[] = ['powerpoint', 'picture', 'png', 'svg', 'svgCode', 'html']
 
 /** Settings ▸ Copy special. Per browser, never in the document. */
 export interface CopyPrefs {
@@ -61,21 +68,24 @@ export function setCopyPrefs(patch: Partial<CopyPrefs>): void {
 }
 
 export function copyFormatLabel(f: CopyFormat): string {
-  return f === 'picture' ? t('Picture') : f === 'png' ? t('PNG') : f === 'svg' ? t('SVG') : f === 'svgCode' ? t('SVG code') : t('HTML')
+  return f === 'powerpoint' ? t('PowerPoint') : f === 'picture' ? t('Picture') : f === 'png' ? t('PNG') : f === 'svg' ? t('SVG') : f === 'svgCode' ? t('SVG code') : t('HTML')
 }
 export function copyFormatHint(f: CopyFormat): string {
-  return f === 'picture' ? t('For PowerPoint, Keynote, Google Slides')
+  return f === 'powerpoint' ? (canCopyFormat('powerpoint') ? t('Editable shapes and text') : t('In the desktop app'))
+    : f === 'picture' ? t('For PowerPoint, Keynote, Google Slides')
     : f === 'png' ? t('Only the image')
     : f === 'svg' ? (canCopyFormat('svg') ? t('Vector, for Figma, Illustrator, Inkscape') : t('This browser cannot copy SVG'))
     : f === 'svgCode' ? t('As text, for a code editor')
     : t('Editable text, for Word, mail, Google Docs')
 }
 export function canCopyFormat(f: CopyFormat): boolean {
+  if (f === 'powerpoint') return !!window.slidomingoDesktop?.copyOffice
   if (typeof ClipboardItem !== 'function' || !navigator.clipboard?.write) return false
   return f !== 'svg' || !!ClipboardItem.supports?.('image/svg+xml')
 }
 function copiedToast(f: CopyFormat): string {
-  return f === 'picture' ? t('Copied as a picture — paste it into PowerPoint, Keynote or Google Slides')
+  return f === 'powerpoint' ? t('Copied for PowerPoint — paste it there as editable shapes')
+    : f === 'picture' ? t('Copied as a picture — paste it into PowerPoint, Keynote or Google Slides')
     : f === 'png' ? t('Copied as PNG') : f === 'svg' ? t('Copied as SVG')
     : f === 'svgCode' ? t('Copied the SVG code') : t('Copied as HTML')
 }
@@ -86,6 +96,14 @@ function copiedToast(f: CopyFormat): string {
 export function copySpecial(format: CopyFormat, doc: SlidomingoDoc, slide: Slide, els: SlideElement[] | null): Promise<string> {
   if (!canCopyFormat(format)) return Promise.reject(new Error(`cannot copy ${format}`))
   const prefs = copyPrefs()
+  if (format === 'powerpoint') {
+    // main writes the clipboard (no user activation needed there)
+    return buildPowerPoint(doc, slide, els, prefs).then(async (b) => {
+      const r = await window.slidomingoDesktop!.copyOffice!({ gvml: b.gvml, png: b.png })
+      if ('refused' in r) throw new Error(r.error)
+      return b.warnings[0] ?? copiedToast(format)
+    })
+  }
   let items: Record<string, Promise<Blob>>
   let done: Promise<string[]>
   if (format === 'html') {
@@ -196,6 +214,61 @@ async function rasterize(svg: string, w: number, h: number): Promise<Blob> {
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+// ---- PowerPoint ---------------------------------------------------------------------
+
+const MATH_RE = /\$[^$\n]+\$/
+
+/** The element as the writer takes it natively, or null: draw a picture of it. */
+function toNative(el: SlideElement, doc: SlidomingoDoc, fields: ReturnType<typeof fieldContext>): WElement | null {
+  const rich = (html: string) => sanitizeHtml(resolveFields(html, fields))
+  switch (el.type) {
+    case 'text': {
+      // $…$ is typeset math: PowerPoint gets it as a picture
+      if (MATH_RE.test(el.html)) return null
+      return { ...el, html: rich(el.html) } as unknown as WElement
+    }
+    case 'shape': return el as unknown as WElement
+    case 'image': {
+      const src = el.src.startsWith('asset:') ? doc.assets?.[el.src.slice(6)] ?? '' : el.src
+      if (!/^data:image\/(png|jpeg|gif)[;,]/i.test(src)) return null
+      return { ...el, src } as unknown as WElement
+    }
+    case 'table': {
+      if (el.rows.some((r) => r.cells.some((c) => MATH_RE.test(c.html)))) return null
+      return { ...el, rows: el.rows.map((r) => ({ ...r, cells: r.cells.map((c) => ({ ...c, html: rich(c.html) })) })) } as unknown as WElement
+    }
+    default: return null
+  }
+}
+
+/** The package for PowerPoint (native where the writer can, a picture of
+ *  the rest) and a PNG of the whole selection for every other app. */
+async function buildPowerPoint(doc: SlidomingoDoc, slide: Slide, els: SlideElement[] | null, prefs: CopyPrefs) {
+  const ids = drawnIds(slide, els ?? slide.elements)
+  const picked = slide.elements.filter((e) => ids.has(e.id))
+  if (!picked.length) throw new Error('nothing visible to copy')
+  const fields = fieldContext(doc, slide)
+  const out: WElement[] = []
+  const warnings: string[] = []
+  for (const el of picked) {
+    // an empty placeholder is only a prompt on the canvas
+    if (el.type === 'text' && el.placeholder && !el.html.replace(/<[^>]*>/g, '').trim()) continue
+    const native = toNative(el, doc, fields)
+    if (native) { out.push(native); continue }
+    const a = pictureArea([el])
+    const one = await exportFigureSvg(doc, slide, { only: new Set([el.id]), area: a, background: false, outlineText: prefs.outlineText }).catch(() => null)
+    if (!one) continue
+    warnings.push(...one.warnings)
+    const scale = Math.min(prefs.scale, PNG_MAX_SIDE / Math.max(a.w, a.h))
+    const png = await rasterize(withFonts(doc, one.svg), Math.max(1, Math.round(a.w * scale)), Math.max(1, Math.round(a.h * scale)))
+    out.push({ type: 'picture', id: el.id, ...a, groupId: el.groupId, png: new Uint8Array(await png.arrayBuffer()), alt: altText(el) })
+  }
+  const emuPerPx = doc.kind === 'figure' ? 9525 : emuPerPxFor(doc.size.height)
+  const g = await writeGvml(out, { emuPerPx, theme: doc.theme })
+  const pic = await buildPicture(doc, slide, els, prefs)
+  return { gvml: g.bytes, png: new Uint8Array(await pic.png.arrayBuffer()), warnings: [...warnings, ...g.warnings] }
 }
 
 // ---- HTML -------------------------------------------------------------------------

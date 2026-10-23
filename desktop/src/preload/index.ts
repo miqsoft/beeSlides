@@ -385,6 +385,10 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
     | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string },
   ): Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }> =>
     ipcRenderer.invoke('slidomingo:export-figure', req),
+  /** Copy special ▸ PowerPoint: PowerPoint's own drawing package (+ a PNG
+   *  for other apps) onto the system clipboard in one write (main/officeclip.ts). */
+  copyOffice: (req: { gvml: Uint8Array; png?: Uint8Array }): Promise<{ ok: true } | { refused: true; error: string }> =>
+    ipcRenderer.invoke('slidomingo:copy-office', req),
   /** Icon sets: native folder picker; main writes the SVGs + icons.json into
    *  a subfolder named `folderName` (names and sizes checked in main). */
   exportIconset: (req: { folderName: string; files: Array<{ name: string; text: string }> }): Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }> =>

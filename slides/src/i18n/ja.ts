@@ -4,6 +4,11 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "PowerPoint": "PowerPoint",
+  "Editable shapes and text": "編集できる図形とテキスト",
+  "In the desktop app": "デスクトップアプリで",
+  "Copied for PowerPoint — paste it there as editable shapes": "PowerPoint 用にコピーしました — 編集できる図形として貼り付けられます",
+  "Copy special: PowerPoint, picture, PNG, SVG or HTML — then press 1–6": "形式を選択してコピー: PowerPoint・画像・PNG・SVG・HTML — 続けて 1〜6 を押す",
   "PNG": "PNG",
   "SVG": "SVG",
   "HTML": "HTML",
@@ -27,7 +32,6 @@ export const ja: Catalog = {
   "What Copy special puts on the clipboard. Kept in this browser, never in the file.": "形式を選択してコピーでクリップボードに入れる内容。このブラウザーに保存され、ファイルには入りません。",
   "Selected objects on the slide’s background colour (else transparent)": "選択したオブジェクトをスライドの背景色の上に（オフなら透明）",
   "Text as outlines in SVG and pictures (needs the network once)": "SVG と画像の文字をアウトライン化（初回のみネットワークが必要）",
-  "Copy special: picture, PNG, SVG or HTML — then press 1–5": "形式を選択してコピー: 画像・PNG・SVG・HTML — 続けて 1〜5 を押す",
   "Copy the slide as": "スライドをコピーする形式",
   "Copy the object as": "オブジェクトをコピーする形式",
   "Copy {n} objects as": "{n} 個のオブジェクトをコピーする形式",

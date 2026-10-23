@@ -128,6 +128,8 @@ declare global {
         | { kind: 'svg'; svg: string; suggestedName: string }
         | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string }) =>
         Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }>
+      /** Copy special ▸ PowerPoint: the drawing package (+ PNG) onto the clipboard in one write. */
+      copyOffice?: (req: { gvml: Uint8Array; png?: Uint8Array }) => Promise<{ ok: true } | { refused: true; error: string }>
       /** Icon sets: pick a folder; main writes the files into a subfolder named `folderName`. */
       exportIconset?: (req: { folderName: string; files: Array<{ name: string; text: string }> }) =>
         Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }>

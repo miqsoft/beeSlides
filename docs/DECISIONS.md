@@ -13504,3 +13504,36 @@ writer, not the clipboard.
 **Keys run actions directly.** The popup's digit/Enter handlers call the row's
 action rather than `button.click()`: right after a press on the canvas, Gesto
 swallows the next synthetic click.
+
+## 2026-10-23 — Copy for PowerPoint writes PowerPoint's own clipboard format (GVML)
+
+PowerPoint for Mac pastes native shapes only from its own clipboard type,
+`com.microsoft.Art--GVML-ClipFormat` (Windows: "Art::GVML ClipFormat"): a
+small OPC zip whose `clipboard/drawings/drawing1.xml` holds one
+`lc:lockedCanvas` group of DrawingML in the `a:` namespace (text in
+`a:txSp`), plus a `a:clipboardTheme` part and media. Checked by hand: an
+SVG (as data or as a file), a PDF and HTML all paste as pictures at best; a
+package we write pastes as native, editable objects, and PowerPoint still
+prefers it when a PNG sits beside it.
+
+**Writer.** `kernel/src/convert/drawingml-write.ts` builds the shapes in two
+spellings, 'canvas' (clipboard) and 'slide' (`p:spTree`); `gvml.ts` packages
+them as the clipboard zip or a minimal .pptx. The .pptx exists so the rig
+(`scripts/test-convert/write.ts`) can read the writer's output back through
+convertPptx — frames, colours, runs, lists, tables and merges must survive —
+and so a .pptx export can start from it. Native: text (runs, lists, links,
+spacing), rect/ellipse/triangle/arrow/line/path, pictures (png/jpeg/gif, crop,
+cover/contain), tables, groups. Everything else is a picture the editor draws
+(svgexport). `$math$` text and equations are pictures; fields are resolved
+before writing. Units: 7.5 in per slide height (a figure: 96 dpi).
+
+**One PowerPoint quirk that cost a bisect:** a GVML `a:graphicFrame` lists
+its `a:graphic` BEFORE its `a:xfrm` (a slide's `p:graphicFrame` the other way
+round); in slide order PowerPoint silently refuses the WHOLE package.
+
+**Desktop only.** A browser cannot write custom clipboard types. Electron's
+clipboard replaces everything on each write and cannot put a custom type next
+to an image, so main (`desktop/src/main/officeclip.ts`) writes on macOS through
+NSPasteboard from osascript (package + PNG in one write); on Windows it writes
+the package alone with `clipboard.writeBuffer` — not yet tried against
+PowerPoint for Windows. In a browser, Copy special's row 1 is shown but off.
