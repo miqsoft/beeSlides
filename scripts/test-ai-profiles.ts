@@ -554,8 +554,8 @@ for (const wire of ['anthropic', 'openai'] as const) {
   console.log('\n-- skills --')
   {
     const read = (f: string) => readFileSync(join(here, '../desktop/src/main/apichat/skills', f), 'utf8')
-    const builtin = ['build-deck', 'polish-deck', 'slide-designs', 'translate-deck'].map((n) => parseSkill(read(`${n}.md`), n)!)
-    ok(builtin.every((b) => b && b.description.length > 10 && b.body.length > 200), 'the three built-in skills parse (name, description, body)')
+    const builtin = ['build-deck', 'polish-deck', 'restyle-deck', 'slide-designs', 'translate-deck'].map((n) => parseSkill(read(`${n}.md`), n)!)
+    ok(builtin.every((b) => b && b.description.length > 10 && b.body.length > 200), 'the built-in skills parse (name, description, body)')
     const parsed = parseSkill('---\nname: "x-y"\ndescription: Does a thing: well\nother: 1\n---\n\nBody here\n', 'fallback')
     ok(parsed?.name === 'x-y' && parsed.description === 'Does a thing: well' && parsed.body === 'Body here', 'frontmatter: key: value lines, quotes stripped, body after')
     ok(parseSkill('no frontmatter body', 'dirname')?.name === 'dirname' && parseSkill('---\nname: ../evil\n---\nb', 'q') === null, 'name falls back to the folder; unsafe names are refused')

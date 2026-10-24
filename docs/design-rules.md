@@ -201,6 +201,174 @@ palette either, so an agent's "nice teal" goes unnoticed.
    every template. Personal rules can say *how* to use colour ("accent
    sparingly", `gradients: false`) but never *which* colours.
 
+## Start interview: a profile before the first slide
+
+Added 2026-10-24, same status (proposal).
+
+**The problem.** A deck generated from nothing looks improvised: every
+slide is a new idea, and the style changes from slide to slide. Three causes,
+all in our own prompts:
+
+- **Describe it** (`startuppicker.ts` `buildDescribeView`) sends one free-text
+  box (`{ kind: 'describe', description }`). Claude doesn't know the
+  audience, how dense the slides should be, how much motion is wanted or the
+  length.
+- **The brief and the skill push towards flourishes.** `generate-brief.md`
+  "Make it look designed" asks for morph pairs, Ken Burns and ambient motion
+  on every cover, and its self-audit checks for them. `build-deck.md` step 3
+  aims for "a deck a design studio would present", with glows, frosted glass
+  and gradient text. That suits a pitch and is wrong for a scientific talk.
+- **`build-deck.md` step 2 forbids asking.** "State the assumption you made
+  instead of asking". So the assumption is a different guess every time.
+
+The fix is a short interview whose answers become the deck's **profile**.
+The profile turns into design rules (the deck layer above), so later edits
+keep to it too, not only the first generation.
+
+### Where it runs
+
+- **Describe it** in the start picker: a form above the existing text box.
+  The person describes the topic in the box. The form covers everything the
+  box used to leave out.
+- **Chat (`build-deck`) on a new deck without a profile:** Claude asks the
+  same questions in ONE message, each with its proposed default, and the
+  person answers only the ones they disagree with. One round, never a
+  conversation. With a profile, or on a deck that already has content,
+  `build-deck` doesn't ask.
+
+The form is the main path: it's predictable, translatable, and quicker to
+click than to type. Follow-up questions are form branches, not model turns.
+
+### The questions
+
+| # | Question | Answer form | What it sets |
+|---|---|---|---|
+| 1 | What is it for? | conference talk · lecture · meeting · pitch · for reading | the defaults for every question below (presets) |
+| 2 | How long? | talk: minutes × pace, with the slide count shown live ("≈ 15 slides + 3 backup"), the count still editable; for reading: a slide count | slide count, backup count |
+| 3 | What does a typical slide look like? | a slider with 5 stops, each with a preview thumbnail: mostly text · text + small visual · balanced · visual + one-line takeaway · visual only | text budget per slide, share of the content area for visuals, which slide types the family contains |
+| 4 | Visuals | "Do you have figures/photos?" → attach files or a paper; otherwise Claude builds charts from numbers or leaves marked placeholders. Decoration: plain · icons (→ line/filled, use my icon library?) · imagery | where visuals come from; `decoration` |
+| 5 | Needs its own slide type | checkboxes: equations · code · tables · timeline · quotes · references/backup | extra slide types in the family |
+| 6 | Motion | none · subtle (fades, morph) · expressive | which `fx` are allowed |
+| 7 | Existing look | pick a layout · import a .pptx · none | the template; with one, Claude designs no new look |
+
+**Why not "pick all content kinds".** In a 40-slide deck every kind shows up
+somewhere, so people tick everything and the answer carries no information.
+What steers the design is the balance (question 3), where the visuals come
+from (4) and which content needs a slide type of its own (5). Checkboxes fit
+only question 5, because that answer really is yes/no per item.
+
+**Pace defaults** come from the purpose and are only starting values, shown
+as "≈ 1 slide/min" next to the minutes field. They need calibrating against
+real decks (see open questions).
+
+**Attached material answers questions.** With a paper or a figure folder,
+Claude proposes question 3 and the outline from it. The form shows the
+proposal pre-set, and the person only corrects it.
+
+### Presets
+
+Question 1 fills in the rest. A preset is a starting point, not a mode: every
+answer stays editable.
+
+| Preset | Typical slide | Decoration | Motion | Limits it adds |
+|---|---|---|---|---|
+| Conference talk | visual + one-line takeaway | plain | subtle | `maxRadius: 0`, `shadows: false`, `gradients: false`; rules: page numbers, a caption with source under every figure |
+| Lecture | balanced | plain | subtle | `minFontSize: 24`; rule: one idea per slide |
+| Meeting | text + small visual | plain | none | rule: terse bullets, no full sentences |
+| Pitch | visual only | imagery | expressive | none |
+| For reading | mostly text | plain | none | rule: complete sentences, each slide makes sense without a speaker |
+
+### The profile in the file
+
+```ts
+interface DeckProfile {           // doc.designRules.profile — additive, optional
+  purpose: 'talk' | 'lecture' | 'meeting' | 'pitch' | 'reading'
+  minutes?: number
+  pace?: number                   // slides per minute
+  slides?: number                 // target count, derived or typed
+  backup?: number
+  balance: 1 | 2 | 3 | 4 | 5      // mostly text … visual only
+  decoration: 'plain' | 'icons' | 'imagery'
+  iconStyle?: 'line' | 'filled'
+  needs?: Array<'equations' | 'code' | 'tables' | 'timeline' | 'quotes' | 'references'>
+  motion: 'none' | 'subtle' | 'expressive'
+}
+```
+
+The raw answers are kept so the form can reopen pre-filled. The limits and
+rules a profile implies are written as ordinary `limits`/`rules` with
+`from: 'profile'`, so they show in the deck panel, produce the same
+`design-*` findings and can be edited one by one. Changing the profile
+replaces only the `from: 'profile'` entries. `motion: 'none'` needs one more
+limit, `fx?: 'none' | 'subtle' | 'any'`, checked by a `design-motion`
+finding. "Remember for my next decks" stores the answers at the personal
+layer. Attached files belong to the request, never to the profile.
+
+### Same balance, not the same layout
+
+A profile of "visual + one-line takeaway" must not produce 30 copies of one
+slide. The slider sets a **budget**, not a layout:
+
+- **Fixed by the system (this is what looks harmonious):** grid and
+  margins, type scale, palette, title position, where and how the takeaway
+  line sits, caption style, footer.
+- **Chosen per slide from its content:** the arrangement of the content
+  area.
+
+Each outline row says what the slide has to *show*: its **evidence kind**,
+which picks the slide type. For a visual-heavy profile the family is:
+
+| Evidence kind | Slide type |
+|---|---|
+| one result | one figure across the whole content area |
+| comparison | two figures side by side, aligned axes |
+| detail | a figure with a zoomed inset or callouts |
+| overview | 3–4 small multiples in a grid |
+| one number | a big number with its context line |
+| process | a `steps`/`flow` component |
+| exact values | a table |
+
+The family has the same title and takeaway position on every type. The
+pipeline creates only the types the outline actually uses
+(`deck-pipeline.md`).
+
+Repetition has to come from the content. A run of slides showing the same
+kind of thing (results for five datasets) *should* share one type, because
+it reads as a series and morphs cleanly. Unrelated slides in a row on the
+same type are what looks like a template. The outline shows the type per
+slide, so the person sees that before anything is built. This is guidance
+in the outline step, not a finding: a check can't tell a deliberate series
+from a lazy one.
+
+The parallel-writers path in `build-deck.md` needs the same change: one
+reference slide **per slide type used**, not one reference slide for every
+writer.
+
+### Generation
+
+How the profile is used, from the outline to the finished deck and for
+glow-ups, polish and single slides: `deck-pipeline.md`. In short, "Describe
+it" hands the form's profile and text to `build-deck`, running live on a
+fresh deck in the Claude panel, instead of the blind `generate-result.json`
+path. That path stays for the PowerPoint import, where the converter's draft
+already has the geometry right.
+
+### What changes in existing code
+
+- `GenerateRequest` (`startuppicker.ts` and `terminalPanel.ts`
+  `isValidGenerateRequest`) gains `profile?: DeckProfile`. The validator
+  checks every enum and number range, since the request file is read by a
+  separate process.
+- `generate-brief.md`: "Make it look designed" and its self-audit depend on
+  `motion` and `decoration`, for the PowerPoint path that still uses it.
+- `build-deck.md` (drafted, `deck-pipeline.md`): asks once when there's no
+  profile; the "design studio" art direction and the effects apply only to
+  `motion: 'expressive'` or `decoration: 'imagery'`; one reference slide per
+  slide type.
+- `doc_info` returns `designRules.profile`, so every agent and subagent sees
+  it.
+- The form is new UI: every string goes into all i18n catalogs.
+
 ## Rollout
 
 Each step can ship on its own:
@@ -215,6 +383,9 @@ Each step can ship on its own:
    style defaults.
 4. **Template layer:** copy on create, replace on re-apply, `from:
    'template'`.
+5. **Start interview.** The skills drafted to `deck-pipeline.md` need
+   nothing else and can ship first (the profile is asked in the chat). The form, `DeckProfile` and the `from:
+   'profile'` rules need step 2.
 
 Constraints that apply throughout (`AGENTS.md`):
 
@@ -234,6 +405,15 @@ Constraints that apply throughout (`AGENTS.md`):
   personal limits steer agents and new-shape defaults, while findings come
   only from the deck and template layers, so a shared deck checks the same
   for everyone.
+- **Pace defaults.** Which slides-per-minute value per purpose? Proposal:
+  measure the decks in `docs/examples` and a few real talks, then set the
+  values. Until then: 1 per minute for a talk, 0.5 for a lecture or meeting.
+- **Interview for Blank.** Should Blank also offer the form? Proposal: no.
+  Blank stays one click, and the form belongs to the paths where Claude
+  designs.
+- **Profile inside `designRules` or beside it?** Proposal: inside, because
+  it only ever acts through rules and limits and should travel and be
+  trusted the same way.
 - **Wording rules vs. translate-deck.** "German quotes" in a deck that gets
   translated: the translator skill should read the rules too and say when a
   rule is language-specific.

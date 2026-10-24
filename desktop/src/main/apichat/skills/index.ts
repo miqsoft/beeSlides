@@ -8,12 +8,14 @@ import buildDeck from './build-deck.md?raw'
 import customizeUi from './customize-ui.md?raw'
 import drawIcons from './draw-icons.md?raw'
 import polishDeck from './polish-deck.md?raw'
+import restyleDeck from './restyle-deck.md?raw'
 import slideDesigns from './slide-designs.md?raw'
 import translateDeck from './translate-deck.md?raw'
 
 export const BUILTIN_SKILLS: Skill[] = [
   parseSkill(buildDeck, 'build-deck'),
   parseSkill(polishDeck, 'polish-deck'),
+  parseSkill(restyleDeck, 'restyle-deck'),
   parseSkill(slideDesigns, 'slide-designs'),
   parseSkill(translateDeck, 'translate-deck'),
   parseSkill(customizeUi, 'customize-ui'),
@@ -35,6 +37,7 @@ const forClaudeCode = (md: string): string => md.replace(/^(---\n[\s\S]*?\n---\n
 export const CLAUDE_CODE_SKILLS: Record<string, string> = {
   'build-deck': forClaudeCode(buildDeck),
   'polish-deck': forClaudeCode(polishDeck),
+  'restyle-deck': forClaudeCode(restyleDeck),
   'slide-designs': forClaudeCode(slideDesigns),
   'translate-deck': forClaudeCode(translateDeck),
   'draw-icons': forClaudeCode(drawIcons),

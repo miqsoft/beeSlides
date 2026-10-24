@@ -75,7 +75,9 @@ export const claudeInstruction = (sharedDir: string): string =>
   `To create or restructure a slide, write it as HTML with slide_html({op:"write"}): diagrams are one data-component ` +
   `(steps, sequence, cards, compare, flow) with the data as JSON, and doc_info slideTypes gives each slide type its placeholders ` +
   `and contentArea, so no probe slide is needed. To build or extend a deck from a topic, follow the build-deck skill ` +
-  `(a larger deck: plan and write the first slide yourself, then parallel subagents write the rest). ` +
+  `(profile, outline, a family of slide types, one reference slide per type, then parallel subagents write the rest); ` +
+  `to give a whole deck a new look, restyle-deck; to fix one up without changing its look, polish-deck. ` +
+  `A small edit needs no skill and no questions: keep the slide on its slide type and inside the deck look. ` +
   `Skip get_slide when the context line ` +
   `already says enough; find content with find_text (not one get_slide per ` +
   `slide) and read a slide with get_slide view "summary" unless you are about ` +

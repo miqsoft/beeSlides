@@ -92,13 +92,13 @@ sections below. Only read further if the task needs it.
 > format is one you have no guide for, don't guess at its shape.
 
 *Drop this file into your context (or point your harness at it) and you can
-author and edit BeeSlides presentations directly. For **Claude Code**,
-install the packaged **slidomingo-slides** skill once and it triggers automatically
-(or via `/slidomingo-slides`) so a deck can be authored straight from an
-empty folder — see this repo's own skill/plugin setup for how to install it
-locally.*
+author and edit BeeSlides presentations directly. Editing the file this way
+works blind: nothing renders, measures or screenshots your slides. For
+building or restyling a deck, use Claude inside the BeeSlides desktop app
+(its terminal panel or AI chat), where the deck tools and the build-deck,
+restyle-deck and polish-deck skills are available.*
 
-**Working without the skill, from an empty folder?** Start from a copy of the
+**Working from an empty folder?** Start from a copy of the
 app itself — this is the file you write your document into. Any already-built
 `*.beeslides.html` shell (e.g. from a local `npm run build:single`) works;
 opened in a browser with no document written into it yet, it opens one
@@ -273,7 +273,7 @@ each kind of content to the feature built for it:
 | a point to **drill into** (a definition, "click to see how", a sub-topic) | a **state slide** (`stateOf` + element `link`) | keeps the linear story clean; the detail is one click away |
 | a **hero / full-slide image** | full-bleed image + scrim rect + text, with **ken-burns** | static photos feel dead; a slow drift feels intentional |
 | a **sequence / flow / timeline / connection** | a line or `path` with a **`dash-march` loop**, or morph a highlight through the steps | motion carries the eye along the sequence |
-| a **headline number** | big text + `fx:{countUp:true}` | the count-up earns attention |
+| a **headline number** in a pitch or keynote | big text + `fx:{countUp:true}` | the count-up earns attention; in a scientific talk or a lecture, show the number beside what it is compared with (a chart or table) instead — a hero number there reads as marketing |
 | **every cover / section divider** | at least **one ambient motion** (ken-burns, an orbiting accent) | a still cover is a missed first impression |
 | **repeated chrome / a logo** | keep its `id` stable across slides | it morphs in place instead of popping on every slide |
 | a **demo clip / recording / soundbite** | a **media** element (embed short, link long) | a live video/audio beats a screenshot of one |

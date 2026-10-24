@@ -13537,3 +13537,29 @@ to an image, so main (`desktop/src/main/officeclip.ts`) writes on macOS through
 NSPasteboard from osascript (package + PNG in one write); on Windows it writes
 the package alone with `clipboard.writeBuffer` — not yet tried against
 PowerPoint for Windows. In a browser, Copy special's row 1 is shown but off.
+
+## 2026-10-24 — Deck pipeline: profile, slide-type family, variants where a choice matters
+
+**Decision.** The deck skills follow `docs/deck-pipeline.md` (proposal, tested
+in live runs the same day):
+
+1. One question with a proposed profile and the outline (purpose, length,
+   typical slide, visuals, motion, simplicity, look).
+2. A look the user picks from 2–3 (`propose_variants`).
+3. A family of slide types: one per evidence kind, sharing title, takeaway
+   and footer positions and one type scale.
+4. One reference slide per type, then writers in parallel.
+5. A fresh-eyes critic.
+6. Alternatives offered only for the slides where a choice matters.
+
+`restyle-deck` is new (a glow-up keeps every word), and `polish-deck` and
+`slide-designs` know the profile.
+
+The tone rule is the part that is easy to undo by accident. A talk, lecture,
+meeting or deck for reading states and shows; it does not sell. Hero
+numbers, count-ups and one-word panels are pitch devices, and `agents.md` and
+`generate-brief.md` now say so where they used to recommend them. **Why:**
+with the old guidance, a conference talk got 168px count-up numbers on three
+slides. With the tone and density rules (a type scale, nothing under 18px,
+one text per box, detail in the notes), text blocks per slide went from 13.7
+to 7.1 and tiny text from 85 blocks to 0.

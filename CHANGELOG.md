@@ -9,6 +9,13 @@ every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
 
+- **Claude builds calmer, more readable decks:** it asks one question about
+  the deck (purpose, length, how full a slide may be) together with an
+  outline. You pick the look from 2–3 designs, and it builds a family of
+  slide types and checks one slide of each with you. Talks get claims backed
+  by charts and tables instead of big count-up numbers, and nothing smaller
+  than 18px. **Glow-up:** ask Claude to give a deck a new look; it keeps
+  every word and number.
 - **Copy for PowerPoint as editable shapes (desktop app):** Copy special ▸
   **1 PowerPoint** (⇧⌘C then 1, or Edit ▸ Copy as ▸ PowerPoint) puts the
   selected objects on the clipboard in PowerPoint's own format. Text boxes
