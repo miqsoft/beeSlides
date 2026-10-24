@@ -97,13 +97,18 @@ function deckOf(text: string): Deck | null {
   }
 }
 
-/** Opens the pane unasked, once per load; the surface seats it where there
- *  is room (a wide terminal) and keeps it waiting otherwise. Never fails. */
+/** Opens the pane unasked, once per load. Claude Code seats an unasked pane
+ *  only on a wide terminal (144 columns, 110 once asked) and keeps it waiting
+ *  otherwise: then the status line says how to see it. Never fails. */
 let opened = false
+const HINT = 'BeeSlides: type /beeslides to watch the slides'
 const show = ($: EngineInterface): void => {
   if (opened) return
   opened = true
-  void $.ui.open({ id: PANE, title: TITLE }).catch(() => { opened = false })
+  void $.ui.open({ id: PANE, title: TITLE }).then(
+    (r) => { if (!r.isPlaced) $.ui.status(HINT) },
+    () => { opened = false },
+  )
 }
 
 /** One progress line for a call, or null for one not worth a line (reads,
@@ -181,6 +186,7 @@ export const register: Register = (on) => {
 
   on('command.run', { command: 'beeslides' }, async ($) => {
     await $.ui.open({ id: PANE, title: TITLE })
+    $.ui.status(undefined)
     return { text: 'BeeSlides pane opened.' }
   })
 

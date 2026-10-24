@@ -151,3 +151,17 @@ test('with the app open, the pane draws no pictures of its own', async ($, on) =
   await clock.settle()
   expect(calls).toBe(0)
 })
+
+test('on a narrow terminal the pane waits and the status line says how to see it', async ($, on) => {
+  const statuses: unknown[] = []
+  let wide = false
+  on('ui.open', () => ({ value: wide ? { isPlaced: true } : { isPlaced: false, reason: 'narrow' } }))
+  on('ui.status', (_, e) => { statuses.push(e.text); return { value: undefined } })
+  on('command.register', () => ({ value: { command: 'beeslides' } }))
+  on('tool.call', { tool: `${TOOL}doc_info` }, () => ({ result: [{ type: 'text', text: '{}' }] }))
+  await $.tool.call({ tool: `${TOOL}doc_info` })
+  expect(statuses.at(-1)).toContain('/beeslides')
+  wide = true
+  await $.command.run({ command: 'beeslides', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
+  expect(statuses.at(-1)).toBeUndefined()
+})
