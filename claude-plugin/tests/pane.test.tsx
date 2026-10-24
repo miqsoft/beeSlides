@@ -3,7 +3,7 @@
 //
 // The BeeSlides pane (hooks/register.tsx), against the engine's own test kit:
 //   claude plugin test claude-plugin
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const TOOL = 'mcp__plugin_beeslides_beeslides__'
 /** A 1×1 PNG, base64. */
@@ -106,4 +106,48 @@ test('a failed pick leaves the designs and says why', async ($, on) => {
   expect((await ui.find({ type: 'Text', text: /Could not pick/ }))?.text).toContain('No designs are waiting')
   expect(await ui.findAll({ type: 'Button' })).toHaveLength(2)
   await ui.unmount()
+})
+
+test('without the window, the pane opens at once and shows each slide as it is written', async ($, on) => {
+  const clock = mock.clock(on)
+  const opens: string[] = []
+  const renders: unknown[] = []
+  on('ui.open', (_, e) => { opens.push(e.id); return { value: { isPlaced: true } } })
+  on('tool.call', { tool: `${TOOL}open_deck` }, () => ({
+    result: [{ type: 'text', text: 'Created and opened TCP.beeslides.html (in the background: no window; every change is saved to the file). Every tool call from here on works on it.' }],
+  }))
+  on('tool.call', { tool: `${TOOL}slide_html` }, () => ({ result: [{ type: 'text', text: 'Wrote s1 from HTML as one undo step' }] }))
+  on('mcp.call', (_, e) => {
+    renders.push(e.args)
+    return { value: { content: [{ type: 'image', data: PNG, mimeType: 'image/png' }], isError: false } }
+  })
+
+  await $.tool.call({ tool: `${TOOL}open_deck`, path: '/x/TCP.beeslides.html', create: true })
+  expect(opens).toEqual(['beeslides'])
+  const empty = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await empty.find({ type: 'Text', text: /TCP\.beeslides\.html/ }))?.text).toContain('no window')
+  expect(await empty.find({ type: 'Text', text: /as it is written/ })).toBeDefined()
+  await empty.unmount()
+
+  await $.tool.call({ tool: `${TOOL}slide_html`, op: 'write', slideId: 's1', html: '<h1>x</h1>' })
+  await clock.settle()
+  expect(renders).toEqual([{ slideId: 's1' }])
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Image', key: 'shot' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Created and opened TCP\.beeslides\.html/ })).toBeDefined()
+  expect((await ui.find({ type: 'Text', text: /Wrote s1/ }))?.text).toContain('▸')
+  await ui.unmount()
+})
+
+test('with the app open, the pane draws no pictures of its own', async ($, on) => {
+  const clock = mock.clock(on)
+  let calls = 0
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('tool.call', { tool: `${TOOL}open_deck` }, () => ({ result: [{ type: 'text', text: 'Opened talk.beeslides.html. Every tool call from here on works on it.' }] }))
+  on('tool.call', { tool: `${TOOL}slide_html` }, () => ({ result: [{ type: 'text', text: 'Wrote s1' }] }))
+  on('mcp.call', () => { calls++; return { value: { content: [], isError: false } } })
+  await $.tool.call({ tool: `${TOOL}open_deck`, path: '/x/talk.beeslides.html' })
+  await $.tool.call({ tool: `${TOOL}slide_html`, op: 'write', slideId: 's1', html: '<h1>x</h1>' })
+  await clock.settle()
+  expect(calls).toBe(0)
 })

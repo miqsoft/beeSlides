@@ -28,6 +28,8 @@ declare module 'claude-code' {
       choice: Shaped<Choice | null>
       /** One line after a pick, or why it failed. */
       note: Shaped<string>
+      /** What the agent did, oldest first: the pane's progress list. */
+      log: Shaped<string[]>
     }
   }
 }

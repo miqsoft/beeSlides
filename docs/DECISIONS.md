@@ -13760,6 +13760,22 @@ Two things came out of the runs:
 
 The pane in an interactive session is still to be checked by eye.
 
+**Amended the same day: the pane shows progress from the first call.** In
+the first interactive try ("beeslideplugintest") the pane never showed: it
+waited for a screenshot, and the agent was still asking its profile
+questions.
+
+- The pane now opens with the agent's first beeslides call and keeps a
+  progress list of what was done: opened, slides added, slides written,
+  reviewed, designs proposed.
+- In background mode it also asks for a picture of each slide right after
+  a write (`render_preview` through `$.mcp.call`, one at a time, the latest
+  write per slide). The user watches the deck grow, and none of those
+  pictures enters the model's context.
+- With the app open it takes no pictures of its own: there a capture of the
+  slide on the canvas would make the editor's chrome flicker, and the user
+  sees the slide in the app anyway.
+
 Rigs: `desktop/scripts/e2e-background.mjs` (Electron, real hiding),
 `scripts/test-claude-plugin.mjs` (visible proxying, background start and
 SIGTERM with a fake app), `scripts/test-agent-endpoint.mjs`

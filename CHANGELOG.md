@@ -24,9 +24,11 @@ every earlier version, and unknown fields are preserved.
   new one), every change is saved to it, and the hidden BeeSlides quits with
   the chat. It never opens the BeeSlides window from the terminal any more.
   Works over SSH and in scripts.
-- **BeeSlides pane in Claude Code:** `/beeslides` opens a pane beside the
-  chat with the slide Claude last looked at and, when it offers designs, a
-  picture of each with **Use 1 / 2 / 3** and **Keep current**. Claude now
+- **BeeSlides pane in Claude Code:** a pane beside the chat (`/beeslides`)
+  opens as soon as Claude starts on a deck and shows what it is doing; without
+  the BeeSlides window, each slide appears there as it is written. When
+  Claude offers designs, the pane shows a picture of each with **Use 1 / 2 /
+  3** and **Keep current**. Claude now
   learns which design you picked, in the pane or in the app, without asking.
 - **Fixed:** the design compare view showed the wrong page number in a
   design's footer.
