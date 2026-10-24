@@ -12,22 +12,33 @@
 //   ← {"type":"response","result":{"requestId":"…","ok":…,…}}
 // Each request goes to a document window through agentbridge.ts, exactly like
 // a terminal tab's request file.
+//
+// Off until the user turns it on (Settings ▸ AI chat ▸ Advanced, AppSettings.
+// agentEndpoint). Any program running as this user can read the token, so the
+// first connection of an app the user has not allowed yet waits for a yes
+// (agentconsent.ts); BEESLIDES_AGENT_ENDPOINT=1 forces the endpoint on and
+// skips that question (tests, e2e).
 
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { forwardAgentRequest, isAgentChannel } from './agentbridge.ts'
+import { clientLabel, consentBox, consentStrings, isAllowedClient, rememberClient, type ConsentStrings } from './agentconsent.ts'
 import { writeFileAtomic } from './fsutil.ts'
+import { handleFrom } from './ipcguard.ts'
+import { readSettings, updateSettings } from './settings.ts'
 import { mcpServerSource } from './terminalPanel.ts'
 import { allDocumentWindows, docWebContentsFor, focusedDocumentWindow } from './windows.ts'
 
-/** Off unless BEESLIDES_AGENT_ENDPOINT=1, until a first connection asks the
- *  user (any program running as this user can read the token file). */
+/** Forced on for this run (tests, e2e): the setting can't turn it off and
+ *  nobody is asked. */
+const endpointFromEnv = (): boolean => process.env.BEESLIDES_AGENT_ENDPOINT === '1'
+
 export function agentEndpointEnabled(): boolean {
-  return process.env.BEESLIDES_AGENT_ENDPOINT === '1'
+  return endpointFromEnv() || readSettings().agentEndpoint === true
 }
 
 /** A request line may carry a whole slide (write_slide); anything this big is
@@ -82,17 +93,51 @@ function targetWindow(boundWinId: number | null): BrowserWindow | null {
   return bound ?? focusedDocumentWindow() ?? open.find((w) => w.id === lastFocusedDocWinId) ?? open[0] ?? null
 }
 
+/** The renderer's translations for the question (setConsentStrings). */
+let strings: ConsentStrings = {}
+/** One question per app at a time: a client that reconnects while it is
+ *  open waits for the same answer. */
+const asking = new Map<string, Promise<boolean>>()
+
+/** Whether `client` may connect: allowed before, or the user says yes now.
+ *  The box comes up in front of the app — something just asked to work on
+ *  the user's decks. */
+function mayConnect(client: string): Promise<boolean> {
+  if (endpointFromEnv() || isAllowedClient(readSettings().agentClients, client)) return Promise.resolve(true)
+  let answer = asking.get(client)
+  if (!answer) {
+    answer = (async () => {
+      const win = focusedDocumentWindow() ?? allDocumentWindows()[0] ?? null
+      try { app.focus({ steal: true }) } catch { /* not supported here */ }
+      const box = consentBox(strings, client)
+      const opts = { type: 'question' as const, message: box.message, detail: box.detail, buttons: box.buttons, defaultId: 1, cancelId: 1, noLink: true }
+      const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+      if (response !== 0) return false
+      updateSettings({ agentClients: rememberClient(readSettings().agentClients, client) })
+      return true
+    })().catch(() => false).finally(() => asking.delete(client))
+    asking.set(client, answer)
+  }
+  return answer
+}
+
+/** Connected clients, closed when the endpoint is switched off. */
+const sockets = new Set<Socket>()
+
 function serveClient(socket: Socket, token: string): void {
   const sessionId = `ext-${randomUUID()}`
-  let authed = false
+  // new → asking (token fine, waiting for the user) → ready
+  let state: 'new' | 'asking' | 'ready' = 'new'
   let winId: number | null = null
   let buf = ''
   const send = (msg: unknown): void => {
     if (!socket.destroyed) socket.write(JSON.stringify(msg) + '\n')
   }
   socket.setEncoding('utf8')
+  sockets.add(socket)
   socket.on('error', () => { /* the client went away; 'close' follows */ })
   socket.on('close', () => {
+    sockets.delete(socket)
     // Its slides are no longer being worked on (store.ts locks).
     const win = winId != null ? BrowserWindow.fromId(winId) : null
     if (win && !win.isDestroyed()) docWebContentsFor(win)?.send('slidomingo:agent-session-closed', { sessionId })
@@ -100,21 +145,27 @@ function serveClient(socket: Socket, token: string): void {
   socket.on('data', (chunk: string) => {
     buf += chunk
     // Before the hello, nothing but a short line is expected.
-    if (buf.length > (authed ? MAX_LINE_BYTES : 4096)) { socket.destroy(); return }
+    if (buf.length > (state === 'ready' ? MAX_LINE_BYTES : 4096)) { socket.destroy(); return }
     let nl: number
     while ((nl = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, nl)
       buf = buf.slice(nl + 1)
       let msg: { type?: unknown; token?: unknown; channel?: unknown; payload?: unknown }
       try { msg = JSON.parse(line) } catch { continue }
-      if (!authed) {
+      if (state === 'asking') continue // nothing is sent before the answer
+      if (state === 'new') {
         if (msg.type !== 'hello' || !tokenMatches(token, msg.token)) {
           send({ type: 'hello', ok: false, error: 'bad-token' })
           socket.end()
           return
         }
-        authed = true
-        send({ type: 'hello', ok: true, sessionId })
+        state = 'asking'
+        void mayConnect(clientLabel((msg as { client?: unknown }).client)).then((ok) => {
+          if (socket.destroyed) return
+          if (!ok) { send({ type: 'hello', ok: false, error: 'denied' }); socket.end(); return }
+          state = 'ready'
+          send({ type: 'hello', ok: true, sessionId })
+        })
         continue
       }
       if (msg.type !== 'request' || !isAgentChannel(msg.channel)) continue
@@ -135,11 +186,16 @@ let server: Server | null = null
 /** Opens the endpoint and writes what the MCP server needs to find it:
  *  <agentDir>/endpoint.json, token, beeslides-mcp.mjs. Best effort — the app
  *  works without it, only outside AI apps can't connect. */
+let watchingFocus = false
+
 export function startAgentEndpoint(): void {
   if (server || !agentEndpointEnabled()) return
-  app.on('browser-window-focus', (_ev, win) => {
-    if (allDocumentWindows().includes(win)) lastFocusedDocWinId = win.id
-  })
+  if (!watchingFocus) {
+    watchingFocus = true
+    app.on('browser-window-focus', (_ev, win) => {
+      if (allDocumentWindows().includes(win)) lastFocusedDocWinId = win.id
+    })
+  }
   let token: string
   const path = socketPath()
   try {
@@ -167,7 +223,45 @@ export function refreshAgentEndpointServer(): void {
   try { writeFileAtomic(join(agentDir(), 'beeslides-mcp.mjs'), mcpServerSource()) } catch { /* best effort */ }
 }
 
-export function stopAgentEndpoint(): void {
+/** Closes the endpoint. `forget` (the user switched it off) also drops the
+ *  token and endpoint.json: a client connected before can't come back, and
+ *  the MCP server tells its model the app is not set up instead of starting
+ *  it. The server script stays, so outside apps still list the tools. */
+export function stopAgentEndpoint(opts: { forget?: boolean } = {}): void {
+  const path = server ? socketPath() : null
   try { server?.close() } catch { /* already closed */ }
   server = null
+  for (const s of sockets) s.destroy()
+  sockets.clear()
+  if (!opts.forget) return
+  for (const f of ['endpoint.json', 'token']) { try { rmSync(join(agentDir(), f), { force: true }) } catch { /* best effort */ } }
+  if (path && process.platform !== 'win32') { try { rmSync(path, { force: true }) } catch { /* best effort */ } }
+}
+
+type EndpointState = { on: boolean; forced: boolean; clients: string[] }
+
+function endpointState(): EndpointState {
+  const clients = readSettings().agentClients
+  return { on: agentEndpointEnabled(), forced: endpointFromEnv(), clients: Array.isArray(clients) ? clients.filter((c) => typeof c === 'string') : [] }
+}
+
+/** Settings ▸ AI chat ▸ Advanced: the switch, the allowed apps, and the
+ *  renderer's translations for the question. */
+export function registerAgentEndpointIpc(): void {
+  handleFrom('app-shell', 'slidomingo:agent-endpoint-get', () => endpointState())
+  handleFrom('app-shell', 'slidomingo:agent-endpoint-set', (_ev, on: unknown) => {
+    if (typeof on !== 'boolean') return { refused: true, error: 'on must be a boolean' }
+    updateSettings({ agentEndpoint: on || undefined })
+    if (on) startAgentEndpoint()
+    else if (!endpointFromEnv()) stopAgentEndpoint({ forget: true })
+    return endpointState()
+  })
+  handleFrom('app-shell', 'slidomingo:agent-endpoint-forget', () => {
+    updateSettings({ agentClients: undefined })
+    return endpointState()
+  })
+  handleFrom('app-shell', 'slidomingo:agent-consent-strings', (_ev, raw: unknown) => {
+    strings = consentStrings(raw)
+    return { ok: true }
+  })
 }

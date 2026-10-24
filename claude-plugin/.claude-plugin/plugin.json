@@ -1,0 +1,17 @@
+{
+  "name": "beeslides",
+  "version": "1.2.0",
+  "description": "Build, restyle and polish BeeSlides decks from Claude Code: the deck tools of the running BeeSlides app, and the skills its own Claude panel uses.",
+  "author": {
+    "name": "The BeeSlides authors"
+  },
+  "homepage": "https://miqsoft.github.io/beeSlides/create/outside-apps/",
+  "repository": "https://github.com/miqsoft/beeslides",
+  "license": "AGPL-3.0-or-later",
+  "keywords": [
+    "slides",
+    "presentations",
+    "beeslides",
+    "mcp"
+  ]
+}

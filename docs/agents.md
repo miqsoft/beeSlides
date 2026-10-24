@@ -95,8 +95,10 @@ sections below. Only read further if the task needs it.
 author and edit BeeSlides presentations directly. Editing the file this way
 works blind: nothing renders, measures or screenshots your slides. For
 building or restyling a deck, use Claude inside the BeeSlides desktop app
-(its terminal panel or AI chat), where the deck tools and the build-deck,
-restyle-deck and polish-deck skills are available.*
+(its terminal panel or AI chat), or Claude Code with the BeeSlides plugin
+(`claude-plugin/`; Settings ▸ AI chat ▸ Advanced ▸ Allow AI apps outside
+BeeSlides): both have the deck tools and the build-deck, restyle-deck and
+polish-deck skills.*
 
 **Working from an empty folder?** Start from a copy of the
 app itself — this is the file you write your document into. Any already-built

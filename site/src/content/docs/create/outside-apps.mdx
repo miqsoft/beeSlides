@@ -1,0 +1,102 @@
+---
+title: Claude Code and other AI apps
+description: Work on your open decks from Claude Code in your own terminal, Claude Desktop or Cursor.
+sidebar: { order: 3.5 }
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+The desktop app has Claude built in. You can also work on your decks from
+the AI app you already use. Claude Code in your own terminal gets everything
+the built-in panel has: the deck tools and the skills that build, restyle and
+polish decks.
+
+The deck stays open in BeeSlides the whole time. The AI app works on it
+through BeeSlides, so you see every change as it happens. Screenshots,
+measuring and layout happen in the app.
+
+## Claude Code
+
+<Steps>
+
+1. In BeeSlides, open **Settings ▸ AI chat ▸ Advanced** and turn on
+   **Allow AI apps outside BeeSlides**.
+
+2. In Claude Code, install the BeeSlides plugin:
+
+   ```
+   /plugin marketplace add miqsoft/beeslides
+   /plugin install beeslides@beeslides
+   ```
+
+3. Open the deck you want to work on in BeeSlides.
+
+4. Ask Claude Code, for example *"Build a 12-minute conference talk from
+   paper.pdf into the open deck"*. The first time, BeeSlides asks whether to
+   allow Claude Code. Choose **Allow**.
+
+</Steps>
+
+The plugin needs [Node.js](https://nodejs.org) 18 or newer on your PATH.
+
+### What to ask for
+
+| You say | What happens |
+|---|---|
+| "Build a talk from paper.pdf" | Claude asks a few questions about the talk (purpose, length, how full a slide may be). It shows an outline and 2–3 looks to pick from in BeeSlides, writes one slide of each kind for you to check, then builds the rest. |
+| "Give this deck a glow-up" | It keeps every word and number and gives the deck a new look. You pick the look first. |
+| "Clean up the deck" | It fixes alignment, spacing and readability, and keeps the look. |
+| "Show me other designs for this slide" | 2–3 designs appear side by side in BeeSlides; click **Use** on the one you want. |
+| "Make the title on slide 3 shorter" | Just that, with no questions. |
+
+Say *"just do it"* if you don't want questions: Claude then states its
+assumptions instead.
+
+## Claude Desktop, Cursor and other MCP apps
+
+Any app that speaks MCP can use the deck tools. They don't get the skills,
+which are Claude Code only. Add a server to the app's MCP settings that runs
+the plugin's launcher, or BeeSlides' own server file:
+
+```json
+{
+  "mcpServers": {
+    "beeslides": {
+      "command": "node",
+      "args": ["<BeeSlides folder>/agent/beeslides-mcp.mjs", "--endpoint", "<BeeSlides folder>/agent"]
+    }
+  }
+}
+```
+
+The BeeSlides folder is `~/Library/Application Support/BeeSlides` on macOS,
+`%APPDATA%\BeeSlides` on Windows and `~/.config/BeeSlides` on Linux.
+BeeSlides writes `agent/beeslides-mcp.mjs` there when you turn the setting
+on.
+
+## Allowing and taking back
+
+- Each app asks once, the first time it connects, and BeeSlides remembers
+  your answer. **Settings ▸ AI chat ▸ Advanced ▸ Forget allowed apps** makes
+  every app ask again.
+- Turning **Allow AI apps outside BeeSlides** off disconnects every app at
+  once. Turning it on again later gives a new access key, so an app that was
+  connected before has to connect again.
+
+<Aside title="What it can and cannot reach">
+  An allowed app can read and change the decks open in BeeSlides, the same
+  way the built-in Claude panel can. It talks to BeeSlides over a local
+  connection only this user account can open; there is no network port.
+  Any program running under your account could try to connect, which is why
+  BeeSlides asks before it lets an app in. Allow only apps you started
+  yourself.
+</Aside>
+
+## When it doesn't work
+
+| Claude Code says | Do this |
+|---|---|
+| BeeSlides is not set up for AI apps outside it | Turn on **Allow AI apps outside BeeSlides** (step 1), then run `/mcp` in Claude Code and reconnect **beeslides**. |
+| BeeSlides did not allow this app to connect | You chose **Don't Allow**. Ask again and choose **Allow**. |
+| BeeSlides is not running and could not be started | Open BeeSlides yourself, then try again. |
+| No deck is open in BeeSlides | Open the deck, then try again. |

@@ -140,6 +140,17 @@ const LAUNCH_WAIT_MS = 30000
 
 let link = null // { socket, waiting: Map<requestId, resolve> } once connected
 let linking = null // the connect in progress
+/** The chat app's own name (MCP initialize clientInfo), shown in BeeSlides'
+ *  "allow this app?" question; BEESLIDES_CLIENT overrides it. */
+let clientName = ''
+
+/** What a refused or failed link tells the model, in words it can pass on. */
+const LINK_ERRORS = {
+  'not-set-up': 'BeeSlides is not set up for AI apps outside it. Ask the user to open BeeSlides, go to Settings ▸ AI chat ▸ Advanced and turn on "Allow AI apps outside BeeSlides", then try again.',
+  denied: 'BeeSlides did not allow this app to connect. Ask the user to try again and choose Allow when BeeSlides asks.',
+  'bad-token': 'BeeSlides refused the connection: its access was switched off and on again since this chat connected. Try again; if it keeps failing, restart this chat.',
+  'not-running': 'BeeSlides is not running and could not be started',
+}
 
 function readEndpoint() {
   try { return JSON.parse(readFileSync(join(endpointDir, 'endpoint.json'), 'utf8')) } catch { return null }
@@ -165,7 +176,7 @@ function tryConnect() {
       for (const done of waiting.values()) done({ ok: false, error: 'app-closed' })
       waiting.clear()
     })
-    socket.on('connect', () => socket.write(JSON.stringify({ type: 'hello', token, client: process.env.BEESLIDES_CLIENT || 'mcp' }) + '\n'))
+    socket.on('connect', () => socket.write(JSON.stringify({ type: 'hello', token, client: process.env.BEESLIDES_CLIENT || clientName || 'mcp' }) + '\n'))
     socket.on('data', (chunk) => {
       buf += chunk
       let nl
@@ -177,7 +188,12 @@ function tryConnect() {
         if (msg.type === 'hello') {
           helloDone = true
           if (msg.ok) resolve({ socket, waiting })
-          else { try { process.stderr.write(`[slides-mcp] endpoint refused: ${msg.error}\n`) } catch { /* log is best effort */ } socket.destroy(); resolve(null) }
+          else {
+            try { process.stderr.write(`[slides-mcp] endpoint refused: ${msg.error}\n`) } catch { /* log is best effort */ }
+            socket.destroy()
+            // an answer, not a failure to reach the app: no relaunch, no retry
+            resolve({ refused: msg.error === 'denied' ? 'denied' : 'bad-token' })
+          }
         } else if (msg.type === 'response' && msg.result?.requestId) {
           const done = waiting.get(msg.result.requestId)
           waiting.delete(msg.result.requestId)
@@ -203,8 +219,11 @@ function launchApp() {
   }
 }
 
+/** The link, or why there is none: { refused: key of LINK_ERRORS }. */
 async function ensureLink() {
   if (link) return link
+  // Never switched on (or switched off since): nothing to connect to or start.
+  if (!readEndpoint()) return { refused: 'not-set-up' }
   linking ??= (async () => {
     let l = await tryConnect()
     if (!l && launchApp()) {
@@ -214,10 +233,12 @@ async function ensureLink() {
         l = await tryConnect()
       }
     }
-    return l
+    return l ?? { refused: 'not-running' }
   })()
-  try { link = await linking } finally { linking = null }
-  return link
+  let l
+  try { l = await linking } finally { linking = null }
+  if (!l.refused) link = l
+  return l
 }
 
 async function socketRoundTrip(channel, payload, timeoutMs) {
@@ -225,7 +246,7 @@ async function socketRoundTrip(channel, payload, timeoutMs) {
   const started = Date.now()
   try {
     const l = await ensureLink()
-    if (!l) return { requestId: id, ok: false, error: 'BeeSlides is not running and could not be started' }
+    if (l.refused) return { requestId: id, ok: false, error: LINK_ERRORS[l.refused] }
     return await new Promise((resolve) => {
       const timer = setTimeout(() => { l.waiting.delete(id); resolve({ requestId: id, ok: false, error: 'timeout' }) }, timeoutMs)
       l.waiting.set(id, (result) => { clearTimeout(timer); resolve(result) })
@@ -1023,6 +1044,7 @@ rl.on('line', (line) => {
   const { id, method, params } = msg
 
   if (method === 'initialize') {
+    if (typeof params?.clientInfo?.name === 'string') clientName = params.clientInfo.name.slice(0, 80)
     respond(id, {
       protocolVersion: params?.protocolVersion ?? '2024-11-05',
       capabilities: { tools: {} },

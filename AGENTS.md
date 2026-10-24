@@ -29,7 +29,7 @@ names stay `slidomingo` (never in a file); npm package names say
 5. New UI strings go into ALL i18n catalogs; never `t()` in module-level
    consts. The locale list is `LOCALES` in `<app>/scripts/build-*-i18n.mjs` —
    never trust a count in prose.
-6. Never edit `dist-single/` (generated).
+6. Never edit `dist-single/` or `claude-plugin/` (generated; `node scripts/build-claude-plugin.mjs`).
 7. A person authors every commit; AI only as `Co-Authored-By:`.
 8. No release/publish/deploy unless the maintainer asks (`docs/RELEASING.md`).
 9. External PRs: check provenance (`gh api users/<login>`); no autonomous bot PRs.

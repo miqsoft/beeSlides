@@ -56,7 +56,26 @@ export const claudeInstruction = (sharedDir: string): string =>
   `request naming a slide type, such as content slides, targets that slide ` +
   `type by id (from the context line or doc_info), and every deck slide using ` +
   `it follows. The full snapshot is ./${sharedDir}/selection.json if you ever ` +
-  `need more. Edit through the beeslides MCP tools and prefer the ` +
+  `need more. ` + toolGuidance(`./${sharedDir}`, true)
+
+/** The same guidance for an AI app outside BeeSlides (the Claude Code plugin,
+ *  scripts/build-claude-plugin.mjs): no panel next to it, so no editing
+ *  context line and no selection snapshot. `refDir` is where agents.md and
+ *  format.md are — the plugin fills in its own folder when it starts. Not a
+ *  shell string, but kept to the same characters as claudeInstruction. */
+export const outsideInstruction = (refDir: string): string =>
+  `You are editing a BeeSlides deck through the beeslides tools. The deck is ` +
+  `open in the BeeSlides app on this computer, and every tool works on the ` +
+  `document window the user last focused there (doc_info names it). There is ` +
+  `no editing context line in this chat: when the user says this or the ` +
+  `current slide, find it with outline and find_text, or ask which slide ` +
+  `they mean. ` + toolGuidance(refDir, false)
+
+/** What both instructions share: which verb to reach for, the skills, the
+ *  review loop, comments. `withContextLine` = the panel, whose context line
+ *  often makes a read unnecessary. */
+const toolGuidance = (refDir: string, withContextLine: boolean): string =>
+  `Edit through the beeslides MCP tools and prefer the ` +
   `smallest one: update_element to change properties of one element, ` +
   `elements({op}) for several elements in one call and for layout (edit a ` +
   `batch, delete, arrange as a row or grid, align, distribute, match_size: ` +
@@ -78,8 +97,10 @@ export const claudeInstruction = (sharedDir: string): string =>
   `(profile, outline, a family of slide types, one reference slide per type, then parallel subagents write the rest); ` +
   `to give a whole deck a new look, restyle-deck; to fix one up without changing its look, polish-deck. ` +
   `A small edit needs no skill and no questions: keep the slide on its slide type and inside the deck look. ` +
-  `Skip get_slide when the context line ` +
-  `already says enough; find content with find_text (not one get_slide per ` +
+  (withContextLine
+    ? `Skip get_slide when the context line already says enough; find content `
+    : `Find content `) +
+  `with find_text (not one get_slide per ` +
   `slide) and read a slide with get_slide view "summary" unless you are about ` +
   `to rewrite it. After a write, the app keeps arrows attached and ` +
   `shifts neighbours to preserve spacing (reported as ↻ LAYOUT ADJUSTED); a ` +
@@ -96,7 +117,7 @@ export const claudeInstruction = (sharedDir: string): string =>
   `earlier attempt), then finish each with resolve_comment — it marks the ` +
   `comment done for the user to check. For ` +
   `element JSON read only the quick reference at the ` +
-  `top of ./${sharedDir}/agents.md; ./${sharedDir}/format.md is the full spec.`
+  `top of ${refDir}/agents.md; ${refDir}/format.md is the full spec.`
 
 /** Builds the one command line that launches Claude Code with its
  *  context-aware system-prompt addendum and (optionally) an initial task.

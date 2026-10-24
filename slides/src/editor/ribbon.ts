@@ -89,6 +89,8 @@ declare global {
        *  its own tab, or the whole panel closing — or finishes a turn. The editor releases every
        *  slide lock that sessionId held (store.releaseSessionLocks). */
       onAgentSessionClosed: (cb: (info: { sessionId: string }) => void) => void
+      /** The translated "allow this outside app?" box (main/agentendpoint.ts). */
+      setAgentConsentStrings?: (strings: { message: string; detail: string; allow: string; deny: string }) => void
       onFullscreenChange: (cb: (state: { fullscreen: boolean }) => void) => void
       listRecent: () => Promise<{ path: string; openedAt: number; pinned?: boolean; figure?: boolean; iconset?: boolean }[]>
       openRecent: (path: string) => void

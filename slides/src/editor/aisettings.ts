@@ -28,7 +28,12 @@ interface AiBridge {
   openAiSkillsFolder?(): Promise<{ ok: boolean; path: string; error?: string }>
   getCodeMode?(): Promise<{ on: boolean; forced: boolean }>
   setCodeMode?(on: boolean): Promise<{ on: boolean; forced: boolean }>
+  getAgentEndpoint?(): Promise<EndpointState>
+  setAgentEndpoint?(on: boolean): Promise<EndpointState>
+  forgetAgentClients?(): Promise<EndpointState>
 }
+
+type EndpointState = { on: boolean; forced: boolean; clients: string[] }
 
 const bridge = (): AiBridge | null => {
   const d = (window as unknown as { slidomingoDesktop?: Partial<AiBridge> }).slidomingoDesktop
@@ -174,28 +179,53 @@ export function renderAiCategory(host: HTMLElement, toast: (msg: string) => void
     actions.append(addCc, presetSel, imp, skillsBtn)
     host.append(actions)
 
-    // Advanced: app-wide agent switches (desktop/src/main/agentexec.ts).
+    // Advanced: app-wide agent switches (desktop/src/main/agentexec.ts,
+    // agentendpoint.ts).
+    const advanced = el('details')
+    const adv = el('summary', undefined, t('Advanced'))
+    adv.style.cssText = 'cursor:pointer;margin:6px 0'
+    advanced.append(adv)
     if (api.getCodeMode && api.setCodeMode) {
       const setCodeMode = api.setCodeMode
       const codeMode = el('input')
       codeMode.type = 'checkbox'
       codeMode.disabled = true
-      const advanced = el('details')
-      const adv = el('summary', undefined, t('Advanced'))
-      adv.style.cssText = 'cursor:pointer;margin:6px 0'
-      advanced.append(adv, checkField(t('Code Mode (experimental)'), codeMode,
+      advanced.append(checkField(t('Code Mode (experimental)'), codeMode,
         t('Claude Code chats may write one short program that does a multi-slide job in a single step, instead of many separate tool calls. Applies to chats opened after the change.')))
-      host.append(advanced)
       void api.getCodeMode().then((r) => {
         codeMode.checked = r.on
         codeMode.disabled = r.forced
-        advanced.open = r.on
+        if (r.on) advanced.open = true
       })
       codeMode.addEventListener('change', async () => {
         const r = await setCodeMode(codeMode.checked)
         codeMode.checked = r.on
       })
     }
+    if (api.getAgentEndpoint && api.setAgentEndpoint && api.forgetAgentClients) {
+      const { setAgentEndpoint, forgetAgentClients } = api
+      const outside = el('input')
+      outside.type = 'checkbox'
+      outside.disabled = true
+      const allowed = el('div', 'ed-hint')
+      const forget = el('button', 'ed-btn', t('Forget allowed apps'))
+      forget.style.alignSelf = 'flex-start'
+      const show = (r: EndpointState): void => {
+        outside.checked = r.on
+        outside.disabled = r.forced
+        allowed.textContent = r.clients.length ? t('Allowed: {apps}', { apps: r.clients.join(', ') }) : t('No app allowed yet: each one asks the first time it connects.')
+        forget.disabled = r.clients.length === 0
+        if (r.on) advanced.open = true
+      }
+      const field = checkField(t('Allow AI apps outside BeeSlides'), outside,
+        t('Claude Code in your own terminal, Claude Desktop or Cursor may work on the decks open here, through the BeeSlides plugin or MCP server. Each app asks once before it connects. For Claude Code: /plugin marketplace add miqsoft/beeslides, then /plugin install beeslides@beeslides.'))
+      field.append(allowed, forget)
+      advanced.append(field)
+      void api.getAgentEndpoint().then(show)
+      outside.addEventListener('change', async () => show(await setAgentEndpoint(outside.checked)))
+      forget.addEventListener('click', async () => show(await forgetAgentClients()))
+    }
+    if (advanced.childElementCount > 1) host.append(advanced)
   }
 
   const renderForm = (orig: Profile, isNew = false): void => {

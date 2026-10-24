@@ -9,6 +9,15 @@ every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
 
+- **Claude Code and other AI apps outside BeeSlides (desktop app):** turn on
+  Settings ▸ AI chat ▸ Advanced ▸ **Allow AI apps outside BeeSlides**, then
+  install the BeeSlides plugin in Claude Code
+  (`/plugin marketplace add miqsoft/beeslides`,
+  `/plugin install beeslides@beeslides`). Claude Code in your own terminal
+  then works on the decks open in BeeSlides with the same tools and skills
+  as the built-in panel. Each app asks once before it connects; **Forget
+  allowed apps** makes them ask again, and turning the setting off
+  disconnects them all.
 - **Claude builds calmer, more readable decks:** it asks one question about
   the deck (purpose, length, how full a slide may be) together with an
   outline. You pick the look from 2–3 designs, and it builds a family of

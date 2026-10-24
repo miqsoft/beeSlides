@@ -27,8 +27,14 @@ export interface AppSettings {
   defaultAiProfileId?: string
   /** UI zoom, a Chromium zoom level (uizoom.ts); absent = 100 %. */
   uiZoomLevel?: number
-  /** Code Mode (agentexec.ts), Settings ▸ AI ▸ Advanced; absent = off. */
+  /** Code Mode (agentexec.ts), Settings ▸ AI chat ▸ Advanced; absent = off. */
   codeMode?: boolean
+  /** AI apps outside BeeSlides may reach the open decks (agentendpoint.ts),
+   *  Settings ▸ AI chat ▸ Advanced; absent = off. */
+  agentEndpoint?: boolean
+  /** The outside apps the user allowed when they first connected, by the
+   *  name they gave (agentconsent.ts clientLabel). */
+  agentClients?: string[]
 }
 
 const storePath = (): string => join(app.getPath('userData'), 'app-settings.json')

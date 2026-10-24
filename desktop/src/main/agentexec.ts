@@ -31,7 +31,7 @@ import { DEFAULT_BUDGET_S, MAX_BUDGET_S, PAGE, driveProgram, keyedQueue, type Pr
 /** Code Mode forced on for this run (tests, e2e); the setting can't turn it off. */
 const codeModeFromEnv = (): boolean => process.env.BEESLIDES_CODE_MODE === '1'
 
-/** Off unless Settings ▸ AI ▸ Advanced turns it on (or BEESLIDES_CODE_MODE=1)
+/** Off unless Settings ▸ AI chat ▸ Advanced turns it on (or BEESLIDES_CODE_MODE=1)
  *  — a prototype, measured against the plain tools before it is on by default. */
 export function codeModeEnabled(): boolean {
   return codeModeFromEnv() || readSettings().codeMode === true
@@ -139,7 +139,7 @@ async function runBracketed(win: BrowserWindow, sessionId: string, code: string,
 /** The `execute` tool's args → a run. */
 export function runExecuteTool(win: BrowserWindow, sessionId: string, args: unknown): Promise<ProgramOutcome> {
   const a = (args && typeof args === 'object' ? args : {}) as { code?: unknown; timeoutSeconds?: unknown }
-  if (!codeModeEnabled()) return Promise.resolve({ ok: false, logs: [], calls: 0, writes: 0, error: 'Code Mode is off (Settings ▸ AI ▸ Advanced).' })
+  if (!codeModeEnabled()) return Promise.resolve({ ok: false, logs: [], calls: 0, writes: 0, error: 'Code Mode is off (Settings ▸ AI chat ▸ Advanced).' })
   if (typeof a.code !== 'string' || !a.code.trim()) return Promise.resolve({ ok: false, logs: [], calls: 0, writes: 0, error: 'code is empty.' })
   return runProgram(win, sessionId, a.code, typeof a.timeoutSeconds === 'number' ? a.timeoutSeconds : DEFAULT_BUDGET_S)
 }

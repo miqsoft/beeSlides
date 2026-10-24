@@ -297,6 +297,14 @@ export class Editor {
       // A tab finishing its turn does the same (the slides are no longer
       // being worked on).
       window.slidomingoDesktop?.onAgentSessionClosed?.(({ sessionId }) => this.store.releaseSessionLocks(sessionId))
+      // Main asks before an outside AI app connects (agentendpoint.ts) and
+      // has no catalog of its own; {client} is the app's name.
+      window.slidomingoDesktop?.setAgentConsentStrings?.({
+        message: t('“{client}” wants to work on your open decks', { client: '{client}' }),
+        detail: t('It can read and change the decks open in BeeSlides, the same way the Claude panel can. Allow it only if you started it yourself. You can take this back in Settings ▸ AI chat ▸ Advanced.'),
+        allow: t('Allow'),
+        deny: t('Don’t Allow'),
+      })
       this.store.on('locks', () => { this.rebuildSidebar(); this.scheduleSelectionContext() })
       // The terminal panel is a fully separate renderer with no access to
       // this window's localStorage/theme state — it can't resolve the

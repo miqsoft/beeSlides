@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "beeslides": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/launch.mjs"
+      ]
+    }
+  }
+}

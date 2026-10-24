@@ -561,6 +561,13 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   /** Code Mode (main/agentexec.ts): `forced` = BEESLIDES_CODE_MODE=1, the setting can't turn it off. */
   getCodeMode: (): Promise<{ on: boolean; forced: boolean }> => ipcRenderer.invoke('slidomingo:code-mode-get'),
   setCodeMode: (on: boolean): Promise<{ on: boolean; forced: boolean }> => ipcRenderer.invoke('slidomingo:code-mode-set', on),
+  /** AI apps outside BeeSlides (main/agentendpoint.ts): the switch and the apps
+   *  the user allowed; `forced` = BEESLIDES_AGENT_ENDPOINT=1. */
+  getAgentEndpoint: (): Promise<{ on: boolean; forced: boolean; clients: string[] }> => ipcRenderer.invoke('slidomingo:agent-endpoint-get'),
+  setAgentEndpoint: (on: boolean): Promise<{ on: boolean; forced: boolean; clients: string[] }> => ipcRenderer.invoke('slidomingo:agent-endpoint-set', on),
+  forgetAgentClients: (): Promise<{ on: boolean; forced: boolean; clients: string[] }> => ipcRenderer.invoke('slidomingo:agent-endpoint-forget'),
+  /** The translated "allow this app?" box; main has no catalog. `{client}` = the app's name. */
+  setAgentConsentStrings: (strings: { message: string; detail: string; allow: string; deny: string }): void => { void ipcRenderer.invoke('slidomingo:agent-consent-strings', strings) },
   /** View ▸ New Chat With… : the profiles to pick from, and a new tab with one. */
   newChatWith: (profileId?: string): void => { ipcRenderer.send('slidomingo:new-chat-with', profileId) },
 

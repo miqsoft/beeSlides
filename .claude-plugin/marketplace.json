@@ -1,0 +1,14 @@
+{
+  "name": "beeslides",
+  "owner": { "name": "The BeeSlides authors" },
+  "metadata": {
+    "description": "Plugins for working on BeeSlides decks from outside the app."
+  },
+  "plugins": [
+    {
+      "name": "beeslides",
+      "source": "./claude-plugin",
+      "description": "Build, restyle and polish BeeSlides decks from Claude Code: the deck tools of the running BeeSlides app, and the skills its own Claude panel uses."
+    }
+  ]
+}

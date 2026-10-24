@@ -26,7 +26,7 @@ import { registerPictureIpc } from './pictures.ts'
 import { buildMenu, registerMenuIpc } from './menu.ts'
 import { registerAgentBridgeIpc } from './agentbridge.ts'
 import { registerAgentExec } from './agentexec.ts'
-import { refreshAgentEndpointServer, startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
+import { refreshAgentEndpointServer, registerAgentEndpointIpc, startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
 import { claudeWorkspacesRoot, isTerminalRendererUrl, isValidGenerateRequest, registerTerminalIpc, requestGenerate, toggleTerminalPanel } from './terminalPanel.ts'
 import { sweepWorkspaces } from './workspaces.ts'
 import { addRecent, listRecent, pinRecent, removeRecent } from './recent.ts'
@@ -194,8 +194,9 @@ if (!gotLock) {
     registerUiProfileIpc()
     registerCustomizeChatIpc()
     registerThumbnailIpc()
-    // Outside AI apps reach the open decks through this (agentendpoint.ts;
-    // BEESLIDES_AGENT_ENDPOINT=1 for now).
+    // Outside AI apps reach the open decks through this (agentendpoint.ts):
+    // off until Settings ▸ AI chat ▸ Advanced turns it on.
+    registerAgentEndpointIpc()
     startAgentEndpoint()
 
     handleFrom('app-shell', 'slidomingo:get-launch-path', (ev) => launchPathFor(ev.sender.id))
