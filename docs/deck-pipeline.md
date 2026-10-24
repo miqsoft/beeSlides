@@ -140,18 +140,22 @@ until the plugin run showed the agent skipping it.
 
 ### What the app needs for this
 
-Today one `propose_variants` set can wait at a time, and the agent never
-learns the pick. So the skills ask the person to name it, and go one slide
-at a time. The full version needs:
+Today one `propose_variants` set can wait at a time, so the skills go one
+slide at a time. Since 2026-10-24 the agent learns the pick from `variants`
+`{op:"status"}` (item 2 below, done). The full version needs:
 
 1. **A variant inbox.** Open sets on several slides at once. A panel lists
    the slides with open sets, so the person decides in one sitting. A new
    set on the same slide replaces the old one, as today.
-2. **Picks fed back.** `propose_variants` gets a read op
-   (`{op:"status"}`) that returns, per slide, `pending`, `picked <label>` or
+2. **Picks fed back.** Done (2026-10-24): the `variants` tool's
+   `{op:"status"}` returns, per slide, `pending`, `picked <label>` or
    `kept`, so the agent can carry choices over without asking.
+   `{op:"previews"}` hands it a picture of each design, and `{op:"pick"}`
+   uses one the person named in chat.
 3. **Screenshots never show the compare view.** `review_slide` hides it
-   while capturing (live-run finding 5).
+   while capturing (live-run finding 5). Done for background mode, where the
+   compare view never opens and every slide is shot off screen; open in the
+   visible app.
 4. **"Try other slide types" without a model call.** For the selected
    slide, render it relinked to each sibling type of its family, side by
    side. `relinkPreview` already computes the matching, so the result
@@ -285,11 +289,12 @@ Rules:
 |---|---|---|
 | Built-in AI chat (app) | skills bundled, `task` subagents | works as drafted |
 | Claude Code panel (app) | skills written into the workspace, Agent tool subagents | works as drafted |
-| Claude Code outside the app | the `beeslides` plugin (`claude-plugin/`): the app's tools through the launcher, the same skills, the outside instruction; Settings ▸ AI chat ▸ Advanced switch with one question per app (DECISIONS 2026-10-24); guide: `site/.../create/outside-apps.mdx` | works as drafted (live run 2026-10-24, plugin only) |
+| Claude Code outside the app | the `beeslides` plugin (`claude-plugin/`): the open app's tools when its Settings ▸ AI chat ▸ Advanced switch is on (one question per app), else a hidden BeeSlides for the chat (background mode); the same skills, the outside instruction, the BeeSlides pane (DECISIONS 2026-10-24, "BeeSlides without its window"); guide: `site/.../create/outside-apps.mdx` | works as drafted (live run 2026-10-24, plugin only) |
 | claude.ai web chat | JSON round trip | not for building or restyling: it can't see or measure slides |
 
-The app has to be running with the deck open in every case, because
-screenshots, measuring and layout happen in the app.
+The app does the work in every case, because screenshots, measuring and
+layout happen in it. Outside the app it may be a hidden instance that opens
+the deck file the agent names (`open_deck`), with no window.
 
 **"Describe it" in the start picker** joins the same pipeline. It opens a
 fresh deck and hands the form's profile and text to `build-deck` in that
@@ -323,6 +328,12 @@ terminal), add slash commands and hook tool calls. Three ideas, judged:
 
 Verdict: **no mod now.** First the skills, then the plugin for external
 Claude Code. A mod is the last step, and only for the external path.
+
+**Update (2026-10-24, DECISIONS "BeeSlides without its window"):** built.
+Background mode removed the premise of idea 1: without the app window there
+is no canvas and no compare view to review in. The plugin's pane shows the
+latest `review_slide` screenshot and the `variants` previews with a button
+per design; in the visible app it saves a trip to the window.
 
 ## Testing
 
@@ -441,10 +452,12 @@ What the runs showed:
    - Run 4's ablation bars from 0 make 0.94 and 0.83 look alike.
 5. **`review_slide` screenshots the window region.** A toast, or an
    unpicked `propose_variants` compare view, ends up in the image (glow-up
-   slide 7).
+   slide 7). In background mode every deck slide is now shot off screen and
+   the compare view never opens; the visible app is unchanged.
 6. **Only one `propose_variants` set at a time, and the pick never reaches
    the agent.** Both block a "variants for several slides, decide in one
-   sitting" step.
+   sitting" step. The pick now reaches it (`variants` `{op:"status"}`,
+   2026-10-24); one set at a time remains.
 7. **Fonts named in a theme but not installed fall back silently.** The
    agent learned it only from a screenshot.
 8. **Tables can only draw a border around every cell.** Scientific tables

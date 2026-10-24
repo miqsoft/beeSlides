@@ -18,6 +18,18 @@ every earlier version, and unknown fields are preserved.
   as the built-in panel. Each app asks once before it connects; **Forget
   allowed apps** makes them ask again, and turning the setting off
   disconnects them all.
+- **Claude Code without the BeeSlides window:** with BeeSlides closed (or
+  the setting above off), the plugin starts a hidden BeeSlides for the chat.
+  No window, no Dock icon: Claude opens the deck file you name (or makes a
+  new one), every change is saved to it, and the hidden BeeSlides quits with
+  the chat. It never opens the BeeSlides window from the terminal any more.
+  Works over SSH and in scripts.
+- **BeeSlides pane in Claude Code:** `/beeslides` opens a pane beside the
+  chat with the slide Claude last looked at and, when it offers designs, a
+  picture of each with **Use 1 / 2 / 3** and **Keep current**. Claude now
+  learns which design you picked, in the pane or in the app, without asking.
+- **Fixed:** the design compare view showed the wrong page number in a
+  design's footer.
 - **Claude builds calmer, more readable decks:** it asks one question about
   the deck (purpose, length, how full a slide may be) together with an
   outline. You pick the look from 2–3 designs, and it builds a family of

@@ -13622,3 +13622,146 @@ with the old guidance, a conference talk got 168px count-up numbers on three
 slides. With the tone and density rules (a type scale, nothing under 18px,
 one text per box, detail in the notes), text blocks per slide went from 13.7
 to 7.1 and tiny text from 85 blocks to 0.
+
+## 2026-10-24 — BeeSlides without its window: hidden instances, open_deck, the pane (amends 2026-10-22)
+
+**Decision.** Agents still edit only through the app (2026-10-22), but the
+app may now be a **hidden instance**. The Claude Code plugin's launcher
+(`desktop/src/mcp/plugin-launch.mjs`) decides once, when the chat starts:
+
+- **Visible app reachable:** the user's `<userData>/agent` has
+  `endpoint.json` and its socket accepts a connection (a bare connect, no
+  hello, so nobody is asked anything yet). The launcher runs the app's own
+  server, as before, but with `BEESLIDES_NO_LAUNCH=1`: it never starts the
+  visible app.
+- **Otherwise, background mode.** The launcher runs the server bundled with
+  the plugin (`claude-plugin/mcp/server.mjs`: agent areas filled in, Code
+  Mode off), so the tools list without any app. It runs it against a temp
+  folder of its own (`mkdtemp(tmpdir()/bs-bg-)`). The first real tool call
+  starts the installed app as `<app> --background`, with
+  `SLIDOMINGO_USER_DATA` set to that folder, and waits up to 30 s for its
+  endpoint. When Claude Code ends (stdin closes), the launcher sends
+  SIGTERM, waits for the instance to save and quit, and removes the folder.
+- **No app found:** the setup tool, as before.
+
+Where the app is: `<userData>/agent/app.json` (`{command, args}`), which the
+visible app writes at every start, endpoint switch on or off;
+`BEESLIDES_APP` overrides it. The launcher never guesses the install
+location (the plan said it would fall back to where `scripts/setup.mjs`
+installs). An app from before this change ignores `--background` and would
+open a visible window, so only an app that wrote `app.json` is known to
+understand it. The cost: after installing or updating, the user opens
+BeeSlides once.
+
+**A hidden instance (`desktop/src/main/background.ts`, `--background`):**
+
+- Its own userData, so its own single-instance lock, endpoint and token.
+  Without `SLIDOMINGO_USER_DATA` it refuses to start, so it never shares the
+  user's folder.
+- No Dock icon (accessory activation policy). Document windows are never
+  shown (see the spike below).
+- No blank start window and no restored session. It writes no session at
+  quit and no Recent entries (`recent.ts addRecent`).
+- Closing the last deck keeps it running. SIGTERM/SIGINT quit through the
+  flush. It quits by itself after 30 minutes with no deck and no client.
+- The endpoint is always on and asks nobody: whoever started the instance
+  made its folder and holds the token. `endpoint.json` says
+  `background: true` and carries no `launch`.
+- Nobody can answer a native box. A failed flush is reported (close_deck),
+  not asked about, and a quit goes ahead.
+- It borrows `viewerPrefs` (language, icon sources), `libraryPath` and
+  `defaultTemplate` from the user's settings, read-only. Icon-server tokens
+  (safeStorage) and AI profiles stay behind, so a token-protected icon
+  server fails there; that is reported, not fixed.
+- Each Claude Code chat in background mode gets its own instance. The
+  memory cost is accepted for now.
+
+**Spike (Step 0), measured in `desktop/scripts/e2e-background.mjs`.** A
+document window that is never shown (`show:false`, never `show()`), with
+its doc view unthrottled (`backgroundThrottling:false`) and the
+renderer-backgrounding switches set, behaves like a visible one:
+
+- `slide_html` lays out, timers and rAF run, and autosave lands;
+- `capturePage` of the doc view shows the canvas, once the boot splash has
+  gone (~1.3 s);
+- `document.visibilityState` is `visible`.
+
+So windows are truly hidden; the transparent-window fallback (`setOpacity(0)`
++ `showInactive()`) the e2e drivers use was not needed. Even so, every deck
+slide's screenshot in background mode takes the off-screen snapshot path
+(`editor.ts onCanvas`), which needs no painted window at all. The compare
+view never opens there.
+
+**New agent verbs:**
+
+- `open_deck {path, create?}` and `close_deck {path?}`: answered by main
+  before any deck is involved (`agentbridge.ts registerWindowlessVerb`,
+  `agentdecks.ts`), so they work with no window. They are listed for
+  endpoint clients only: a panel chat belongs to its window.
+  - `open_deck` checks the extension and that the file is a deck (not a
+    layout file). With `create:true` it writes the built shell with a
+    minimal document: a new docId, the default theme, 16:9, one empty slide.
+  - It waits until the editor listens (`windows.ts whenDeckReady`), then
+    binds the client to that window.
+  - In the visible app it opens a normal window. `close_deck` there closes
+    only windows that client opened.
+- `doc_info` gains `file` (the name only) and `background`.
+- The `variants` area (`spec.ts`): `status` per slide (pending, picked
+  "<label>", kept), `previews` (one PNG per pending design, rendered off
+  screen by main, `agentbridge.ts withPreviews`, at most 800 px wide), and
+  `pick` (the same path as the Use / Keep buttons). The compare view
+  records the outcome where Use / Keep act; "Decide later" leaves it
+  pending. This replaces "you never learn the pick" in the visible app too.
+
+**The pane.** The plugin carries a Claude Code mod
+(`desktop/src/mcp/claude-mod/`, copied into `claude-plugin/hooks` and
+`types`).
+
+- A pane "BeeSlides" (`/beeslides`; it opens by itself on the first
+  picture where the terminal is wide enough) shows the deck line from
+  `doc_info`, the latest `review_slide` / `render_preview` screenshot, and,
+  after `variants previews`, the designs with Use 1…n and Keep current.
+- A button picks through the same tool (`$.mcp.call` `variants pick`), then
+  tells the model in a prompt. The pane reads only what the tools already
+  return; it makes no calls of its own besides the pick.
+- Pictures draw on the terminal only (kitty, Ghostty, iTerm2); other
+  surfaces get words.
+- In background mode the pane replaces the compare view; with the app open
+  it saves a trip to it.
+
+**Why not start the visible app from the terminal** (as the server did until
+now): it opens a window and takes focus from whatever the user is doing,
+and it doesn't work over SSH, in a remote session or in a batch job. The
+endpoint setting keeps guarding the visible app only. Background mode needs
+no setting: installing the plugin is the consent, and a hidden instance
+holds only the decks the agent was told to open.
+
+**Live runs (2026-10-24, `claude -p --plugin-dir claude-plugin`, the dev
+build as `BEESLIDES_APP`):**
+
+- **Background.** "Build a 6-slide talk from paper.md into bg.beeslides.html,
+  just do it": the file was written, no Electron window was on screen at any
+  point (polled every 5 s), and the instance quit with the session and left
+  no temp folder.
+- **Visible** (an isolated dev instance with the endpoint on). `open_deck`
+  `create` opened the new deck in a window, and the agent proposed two
+  designs and pointed at the pane. A pick through `variants pick` (what the
+  pane's button sends) followed. In the same conversation the agent then
+  read the pick from `variants status` without asking.
+
+Two things came out of the runs:
+
+- The previews (and the compare view) rendered a design's `{{page}}` as if
+  it were an extra slide. Each design now stands in its slide's place in
+  the preview doc.
+- `status` said "by you, as asked" for a pane pick, which the agent
+  rightly found odd. It now says "through variants pick: the BeeSlides pane
+  or you".
+
+The pane in an interactive session is still to be checked by eye.
+
+Rigs: `desktop/scripts/e2e-background.mjs` (Electron, real hiding),
+`scripts/test-claude-plugin.mjs` (visible proxying, background start and
+SIGTERM with a fake app), `scripts/test-agent-endpoint.mjs`
+(`BEESLIDES_NO_LAUNCH`), `scripts/test-agent-ops.ts` (`variants`),
+`claude plugin test claude-plugin` (the pane).

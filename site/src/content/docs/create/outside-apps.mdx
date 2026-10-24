@@ -11,16 +11,18 @@ the AI app you already use. Claude Code in your own terminal gets everything
 the built-in panel has: the deck tools and the skills that build, restyle and
 polish decks.
 
-The deck stays open in BeeSlides the whole time. The AI app works on it
-through BeeSlides, so you see every change as it happens. Screenshots,
-measuring and layout happen in the app.
+The AI app works on your decks through BeeSlides: screenshots, measuring
+and layout happen in the app. With BeeSlides open, you see every change as it
+happens. Without it, Claude Code uses a hidden BeeSlides that saves every
+change to the deck file (see [Without the BeeSlides window](#without-the-beeslides-window)).
 
 ## Claude Code
 
 <Steps>
 
 1. In BeeSlides, open **Settings ▸ AI chat ▸ Advanced** and turn on
-   **Allow AI apps outside BeeSlides**.
+   **Allow AI apps outside BeeSlides**. (Skip this to work without the
+   BeeSlides window.)
 
 2. In Claude Code, install the BeeSlides plugin:
 
@@ -29,15 +31,44 @@ measuring and layout happen in the app.
    /plugin install beeslides@beeslides
    ```
 
-3. Open the deck you want to work on in BeeSlides.
+3. Open the deck you want to work on in BeeSlides, or just name its file.
 
 4. Ask Claude Code, for example *"Build a 12-minute conference talk from
-   paper.pdf into the open deck"*. The first time, BeeSlides asks whether to
-   allow Claude Code. Choose **Allow**.
+   paper.pdf into the open deck"* or *"… into talk.beeslides.html"*. The
+   first time, BeeSlides asks whether to allow Claude Code. Choose
+   **Allow**.
 
 </Steps>
 
-The plugin needs [Node.js](https://nodejs.org) 18 or newer on your PATH.
+The plugin needs [Node.js](https://nodejs.org) 18 or newer on your PATH,
+and BeeSlides installed and opened once since it was installed or updated
+(that is how the plugin finds it).
+
+### Without the BeeSlides window
+
+When BeeSlides is not open (or **Allow AI apps outside BeeSlides** is off),
+Claude Code starts a hidden BeeSlides of its own for the chat. Nothing
+appears on screen and nothing shows in the Dock. Claude opens the deck file
+you name (or makes a new one), and every change is saved to that file as it
+happens. When the chat ends, the hidden BeeSlides saves and quits. This also
+works over SSH and in scripts.
+
+It uses your language and icon library settings, but leaves your Recent
+list alone. An icon server that needs an access key does not work there.
+
+### The BeeSlides pane
+
+The plugin adds a **BeeSlides** pane beside the chat. Type `/beeslides` to
+open it; on a wide terminal it opens by itself with the first screenshot.
+
+- It shows the deck and the latest slide Claude looked at.
+- When Claude offers designs for a slide, the pane shows each one with a
+  **Use 1**, **Use 2**, … button and **Keep current**. Press one, or just
+  answer with the number. Claude learns your pick either way.
+
+Pictures appear in terminals that can show images (kitty, Ghostty, iTerm2
+3.5 or newer); elsewhere the pane lists what there is. With BeeSlides open,
+you can also pick in the app as before.
 
 ### What to ask for
 
@@ -46,7 +77,7 @@ The plugin needs [Node.js](https://nodejs.org) 18 or newer on your PATH.
 | "Build a talk from paper.pdf" | Claude asks a few questions about the talk (purpose, length, how full a slide may be). It shows an outline and 2–3 looks to pick from in BeeSlides, writes one slide of each kind for you to check, then builds the rest. |
 | "Give this deck a glow-up" | It keeps every word and number and gives the deck a new look. You pick the look first. |
 | "Clean up the deck" | It fixes alignment, spacing and readability, and keeps the look. |
-| "Show me other designs for this slide" | 2–3 designs appear side by side in BeeSlides; click **Use** on the one you want. |
+| "Show me other designs for this slide" | 2–3 designs appear side by side in BeeSlides and in the BeeSlides pane; click **Use** on the one you want. |
 | "Make the title on slide 3 shorter" | Just that, with no questions. |
 
 Say *"just do it"* if you don't want questions: Claude then states its
@@ -98,5 +129,7 @@ on.
 |---|---|
 | BeeSlides is not set up for AI apps outside it | Turn on **Allow AI apps outside BeeSlides** (step 1), then run `/mcp` in Claude Code and reconnect **beeslides**. |
 | BeeSlides did not allow this app to connect | You chose **Don't Allow**. Ask again and choose **Allow**. |
-| BeeSlides is not running and could not be started | Open BeeSlides yourself, then try again. |
-| No deck is open in BeeSlides | Open the deck, then try again. |
+| BeeSlides is not running | Open BeeSlides yourself, then try again (or start a new chat to work without the window). |
+| No deck is open in BeeSlides | Open the deck, or tell Claude which file to work on. |
+| BeeSlides is not installed on this computer, or it has not been opened since | Install or update BeeSlides and open it once, then run `/mcp` and reconnect **beeslides**. |
+| BeeSlides could not be started in the background | Open BeeSlides once (so the plugin finds it), then start a new chat. |
