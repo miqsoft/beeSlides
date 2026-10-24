@@ -60,16 +60,22 @@ export const claudeInstruction = (sharedDir: string): string =>
 
 /** The same guidance for an AI app outside BeeSlides (the Claude Code plugin,
  *  scripts/build-claude-plugin.mjs): no panel next to it, so no editing
- *  context line and no selection snapshot. `refDir` is where agents.md and
+ *  context line and no selection snapshot. Says nothing about whether the
+ *  app is visible: the plugin's launcher adds that line (mcp/plugin-launch.mjs
+ *  MODE_LINES). `refDir` is where agents.md and
  *  format.md are — the plugin fills in its own folder when it starts. Not a
  *  shell string, but kept to the same characters as claudeInstruction. */
 export const outsideInstruction = (refDir: string): string =>
-  `You are editing a BeeSlides deck through the beeslides tools. The deck is ` +
-  `open in the BeeSlides app on this computer, and every tool works on the ` +
-  `document window the user last focused there (doc_info names it). There is ` +
-  `no editing context line in this chat: when the user says this or the ` +
+  `You are editing BeeSlides decks through the beeslides tools; the ` +
+  `BeeSlides app on this computer does the work (layout, screenshots, saving). ` +
+  `open_deck with a deck file's path makes it the deck every later call works ` +
+  `on (create:true makes a new one); doc_info names the file. There is no ` +
+  `editing context line in this chat: when the user says this or the ` +
   `current slide, find it with outline and find_text, or ask which slide ` +
-  `they mean. ` + toolGuidance(refDir, false)
+  `they mean. After propose_variants, call variants with op previews so the ` +
+  `user sees the designs in the BeeSlides pane, and learn their pick from ` +
+  `variants with op status instead of asking; tell them they can pick in the ` +
+  `pane or answer with the number. ` + toolGuidance(refDir, false)
 
 /** What both instructions share: which verb to reach for, the skills, the
  *  review loop, comments. `withContextLine` = the panel, whose context line

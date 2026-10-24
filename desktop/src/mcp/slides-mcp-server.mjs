@@ -16,12 +16,17 @@
 // `--endpoint <agentDir>` instead is how an AI app outside BeeSlides (Claude
 // Desktop, Claude Code in a terminal, …) runs it: requests then go over the
 // app's local socket (main/agentendpoint.ts), whose address and token the app
-// keeps in <agentDir>, and the app is started if it isn't running.
+// keeps in <agentDir>, and the app is started if it isn't running — unless
+// BEESLIDES_NO_LAUNCH=1: the Claude Code plugin's launcher (plugin-launch.mjs)
+// decides itself what runs, and never starts the visible app from a terminal.
+// BEESLIDES_BACKGROUND=1 (also the launcher's): the app is a hidden instance
+// (main/background.ts) that opens the deck named with open_deck.
 import { existsSync, readFileSync, renameSync, rmSync, watch, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { connect } from 'node:net'
-import { join } from 'node:path'
+import { homedir } from 'node:os'
+import { isAbsolute, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 
 const endpointDir = process.argv[2] === '--endpoint' ? process.argv[3] : null
@@ -149,7 +154,11 @@ const LINK_ERRORS = {
   'not-set-up': 'BeeSlides is not set up for AI apps outside it. Ask the user to open BeeSlides, go to Settings ▸ AI chat ▸ Advanced and turn on "Allow AI apps outside BeeSlides", then try again.',
   denied: 'BeeSlides did not allow this app to connect. Ask the user to try again and choose Allow when BeeSlides asks.',
   'bad-token': 'BeeSlides refused the connection: its access was switched off and on again since this chat connected. Try again; if it keeps failing, restart this chat.',
-  'not-running': 'BeeSlides is not running and could not be started',
+  'not-running': process.env.BEESLIDES_BACKGROUND === '1'
+    ? 'The hidden BeeSlides instance that works on the deck is not running. Try the call again; if it keeps failing, restart this chat.'
+    : process.env.BEESLIDES_NO_LAUNCH === '1'
+      ? 'BeeSlides is not running. Ask the user to open it (with the deck), then try again.'
+      : 'BeeSlides is not running and could not be started',
 }
 
 function readEndpoint() {
@@ -207,6 +216,7 @@ function tryConnect() {
 /** Starts BeeSlides the way endpoint.json says it was started, detached, so
  *  it outlives this process. */
 function launchApp() {
+  if (process.env.BEESLIDES_NO_LAUNCH === '1') return false
   const launch = readEndpoint()?.launch
   if (!launch?.command) return false
   try {
@@ -590,8 +600,9 @@ const TOOLS = [
       'merge into the slide), or as a whole slide (write_slide shape). Make ' +
       'them differ in layout and emphasis, not just colour; give each a short ' +
       'label and a one-line note on what it does differently. Applies ' +
-      'nothing; the result lists any design that could not be made. You ' +
-      'never learn the pick. A new call replaces an unpicked set.',
+      'nothing; the result lists any design that could not be made. ' +
+      'variants {op:"status"} tells you later what the user picked. A new ' +
+      'call replaces an unpicked set.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -644,6 +655,41 @@ const TOOLS = [
   },
 ]
 TOOLS.push(...AGENT_AREAS.map((a) => a.def))
+
+// An outside app names the deck it works on; main answers both itself
+// (main/agentdecks.ts). Not for the panel: its chat belongs to its window.
+if (endpointDir) {
+  TOOLS.push(
+    {
+      name: 'open_deck',
+      description:
+        'Open a deck file to work on; every later call works on it. create:true makes a new, empty 16:9 deck at path ' +
+        'first. In the BeeSlides app it opens in a window; without the app (doc_info background) it opens hidden and ' +
+        'every change is saved to the file.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'The deck file, ending in .beeslides.html (relative = to the current folder).' },
+          create: { type: 'boolean', description: 'Make a new deck there when no file exists.' },
+        },
+        required: ['path'],
+      },
+    },
+    {
+      name: 'close_deck',
+      description: 'Save and close a deck you opened with open_deck (default: the one you work on).',
+      inputSchema: { type: 'object', properties: { path: { type: 'string', description: 'The deck file (default: the current one).' } } },
+    },
+  )
+}
+
+/** A path the model gave, as main needs it: absolute, ~ expanded. */
+function absolutePath(p) {
+  if (typeof p !== 'string' || !p.trim()) return p
+  const t = p.trim()
+  const home = t === '~' || t.startsWith('~/') ? join(homedir(), t.slice(1)) : t
+  return isAbsolute(home) ? home : resolve(process.cwd(), home)
+}
 
 // ---- Code Mode (prototype): execute + api_search ---------------------------
 // Filled in (true) by the app when BEESLIDES_CODE_MODE=1
@@ -991,6 +1037,23 @@ async function callTool(name, args) {
       return { content: [{ type: 'text', text: area.help[about] ?? `${about ? `No op "${about}".\n\n` : ''}${area.help['*']}` }] }
     }
     const result = await roundTrip('agent-action', 'agent-action-result', { verb: name, args: args ?? {} }, SLOW_AREAS.has(name) ? NETWORK_TIMEOUT_MS : TIMEOUT_MS)
+    if (!result.ok) return { content: [{ type: 'text', text: `Error: ${result.error ?? 'unknown error'}` }], isError: true }
+    // variants previews: one picture per design, numbered like the labels
+    const images = Array.isArray(result.images) ? result.images.filter((im) => im?.data) : []
+    if (images.length) {
+      const labels = Array.isArray(result.labels) ? result.labels : []
+      return { content: [{ type: 'text', text: result.summary ?? 'Done.' }, ...images.flatMap((im, i) => [
+        { type: 'text', text: `Design ${i + 1}${labels[i] ? `: ${labels[i]}` : ''}` },
+        { type: 'image', data: im.data, mimeType: im.mimeType ?? 'image/png' },
+      ])] }
+    }
+    return { content: [{ type: 'text', text: result.summary ?? 'Done.' }] }
+  }
+  if (endpointDir && (name === 'open_deck' || name === 'close_deck')) {
+    const a = { ...(args ?? {}) }
+    if (a.path !== undefined) a.path = absolutePath(a.path)
+    // opening waits for the deck to boot (a new instance's first deck too)
+    const result = await roundTrip('agent-action', 'agent-action-result', { verb: name, args: a }, 45000)
     if (!result.ok) return { content: [{ type: 'text', text: `Error: ${result.error ?? 'unknown error'}` }], isError: true }
     return { content: [{ type: 'text', text: result.summary ?? 'Done.' }] }
   }

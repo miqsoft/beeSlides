@@ -4,13 +4,14 @@
 
 Work on BeeSlides decks from Claude Code in your own terminal: build a deck
 from a paper or a topic, give a deck a new look, polish it, translate it. The
-plugin brings the deck tools of the running BeeSlides app and the skills its
-built-in Claude panel uses (build-deck, restyle-deck, polish-deck, slide-designs, translate-deck, draw-icons).
+plugin brings the deck tools of the BeeSlides app, the skills its built-in
+Claude panel uses (build-deck, restyle-deck, polish-deck, slide-designs, translate-deck, draw-icons), and a BeeSlides pane beside the
+chat with the slides Claude looks at and the designs to pick from.
 
 ## Set up
 
-1. In BeeSlides: **Settings ▸ AI chat ▸ Advanced ▸ Allow AI apps outside
-   BeeSlides**.
+1. Install BeeSlides and open it once (again after each update: that is
+   how the plugin finds it).
 2. In Claude Code:
 
    ```
@@ -18,12 +19,23 @@ built-in Claude panel uses (build-deck, restyle-deck, polish-deck, slide-designs
    /plugin install beeslides@beeslides
    ```
 
-3. Open the deck in BeeSlides and ask Claude Code, e.g. "Build a 12-minute
-   conference talk from paper.pdf into the open deck". The first time,
-   BeeSlides asks whether to allow Claude Code.
+3. Ask Claude Code, e.g. "Build a 12-minute conference talk from paper.pdf
+   into talk.beeslides.html".
+
+## With or without the BeeSlides window
+
+- **BeeSlides open** with **Settings ▸ AI chat ▸ Advanced ▸ Allow AI apps
+  outside BeeSlides** on: Claude works in the app, on the deck you last
+  focused or the file it opens; you watch every change. The first time,
+  BeeSlides asks whether to allow Claude Code.
+- **Otherwise** Claude starts a hidden BeeSlides for this chat: no window,
+  no Dock icon. It opens the deck file it was given, every change is saved
+  to that file, and the BeeSlides pane (`/beeslides`) shows the slides
+  and the designs to pick from. The hidden BeeSlides quits with the chat.
 
 Needs Node.js 18 or newer on your PATH (the plugin's MCP server runs with
-`node`), and BeeSlides running with the deck open: screenshots, measuring
-and layout happen in the app. Version 1.2.0.
+`node`) and BeeSlides installed: screenshots, measuring and layout happen
+in the app. Pictures in the pane need a terminal that shows images (kitty,
+Ghostty, iTerm2 3.5+). Version 1.2.0.
 
 Guide: https://miqsoft.github.io/beeSlides/create/outside-apps/

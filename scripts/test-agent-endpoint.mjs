@@ -84,8 +84,8 @@ function startFakeApp(socket, token, mode = '') {
 }
 
 /** Runs the MCP server against `dir`; `talk(rpc)` makes the calls. */
-async function withServer(dir, talk, { timeoutMs = 15000, script = serverScript, clientInfo } = {}) {
-  const child = spawn(process.execPath, [script, '--endpoint', dir], { stdio: ['pipe', 'pipe', 'ignore'] })
+async function withServer(dir, talk, { timeoutMs = 15000, script = serverScript, clientInfo, env } = {}) {
+  const child = spawn(process.execPath, [script, '--endpoint', dir], { stdio: ['pipe', 'pipe', 'ignore'], env: { ...process.env, ...env } })
   children.push(child)
   const replies = new Map()
   let buf = ''
@@ -113,8 +113,8 @@ async function withServer(dir, talk, { timeoutMs = 15000, script = serverScript,
 }
 
 /** Runs the MCP server against `dir` and makes one doc_info call. */
-const callDocInfo = (dir, timeoutMs = 15000) =>
-  withServer(dir, async (rpc) => (await rpc('tools/call', { name: 'doc_info', arguments: {} })).result, { timeoutMs })
+const callDocInfo = (dir, timeoutMs = 15000, env) =>
+  withServer(dir, async (rpc) => (await rpc('tools/call', { name: 'doc_info', arguments: {} })).result, { timeoutMs, env })
 
 /** What the real app writes into userData/agent (agentendpoint.ts). */
 function writeEndpoint(dir, socket, token, launch) {
@@ -187,6 +187,23 @@ try {
     writeEndpoint(dir, socket, 'secret', { command: process.execPath, args: [fakeApp, socket, 'secret'] })
     const r = await callDocInfo(dir, 40000)
     ok(!r?.isError && (r?.content?.[0]?.text ?? '').includes('"verb":"doc_info"'), 'nothing listening → launched from endpoint.json, then answered')
+  }
+
+  console.log('the plugin says: start nothing')
+  {
+    // BEESLIDES_NO_LAUNCH=1 (plugin-launch.mjs): endpoint.json's launch is never run
+    const dir = join(work, 'n'); const socket = join(work, 'n.sock')
+    const marker = join(work, 'launched-n')
+    writeEndpoint(dir, socket, 'secret', { command: process.execPath, args: ['-e', `require('fs').writeFileSync(${JSON.stringify(marker)}, '1')`] })
+    const started = Date.now()
+    const r = await callDocInfo(dir, 15000, { BEESLIDES_NO_LAUNCH: '1' })
+    await new Promise((res) => setTimeout(res, 500))
+    ok(r?.isError && /Ask the user to open it/.test(r.content[0].text) && !existsSync(marker), `nothing is started, and the model is told to ask for the app (${r?.content?.[0]?.text?.slice(0, 60)})`)
+    ok(Date.now() - started < 5000, 'at once')
+    const bg = await callDocInfo(dir, 15000, { BEESLIDES_NO_LAUNCH: '1', BEESLIDES_BACKGROUND: '1' })
+    ok(bg?.isError && /hidden BeeSlides instance/.test(bg.content[0].text) && !existsSync(marker), 'in background mode it names the hidden instance instead')
+    const tools = await withServer(dir, async (rpc) => (await rpc('tools/list', {})).result.tools.map((t) => t.name))
+    ok(tools.includes('open_deck') && tools.includes('close_deck'), 'an endpoint client gets open_deck and close_deck')
   }
 
   console.log('code mode')

@@ -836,10 +836,24 @@ for the whole session. The details behind them:
   (`{slide}`, `write_slide` shape, same id) is accepted too. Each is checked
   on its own; one that cannot be made is dropped (listed in `dropped`, with
   layout `notes`), not the whole call. Nothing is applied until the human
-  picks; using one is one undo step. You never learn which, if any, they
-  chose — do not wait or poll. There is ONE pending slot: a new call before
-  they pick replaces the earlier set (they are told). Make the designs
-  differ in layout and emphasis, not only colour.
+  picks; using one is one undo step. Do not wait or poll: later,
+  `variants` `{op:"status"}` says per slide whether the designs are still
+  pending, which one was picked, or that the slide was kept. There is ONE
+  pending slot: a new call before they pick replaces the earlier set (they
+  are told). Make the designs differ in layout and emphasis, not only colour.
+- **`variants`** — the designs `propose_variants` offered: `status` (pending,
+  picked "<label>", kept), `previews {slideId}` (one picture per pending
+  design, numbered as in the compare view; outside the app they show in
+  Claude Code's BeeSlides pane, where the user can pick), `pick {slideId,
+  index | keep:true}` (only when the user told you which: the same as the
+  compare view's Use / Keep).
+- **`open_deck` / `close_deck`** (AI apps outside BeeSlides only) —
+  `open_deck {path, create?}` makes a deck file the one every later call
+  works on; `create:true` writes a new empty 16:9 deck there first. With
+  the BeeSlides app open it opens in a window; without it, in a hidden
+  BeeSlides that saves every change to the file (`doc_info` says
+  `background: true`, and names the `file`). `close_deck` saves and closes
+  a deck you opened.
 - **`apply_change_pattern`** — looks up `sourceElementId`'s most recent
   change (the log `recent_changes` reads) and copies its changed fields onto
   each listed target of the same type (and shape kind). `id`, `morphId`,

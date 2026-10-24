@@ -13,5 +13,6 @@
     "presentations",
     "beeslides",
     "mcp"
-  ]
+  ],
+  "types": "./types/index.d.ts"
 }
