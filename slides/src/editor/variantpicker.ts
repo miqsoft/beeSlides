@@ -83,14 +83,19 @@ export function openVariantPicker(editor: Editor, store: Store): void {
   if (!current) return
   const num = store.doc.slides.indexOf(current) + 1
   const n = pending.variants.length
-  const previewDoc: SlidomingoDoc = { ...store.doc, assets: { ...store.doc.assets, ...pending.assets } }
+  // a design stands in its slide's place, so {{page}} reads as it will once used
+  const previewDocFor = (slide: Slide): SlidomingoDoc => ({
+    ...store.doc,
+    assets: { ...store.doc.assets, ...pending.assets },
+    slides: store.doc.slides.map((s) => (s.id === pending.slideId ? slide : s)),
+  })
   const aspect = store.doc.size.width / store.doc.size.height
   const labelOf = (i: number) => pending.variants[i].label || t('Design {n}', { n: i + 1 })
 
   /** A rendered slide at `width` px, or a quiet placeholder if it fails. */
   const shot = (slide: Slide, width: number): HTMLElement => {
     try {
-      return renderThumbnail(slide, slide === current ? store.doc : previewDoc, Math.max(40, Math.floor(width)))
+      return renderThumbnail(slide, slide === current ? store.doc : previewDocFor(slide), Math.max(40, Math.floor(width)))
     } catch {
       const broken = el('div', 'ed-variants-broken', t('Preview unavailable'))
       broken.style.width = `${Math.floor(width)}px`

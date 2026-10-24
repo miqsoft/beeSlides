@@ -481,13 +481,44 @@ export const SLIDE_HTML_AREA = {
   ],
 } as const satisfies AreaSpec
 
-export const AGENT_AREAS = [DECK_AREA, DECK_SETTINGS_AREA, ICONS_AREA, ELEMENTS_AREA, SLIDE_HTML_AREA] as const satisfies readonly AreaSpec[]
+/** The most designs one propose_variants call offers (editor/variantpicker.ts). */
+export const MAX_VARIANT_DESIGNS = 6
+
+export const VARIANTS_AREA = {
+  tool: 'variants',
+  summary: 'The designs offered with propose_variants: what the user did with them, pictures of them, and picking one when the user tells you which.',
+  ops: {
+    status: {
+      summary: 'per slide: pending (not decided yet), picked "<label>" or kept',
+      params: { slideId: { type: 'string', description: 'Only this slide (default: every slide with designs this session).' } },
+      details: 'Ask this instead of asking the user which design they took. "pending" means they have not decided yet: carry on with other work and look again later; do not wait in a loop.',
+    },
+    previews: {
+      summary: 'a picture of each pending design of a slide, numbered as in the compare view',
+      params: { slideId },
+      details: 'Call it right after propose_variants: the pictures show in the BeeSlides pane of Claude Code, where the user can pick one, and you see what you proposed. In the BeeSlides app the same designs are in its compare view.',
+    },
+    pick: {
+      summary: 'use design `index` (1 = the first) or keep the current slide, as the compare view\'s Use / Keep buttons do',
+      params: {
+        slideId,
+        index: { type: 'integer', description: `The design to use, 1-${MAX_VARIANT_DESIGNS}, as numbered in the compare view and the previews.`, min: 1, max: MAX_VARIANT_DESIGNS },
+        keep: { type: 'boolean', description: 'true keeps the current slide and drops the designs.' },
+      },
+      details: 'Only when the user told you which design they want (or to keep the slide). Give exactly one of index and keep. Using a design is one undo step.',
+    },
+  },
+  notYet: [],
+} as const satisfies AreaSpec
+
+export const AGENT_AREAS = [DECK_AREA, DECK_SETTINGS_AREA, ICONS_AREA, ELEMENTS_AREA, SLIDE_HTML_AREA, VARIANTS_AREA] as const satisfies readonly AreaSpec[]
 
 export type DeckOp = keyof typeof DECK_AREA.ops
 export type DeckSettingsOp = keyof typeof DECK_SETTINGS_AREA.ops
 export type IconsOp = keyof typeof ICONS_AREA.ops
 export type ElementsOp = keyof typeof ELEMENTS_AREA.ops
 export type SlideHtmlOp = keyof typeof SLIDE_HTML_AREA.ops
+export type VariantsOp = keyof typeof VARIANTS_AREA.ops
 
 // ---- generated views ---------------------------------------------------------
 
@@ -556,7 +587,7 @@ export function areaHelp(area: AreaSpec, opName?: string): string {
     ...(opName ? [`No op "${opName}".`] : []),
     `${area.summary}`,
     ...Object.entries(area.ops).map(([n, op]) => one(n, op)),
-    `Not available to agents yet (tell the user to do it in the app): ${area.notYet.join('; ')}.`,
+    ...(area.notYet.length ? [`Not available to agents yet (tell the user to do it in the app): ${area.notYet.join('; ')}.`] : []),
   ].join('\n\n')
 }
 

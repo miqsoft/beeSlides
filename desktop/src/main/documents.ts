@@ -9,6 +9,7 @@
 //
 // Handlers never reject (see index.ts's safeHandle and desktop/CLAUDE.md on
 // the console EIO/EPIPE landmine): failures come back as values.
+import { isBackground } from './background.ts'
 import { DOC_EXT, hasDocExt } from '../../../kernel/src/docext.ts'
 import { BrowserWindow, app, dialog, shell, type IpcMainInvokeEvent } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
@@ -233,6 +234,8 @@ export function registerDocumentIpc(): void {
       /** A blank draft that skips the start page (once): `default-template`,
        *  `new-template`. */
       startIntent: takeStartIntent(ev.sender.id),
+      /** A hidden instance for an agent (background.ts): doc_info says so. */
+      background: isBackground(),
     }
   }, null)
 

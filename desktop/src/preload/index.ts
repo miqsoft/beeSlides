@@ -356,6 +356,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
     text: string | null; kind: 'file' | 'draft'; role: 'deck' | 'template'
     path: string; name: string | null; dir: string | null; mtimeMs: number | null
     opened?: boolean; startIntent?: 'default-template' | 'new-template' | 'new-figure' | 'new-iconset' | null
+    background?: boolean
   } | null> =>
     ipcRenderer.invoke('slidomingo:read-launch-document'),
 

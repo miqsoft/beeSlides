@@ -18,6 +18,11 @@
 // first connection of an app the user has not allowed yet waits for a yes
 // (agentconsent.ts); BEESLIDES_AGENT_ENDPOINT=1 forces the endpoint on and
 // skips that question (tests, e2e).
+//
+// A hidden instance (background.ts) has it on from the start and asks nobody:
+// the plugin that started it made its folder and is the only one that knows
+// where the token is. Its endpoint.json says `background: true` and carries
+// no `launch`, so no MCP server ever starts anything from it.
 
 import { app, BrowserWindow, dialog } from 'electron'
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
@@ -25,7 +30,8 @@ import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { createServer, type Server, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { forwardAgentRequest, isAgentChannel } from './agentbridge.ts'
+import { forwardAgentRequest, forwardWindowless, isAgentChannel } from './agentbridge.ts'
+import { isBackground } from './background.ts'
 import { clientLabel, consentBox, consentStrings, isAllowedClient, rememberClient, type ConsentStrings } from './agentconsent.ts'
 import { writeFileAtomic } from './fsutil.ts'
 import { handleFrom } from './ipcguard.ts'
@@ -35,7 +41,7 @@ import { allDocumentWindows, docWebContentsFor, focusedDocumentWindow } from './
 
 /** Forced on for this run (tests, e2e): the setting can't turn it off and
  *  nobody is asked. */
-const endpointFromEnv = (): boolean => process.env.BEESLIDES_AGENT_ENDPOINT === '1'
+const endpointFromEnv = (): boolean => process.env.BEESLIDES_AGENT_ENDPOINT === '1' || isBackground()
 
 export function agentEndpointEnabled(): boolean {
   return endpointFromEnv() || readSettings().agentEndpoint === true
@@ -83,6 +89,17 @@ function launchInfo(): { command: string; args: string[] } {
   return { command: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()] }
 }
 
+/** Writes <agentDir>/app.json — how to start this app — at every start of the
+ *  visible app, switch on or off: the Claude Code plugin starts a hidden
+ *  instance from it when the visible app is not reachable
+ *  (mcp/plugin-launch.mjs). Kept when the switch goes off. Best effort. */
+export function recordAppLaunch(): void {
+  try {
+    mkdirSync(agentDir(), { recursive: true, mode: 0o700 })
+    writeFileAtomic(join(agentDir(), 'app.json'), JSON.stringify(launchInfo(), null, 2))
+  } catch { /* best effort */ }
+}
+
 /** The document window a request goes to: the one this client already works
  *  in while it is open, else the focused one, else the last one focused. */
 let lastFocusedDocWinId: number | null = null
@@ -123,6 +140,9 @@ function mayConnect(client: string): Promise<boolean> {
 
 /** Connected clients, closed when the endpoint is switched off. */
 const sockets = new Set<Socket>()
+
+/** How many outside apps are connected now (a hidden instance's idle exit). */
+export const agentClientCount = (): number => sockets.size
 
 function serveClient(socket: Socket, token: string): void {
   const sessionId = `ext-${randomUUID()}`
@@ -169,14 +189,21 @@ function serveClient(socket: Socket, token: string): void {
         continue
       }
       if (msg.type !== 'request' || !isAgentChannel(msg.channel)) continue
+      const reply = (result: unknown): void => send({ type: 'response', result })
+      // open_deck / close_deck: answered by main, with or without a deck
+      const deck = { bound: winId != null ? BrowserWindow.fromId(winId) : null, bind: (w: BrowserWindow) => { winId = w.id } }
+      if (forwardWindowless(sessionId, msg.channel, msg.payload, deck, reply)) continue
       const requestId = (msg.payload as { requestId?: unknown } | null)?.requestId
       const win = targetWindow(winId)
       if (!win) {
-        send({ type: 'response', result: { requestId, ok: false, error: 'No deck is open in BeeSlides.' } })
+        const error = isBackground()
+          ? 'No deck is open yet. Call open_deck with the path of the deck to work on (create:true makes a new one).'
+          : 'No deck is open in BeeSlides.'
+        send({ type: 'response', result: { requestId, ok: false, error } })
         continue
       }
       winId = win.id
-      forwardAgentRequest(win, sessionId, msg.channel, msg.payload, (result) => send({ type: 'response', result }))
+      forwardAgentRequest(win, sessionId, msg.channel, msg.payload, reply)
     }
   })
 }
@@ -211,7 +238,8 @@ export function startAgentEndpoint(): void {
   s.on('error', () => { server = null })
   s.listen(path, () => {
     if (process.platform !== 'win32') { try { chmodSync(path, 0o600) } catch { /* best effort */ } }
-    try { writeFileAtomic(join(agentDir(), 'endpoint.json'), JSON.stringify({ socket: path, launch: launchInfo() }, null, 2)) } catch { /* best effort */ }
+    const info = isBackground() ? { socket: path, background: true } : { socket: path, launch: launchInfo() }
+    try { writeFileAtomic(join(agentDir(), 'endpoint.json'), JSON.stringify(info, null, 2)) } catch { /* best effort */ }
   })
   server = s
 }

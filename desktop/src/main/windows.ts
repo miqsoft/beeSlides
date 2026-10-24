@@ -32,6 +32,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, watch, writeFile
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addRecent } from './recent.ts'
+import { hideWindow, isBackground } from './background.ts'
 import { readSettings, updateSettings } from './settings.ts'
 import { disposeTerminalPanel, hasTerminalPanel, isTerminalPanelOpen, layoutDockedPanel, noteDeckIdentityChanged, panelWidthFor, toggleTerminalPanel } from './terminalPanel.ts'
 import { extractDocBlockText, isInside, openAsFor } from './docfile.ts'
@@ -261,6 +262,10 @@ interface WinState {
   writing: boolean
   /** The speaker-notes window the doc view opened (present.ts); closed with the deck. */
   speakerWin: BrowserWindow | null
+  /** The editor has booted and listens for agent requests: its first
+   *  doc-state report came in (whenDeckReady). */
+  ready: boolean
+  readyWaiters: Array<() => void>
 }
 
 const stateByDocWcId = new Map<number, WinState>()
@@ -359,6 +364,10 @@ export function rebindPath(from: string, to: string): void {
 export function noteDocState(docWebContentsId: number, s: { dirty: boolean; title?: string; untouched?: boolean; docId?: string }): void {
   const st = stateByDocWcId.get(docWebContentsId)
   if (!st) return
+  if (!st.ready) {
+    st.ready = true
+    for (const done of st.readyWaiters.splice(0)) done()
+  }
   st.dirty = !!s.dirty
   if (typeof s.docId === 'string' && /^[A-Za-z0-9-]{1,100}$/.test(s.docId) && s.docId !== st.docId) {
     st.docId = s.docId
@@ -376,6 +385,27 @@ export function openBoundPaths(): Set<string> {
   const out = new Set<string>()
   for (const st of stateByDocWcId.values()) if (st.binding) out.add(resolve(st.binding.path))
   return out
+}
+
+/** The document window bound to `path`, if one is open. */
+export function windowForPath(path: string): BrowserWindow | null {
+  const st = stateForPath(path)
+  return st && !st.win.isDestroyed() ? st.win : null
+}
+
+/** Resolves true once `win`'s editor has booted and takes agent requests
+ *  (its first doc-state report, editor.ts reportDesktopState), false after
+ *  `ms` or when the window goes away first. A request sent before that is
+ *  lost: nothing in the page listens yet. */
+export function whenDeckReady(win: BrowserWindow, ms = 30_000): Promise<boolean> {
+  const st = stateByWinId.get(win.id)
+  if (!st || win.isDestroyed()) return Promise.resolve(false)
+  if (st.ready) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms)
+    st.readyWaiters.push(() => { clearTimeout(timer); resolve(true) })
+    win.once('closed', () => { clearTimeout(timer); resolve(false) })
+  })
 }
 
 function stateForPath(path: string): WinState | null {
@@ -548,6 +578,9 @@ function askRenderer(st: WinState, kind: 'flush' | 'save-as'): Promise<FlushAnsw
 async function runLeaveFlow(st: WinState, why: 'close' | 'switch'): Promise<boolean> {
   let answer = await askRenderer(st, 'flush')
   let proceed = answer?.status === 'clean' || answer?.status === 'flushed'
+  // A hidden instance has nobody to ask: the caller hears it failed
+  // (close_deck reports it; a quit goes ahead, background.ts).
+  if (isBackground()) return proceed
   while (!proceed && !st.win.isDestroyed()) {
     const s = answer?.strings ?? {}
     const canSaveAs = answer != null // a renderer that never answered can't run Save As
@@ -739,6 +772,9 @@ function mountDocument(win: BrowserWindow, r: Resolved, opts: { announce?: boole
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false, // personal dev build; revisit before any wider distribution
+        // a hidden instance's deck is never on screen, yet must lay out,
+        // animate and autosave on time (background.ts)
+        ...(isBackground() ? { backgroundThrottling: false } : {}),
       }
   const docView = new WebContentsView({ webPreferences })
   win.contentView.addChildView(docView)
@@ -753,6 +789,7 @@ function mountDocument(win: BrowserWindow, r: Resolved, opts: { announce?: boole
     untouched: binding?.kind === 'draft' && binding.knownMtime == null && launchText == null,
     allowClose: false, closeFlow: null, swap: null, announce: !!opts.announce, startIntent: r.startIntent,
     watcher: null, watchTimer: null, lastNotifiedMtime: null, writing: false, speakerWin: null,
+    ready: false, readyWaiters: [],
   }
   stateByWinId.set(win.id, st)
   stateByDocWcId.set(docWcId, st)
@@ -961,6 +998,7 @@ function openInNewWindow(r: Resolved): BrowserWindow {
   // this shell never navigates now that docView carries the content. Show
   // once the doc view itself has painted instead.
   st.docWc.once('did-finish-load', () => {
+    if (isBackground()) { hideWindow(win); return }
     win.show()
     if (start.fullscreen) win.setFullScreen(true)
     else if (start.maximized) win.maximize()

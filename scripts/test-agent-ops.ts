@@ -26,7 +26,7 @@ import { mkdtempSync, readFileSync, watch, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AGENT_AREAS, DECK_AREA, areaHelp, areaToolDef, checkArgs, type AreaSpec } from '../slides/src/agentops/spec.ts'
-import { runAreaOp, type AgentIcon, type HtmlLayout, type IconLibraryAccess, type OpContext } from '../slides/src/editor/agentops.ts'
+import { runAreaOp, type AgentIcon, type HtmlLayout, type IconLibraryAccess, type OpContext, type VariantAccess, type VariantOutcome } from '../slides/src/editor/agentops.ts'
 import { htmlSignature, mergeCompiled } from '../slides/src/htmlslide.ts'
 import { defaultShape, defaultText, deriveChartPalette, emptySlide, newDoc, newIconsetDoc, sectionsInOrder, type SlideElement, type SlidomingoDoc } from '../slides/src/model.ts'
 import { Store } from '../slides/src/store.ts'
@@ -556,6 +556,42 @@ console.log('-- slide_html (merge, keep, fingerprint; layout faked — the brows
   ok(!big.ok, 'an over-long source is refused before any layout')
 }
 
+// ---- 3g. variants ------------------------------------------------------------------
+console.log('-- variants --')
+{
+  const store = new Store(deck())
+  // the editor's side (editor.ts agentVariants): a pending set for slide b,
+  // an earlier outcome for slide a, Use/Keep recording what they did
+  let pending: { slideId: string; labels: string[] } | null = { slideId: 'b', labels: ['Three cards', 'Timeline', 'Big number'] }
+  const outcomes = new Map<string, VariantOutcome>([['a', { kind: 'picked', index: 1, label: 'Split', by: 'user' }]])
+  const used: number[] = []
+  const variants: VariantAccess = {
+    pending: () => pending,
+    outcomes: () => outcomes,
+    snapshots: (id) => (pending && pending.slideId === id ? pending.labels.map(() => ({ html: '<!doctype html><p>x</p>', width: 1280, height: 720 })) : 'none'),
+    use: (i) => { used.push(i); outcomes.set(pending!.slideId, { kind: 'picked', index: i, label: pending!.labels[i], by: 'agent' }); pending = null; return null },
+    keep: () => { outcomes.set(pending!.slideId, { kind: 'kept', by: 'agent' }); pending = null; return null },
+  }
+  const ctx: OpContext = { store, created: new Set(), variants }
+  const run = (a: Record<string, unknown>) => runAreaOp('variants', a, ctx) as { ok: boolean; summary?: string; error?: string; [k: string]: unknown }
+  const st = run({ op: 'status' })
+  ok(st.ok && /b \(slide 2\): pending .* 1 "Three cards", 2 "Timeline", 3 "Big number"/.test(st.summary!) && /a \(slide 1\): picked design 2 "Split" \(by the user, in the app\)/.test(st.summary!), 'status: the pending set with its numbered labels, and what the user picked earlier', st.summary)
+  ok(JSON.stringify((st.slides as unknown[]).map((r) => (r as { state: string }).state)) === '["pending","picked Split"]', 'status rows carry a state a program can read')
+  ok(/No designs were proposed for c/.test(run({ op: 'status', slideId: 'c' }).summary!), 'status for a slide without designs says so')
+  const pv = run({ op: 'previews', slideId: 'b' })
+  ok(pv.ok && (pv.offscreens as unknown[]).length === 3 && (pv.labels as string[])[1] === 'Timeline', 'previews: one page per design for main to render, with the labels')
+  ok(!run({ op: 'previews', slideId: 'a' }).ok, 'previews of a slide with nothing pending is refused')
+  ok(/exactly one of index and keep/.test(run({ op: 'pick', slideId: 'b' }).error!) && /exactly one/.test(run({ op: 'pick', slideId: 'b', index: 1, keep: true }).error!), 'pick needs exactly one of index and keep')
+  ok(/only 3 designs/.test(run({ op: 'pick', slideId: 'b', index: 5 }).error!), 'pick refuses a design number past the set')
+  ok(!run({ op: 'pick', slideId: 'b', index: 9 }).ok, 'index is range-checked by the spec (1-6)')
+  const picked = run({ op: 'pick', slideId: 'b', index: 2 })
+  ok(picked.ok && used.join() === '1' && /Used design 2 "Timeline"/.test(picked.summary!), 'pick index 2 uses the second design (0-based to the editor)')
+  ok(/picked design 2 "Timeline" \(by variants pick/.test(run({ op: 'status' }).summary!), 'status then says the pick came through the tool')
+  pending = { slideId: 'c', labels: ['One'] }
+  ok(run({ op: 'pick', slideId: 'c', keep: true }).ok && /kept the current slide/.test(run({ op: 'status', slideId: 'c' }).summary!), 'pick keep:true keeps the slide and status says so')
+  ok(!runAreaOp('variants', { op: 'status' }, { store, created: new Set() }).ok, 'without the app (no compare view) variants refuses')
+}
+
 // ---- 4. end to end through the filled-in MCP server ----------------------------
 console.log('-- MCP server --')
 {
@@ -566,6 +602,7 @@ console.log('-- MCP server --')
   try { serverWithAgentAreas('const TOOLS = []') } catch { threw = true }
   ok(threw, 'a server without the placeholder fails loudly')
   ok(agentAreaTools()[0].help.add.includes('deck op "add"') && agentAreaTools()[0].help['*'].includes('Not available to agents yet'), 'help texts are generated per op and for the area')
+  ok(!agentAreaTools().find((t) => t.def.name === 'variants')!.help['*'].includes('Not available to agents yet'), 'an area with nothing missing has no not-yet line')
 
   const dir = mkdtempSync(join(tmpdir(), 'agent-ops-'))
   const server = join(dir, 'slides-mcp-server.mjs')
@@ -591,6 +628,8 @@ console.log('-- MCP server --')
   ok(!!deckTool && (deckTool.inputSchema as { properties: Record<string, unknown> }).properties.slideIds !== undefined, 'tools/list carries deck with its merged schema')
   ok(tools.some((t) => t.name === 'deck_settings'), 'tools/list carries deck_settings too (a new area needs no server change)')
   ok(tools.some((t) => t.name === 'icons'), 'tools/list carries icons')
+  ok(tools.some((t) => t.name === 'variants'), 'tools/list carries variants')
+  ok(!tools.some((t) => t.name === 'open_deck'), 'the panel\'s server has no open_deck (its chat belongs to its window)')
   const elementsTool = tools.find((t) => t.name === 'elements')
   ok(!!elementsTool && ((elementsTool.inputSchema as { properties: Record<string, { type?: string; items?: { type?: string } }> }).properties.changes?.items?.type === 'object'), 'tools/list carries elements, changes typed as a list of objects')
   const sHelp = await mcp.callTool('deck_settings', { op: 'help' })

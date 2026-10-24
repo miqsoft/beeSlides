@@ -221,6 +221,9 @@ export interface DesktopLaunchDocument {
    *  page; `new-template` (File ▸ New Layout…) opens it with the Create
    *  layout chooser up. */
   startIntent?: 'default-template' | 'new-template' | 'new-figure' | 'new-iconset' | null
+  /** A hidden instance an agent works in (desktop background.ts): nobody
+   *  sees this window. Absent from an older main process = false. */
+  background?: boolean
 }
 export type DesktopWriteResult =
   | { ok: true; mtimeMs: number }

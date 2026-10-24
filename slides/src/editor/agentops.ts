@@ -50,6 +50,31 @@ export interface OpContext {
   /** The browser layout behind the `slide_html` tool (htmlslide.ts,
    *  htmlemit.ts); absent where there is no page to lay HTML out in. */
   html?: HtmlLayout
+  /** The propose_variants designs (`variants` tool); absent where there are
+   *  none to offer (no compare view). */
+  variants?: VariantAccess
+}
+
+/** What became of a set of designs: one used, or the slide kept. `by` is how:
+ *  `user` = the app's compare view; `agent` = the `variants` pick op, which
+ *  both a model and the Claude Code pane's buttons use. */
+export type VariantOutcome =
+  | { kind: 'picked'; index: number; label: string; by: 'user' | 'agent' }
+  | { kind: 'kept'; by: 'user' | 'agent' }
+
+/** The propose_variants designs as the `variants` handlers see them (the
+ *  editor's pending set, editor/variantpicker.ts). */
+export interface VariantAccess {
+  /** The set waiting for a pick (one slide at a time), or null. */
+  pending(): { slideId: string; labels: string[] } | null
+  /** The latest outcome per slide, this editor session. */
+  outcomes(): ReadonlyMap<string, VariantOutcome>
+  /** One standalone page per pending design (main renders the pictures,
+   *  desktop agentbridge.ts), or the error. */
+  snapshots(slideId: string): Array<{ html: string; width: number; height: number }> | string
+  /** The compare view's Use (0-based) and Keep; null when done, else why not. */
+  use(index: number): string | null
+  keep(): string | null
 }
 
 /** HTML ⇄ slide, as the `slide_html` handlers need it. Both lay HTML out in
@@ -1127,7 +1152,72 @@ export function slideFromCompiled(doc: SlidomingoDoc, slide: Slide, compiled: Co
   return out
 }
 
-const AREA_HANDLERS: AreaHandlers = { deck: DECK, deck_settings: SETTINGS, icons: ICONS, elements: ELEMENTS, slide_html: SLIDE_HTML }
+// ---- variants ----------------------------------------------------------------
+
+/** One status line per slide with designs: pending, picked or kept. */
+function variantRows(ctx: OpContext, v: VariantAccess, only?: string): Array<{ slideId: string; slide: number; state: string; line: string }> {
+  const num = (id: string) => ctx.store.doc.slides.findIndex((s) => s.id === id) + 1
+  const rows: Array<{ slideId: string; slide: number; state: string; line: string }> = []
+  const p = v.pending()
+  if (p && (!only || only === p.slideId)) {
+    const list = p.labels.map((l, i) => `${i + 1} "${l}"`).join(', ')
+    rows.push({ slideId: p.slideId, slide: num(p.slideId), state: 'pending', line: `${p.slideId} (slide ${num(p.slideId)}): pending — the user has not decided between ${plural(p.labels.length, 'design')}: ${list}` })
+  }
+  for (const [id, o] of v.outcomes()) {
+    if ((only && only !== id) || (p && p.slideId === id)) continue
+    // a pick through the tool is the pane's button or a model told the number
+    const who = o.by === 'user' ? 'the user, in the app' : 'variants pick: the BeeSlides pane or you'
+    const line = o.kind === 'picked'
+      ? `${id} (slide ${num(id)}): picked design ${o.index + 1} "${o.label}" (by ${who}); it is on the slide now`
+      : `${id} (slide ${num(id)}): kept the current slide (by ${who}); the designs are gone`
+    rows.push({ slideId: id, slide: num(id), state: o.kind === 'picked' ? `picked ${o.label}` : 'kept', line })
+  }
+  return rows
+}
+
+const VARIANTS: AreaHandlers['variants'] = {
+  status(ctx, a) {
+    if (!ctx.variants) return fail('variants needs the BeeSlides app.')
+    const only = a.slideId as string | undefined
+    const rows = variantRows(ctx, ctx.variants, only)
+    if (!rows.length) return { ok: true, summary: only ? `No designs were proposed for ${only} in this session.` : 'No designs were proposed in this session.', toast: '', slides: [] }
+    return { ok: true, summary: rows.map((r) => r.line).join('\n'), toast: '', slides: rows.map(({ slideId, slide, state }) => ({ slideId, slide, state })) }
+  },
+
+  previews(ctx, a) {
+    if (!ctx.variants) return fail('variants needs the BeeSlides app.')
+    const p = ctx.variants.pending()
+    if (!p || p.slideId !== a.slideId) return fail(`No designs are waiting for ${a.slideId as string}. variants {op:"status"} lists what became of earlier ones.`)
+    const pages = ctx.variants.snapshots(p.slideId)
+    if (typeof pages === 'string') return fail(pages)
+    return {
+      ok: true,
+      summary: `${plural(pages.length, 'design')} for ${p.slideId}: ${p.labels.map((l, i) => `${i + 1} "${l}"`).join(', ')}. The user picks in the BeeSlides app's compare view or the BeeSlides pane, or tells you the number.`,
+      toast: '',
+      slideId: p.slideId,
+      labels: p.labels,
+      offscreens: pages,
+    }
+  },
+
+  pick(ctx, a) {
+    if (!ctx.variants) return fail('variants needs the BeeSlides app.')
+    if ((a.index === undefined) === (a.keep === undefined)) return fail('Give exactly one of index and keep.')
+    const p = ctx.variants.pending()
+    if (!p || p.slideId !== a.slideId) return fail(`No designs are waiting for ${a.slideId as string}. variants {op:"status"} says what became of them.`)
+    if (a.keep !== undefined) {
+      if (a.keep !== true) return fail('keep must be true (or give index).')
+      const err = ctx.variants.keep()
+      return err ? fail(err) : { ok: true, summary: `Kept the current ${p.slideId}; the designs are gone.`, toast: '' }
+    }
+    const index = (a.index as number) - 1
+    if (index >= p.labels.length) return fail(`There are only ${plural(p.labels.length, 'design')}.`)
+    const err = ctx.variants.use(index)
+    return err ? fail(err) : { ok: true, summary: `Used design ${index + 1} "${p.labels[index]}" on ${p.slideId} (one undo step).`, toast: '' }
+  },
+}
+
+const AREA_HANDLERS: AreaHandlers = { deck: DECK, deck_settings: SETTINGS, icons: ICONS, elements: ELEMENTS, slide_html: SLIDE_HTML, variants: VARIANTS }
 
 /** Whether `verb` names an op area (a grouped tool such as `deck`). */
 export const isAreaTool = (verb: string | undefined): boolean => AGENT_AREAS.some((a) => a.tool === verb)

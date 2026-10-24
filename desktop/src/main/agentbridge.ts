@@ -33,8 +33,9 @@ interface Pending {
   /** The window the request went to — only its doc view may answer it. */
   winId: number
   /** render_preview / review_slide: the editor's answer is a validation stub
-   *  and main adds the screenshot (see slidomingo:agent-query-response). */
-  capture: boolean
+   *  and main adds the screenshot (see slidomingo:agent-query-response).
+   *  `previews`: variants previews — main renders the pages it lists. */
+  capture: 'shot' | 'previews' | null
   timer: NodeJS.Timeout
 }
 
@@ -53,6 +54,38 @@ const mainVerbs = new Map<string, MainVerb>()
 
 export function registerMainVerb(verb: string, run: MainVerb): void {
   mainVerbs.set(verb, run)
+}
+
+/** Which deck an endpoint client works on (agentendpoint.ts serveClient):
+ *  the window it is bound to, and how to bind it to another. */
+export interface DeckBinding {
+  bound: BrowserWindow | null
+  bind(win: BrowserWindow): void
+}
+
+/** agent-action verbs main answers before any deck is involved: they open or
+ *  close one (agentdecks.ts open_deck/close_deck), so they also work with no
+ *  window open — a hidden instance starts with none (background.ts). */
+type WindowlessVerb = (sessionId: string, args: unknown, deck: DeckBinding) => Promise<Record<string, unknown>>
+const windowlessVerbs = new Map<string, WindowlessVerb>()
+
+export function registerWindowlessVerb(verb: string, run: WindowlessVerb): void {
+  windowlessVerbs.set(verb, run)
+}
+
+/** Answers `payload` when it is a windowless verb (true), else leaves it to
+ *  forwardAgentRequest (false). `reply` is called exactly once when true. */
+export function forwardWindowless(sessionId: string, channel: AgentChannel, payload: unknown, deck: DeckBinding, reply: AgentReply): boolean {
+  if (channel !== 'agent-action' || !payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const body = payload as Record<string, unknown>
+  const run = typeof body.verb === 'string' ? windowlessVerbs.get(body.verb) : undefined
+  if (!run || !isSafeId(body.requestId)) return false
+  const requestId = body.requestId
+  void run(sessionId, body.args, deck).then(
+    (r) => reply({ ...r, requestId } as AgentResult),
+    (err) => reply({ requestId, ok: false, error: String((err as Error)?.message ?? err) }),
+  )
+  return true
 }
 
 /** Windows running an agent program (agentexec.ts). While one runs, its run
@@ -99,7 +132,9 @@ export function forwardAgentRequest(win: BrowserWindow, sessionId: string, chann
     reply({ requestId, ok: false, error: 'no-document' })
     return
   }
-  const capture = channel === 'agent-query' && (body.verb === 'render_preview' || body.verb === 'review_slide')
+  const capture = channel === 'agent-query' && (body.verb === 'render_preview' || body.verb === 'review_slide') ? 'shot'
+    : channel === 'agent-action' && body.verb === 'variants' && (body.args as { op?: unknown } | undefined)?.op === 'previews' ? 'previews'
+      : null
   const timer = setTimeout(() => pending.delete(requestId), PENDING_TTL_MS)
   pending.set(requestId, { reply, winId: win.id, capture, timer })
   wc.send(IPC_OUT[channel], { ...body, sessionId })
@@ -152,6 +187,29 @@ async function withCapture(win: BrowserWindow, result: AgentResult): Promise<Age
   }
 }
 
+/** How wide a design picture is (variants previews): enough to judge a
+ *  layout, small for a model's context and a terminal pane. */
+const PREVIEW_W = 800
+
+/** variants previews: the editor lists one standalone page per design
+ *  (`offscreens`); each is rendered off screen like an off-canvas
+ *  review_slide, and comes back as `images` in the same order. */
+async function withPreviews(result: AgentResult): Promise<AgentResult> {
+  const { offscreens, ...rest } = result as AgentResult & { offscreens?: unknown }
+  if (!Array.isArray(offscreens) || !offscreens.every(isSnapshotRequest)) return { requestId: result.requestId, ok: false, error: 'capture-failed: bad snapshot' }
+  try {
+    const images: Array<{ data: string; mimeType: string }> = []
+    for (const page of offscreens) {
+      let image = await captureSlideSnapshot(page)
+      if (image.getSize().width > PREVIEW_W) image = image.resize({ width: PREVIEW_W, quality: 'best' })
+      images.push({ data: image.toPNG().toString('base64'), mimeType: 'image/png' })
+    }
+    return { ...rest, images } as AgentResult
+  } catch (err) {
+    return { requestId: result.requestId, ok: false, error: `capture-failed: ${String((err as Error)?.message ?? err)}` }
+  }
+}
+
 export function registerAgentBridgeIpc(): void {
   // get_slide, write_slide and the agent-action write verbs: the editor's
   // answer is final. (Spelled out: test-desktop-ipc-guard.mjs finds handlers
@@ -162,13 +220,17 @@ export function registerAgentBridgeIpc(): void {
   }
   onFrom('app-shell', 'slidomingo:slide-response', settle)
   onFrom('app-shell', 'slidomingo:apply-slide-write-result', settle)
-  onFrom('app-shell', 'slidomingo:agent-action-result', settle)
+  onFrom('app-shell', 'slidomingo:agent-action-result', async (ev, result: AgentResult) => {
+    const hit = take(ev.sender.id, result?.requestId)
+    if (!hit) return
+    hit.entry.reply(hit.entry.capture === 'previews' && result.ok ? await withPreviews(result) : result)
+  })
   // The agent-query read verbs — final too, except render_preview and
   // review_slide, which get their screenshot here first. Async (an
   // ipcMain.on listener may be); every path still replies exactly once.
   onFrom('app-shell', 'slidomingo:agent-query-response', async (ev, result: AgentResult) => {
     const hit = take(ev.sender.id, result?.requestId)
     if (!hit) return
-    hit.entry.reply(hit.entry.capture && result.ok ? await withCapture(hit.win, result) : result)
+    hit.entry.reply(hit.entry.capture === 'shot' && result.ok ? await withCapture(hit.win, result) : result)
   })
 }

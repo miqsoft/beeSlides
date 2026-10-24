@@ -6,6 +6,7 @@ import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, openSync, readSync, closeSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { docKindOfText } from './docfile.ts'
+import { isBackground } from './background.ts'
 import { LEGACY_DOC_BLOCK_ID } from '../../../kernel/src/legacynames.ts'
 
 interface RecentEntry {
@@ -102,6 +103,9 @@ function trim(entries: RecentEntry[]): RecentEntry[] {
 }
 
 export function addRecent(path: string): void {
+  // A hidden instance (background.ts) lists nothing: its decks are an
+  // agent's, and the OS list is the user's.
+  if (isBackground()) return
   const all = readAll()
   const pinned = all.some((e) => e.path === path && e.pinned)
   const entries = all.filter((e) => e.path !== path)

@@ -77,6 +77,10 @@ export const desktopKind = (): 'file' | 'draft' | null => binding?.kind ?? null
 /** The bound file's name ("Q3.beeslides.html"), null for a draft. */
 export const desktopFileName = (): string | null => binding?.name ?? null
 export const desktopFilePath = (): string | null => (binding?.kind === 'file' ? binding.path : null)
+
+/** This window is a hidden instance's, worked on by an agent (desktop
+ *  background.ts): nobody sees it. */
+export const desktopBackground = (): boolean => launch?.background === true
 /** A template window: this window is bound to a template file (Edit
  *  Template) and every write must stay a template (editor.ts templateMode). */
 export const desktopIsTemplate = (): boolean => binding?.role === 'template'

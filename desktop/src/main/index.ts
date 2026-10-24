@@ -26,13 +26,15 @@ import { registerPictureIpc } from './pictures.ts'
 import { buildMenu, registerMenuIpc } from './menu.ts'
 import { registerAgentBridgeIpc } from './agentbridge.ts'
 import { registerAgentExec } from './agentexec.ts'
-import { refreshAgentEndpointServer, registerAgentEndpointIpc, startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
+import { registerDeckVerbs } from './agentdecks.ts'
+import { agentClientCount, recordAppLaunch, refreshAgentEndpointServer, registerAgentEndpointIpc, startAgentEndpoint, stopAgentEndpoint } from './agentendpoint.ts'
 import { claudeWorkspacesRoot, isTerminalRendererUrl, isValidGenerateRequest, registerTerminalIpc, requestGenerate, toggleTerminalPanel } from './terminalPanel.ts'
 import { sweepWorkspaces } from './workspaces.ts'
 import { addRecent, listRecent, pinRecent, removeRecent } from './recent.ts'
 import { registerTemplateIpc } from './templates.ts'
 import { registerLibraryIpc } from './library.ts'
 import { registerThumbnailIpc } from './thumbs.ts'
+import { applyBackgroundSwitches, hideFromDock, IDLE_EXIT_MS, isBackground, seedViewerPrefs } from './background.ts'
 
 // E2E/isolation overrides (desktop/scripts/e2e-*.mjs): a throwaway profile
 // must be set before anything reads userData — including the single-instance
@@ -45,11 +47,18 @@ import { registerThumbnailIpc } from './thumbs.ts'
 // they used before the BeeSlides rename, "slidomingo-desktop" (2026-09-28),
 // so the two never share a profile or a single-instance lock. Set before
 // app.setName below, which would otherwise move it too.
+// A hidden instance (background.ts) always gets its own folder from the
+// plugin that starts it — never the user's.
+if (isBackground() && !process.env.SLIDOMINGO_USER_DATA) {
+  try { process.stderr.write('--background needs SLIDOMINGO_USER_DATA\n') } catch { /* best effort */ }
+  process.exit(2)
+}
 if (process.env.SLIDOMINGO_USER_DATA) app.setPath('userData', process.env.SLIDOMINGO_USER_DATA)
 else app.setPath('userData', join(app.getPath('appData'), app.isPackaged ? 'BeeSlides' : 'slidomingo-desktop'))
 // Packaged builds already take productName from package.json; an unpackaged
 // run would show the npm package name in the app menu (Hide/Quit …).
 if (!app.isPackaged) app.setName('BeeSlides (dev)')
+if (isBackground()) applyBackgroundSwitches()
 
 // A broken stdout/stderr pipe (npm run dev-all's orchestrator going away
 // mid-session, or any other reader disappearing) surfaces as an 'error'
@@ -159,6 +168,7 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', (_ev, argv) => {
+    if (isBackground()) return // nobody launches a hidden instance twice on purpose
     const path = pathFromArgv(argv)
     if (path) openFromOs(path)
     else {
@@ -169,9 +179,13 @@ if (!gotLock) {
   })
 
   void app.whenReady().then(() => {
+    if (isBackground()) {
+      hideFromDock()
+      seedViewerPrefs()
+    }
     // An unpackaged run has no bundle icon, so the Dock shows Electron's. Packaged
     // builds get the mark from build/icon.png via electron-builder instead.
-    if (!app.isPackaged && process.platform === 'darwin') {
+    if (!app.isPackaged && process.platform === 'darwin' && !isBackground()) {
       try { app.dock?.setIcon(join(app.getAppPath(), 'build', 'icon.png')) } catch { /* cosmetic only */ }
     }
     sweepDraftPartitions()
@@ -182,6 +196,7 @@ if (!gotLock) {
     registerTerminalIpc()
     registerAgentBridgeIpc()
     registerAgentExec(refreshAgentEndpointServer)
+    registerDeckVerbs()
     registerDocumentIpc()
     registerFigureIpc()
     registerOfficeClipIpc()
@@ -198,6 +213,8 @@ if (!gotLock) {
     // off until Settings ▸ AI chat ▸ Advanced turns it on.
     registerAgentEndpointIpc()
     startAgentEndpoint()
+    // where the plugin finds this app to start a hidden instance of it
+    if (!isBackground()) recordAppLaunch()
 
     handleFrom('app-shell', 'slidomingo:get-launch-path', (ev) => launchPathFor(ev.sender.id))
 
@@ -259,7 +276,11 @@ if (!gotLock) {
     // usual blank window.
     const initialPath = pathFromArgv(process.argv)
     const launchPaths = macLaunchPaths.length ? macLaunchPaths.splice(0) : initialPath ? [initialPath] : []
-    if (launchPaths.length) {
+    if (isBackground()) {
+      // no start page, no restored session: the agent opens what it works on
+      if (launchPaths.length) void openPathsFrom(null, launchPaths)
+      watchIdle()
+    } else if (launchPaths.length) {
       void openPathsFrom(null, launchPaths).then((opened) => { if (!opened.length) createDocumentWindow(null) })
     } else {
       restoreSession()
@@ -273,6 +294,12 @@ if (!gotLock) {
   app.on('before-quit', (ev) => {
     if (quitting) return
     ev.preventDefault()
+    if (isBackground()) {
+      // Every deck flushed; nobody to ask about one that failed, and no
+      // session to remember (background.ts).
+      void closeAllWindows().finally(() => { quitting = true; app.exit(0) })
+      return
+    }
     // What was open, taken before the windows go — reopened next launch.
     const open = sessionSnapshot()
     void closeAllWindows().then((ok) => {
@@ -288,13 +315,27 @@ if (!gotLock) {
   // Under `npm run dev` (scripts/dev-all.mjs) closing the last window ends
   // the app on macOS too, and with it the whole dev stack.
   app.on('window-all-closed', () => {
+    if (isBackground()) return // the agent may open the next deck
     if (process.platform !== 'darwin' || process.env.SLIDOMINGO_DEV_ALL === '1') app.quit()
   })
 
   app.on('activate', () => {
+    if (isBackground()) return
     // documents only: a hidden thumbnail renderer is a window too
     if (allDocumentWindows().length === 0) createDocumentWindow(null)
   })
+}
+
+/** A hidden instance quits through the flush when the plugin that started it
+ *  says so (SIGTERM), and by itself after IDLE_EXIT_MS with no deck open and
+ *  no agent connected. */
+function watchIdle(): void {
+  for (const sig of ['SIGTERM', 'SIGINT'] as const) process.on(sig, () => app.quit())
+  let idleSince = Date.now()
+  setInterval(() => {
+    if (allDocumentWindows().length || agentClientCount()) idleSince = Date.now()
+    else if (Date.now() - idleSince > IDLE_EXIT_MS) app.quit()
+  }, 60_000).unref()
 }
 
 /** Cold launch without a file: reopen what the last quit left open (missing

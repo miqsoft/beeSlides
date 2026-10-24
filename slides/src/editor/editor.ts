@@ -110,7 +110,7 @@ import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportI
 import { ICON_CANVASES, addIconNames, iconCanvasId, iconCanvasUnits, iconsetInfo, type IconCanvasId } from '../iconset'
 import { exampleSvg, readIconExamples } from '../iconexamples'
 import {
-  clearDesktopProblem, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
+  clearDesktopProblem, desktopBackground, desktopBound, desktopError, desktopFileName, desktopFilePath, desktopKind, desktopLaunch, onDesktopStatus,
   desktopStatus, desktopStatusSource, desktopWritesDisabled, desktopWritesSettled, markDesktopProblem,
   reportDocState, saveDesktopAs, setFlushHandler, writeDesktop, type FlushAnswer,
 } from './desktopdoc'
@@ -128,7 +128,7 @@ import { validateProfile } from './customize/validate'
 import { QUICKBAR_PLACES, emptyProfile, type QuickBarPlace, type UiProfile } from './customize/schema'
 import type { RibbonHandle } from './ribbon'
 import { agentFindText } from './findtext'
-import { isAreaTool, runAreaOp, sectionRows, slideFromCompiled, type HtmlLayout, type IconLibraryAccess, type SlideWrites } from './agentops'
+import { isAreaTool, runAreaOp, sectionRows, slideFromCompiled, type HtmlLayout, type IconLibraryAccess, type SlideWrites, type VariantAccess, type VariantOutcome } from './agentops'
 import { compileSlideHtml, type CompileResult } from '../htmlslide'
 import { MAX_SLIDE_HTML } from '../agentops/spec'
 import { slideToHtml } from '../htmlemit'
@@ -5803,6 +5803,11 @@ export class Editor {
       guides: doc.guides ? normalizeGuides(doc.guides, doc.size) : undefined,
       kind: doc.kind,
       iconset: this.agentIconsetInfo(),
+      // which file this is (no folder), and whether it is a hidden instance's
+      // that nobody sees (desktop background.ts): then the user picks designs
+      // in Claude Code's BeeSlides pane, not in a compare view
+      file: desktopFileName() ?? undefined,
+      background: desktopBackground() || undefined,
     }
   }
 
@@ -6026,6 +6031,9 @@ export class Editor {
    *  during a show: the window shows the presentation, so a capture of it
    *  would be whatever slide the audience sees. */
   private onCanvas(slideId: string): boolean {
+    // A hidden instance's window is never on screen (desktop background.ts):
+    // every deck slide is shot off screen, which needs no painted window.
+    if (desktopBackground() && this.store.doc.slides.some((s) => s.id === slideId)) return false
     return this.store.slide.id === slideId && !this.slideSorterOpen && !this.outlineViewOpen && !this.presenting
   }
 
@@ -6199,7 +6207,7 @@ export class Editor {
     // ../agentops/spec.ts and runs the op as one undo step.
     if (isAreaTool(cmd.verb)) {
       if ((cmd.verb === 'icons' || cmd.verb === 'elements' || cmd.verb === 'slide_html') && slideId) lockError(slideId)
-      void Promise.resolve(runAreaOp(cmd.verb!, args, { store: this.store, created: this.agentCreatedSlides, icons: this.agentIcons, writes: this.agentSlideWrites, html: this.agentHtml })).then((r) => {
+      void Promise.resolve(runAreaOp(cmd.verb!, args, { store: this.store, created: this.agentCreatedSlides, icons: this.agentIcons, writes: this.agentSlideWrites, html: this.agentHtml, variants: this.agentVariants })).then((r) => {
         if (r.ok && r.toast) this.toast(r.toast)
         respond({ requestId: cmd.requestId, ...r })
       })
@@ -6694,15 +6702,19 @@ export class Editor {
     const message = replacing
       ? (one ? t('Claude proposed a new design — it replaces the ones you had not picked from') : t('Claude proposed {n} new designs — they replace the ones you had not picked from', { n: survivors.length }))
       : (one ? t('Claude proposed a design for slide {num}', { num }) : t('Claude proposed {n} designs for slide {num}', { n: survivors.length, num }))
-    // never over a text being typed or another dialog: say so and wait
-    if (this.canvas.isEditingText || document.querySelector('dialog[open]')) actionToast(message, t('Compare'), () => this.openVariants())
+    // never over a text being typed or another dialog: say so and wait.
+    // Nobody sees a hidden instance's window: the pane shows the designs.
+    if (desktopBackground()) { /* variants previews */ }
+    else if (this.canvas.isEditingText || document.querySelector('dialog[open]')) actionToast(message, t('Compare'), () => this.openVariants())
     else this.openVariants()
     return {
       ok: true,
       count: survivors.length,
       ...(dropped.length ? { dropped } : {}),
       ...(notes.length ? { notes: notes.slice(0, 30) } : {}),
-      shown: 'The user now compares them side by side with the current slide and picks one or keeps the slide. You are not told which; do not wait or poll.',
+      shown: desktopBackground()
+        ? `Nobody sees the app: call variants {op:"previews", slideId:"${slideId}"} so the user sees the designs in the BeeSlides pane, then go on with other work. variants {op:"status"} tells you later what they picked; do not wait or poll.`
+        : `The user now compares them side by side with the current slide and picks one or keeps the slide. variants {op:"status"} tells you later what they picked; do not wait or poll.`,
     }
   }
 
@@ -6742,7 +6754,7 @@ export class Editor {
    * the target slide — all inside ONE store.commit, so the whole thing is a
    * single undo step even when it also brought in new assets/fonts.
    */
-  applyVariant(index: number) {
+  applyVariant(index: number, by: 'user' | 'agent' = 'user') {
     const pending = this.pendingVariants
     if (!pending) return
     const chosen = pending.variants[index]
@@ -6767,16 +6779,64 @@ export class Editor {
     this.clearPendingVariants()
     if (idx !== this.store.currentIndex && !this.store.editingSurface) this.store.goTo(idx)
     const label = chosen.label ?? t('Design {n}', { n: index + 1 })
+    this.variantOutcomes.set(pending.slideId, { kind: 'picked', index, label: chosen.label ?? `Design ${index + 1}`, by })
     this.toast(t('Used “{label}” on slide {num} — undo brings the old slide back', { label, num: idx + 1 }))
   }
 
   /** Discard the pending set without touching store.doc/store.commit/the
    *  undo stack in any way — just clears editor-local state and closes the
    *  picker/badge. */
-  discardVariants() {
+  discardVariants(by: 'user' | 'agent' = 'user') {
     if (!this.pendingVariants) return
+    this.variantOutcomes.set(this.pendingVariants.slideId, { kind: 'kept', by })
     this.clearPendingVariants()
     this.toast(t('Kept the current slide.'))
+  }
+
+  /** What became of each set of designs this session (the `variants` tool's
+   *  status): set where Use and Keep act, never by "Decide later". */
+  private readonly variantOutcomes = new Map<string, VariantOutcome>()
+
+  /** The `variants` tool's view of the designs (agentops.ts). */
+  private readonly agentVariants: VariantAccess = {
+    pending: () => {
+      const p = this.pendingVariants
+      return p ? { slideId: p.slideId, labels: p.variants.map((v, i) => v.label ?? `Design ${i + 1}`) } : null
+    },
+    outcomes: () => this.variantOutcomes,
+    snapshots: (slideId) => {
+      const p = this.pendingVariants
+      if (!p || p.slideId !== slideId) return `No designs are waiting for ${slideId}.`
+      // rendered against a throwaway doc with the designs' assets, as the
+      // compare view does (variantpicker.ts) — store.doc is never touched.
+      // The design stands in its slide's place, so {{page}} and the like
+      // read as they will once it is used.
+      const { width, height } = this.store.doc.size
+      const area = { x: 0, y: 0, w: width, h: height }
+      return p.variants.map((v) => {
+        const previewDoc: SlidomingoDoc = {
+          ...this.store.doc,
+          assets: { ...this.store.doc.assets, ...p.assets },
+          slides: this.store.doc.slides.map((s) => (s.id === p.slideId ? v.slide : s)),
+        }
+        return { html: slideSnapshotHtml(previewDoc, v.slide, area), width, height }
+      })
+    },
+    use: (index) => {
+      const p = this.pendingVariants
+      if (!p?.variants[index]) return 'No such design.'
+      if (!this.store.doc.slides.some((s) => s.id === p.slideId)) {
+        this.clearPendingVariants()
+        return 'That slide no longer exists; the designs were dropped.'
+      }
+      this.applyVariant(index, 'agent')
+      return null
+    },
+    keep: () => {
+      if (!this.pendingVariants) return 'No designs are waiting.'
+      this.discardVariants('agent')
+      return null
+    },
   }
 
   private clearPendingVariants() {
