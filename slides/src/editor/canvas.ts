@@ -49,6 +49,17 @@ const BUILD_BADGES_KEY = 'slidomingo-build-badges'
 /** How close (screen px) an edge or point must come to a line to snap to it. */
 const SNAP_SCREEN_PX = 6
 
+/** Watch one press for its release (mouse or touch, anywhere in the window).
+ *  `released()` answers and stops watching. */
+function trackPress(): { released: () => boolean } {
+  let up = false
+  const events = ['mouseup', 'touchend', 'touchcancel'] as const
+  const off = () => { for (const t of events) window.removeEventListener(t, onUp, true) }
+  const onUp = () => { up = true; off() }
+  for (const t of events) window.addEventListener(t, onUp, true)
+  return { released: () => { off(); return up } }
+}
+
 /** The surface on screen and what it was drawn from (SlideCanvas.render). */
 type ShownSurface = {
   surface: HTMLElement
@@ -420,7 +431,10 @@ export class SlideCanvas {
     // --- contextmenu block begin (editor/contextmenu.ts hooks in via onContextMenu) ---
     document.addEventListener('contextmenu', (ev) => {
       if (this.pathEditor.active || this.bezierEditor.active || this.editing || this.editingCell) return
-      if (ev.target instanceof Element && ev.target.closest('.moveable-control-box, .ed-minibar, .ed-math-pop')) return
+      // Moveable's handles keep the native menu; its group drag area (laid
+      // over a multi-selection) does not — the click is on the elements below
+      if (ev.target instanceof Element && !ev.target.classList.contains('moveable-area') &&
+        ev.target.closest('.moveable-control-box, .ed-minibar, .ed-math-pop')) return
       // Bounded to the whole canvas wrap (grey surround included), not just
       // the rendered slide — a right-click on the grey margin is still an
       // "empty canvas" gesture, same as the comment tool treating it as the
@@ -2628,9 +2642,18 @@ export class SlideCanvas {
       this.store.select(this.expandGroups(ids))
       if (e.isDragStartEnd) {
         e.inputEvent.preventDefault()
-        this.moveable.waitToChangeTarget().then(() => {
+        // Press on an unselected element = select it and drag at once. The
+        // drag starts a frame AFTER Moveable took the new targets: started in
+        // the same tick, Moveable's own update re-attached its gesture under
+        // it, so the drag died ("Cannot set properties of null (setting
+        // 'dist')" on every move) and the element never moved. A press already
+        // released by then (a fast click) gets no drag at all — one started
+        // anyway left Gesto mid-drag and swallowed the next click.
+        const press = trackPress()
+        this.moveable.waitToChangeTarget().then(() => requestAnimationFrame(() => {
+          if (press.released()) return
           this.moveable.dragStart(e.inputEvent)
-        })
+        }))
       }
     })
   }

@@ -21,6 +21,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 
 ## Selection and hit-testing
 
+- Press-to-drag an unselected element: `selectEnd` starts Moveable's drag a frame AFTER `waitToChangeTarget` and never for a press already released (`trackPress`); started in the same tick the drag dies and a fast click swallowed the next one. Right-clicks on Moveable's group `.moveable-area` still reach the canvas menu.
 - `canvas.hitStack(px,py,{includeHidden})` is THE stack query (rotated boxes, skips inherited-locked); Alt-click deep-select and the right-click "Select" block use it; menu rows select without `expandGroups`.
 - Click-through is CSS on `data-hit` (render.ts `paintHit`); selected nodes get `data-sel` so Moveable keeps the whole box. `selectEnd` re-resolves plain clicks via `resolveClickTarget` (DOM stack) because Selecto hit-tests geometrically; don't "simplify" it away.
 - `el.locked` (user) is not `lockedIds()` (inherited from a slide type): user-locked stays in `hitStack`; gestures/handles/line editors are disabled when any selected element is locked.

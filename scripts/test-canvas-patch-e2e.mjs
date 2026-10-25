@@ -19,7 +19,10 @@
 // edit, crop mode opened and cancelled, svg gradients (ids unique, every
 // url(#…) resolves), undo/redo. Also: an edit keeps the slide surface (only
 // element nodes are redrawn), an undo that switches slides draws the surface
-// once (not twice).
+// once (not twice), a fast click (no delay between press and release) selects
+// with no Moveable error and does not swallow the next click, a right-click on
+// a multi-selection (over Moveable's group area) opens the canvas menu, and a
+// press on an unselected element drags it straight away.
 import { existsSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -329,6 +332,36 @@ try {
   await p.evaluate(() => window.beeslides.redo()); await settle(150)
   await thumb(0).click({ delay: 60 }); await settle(250)
   await sameAsFull('after undo/redo across slides')
+
+  // 10) fast clicks and press-drag (Moveable target sync) -----------------------------------
+  console.log('\nclicks')
+  await blank()
+  const fastErrors = errors.length
+  const picked = []
+  for (const id of ['s6', 't2', 's8', 't6']) {
+    const c = await center(id)
+    await p.mouse.click(c.x, c.y) // no delay: press and release in one go
+    await settle(150)
+    picked.push((await p.evaluate(() => window.beeslides.selection)).join())
+  }
+  check(JSON.stringify(picked) === JSON.stringify(['s6', 't2', 's8', 't6']), 'fast clicks select each element, none is swallowed', picked)
+  check(errors.length === fastErrors, 'no Moveable error on a fast click', errors.slice(fastErrors))
+  // with two selected, Moveable lays its group area over them: a right-click
+  // there still opens the canvas menu for the element below
+  const s8 = await center('s8')
+  await p.keyboard.down('Shift'); await p.mouse.click(s8.x, s8.y); await p.keyboard.up('Shift'); await settle()
+  check((await p.evaluate(() => window.beeslides.selection)).sort().join() === 's8,t6', 'shift + fast click adds to the selection')
+  await p.mouse.click(s8.x, s8.y, { button: 'right' }); await settle(150)
+  check(await p.evaluate(() => !!document.querySelector('.ed-ctx-menu')), 'a right-click on a multi-selection opens the canvas menu')
+  await p.keyboard.press('Escape'); await settle(100)
+  await blank()
+  const s4 = await center('s4')
+  const x4 = (await model('s4')).x
+  await p.mouse.move(s4.x, s4.y); await p.mouse.down()
+  await p.mouse.move(s4.x + 40, s4.y + 10, { steps: 6 }); await p.mouse.up(); await settle()
+  check((await model('s4')).x > x4 + 20, 'a press on an unselected element drags it at once', [(await model('s4')).x, x4])
+  check(errors.length === fastErrors, 'no Moveable error on that drag', errors.slice(fastErrors))
+  await sameAsFull('after the drag')
 
   check(!errors.length, 'no page errors', errors.slice(0, 5))
 } finally {
