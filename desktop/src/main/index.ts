@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs'
 import { readSettings, updateSettings } from './settings.ts'
 import { registerViewerPrefIpc } from './viewerprefs.ts'
 import { registerAiProfileIpc } from './aiprofilesStore.ts'
+import { registerIconFolderIpc } from './iconfolders.ts'
 import { registerIconTokenIpc } from './icontokens.ts'
 import { registerCustomizeChatIpc, registerUiProfileIpc } from './uiprofile.ts'
 import {
@@ -206,6 +207,7 @@ if (!gotLock) {
     registerViewerPrefIpc()
     registerAiProfileIpc()
     registerIconTokenIpc()
+    registerIconFolderIpc()
     registerUiProfileIpc()
     registerCustomizeChatIpc()
     registerThumbnailIpc()

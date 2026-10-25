@@ -14001,3 +14001,79 @@ comment, older app, Accept / Reopen), `desktop/scripts/e2e-background.mjs`
   folder and opens the copy (`open`, else `xdg-open`). Never the file
   itself: whatever opens it (the visible app, should it own `.html`) would
   be a second writer next to the hidden instance.
+
+## 2026-10-25 — Hidden instances use the user's icon tokens and folders; desktop folders are main's (amends 2026-10-24 and 2026-10-11)
+
+**Decision.** An agent's `icons` search and insert in a hidden instance
+(2026-10-24, "BeeSlides without its window") reach the same sources, tokens
+and folders the person set up in the visible app. This amends 2026-10-24's
+"a token-protected icon server fails there; that is reported, not fixed",
+and, for the desktop app, 2026-10-11's folder handles in IndexedDB.
+
+- **Tokens.** A hidden instance looks a token up in the USER's
+  `icon-tokens.bin` (next to the settings file `userSettingsPath()` finds,
+  `background.ts userDataFile`), read-only, at every request, and decrypts
+  it with safeStorage. Read per request rather than copied at start: it is
+  what `icontokens.ts` already did for its own file, and a token the person
+  types in the visible app while a chat runs applies at the next search.
+  Nothing in the hidden instance writes the user's file (set / adopt /
+  prune touch only its own userData, which nobody reads). The root binding
+  is unchanged: the header still rides only under the root the token was
+  stored for, against the source list the instance was seeded with.
+- **Why safeStorage decrypts there.** On macOS the key is the Keychain item
+  "<app name> Safe Storage", not anything in userData; the hidden instance
+  is the same binary and entry as the visible app, so both use
+  "BeeSlides Safe Storage" (packaged) or "BeeSlides (dev) Safe Storage"
+  (unpackaged; `index.ts` sets the name at the top of the entry). The item
+  is chosen early in startup: the e2e driver, which imports the entry late,
+  had to set the name itself first, or it read another item (after ~26 s)
+  and decryption failed. On Windows the key lives in userData ("Local
+  State"), so decryption fails there and the request goes out without a
+  token: the server's 401 reads as the old "wants an API token". Linux is
+  expected to behave like macOS (the secret store is keyed by app name);
+  not tested.
+- **Folders (desktop only).** A folder source is picked through main's
+  native dialog (`slidomingo:icon-folder-pick`), validated like attached
+  folders (`attachedfolders.ts validateFolder`: realpath'd, an existing
+  directory, never the root) and kept by main in
+  `userData/icon-folders.json`, keyed by source id
+  (`main/iconfolders.ts`, pure half `iconfolderscore.ts`). Main walks and
+  serves it: icon files and every `icons.json` text (the renderer applies
+  manifests and matching, one code path with the browser), file reads
+  confined by realpath so a symlink or `..` cannot leave the folder, only
+  icon extensions, 10 MB per file, the browser's depth and count caps. The
+  page learns the folder's name, never its path; a listing is reused while
+  main's stamp (which folder) is unchanged, for a minute at most. So a
+  folder is now one for every deck, not one per deck partition. A hidden
+  instance reads the user's `icon-folders.json` like the tokens, and never
+  picks (no dialog may wait there).
+- **No paths in the pref.** `sanitizeIconSourcesPref` drops a `path` key as
+  it drops tokens, and removing a source drops its folder as it drops its
+  token.
+- **Handles from before.** An IndexedDB handle cannot yield a path in
+  Electron, so a desktop folder source without a stored path says "Choose
+  this folder again" in Settings ▸ Icon library, and a search (the agent's
+  included) says to pick it again there. A folder that went away says so.
+- The extensions served are the browser walk's (svg, png, jpg, jpeg, webp,
+  gif), not only svg/png as first planned: a folder should find the same
+  icons in both. All are images; an svg still goes through the paste
+  sanitizer at render.
+- **Browser:** unchanged (handles, permission prompts).
+
+Tested: `node scripts/test-icon-tokens.ts`;
+`node --experimental-test-module-mocks scripts/test-icon-tokens-main.ts`
+(new: the hidden instance uses the user's token per request, a later one
+too, an undecryptable one sends nothing, the user's file is never written);
+`node --experimental-test-module-mocks scripts/test-icon-folders-main.ts`
+(new: pick, listing, confinement against `..`, absolute paths, symlinks out
+and disguised links, size cap, pruning, gone folders, the hidden instance
+reading the user's folders read-only); `scripts/test-icon-folders-renderer-e2e.mjs`
+(new: the editor's desktop path against main's real walk — pick again,
+Choose / Add through main, manifest names and licence, svg and png inserts,
+popover thumbnails, no path in the page); the existing icon rigs; and
+`desktop/scripts/e2e-background.mjs` §6b' on this Mac: a real hidden
+instance searched and inserted from a token-protected mock server (token
+encrypted by a separate Electron run with another userData) and a folder,
+and left the user's files untouched. Not tested: Windows and Linux, a
+packaged build, the visible desktop app's Settings card with real windows
+(the renderer rig stubs main), and a real plugin launch.

@@ -544,6 +544,16 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
   /** A GET to an icon server made by main, which adds the token itself. */
   iconFetch: (id: string, url: string): Promise<unknown> => ipcRenderer.invoke('slidomingo:icon-fetch', id, url),
 
+  // ---- icon-library folders (desktop/src/main/iconfolders.ts) ----
+  /** Native folder dialog; main keeps the path for source `id`, the page gets its name. */
+  pickIconFolder: (id: string): Promise<unknown> => ipcRenderer.invoke('slidomingo:icon-folder-pick', id),
+  /** Per source: the folder's name and whether it is still there; null = none stored. */
+  iconFolderStatus: (ids: string[]): Promise<unknown> => ipcRenderer.invoke('slidomingo:icon-folder-status', ids),
+  /** The folder's icon files and icons.json texts (or `unchanged` for a current stamp). */
+  iconFolderList: (id: string, stamp?: string): Promise<unknown> => ipcRenderer.invoke('slidomingo:icon-folder-list', id, stamp),
+  /** One icon file's bytes, by the relative path a listing gave. */
+  iconFolderRead: (id: string, path: string): Promise<unknown> => ipcRenderer.invoke('slidomingo:icon-folder-read', id, path),
+
   // ---- AI chat profiles (desktop/src/main/aiprofilesStore.ts) ----
   /** The profiles (no secrets: an API key is write-only) and the default's id. */
   getAiProfiles: (): Promise<{ profiles: unknown[]; defaultId: string }> => ipcRenderer.invoke('slidomingo:ai-profiles-get'),

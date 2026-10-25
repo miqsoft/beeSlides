@@ -4,6 +4,10 @@
 import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
+  "Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.": "请在 设置 ▸ 图标库 中重新选择此文件夹 — BeeSlides 现在会为你的所有演示文稿记住它。",
+  "This folder is not there any more — pick it again in Settings ▸ Icon library.": "此文件夹已不存在 — 请在 设置 ▸ 图标库 中重新选择。",
+  "Choose this folder again — BeeSlides now remembers it for all your decks.": "请重新选择此文件夹 — BeeSlides 现在会为你的所有演示文稿记住它。",
+  "The folder “{name}” is not there any more — choose it again.": "文件夹“{name}”已不存在 — 请重新选择。",
   "PowerPoint": "PowerPoint",
   "Editable shapes and text": "可编辑的形状和文本",
   "In the desktop app": "在桌面应用中",

@@ -19,6 +19,11 @@
 //   - close_deck flushes and closes; open_deck reopens the file
 //   - SIGTERM quits through the flush: the last edit is in the file
 //   - no Recent entries, no session; the user's settings are only read
+//   - icons: the user's token-protected server and folder work there — the
+//     token is decrypted from the USER's icon-tokens.bin, encrypted by a
+//     separate Electron run with that userData (as the visible app does),
+//     and the folder comes from the user's icon-folders.json; neither file
+//     is written
 //
 //   cd desktop && npx electron-vite build && node scripts/e2e-background.mjs
 //   (needs slides/dist-single built)
@@ -27,8 +32,9 @@
 // E2E_DUMP=1 keeps the screenshots (review.png, canvas.png, design*.png) in
 // the profile folder it prints.
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { homedir, tmpdir } from 'node:os'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { spawn, spawnSync } from 'node:child_process'
@@ -48,7 +54,8 @@ function ok(cond, msg) {
   try { console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${msg}`) } catch { /* pipe gone */ }
 }
 
-if (process.versions.electron) {
+if (process.versions.electron && process.argv.includes('--seed-token')) seedToken()
+else if (process.versions.electron) {
   driver().catch(async (err) => {
     ok(false, `driver error: ${err?.stack ?? err}`)
     try { console.log(`E2E_RESULT ${checks} ${failures}`) } catch { /* */ }
@@ -84,10 +91,51 @@ function mcpClient(agentDir, cwd) {
   return { rpc, tool, close: () => child.kill() }
 }
 
+/** Plays the visible app storing an icon-server token: a separate Electron
+ *  run with the USER's userData and the name index.ts gives an unpackaged
+ *  run, encrypting with safeStorage into icon-tokens.bin the way
+ *  main/icontokens.ts does. */
+async function seedToken() {
+  const { app, safeStorage } = await import('electron')
+  app.setPath('userData', process.env.E2E_USER_DIR)
+  app.setName('BeeSlides (dev)')
+  await app.whenReady()
+  const ok = safeStorage.isEncryptionAvailable()
+  if (ok) {
+    const enc = safeStorage.encryptString('t-e2e').toString('base64')
+    writeFileSync(join(process.env.E2E_USER_DIR, 'icon-tokens.bin'), JSON.stringify({ src_tok: { root: process.env.E2E_ICON_ROOT, enc } }))
+  }
+  try { console.log(`SEEDED ${ok}`) } catch { /* */ }
+  app.exit(ok ? 0 : 5)
+}
+
+/** The token-protected icon server (run in the driver: the orchestrator is
+ *  blocked in spawnSync). Wants Bearer t-e2e, sends no CORS headers. */
+async function iconServer(port) {
+  const { createServer } = await import('node:http')
+  const hits = []
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#0a0"/></svg>'
+  const server = createServer((req, res) => {
+    const u = new URL(req.url, 'http://x')
+    hits.push({ path: u.pathname, auth: req.headers.authorization ?? null })
+    if (req.headers.authorization !== 'Bearer t-e2e') { res.writeHead(401).end(); return }
+    if (u.pathname === '/lib/api/search') res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ results: [{ relative_path: 'cloud.svg', display_name: 'Server cloud' }] }))
+    else if (u.pathname === '/lib/files/cloud.svg') res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(SVG)
+    else res.writeHead(404).end()
+  })
+  await new Promise((r) => server.listen(port, '127.0.0.1', r))
+  return { hits, close: () => server.close() }
+}
+
 async function driver() {
   const { app, BrowserWindow, webContents, nativeImage } = await import('electron')
   const { E2E_ROOT: root } = process.env
   const userData = process.env.SLIDOMINGO_USER_DATA
+  // index.js sets this name too, but only once its import graph has loaded —
+  // later than the app entry does it, and after safeStorage has fixed which
+  // Keychain item ("<name> Safe Storage") it uses. Set it as early as the
+  // seeder and the real entry do, or the token case decrypts with another key.
+  app.setName('BeeSlides (dev)')
   await import(pathToFileURL(join(desktopDir, 'out/main/index.js')).href)
   await app.whenReady()
   const report = () => { try { console.log(`E2E_RESULT ${checks} ${failures}`) } catch { /* */ } }
@@ -176,6 +224,25 @@ async function driver() {
     const inked = cshot ? share(cshot.data, (r, g, b) => Math.max(r, g, b) - Math.min(r, g, b) > 60) : 0
     ok(inked > 0.05, `the chart's bars are in the off-screen screenshot (${(inked * 100).toFixed(1)}% coloured pixels)`)
     await mcp.tool('deck', { op: 'delete', slideIds: [chartSlide] })
+
+    // ---- 6b'. icons: the user's token-protected server and folder
+    const icons = await iconServer(Number(process.env.E2E_ICON_PORT))
+    try {
+      const found = await mcp.tool('icons', { op: 'search', query: 'cloud' }, 30000)
+      const ft = textOf(found)
+      ok(!found.isError && /"Server cloud"/.test(ft) && /"Folder cloud"/.test(ft), `icons search finds the server's and the folder's icon (${ft.split('\n').slice(0, 3).join(' | ').slice(0, 200)})`)
+      ok(icons.hits.length > 0 && icons.hits.every((h) => h.auth === 'Bearer t-e2e'), `every server request carried the user's token (${icons.hits.map((h) => `${h.path}:${h.auth ? 'auth' : 'none'}`).join(' ')})`)
+      ok(/license: CC0-1\.0/.test(ft), 'the folder\'s icons.json licence comes along')
+      const refOf = (name) => [...ft.matchAll(/(i\d+) "([^"]+)"/g)].find((m) => m[2] === name)?.[1]
+      for (const [name, x] of [['Server cloud', 100], ['Folder cloud', 300]]) {
+        const ins = await mcp.tool('icons', { op: 'insert', slideId: s0, ref: refOf(name), x, y: 500, size: 64 }, 30000)
+        ok(!ins.isError, `insert "${name}" (${textOf(ins).slice(0, 80)})`)
+      }
+      const svgs = (textOf(await mcp.tool('get_slide', { slideId: s0 })).match(/"type":\s*"svg"/g) ?? []).length
+      ok(svgs === 2, `both icons are on the slide (${svgs} svg elements)`)
+      ok(!existsSync(join(userData, 'icon-tokens.bin')) || !readFileSync(join(userData, 'icon-tokens.bin'), 'utf8').includes('src_tok'), 'the token was not copied into the hidden instance\'s folder')
+      ok(!existsSync(join(userData, 'icon-folders.json')), 'nor the folder')
+    } finally { icons.close() }
 
     // ---- 6c. the pane's comments (claude-mod pane_comment): never listed, a
     //          thread flagged for the agent, Accept / Reopen after resolve_comment
@@ -285,16 +352,42 @@ async function orchestrator() {
   const home = join(root, 'home')
   const userData = join(root, 'u') // short: the socket path must stay under ~100 bytes
   for (const d of [work, home]) mkdirSync(d, { recursive: true })
-  // the user's own app settings: read for viewerPrefs, never written
-  const userSettings = join(root, 'user-app-settings.json')
-  writeFileSync(userSettings, JSON.stringify({ viewerPrefs: { 'slidomingo-lang': 'de' }, session: [{ path: '/nope', name: 'x' }] }, null, 2))
-  const userBefore = readFileSync(userSettings, 'utf8')
+  // a throwaway HOME, but the user's login keychain: macOS finds it through
+  // HOME, and safeStorage's key (the "BeeSlides (dev) Safe Storage" item) is
+  // what the icon-token case decrypts with — as a real hidden instance does
+  if (process.platform === 'darwin') {
+    mkdirSync(join(home, 'Library'), { recursive: true })
+    symlinkSync(join(homedir(), 'Library/Keychains'), join(home, 'Library/Keychains'))
+  }
+  // the user's own userData: settings read for viewerPrefs, never written;
+  // an icon server with a token and an icon folder set up in the visible app
+  const userDir = join(root, 'user')
+  const iconDir = join(root, 'icons')
+  mkdirSync(join(iconDir, 'sub'), { recursive: true })
+  writeFileSync(join(iconDir, 'sub/cloud.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#00f"/></svg>')
+  writeFileSync(join(iconDir, 'sub/icons.json'), JSON.stringify({ license: 'CC0-1.0', icons: [{ file: 'cloud.svg', name: 'Folder cloud' }] }))
+  const iconPort = await new Promise((r) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)) }) })
+  const iconRoot = `http://127.0.0.1:${iconPort}/lib`
+  const sources = [
+    { id: 'src_tok', kind: 'server', name: 'Team server', enabled: true, url: iconRoot },
+    { id: 'src_dir', kind: 'folder', name: 'Team folder', enabled: true },
+  ]
+  mkdirSync(userDir)
+  const userSettings = join(userDir, 'app-settings.json')
+  writeFileSync(userSettings, JSON.stringify({ viewerPrefs: { 'slidomingo-lang': 'de', 'slidomingo-icon-sources': JSON.stringify(sources) }, session: [{ path: '/nope', name: 'x' }] }, null, 2))
+  writeFileSync(join(userDir, 'icon-folders.json'), JSON.stringify({ src_dir: realpathSync(iconDir) }))
+  const seeded = spawnSync(electronPath, [fileURLToPath(import.meta.url), '--seed-token'], {
+    cwd: desktopDir, env: { ...process.env, E2E_USER_DIR: userDir, E2E_ICON_ROOT: iconRoot }, encoding: 'utf8', timeout: 60000,
+  })
+  ok(/SEEDED true/.test(seeded.stdout ?? '') && existsSync(join(userDir, 'icon-tokens.bin')), `a separate run with the user's userData stored the token encrypted (exit ${seeded.status})`)
+  const userFiles = ['app-settings.json', 'icon-tokens.bin', 'icon-folders.json']
+  const userBefore = Object.fromEntries(userFiles.map((f) => [f, existsSync(join(userDir, f)) ? readFileSync(join(userDir, f), 'utf8') : null]))
   const res = spawnSync(electronPath, [fileURLToPath(import.meta.url), '--background'], {
     cwd: desktopDir,
     env: {
       ...process.env, HOME: home, E2E_ROOT: root,
       SLIDOMINGO_USER_DATA: userData, SLIDOMINGO_TEMPLATES_DIR: join(root, 'templates'), SLIDOMINGO_UI_PROFILE_PATH: join(root, 'ui.json'),
-      BEESLIDES_USER_SETTINGS: userSettings,
+      BEESLIDES_USER_SETTINGS: userSettings, E2E_ICON_PORT: String(iconPort),
       ELECTRON_RENDERER_URL: '', SLIDOMINGO_DEV_URL: '',
     },
     encoding: 'utf8', timeout: 200000,
@@ -306,7 +399,7 @@ async function orchestrator() {
   checks += Number(m[1]); failures += Number(m[2])
   ok(res.status === 0, `SIGTERM quit the instance cleanly (exit ${res.status})`)
   ok(readFileSync(join(work, 'bg.beeslides.html'), 'utf8').includes('Written right before SIGTERM'), 'the quit flushed the last edit to the file')
-  ok(readFileSync(userSettings, 'utf8') === userBefore, 'the user\'s settings file is untouched')
+  ok(userFiles.every((f) => (existsSync(join(userDir, f)) ? readFileSync(join(userDir, f), 'utf8') : null) === userBefore[f]), 'the user\'s settings, icon tokens and icon folders are untouched')
   console.log(`\n${checks - failures}/${checks} checks passed   (profile: ${root})`)
   if (failures) process.exit(1)
 }

@@ -17,11 +17,13 @@
 //   - closing the last deck keeps it running; SIGTERM/SIGINT quit through the
 //     flush, an idle instance quits by itself
 // The user's own app and its settings are never touched: viewerPrefs (icon
-// sources, language) are COPIED from them at start (seedViewerPrefs).
+// sources, language) are COPIED from them at start (seedViewerPrefs); the
+// icon-server tokens and icon folders the user set up are READ from the
+// user's folder at each request (userDataFile; icontokens.ts, iconfolders.ts).
 
 import { app, type BrowserWindow } from 'electron'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { readSettings, updateSettings, type AppSettings } from './settings.ts'
 
 /** This run is a hidden instance for an agent. Read from argv each time: it
@@ -61,9 +63,14 @@ export function userSettingsPath(): string {
   return join(app.getPath('appData'), app.isPackaged ? 'BeeSlides' : 'slidomingo-desktop', 'app-settings.json')
 }
 
+/** A file in the user's own (visible) app's userData: the folder that holds
+ *  `userSettingsPath()`. A hidden instance only ever READS it. */
+export const userDataFile = (name: string): string => join(dirname(userSettingsPath()), name)
+
 /** The settings a hidden instance borrows from the user's app, read-only:
  *  icon sources and language (viewerPrefs), the library file and the default
- *  template. Icon-server tokens (safeStorage) and AI profiles stay behind. */
+ *  template. AI profiles stay behind. Icon-server tokens and icon folders are
+ *  not copied either: they are read from the user's files when used. */
 const SEEDED: ReadonlyArray<keyof AppSettings> = ['viewerPrefs', 'libraryPath', 'defaultTemplate']
 
 export function seedViewerPrefs(): void {

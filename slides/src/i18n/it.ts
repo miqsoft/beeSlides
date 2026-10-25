@@ -4,6 +4,10 @@
 import type { Catalog } from '../i18n'
 
 export const it: Catalog = {
+  "Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.": "Scegli di nuovo questa cartella in Impostazioni ▸ Libreria di icone — ora BeeSlides la ricorda per tutte le tue presentazioni.",
+  "This folder is not there any more — pick it again in Settings ▸ Icon library.": "Questa cartella non esiste più — sceglila di nuovo in Impostazioni ▸ Libreria di icone.",
+  "Choose this folder again — BeeSlides now remembers it for all your decks.": "Scegli di nuovo questa cartella — ora BeeSlides la ricorda per tutte le tue presentazioni.",
+  "The folder “{name}” is not there any more — choose it again.": "La cartella «{name}» non esiste più — sceglila di nuovo.",
   "PowerPoint": "PowerPoint",
   "Editable shapes and text": "Forme e testo modificabili",
   "In the desktop app": "Nell’app desktop",

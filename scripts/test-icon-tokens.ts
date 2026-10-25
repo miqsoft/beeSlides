@@ -13,7 +13,8 @@
 //     no userinfo trick — so main never sends a token anywhere else.
 //  3. `stripSourceTokens` takes every token out of a stored source list,
 //     reports the ones worth keeping, and leaves a token-free list alone
-//     byte for byte (so viewerprefs.ts never echoes an unchanged value).
+//     byte for byte (so viewerprefs.ts never echoes an unchanged value);
+//     it drops a folder `path` too (main keeps those, iconfolders.ts).
 
 import { serverRoot, sourceUrl, stripSourceTokens, underRoot } from '../desktop/src/main/icontokenscore.ts'
 
@@ -68,6 +69,8 @@ const clean = JSON.stringify([{ id: 'src_a', kind: 'server', name: '', enabled: 
 check('token-free list returned byte for byte', stripSourceTokens(clean).value === clean)
 check('not JSON passes through', stripSourceTokens('{oops').value === '{oops' && stripSourceTokens('{oops').ids === null)
 check('not an array passes through', stripSourceTokens('{"a":1}').value === '{"a":1}')
+const withPath = stripSourceTokens(JSON.stringify([{ id: 'src_f', kind: 'folder', name: 'Icons', enabled: true, path: '/Users/me/Icons' }]))
+check('a folder path never stays in the list (main keeps it, iconfolders.ts)', !withPath.value.includes('/Users/me') && JSON.parse(withPath.value)[0].name === 'Icons' && withPath.tokens.length === 0, withPath.value)
 
 console.log('sourceUrl')
 check('finds a server source', sourceUrl(legacy, 'src_b') === 'https://b.example')

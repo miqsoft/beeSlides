@@ -72,7 +72,11 @@
 //   (b) a local FOLDER via showDirectoryPicker() — same File System Access
 //       API family already used for save/open (see ../save.ts). No server
 //       needed at all, so it has no CORS problem; filtering is a plain
-//       filename substring match. An `icons.json` in the folder (or any
+//       filename substring match. In the DESKTOP app a folder is picked
+//       through main's dialog instead, and main keeps its path and walks and
+//       serves it (desktop/src/main/iconfolders.ts): the handle a page keeps
+//       lives in per-deck storage there, so it was missing in every other
+//       deck and in a hidden instance, where nobody can grant it again. An `icons.json` in the folder (or any
 //       subfolder) — what an exported icon set carries (../iconset.ts
 //       iconManifest: `{ license?, author?, icons: [{ file, name, keywords? }] }`,
 //       `file` relative to the manifest) — adds its names and keywords to that
@@ -119,6 +123,24 @@ interface IconDesktop {
 export function iconDesktop(): IconDesktop | null {
   const d = (globalThis as { slidomingoDesktop?: Partial<IconDesktop> }).slidomingoDesktop
   return d?.iconFetch && d.setIconToken ? (d as IconDesktop) : null
+}
+
+/** The desktop shell's icon-folder bridge (desktop/src/main/iconfolders.ts):
+ *  main keeps each folder source's path and serves its files. */
+interface IconFolderDesktop {
+  pickIconFolder(id: string): Promise<{ ok: true; name: string } | { ok: false; error?: string; cancelled?: boolean }>
+  iconFolderStatus(ids: string[]): Promise<Record<string, { name: string; missing: boolean } | null>>
+  iconFolderList(id: string, stamp?: string): Promise<
+    | { ok: true; stamp: string; unchanged?: boolean; files?: string[]; manifests?: Array<{ prefix: string; text: string }> }
+    | { ok: false; reason: 'unset' | 'gone'; error: string }
+  >
+  iconFolderRead(id: string, path: string): Promise<{ ok: true; body: Uint8Array } | { ok: false; error: string }>
+}
+
+/** Non-null in the desktop app: folder sources are main's, not handles. */
+export function iconFolderDesktop(): IconFolderDesktop | null {
+  const d = (globalThis as { slidomingoDesktop?: Partial<IconFolderDesktop> }).slidomingoDesktop
+  return d?.iconFolderList && d.pickIconFolder ? (d as IconFolderDesktop) : null
 }
 
 /** `token` is only ever filled in a browser — in the desktop app it is ''
@@ -496,7 +518,8 @@ function thumbUrl(root: string, pngUrl: unknown): string | undefined {
 
 // --- source (b): local folder ---------------------------------------------------
 
-interface FolderEntry { name: string; path: string; handle: FileSystemFileHandle; meta?: ManifestEntry }
+/** One icon file of a folder; `file` reads it (a handle in a browser, main in the desktop app). */
+interface FolderEntry { name: string; path: string; file(): Promise<Blob>; meta?: ManifestEntry }
 
 /** An icons.json bigger than this is not a manifest anyone wrote by hand or export. */
 const MAX_MANIFEST_BYTES = 4 * 1024 * 1024
@@ -511,7 +534,7 @@ async function walkFolder(
   for await (const entry of (dir as any).values()) {
     if (out.length >= 4000) break // cap so a huge tree still returns promptly
     if (entry.kind === 'file') {
-      if (ICON_EXTS.has(extOf(entry.name))) out.push({ name: entry.name, path: prefix + entry.name, handle: entry })
+      if (ICON_EXTS.has(extOf(entry.name))) out.push({ name: entry.name, path: prefix + entry.name, file: () => entry.getFile() })
       else if (entry.name.toLowerCase() === ICON_MANIFEST_FILE) manifests.push({ prefix, handle: entry })
     } else if (entry.kind === 'directory') {
       out.push(...await walkFolder(entry, manifests, `${prefix}${entry.name}/`, depth + 1))
@@ -525,24 +548,80 @@ async function folderEntries(dir: FileSystemDirectoryHandle): Promise<FolderEntr
   if (cached) return cached
   const manifests: Array<{ prefix: string; handle: FileSystemFileHandle }> = []
   const entries = await walkFolder(dir, manifests)
+  const texts: Array<{ prefix: string; text: string }> = []
   for (const m of manifests) {
     try {
       const file = await m.handle.getFile()
       if (file.size > MAX_MANIFEST_BYTES) continue
-      const meta = parseIconManifest(await file.text())
-      for (const e of entries) {
-        if (!e.path.startsWith(m.prefix)) continue
-        const hit = meta.get(e.path.slice(m.prefix.length).toLowerCase())
-        if (hit) e.meta = hit
-      }
+      texts.push({ prefix: m.prefix, text: await file.text() })
     } catch { /* an unreadable manifest is no manifest */ }
   }
+  applyManifests(entries, texts)
   folderEntryCache.set(dir, entries)
   return entries
 }
 
-async function searchFolder(dir: FileSystemDirectoryHandle, source: string, license: string | undefined, q: string): Promise<IconResult[]> {
-  const entries = await folderEntries(dir)
+/** Each icons.json's names, keywords and licence onto the files below it. */
+function applyManifests(entries: FolderEntry[], manifests: Array<{ prefix: string; text: string }>): void {
+  for (const m of manifests) {
+    const meta = parseIconManifest(m.text)
+    for (const e of entries) {
+      if (!e.path.startsWith(m.prefix)) continue
+      const hit = meta.get(e.path.slice(m.prefix.length).toLowerCase())
+      if (hit) e.meta = hit
+    }
+  }
+}
+
+const IMAGE_TYPES: Record<string, string> = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' }
+
+/** Desktop listings by source id. Kept while main's stamp (which folder) is
+ *  the same and for a minute at most, so icons added to the folder show up. */
+const desktopFolderCache = new Map<string, { stamp: string; at: number; entries: FolderEntry[] }>()
+const DESKTOP_LISTING_MS = 60_000
+
+/** A desktop folder source's icons, walked by main (desktop/src/main/iconfolders.ts). */
+async function desktopFolderEntries(bridge: IconFolderDesktop, id: string): Promise<FolderEntry[]> {
+  const cached = desktopFolderCache.get(id)
+  const fresh = cached && Date.now() - cached.at < DESKTOP_LISTING_MS ? cached : undefined
+  const r = await bridge.iconFolderList(id, fresh?.stamp)
+  if (!r.ok) {
+    desktopFolderCache.delete(id)
+    throw new Error(r.reason === 'unset'
+      ? t('Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.')
+      : t('This folder is not there any more — pick it again in Settings ▸ Icon library.'))
+  }
+  if (r.unchanged && fresh) return fresh.entries
+  const entries = (r.files ?? []).map((path): FolderEntry => ({
+    name: path.split('/').pop() ?? path,
+    path,
+    file: async () => {
+      const got = await bridge.iconFolderRead(id, path)
+      if (!got.ok) throw new Error(got.error)
+      return new Blob([got.body as BlobPart], { type: IMAGE_TYPES[extOf(path)] ?? '' })
+    },
+  }))
+  applyManifests(entries, r.manifests ?? [])
+  desktopFolderCache.set(id, { stamp: r.stamp, at: Date.now(), entries })
+  return entries
+}
+
+/** Desktop: main's native folder dialog for source `id` (forgets the old listing). */
+export async function pickDesktopIconFolder(id: string): Promise<{ ok: true; name: string } | { ok: false; error?: string; cancelled?: boolean }> {
+  const bridge = iconFolderDesktop()
+  if (!bridge) return { ok: false }
+  desktopFolderCache.delete(id)
+  try { return await bridge.pickIconFolder(id) } catch (err) { return { ok: false, error: String((err as Error)?.message ?? err) } }
+}
+
+/** Desktop: the folder stored for each source — its name, whether it is gone; null = none. */
+export async function desktopIconFolderStatus(ids: string[]): Promise<Record<string, { name: string; missing: boolean } | null>> {
+  const bridge = iconFolderDesktop()
+  if (!bridge) return {}
+  try { return await bridge.iconFolderStatus(ids) } catch { return {} }
+}
+
+async function searchFolder(entries: FolderEntry[], source: string, license: string | undefined, q: string): Promise<IconResult[]> {
   const query = q.trim().toLowerCase()
   const filtered = query ? entries.filter((e) => manifestMatches(query, e.name, e.meta)) : entries
   return filtered.slice(0, 60).map((e): IconResult => {
@@ -555,13 +634,13 @@ async function searchFolder(dir: FileSystemDirectoryHandle, source: string, lice
       // the manifest's own licence wins: it travels with those files
       provenance: makeProvenance({ origin: source, license: e.meta?.license ?? license, author: e.meta?.author }),
       preview: async () => {
-        const file = await e.handle.getFile()
+        const file = await e.file()
         const url = URL.createObjectURL(file)
         objectUrls.push(url)
         return url
       },
       load: async () => {
-        const file = await e.handle.getFile()
+        const file = await e.file()
         if (ext === 'svg') return { kind: 'svg', markup: await file.text() }
         return { kind: 'raster', dataUrl: await blobToDataUrl(file) }
       },
@@ -633,10 +712,13 @@ export interface SourceProblem {
 async function searchOne(src: IconSource, q: string, ask = true): Promise<IconResult[]> {
   const label = iconSourceLabel(src)
   if (src.kind === 'server') return searchServer(src, label, q)
+  // desktop: main keeps the folder for every deck and serves it — no handle, no grant
+  const bridge = iconFolderDesktop()
+  if (bridge) return searchFolder(await desktopFolderEntries(bridge, src.id), label, src.license, q)
   const handle = await loadIconFolderHandle(src.id)
   if (!handle) throw new Error(t('No folder chosen yet — pick one in Settings ▸ Icon library.'))
   if (!(await ensureFolderPermission(handle, ask))) throw new FolderAccessError(handle)
-  return searchFolder(handle, label, src.license, q)
+  return searchFolder(await folderEntries(handle), label, src.license, q)
 }
 
 /** Searches every given source at once; one that fails is reported in

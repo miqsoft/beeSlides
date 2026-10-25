@@ -20,9 +20,13 @@
 //     another server loses the header; a changed URL gets no token; offline
 //     refuses before any request; no CORS needed (server sends none).
 //  3. icon-token-set / -status / -adopt and pruning when a source goes.
+//  4. a hidden instance (`--background`, background.ts) looks tokens up in
+//     the USER's icon-tokens.bin (next to BEESLIDES_USER_SETTINGS), at every
+//     request, and never writes it; a token it cannot decrypt (another
+//     app's key) means no header, so the server's 401 reads as before.
 
 import { mock } from 'node:test'
-import { mkdtempSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -47,9 +51,11 @@ mock.module(electronUrl, {
     safeStorage: {
       isEncryptionAvailable: () => true,
       encryptString: (s: string) => Buffer.from(`ENC:${[...s].reverse().join('')}`),
-      decryptString: (b: Buffer) => [...b.toString().replace(/^ENC:/, '')].reverse().join(''),
+      // what another key's ciphertext does: decryption throws
+      decryptString: (b: Buffer) => { if (!b.toString().startsWith('ENC:')) throw new Error('bad key'); return [...b.toString().replace(/^ENC:/, '')].reverse().join('') },
     },
-    BrowserWindow: { getAllWindows: () => [{ w: 'sender' }, { w: 'other' }] },
+    BrowserWindow: { getAllWindows: () => [{ w: 'sender' }, { w: 'other' }], fromWebContents: () => null },
+    dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
   },
 })
 const capture = (_who: string, channel: string, fn: (ev: unknown, ...a: unknown[]) => unknown) => { handlers.set(channel, fn) }
@@ -184,6 +190,48 @@ try {
   updateSettings({ viewerPrefs: undefined })
   handlers.get('slidomingo:viewer-prefs-adopt')!({ sender }, { [KEY]: JSON.stringify([src('src_b', s1Root, { token: 't-good' })]), 'slidomingo-theme': 'dark' })
   check('the adopted list has no token', !!storedList() && !JSON.stringify(readSettings()).includes('t-good') && /"src_b"/.test(tokenFile()))
+
+  console.log('a hidden instance reads the user\'s tokens, read-only')
+  // the user's own userData: their settings and their encrypted tokens
+  const userDir = mkdtempSync(join(tmpdir(), 'slidomingo-icontokens-user-'))
+  process.env.BEESLIDES_USER_SETTINGS = join(userDir, 'app-settings.json')
+  const enc = (s: string) => Buffer.from(`ENC:${[...s].reverse().join('')}`).toString('base64')
+  const userTokens = join(userDir, 'icon-tokens.bin')
+  writeFileSync(userTokens, JSON.stringify({ src_u: { root: s1Root, enc: enc('t-good') } }))
+  const userBefore = readFileSync(userTokens, 'utf8')
+  process.argv.push('--background')
+  // the source list as seedViewerPrefs copied it: no token of this instance's own
+  setPref(KEY, JSON.stringify([src('src_u', s1Root)]))
+  check('this instance has no token for it of its own', !/"src_u"/.test(tokenFile()))
+  hits.s1.length = 0
+  const bg = await fetchVia('src_u', `${s1Root}/api/search?q=x`)
+  check('the request carries the user\'s token', bg.ok && bg.status === 200 && bg.authed === true && hits.s1[0]?.auth === 'Bearer t-good', bg)
+  check('status reads the user\'s file too', (await call('slidomingo:icon-token-status', [{ id: 'src_u', url: s1Root }]) as Record<string, boolean>).src_u === true)
+  hits.s2.length = 0
+  const bgOut = await fetchVia('src_u', `${s2Root}/api/search`)
+  check('the root binding holds: another server is refused', !bgOut.ok && hits.s2.length === 0)
+  setPref(KEY, JSON.stringify([src('src_u', s2Root)]))
+  const bgMoved = await fetchVia('src_u', `${s2Root}/api/search?q=`)
+  check('…and a source pointed elsewhere gets no token', bgMoved.ok && bgMoved.authed === false && hits.s2.at(-1)?.auth === null)
+  setPref(KEY, JSON.stringify([src('src_u', s1Root)]))
+  // a token the user stores later applies at once (read per request, not copied at start)
+  writeFileSync(userTokens, JSON.stringify({ src_u: { root: s1Root, enc: enc('t-later') } }))
+  await fetchVia('src_u', `${s1Root}/api/search?q=`)
+  check('a token the user stores later is used at the next request', hits.s1.at(-1)?.auth === 'Bearer t-later')
+  writeFileSync(userTokens, userBefore)
+  // ciphertext this app's key cannot open (Windows keeps the key per userData)
+  writeFileSync(userTokens, JSON.stringify({ src_u: { root: s1Root, enc: Buffer.from('other-key').toString('base64') } }))
+  hits.s1.length = 0
+  const undecryptable = await fetchVia('src_u', `${s1Root}/api/search?q=`)
+  check('an undecryptable token: no header, the server\'s 401 comes back as before', undecryptable.ok && undecryptable.status === 401 && undecryptable.authed === false && hits.s1[0]?.auth === null, undecryptable)
+  writeFileSync(userTokens, userBefore)
+  // writes stay in this instance's own folder
+  await call('slidomingo:icon-token-set', 'src_u', s1Root, 't-mine')
+  await call('slidomingo:icon-tokens-adopt', [{ id: 'src_v', url: s1Root, token: 't-v' }])
+  setPref(KEY, JSON.stringify([]))
+  check('set / adopt / prune never touch the user\'s file', readFileSync(userTokens, 'utf8') === userBefore)
+  process.argv.splice(process.argv.indexOf('--background'), 1)
+  delete process.env.BEESLIDES_USER_SETTINGS
 } finally {
   s1.close(); s2.close()
 }

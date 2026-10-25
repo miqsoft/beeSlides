@@ -64,6 +64,7 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 ## Background mode (DECISIONS 2026-10-24, "BeeSlides without its window")
 
 - `--background` (`background.ts isBackground`) = a hidden instance the plugin launcher starts (`mcp/plugin-launch.mjs`). It requires `SLIDOMINGO_USER_DATA` and must never touch the user's userData: no Recent (`recent.ts addRecent` returns), no session at quit, settings only READ from the user's file (`seedViewerPrefs`, `BEESLIDES_USER_SETTINGS` in tests).
+- Icon tokens and icon folders are READ from the user's `icon-tokens.bin` / `icon-folders.json` at each request (`background.ts userDataFile`), never copied, never written (DECISIONS 2026-10-25). safeStorage decrypts there because the macOS key is the Keychain item named after the app; it is fixed early in startup, so `app.setName` must stay at the top of the entry. Windows keys by userData: there the token silently fails (401).
 - Its windows are never shown (`windows.ts openInNewWindow` → `hideWindow`). Nothing in it may wait on a native dialog: `runLeaveFlow` returns instead of asking, and a new main-process box needs an `isBackground()` branch.
 - It quits through the flush on SIGTERM/SIGINT (`index.ts watchIdle`), stays alive with no window, and exits after `IDLE_EXIT_MS` with no deck and no client.
 - Its endpoint is always on, asks nobody and writes no `launch`. The visible app writes `agent/app.json` at every start (`recordAppLaunch`): that is how the launcher finds the binary.
@@ -76,7 +77,8 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 - Read `docs/DECISIONS.md` (2026-10-07) before changing profiles (`aiprofiles.ts` pure, `aiprofilesStore.ts` for safeStorage and IPC).
 - Grouped agent tools come from `slides/src/agentops/spec.ts` via `main/agenttools.ts`; add new agent ops there.
 - Empty completions are never stored in the transcript.
-- Icon-server tokens (`icontokens.ts`, safeStorage, write-only) are bound to the server root they were entered for. Main makes every icon request and adds the header only under that root. Keep the `slidomingo-icon-sources` pref token-free (`sanitizeIconSourcesPref`).
+- Icon-server tokens (`icontokens.ts`, safeStorage, write-only) are bound to the server root they were entered for. Main makes every icon request and adds the header only under that root. Keep the `slidomingo-icon-sources` pref token-free and path-free (`sanitizeIconSourcesPref`).
+- Icon-library folders are main's (`iconfolders.ts`, pure half `iconfolderscore.ts`): picked by main's dialog, validated like attached folders, kept in `userData/icon-folders.json` by source id, walked and served with realpath confinement. The page gets names, never paths; the renderer keeps manifests and matching. Rig: `scripts/test-icon-folders-main.ts` (`--experimental-test-module-mocks`).
 
 ## Menu (DECISIONS 2026-10-06, "One command registry")
 

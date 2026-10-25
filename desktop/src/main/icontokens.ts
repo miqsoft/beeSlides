@@ -9,10 +9,25 @@
 // desktop app. The source LIST is an app-wide viewer preference
 // (viewerprefs.ts, `slidomingo-icon-sources`) and is kept token-free by
 // `sanitizeIconSourcesPref`. Pure helpers: icontokenscore.ts.
+//
+// A hidden instance (background.ts) has a userData of its own, so it reads
+// the tokens from the USER's icon-tokens.bin instead, read-only, at every
+// request (a token typed in the visible app later still applies). It never
+// writes that file. safeStorage decrypts there because its key is not tied to
+// userData on macOS: it is the Keychain item named after the app ("BeeSlides
+// Safe Storage", "BeeSlides (dev) Safe Storage" for an unpackaged run), and
+// the hidden instance is the same binary and entry as the visible app. The
+// item is chosen early in startup, so the name must be set at the top of the
+// entry, as index.ts does: a later app.setName picks another item
+// (desktop/scripts/e2e-background.mjs). Where the key does live in userData (Windows keeps it in
+// "Local State"), decryption fails and the request goes out without a token:
+// the server's 401 becomes the old "wants an API token".
 import { app, safeStorage } from 'electron'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { writeFileAtomic } from './fsutil.ts'
+import { isBackground, userDataFile } from './background.ts'
+import { pruneIconFolders } from './iconfolders.ts'
 import { handleFrom } from './ipcguard.ts'
 import { readSettings } from './settings.ts'
 import { isSourceId, serverRoot, sourceUrl, stripSourceTokens, underRoot, type CarriedToken } from './icontokenscore.ts'
@@ -21,11 +36,16 @@ export const ICON_SOURCES_KEY = 'slidomingo-icon-sources'
 
 interface StoredToken { root: string; enc: string }
 
-const tokensPath = (): string => join(app.getPath('userData'), 'icon-tokens.bin')
+const TOKENS_FILE = 'icon-tokens.bin'
+/** Where this instance writes its tokens (and reads them back). */
+const tokensPath = (): string => join(app.getPath('userData'), TOKENS_FILE)
+/** Where a request looks its token up: in a hidden instance, the user's own
+ *  file (read-only); everywhere else, this instance's. */
+const lookupPath = (): string => (isBackground() ? userDataFile(TOKENS_FILE) : tokensPath())
 
-function readTokenFile(): Record<string, StoredToken> {
+function readTokenFile(path = tokensPath()): Record<string, StoredToken> {
   try {
-    const parsed = JSON.parse(readFileSync(tokensPath(), 'utf8'))
+    const parsed = JSON.parse(readFileSync(path, 'utf8'))
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
     const out: Record<string, StoredToken> = {}
     for (const [id, v] of Object.entries(parsed as Record<string, unknown>)) {
@@ -42,7 +62,7 @@ function writeTokenFile(map: Record<string, StoredToken>): void {
 
 /** The token for source `id`, only when it was stored for `root`. */
 function tokenFor(id: string, root: string): string | null {
-  const t = readTokenFile()[id]
+  const t = readTokenFile(lookupPath())[id]
   if (!t || t.root !== root || !safeStorage.isEncryptionAvailable()) return null
   try { return safeStorage.decryptString(Buffer.from(t.enc, 'base64')) } catch { return null }
 }
@@ -76,12 +96,15 @@ function adoptTokens(tokens: CarriedToken[]): void {
 }
 
 /** What viewerprefs.ts stores for `slidomingo-icon-sources`: the list with
- *  every inline token moved into the encrypted store, and the tokens of
- *  sources that are gone dropped. */
+ *  every inline token moved into the encrypted store (and any folder path
+ *  dropped: main keeps those, iconfolders.ts), and the tokens and folders of
+ *  sources that are gone dropped too. Only this instance's own files are
+ *  written — never the user's, from a hidden instance. */
 export function sanitizeIconSourcesPref(value: string): string {
   const { value: clean, tokens, ids } = stripSourceTokens(value)
   adoptTokens(tokens)
   if (ids) {
+    pruneIconFolders(ids)
     const map = readTokenFile()
     let changed = false
     for (const id of Object.keys(map)) if (!ids.includes(id)) { delete map[id]; changed = true }
@@ -157,7 +180,7 @@ async function iconFetch(id: unknown, url: unknown): Promise<FetchReply> {
 function tokenStatus(list: unknown): Record<string, boolean> {
   const out: Record<string, boolean> = {}
   if (!Array.isArray(list)) return out
-  const map = readTokenFile()
+  const map = readTokenFile(lookupPath())
   for (const row of list.slice(0, 50)) {
     if (!row || typeof row !== 'object') continue
     const { id, url } = row as { id?: unknown; url?: unknown }

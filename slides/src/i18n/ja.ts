@@ -4,6 +4,10 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.": "このフォルダーを 設定 ▸ アイコンライブラリ でもう一度選んでください — BeeSlides はこれからすべてのデッキで覚えておきます。",
+  "This folder is not there any more — pick it again in Settings ▸ Icon library.": "このフォルダーはもうありません — 設定 ▸ アイコンライブラリ でもう一度選んでください。",
+  "Choose this folder again — BeeSlides now remembers it for all your decks.": "このフォルダーをもう一度選んでください — BeeSlides はこれからすべてのデッキで覚えておきます。",
+  "The folder “{name}” is not there any more — choose it again.": "フォルダー「{name}」はもうありません — もう一度選んでください。",
   "PowerPoint": "PowerPoint",
   "Editable shapes and text": "編集できる図形とテキスト",
   "In the desktop app": "デスクトップアプリで",

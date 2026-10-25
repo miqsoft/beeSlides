@@ -3,7 +3,8 @@
 //
 // Icon-server tokens, the Electron-free half (icontokens.ts is the rest):
 // what a token is bound to, and how the stored icon-source list is kept
-// free of them. Pure, so scripts/test-icon-tokens.ts can import it.
+// free of them — and of folder paths, which main keeps apart
+// (iconfolders.ts). Pure, so scripts/test-icon-tokens.ts can import it.
 //
 // A token is BOUND TO THE SERVER URL it was typed for (its "root": origin +
 // path, no trailing slash). Main attaches it only to requests under that
@@ -42,7 +43,9 @@ export const isSourceId = (id: unknown): id is string => typeof id === 'string' 
 export interface CarriedToken { id: string; url: string; token: string }
 
 /** Splits a stored `slidomingo-icon-sources` value into the list without any
- *  token and the tokens it carried (an older build kept them inline).
+ *  token and the tokens it carried (an older build kept them inline). A
+ *  `path` is dropped as well: a folder's location on disk is main's alone
+ *  (iconfolders.ts) and never sits in a list a page can read.
  *  Anything that is not a JSON array passes through unchanged. */
 export function stripSourceTokens(value: string): { value: string; tokens: CarriedToken[]; ids: string[] | null } {
   let list: unknown
@@ -55,9 +58,9 @@ export function stripSourceTokens(value: string): { value: string; tokens: Carri
     if (!row || typeof row !== 'object' || Array.isArray(row)) return row
     const r = row as Record<string, unknown>
     if (typeof r.id === 'string') ids.push(r.id)
-    if (!('token' in r)) return r
+    if (!('token' in r) && !('path' in r)) return r
     changed = true
-    const { token, ...rest } = r
+    const { token, path: _path, ...rest } = r
     if (typeof token === 'string' && token.trim() && isSourceId(r.id) && typeof r.url === 'string') {
       tokens.push({ id: r.id, url: r.url, token: token.trim() })
     }

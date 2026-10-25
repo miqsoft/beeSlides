@@ -106,7 +106,8 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 ## Icons and comments
 
 - Desktop: icon tokens never enter the page; main stores them and makes server requests (`serverFetch` → `slidomingoDesktop.iconFetch`). New network paths go through `netFetch` (offline gate).
-- Icon rigs: `scripts/test-icons-e2e.mjs [url]` (skips folder cases on `file://`, so also run against a dev server), `scripts/test-icon-tokens-renderer-e2e.mjs`, `scripts/test-icon-tokens-main.ts` (`--experimental-test-module-mocks`), `scripts/test-agent-icons-e2e.mjs`, `scripts/test-ui-zoom-e2e.mjs`.
+- Desktop folder sources are main's (`iconFolderDesktop` → `iconFolderList`/`iconFolderRead`), not FSA handles; the browser keeps handles. A folder entry reads through `FolderEntry.file()` either way.
+- Icon rigs: `scripts/test-icons-e2e.mjs [url]` (skips folder cases on `file://`, so also run against a dev server), `scripts/test-icon-tokens-renderer-e2e.mjs`, `scripts/test-icon-tokens-main.ts` (`--experimental-test-module-mocks`), `scripts/test-icon-folders-renderer-e2e.mjs`, `scripts/test-agent-icons-e2e.mjs`, `scripts/test-ui-zoom-e2e.mjs`.
 - Comments go to Claude only via `sendCommentsToClaude`. Prompts must stay free of `'`, `$`, backtick and backslash (pty.ts quotes them unescaped).
 - Comment author is never prompted (`commentAuthor()` is sync; empty is valid).
 

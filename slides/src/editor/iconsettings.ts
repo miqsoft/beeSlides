@@ -4,15 +4,17 @@
 // Settings ▸ Icon library: the list of icon sources the Icons button searches
 // together (iconlibrary.ts owns the model). One card per source — a server
 // (URL + optional token — in the desktop app stored encrypted by main and
-// never shown again, like the AI keys) or a local folder — each with a name, an on/off
+// never shown again, like the AI keys) or a local folder (in the desktop app
+// picked through main, which keeps it for every deck) — each with a name, an on/off
 // switch, its own Test and a remove button. Edits persist as they are made;
 // only adding and removing rebuild the list, so typing never loses focus.
 
 import { t } from '../i18n'
 import { ICONS } from '../icons'
 import {
-  canPickIconFolder, clearIconFolderHandle, hostOf, iconDesktop, iconSourceLabel, iconSources, iconTokenStatus, loadIconFolderHandle,
-  MAX_LICENSE, newIconSourceId, pickIconFolder, setIconSources, testIconSource, type IconSource,
+  canPickIconFolder, clearIconFolderHandle, desktopIconFolderStatus, hostOf, iconDesktop, iconFolderDesktop, iconSourceLabel, iconSources,
+  iconTokenStatus, loadIconFolderHandle, MAX_LICENSE, newIconSourceId, pickDesktopIconFolder, pickIconFolder, setIconSources, testIconSource,
+  type IconSource,
 } from './iconlibrary'
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -131,7 +133,18 @@ export function renderIconSources(host: HTMLElement, deps: { toast(message: stri
       if (!src.url) queueMicrotask(() => { if (root.isConnected && list.at(-1) === src && !src.name) url.focus() })
     } else {
       const status = el('span', 'ed-isrc-folder')
+      // desktop: main keeps the folder (one for every deck); the page only learns its name
+      const fromMain = !!iconFolderDesktop()
       const refresh = async () => {
+        if (fromMain) {
+          const st = (await desktopIconFolderStatus([src.id]))[src.id]
+          // none stored: a folder picked before main kept them (a handle in one deck's storage)
+          status.textContent = !st ? t('Choose this folder again — BeeSlides now remembers it for all your decks.')
+            : st.missing ? t('The folder “{name}” is not there any more — choose it again.', { name: st.name })
+            : t('Folder: {name}', { name: st.name })
+          change.textContent = st ? t('Change folder…') : t('Choose folder…')
+          return
+        }
         const handle = await loadIconFolderHandle(src.id)
         status.textContent = handle ? t('Folder: {name}', { name: handle.name }) : t('No folder chosen')
         change.textContent = handle ? t('Change folder…') : t('Choose folder…')
@@ -139,6 +152,14 @@ export function renderIconSources(host: HTMLElement, deps: { toast(message: stri
       const change = el('button', 'ed-btn', t('Choose folder…'))
       change.type = 'button'
       change.addEventListener('click', async () => {
+        if (fromMain) {
+          const r = await pickDesktopIconFolder(src.id)
+          if (!r.ok) { if (r.error) deps.toast(r.error); return }
+          if (!src.name) { src.name = r.name; name.value = r.name }
+          persist()
+          await refresh()
+          return
+        }
         const handle = await pickIconFolder(src.id)
         if (!handle) { if (!canPickIconFolder()) deps.toast(t("This browser can't pick a folder (no File System Access API)")); return }
         if (!src.name) { src.name = handle.name; name.value = handle.name }
@@ -212,6 +233,14 @@ export function renderIconSources(host: HTMLElement, deps: { toast(message: stri
   addFolder.querySelector('span')!.textContent = t('Add local folder…')
   addFolder.addEventListener('click', async () => {
     const id = newIconSourceId()
+    if (iconFolderDesktop()) {
+      const r = await pickDesktopIconFolder(id)
+      if (!r.ok) { if (r.error) deps.toast(r.error); return }
+      list = [...list, { id, kind: 'folder', name: r.name, enabled: true }]
+      persist()
+      render()
+      return
+    }
     const handle = await pickIconFolder(id)
     if (!handle) { if (!canPickIconFolder()) deps.toast(t("This browser can't pick a folder (no File System Access API)")); return }
     list = [...list, { id, kind: 'folder', name: handle.name, enabled: true }]
