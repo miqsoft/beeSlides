@@ -17,6 +17,7 @@ import {
 import { THEME_CHOICES, onThemeChange, resolvedTheme, setTheme, themeChoice } from '../../../kernel/src/theme.ts'
 import { offlineEnabled, setOffline } from '../../../kernel/src/net.ts'
 import { renderSlide, renderThumbnail, sanitizeHtml } from '../render'
+import { ThumbCache, type ThumbPass } from './thumbcache'
 import { stepCount } from '../builds'
 import { isFullBleed, marginFor, overflowFindings, validateDoc, type Finding, type ValidateOpts } from '../validate'
 import { layoutBrief } from '../layoutbrief'
@@ -224,6 +225,8 @@ export class Editor {
   /** Name of a deck opened by DROP when no writable handle came with it. */
   private openedAs?: string
   private thumbTimer = 0
+  /** sidebar thumbnails by slide id, re-rendered only when their key changes (thumbcache.ts) */
+  private thumbCache = new ThumbCache()
   private presenting = false
   /** Topbar badge for a pending propose_variants set — created lazily in
    *  buildRibbonChrome (desktop shell only, next to the terminal toggle),
@@ -2842,7 +2845,7 @@ export class Editor {
     item.appendChild(badge)
   }
 
-  private makeThumb(slide: import('../model').Slide, i: number, isState: boolean): HTMLElement {
+  private makeThumb(slide: import('../model').Slide, i: number, isState: boolean, pass: ThumbPass): HTMLElement {
     const item = div('ed-thumb')
     item.dataset.index = String(i)
     item.draggable = true
@@ -2872,7 +2875,8 @@ export class Editor {
     // thumb width tracks the (resizable) sidebar; states and extras render smaller
     const base = this.thumbBase()
     const nested = isState || extraParent(this.store.doc, i) >= 0
-    const surface = this.thumbSurface(slide, nested ? Math.round(base * 0.84) : base)
+    const width = nested ? Math.round(base * 0.84) : base
+    const surface = this.thumbCache.surface(pass, slide, i, width, () => this.thumbSurface(slide, width))
     const cmtState = thumbCommentState(slide)
     if (cmtState) {
       const badge = div('ed-thumb-cmt' + (cmtState === 'check' ? ' check' : ''))
@@ -2969,6 +2973,12 @@ export class Editor {
     return box
   }
 
+  /** A pass of the thumbnail cache: the doc plus the editor state a thumbnail
+   *  shows (UI language, offline mode, the icon style shown). */
+  private thumbPass(): ThumbPass {
+    return this.thumbCache.begin(this.store.doc, `${locale()}|${offlineEnabled()}|${this.store.shownLook?.id ?? ''}`)
+  }
+
   /** 1-based position among non-state slides (what the audience counts). */
   private linearNumber(i: number): number {
     return this.store.doc.slides.slice(0, i + 1).filter((s) => paginates(s, this.store.doc)).length
@@ -2981,6 +2991,7 @@ export class Editor {
     this.sidebar.innerHTML = ''
     const doc = this.store.doc
     const slides = doc.slides
+    const pass = this.thumbPass()
     // Section headers interleave with the thumbnails by walking doc.slides
     // and sectionsInOrder() in lockstep — headerAt maps a section's start
     // INDEX to the section itself, and hiddenIdx is every index that falls
@@ -3010,12 +3021,13 @@ export class Editor {
         }))
       }
       if (hiddenIdx.has(i)) return // collapsed — this slide's thumb is skipped entirely
-      const item = this.makeThumb(slide, i, !!slide.stateOf)
+      const item = this.makeThumb(slide, i, !!slide.stateOf, pass)
       if (slide.stateOf) item.classList.add('ed-thumb-state')
       if (slide.hidden) item.classList.add('ed-thumb-hidden')
       if (extraParent(doc, i) >= 0) item.classList.add('ed-thumb-extra')
       this.sidebar.appendChild(item)
     })
+    this.thumbCache.prune(pass)
     if (gaps) this.sidebar.appendChild(this.insertGap(slides.length))
     if (this.isIconset) this.sidebar.appendChild(this.iconAddTile())
     else {
@@ -3710,17 +3722,24 @@ export class Editor {
   private scheduleThumbs() {
     clearTimeout(this.thumbTimer)
     this.thumbTimer = window.setTimeout(() => {
-        const thumbs = this.sidebar.querySelectorAll<HTMLElement>('.ed-thumb')
+      const thumbs = this.sidebar.querySelectorAll<HTMLElement>('.ed-thumb')
       const doc = this.store.doc
       const expected = doc.slides.length - collapsedSlideIndices(doc).size
+      // a different count or order (an edit that emitted only 'doc') is a
+      // rebuild — cheap, unchanged surfaces are reused
       if (thumbs.length !== expected) return this.rebuildSidebar()
+      for (const item of thumbs) if (doc.slides[Number(item.dataset.index)]?.id !== item.dataset.slideId) return this.rebuildSidebar()
       const base = this.thumbBase()
+      const pass = this.thumbPass()
       thumbs.forEach((item) => {
         const slide = this.store.doc.slides[Number(item.dataset.index)]
         if (!slide) return
         const idx = Number(item.dataset.index)
         const w = slide.stateOf || extraParent(this.store.doc, idx) >= 0 ? Math.round(base * 0.84) : base
-        item.querySelector('.beeslides-thumb-surface')?.replaceWith(this.thumbSurface(slide, w))
+        // only a thumbnail whose render inputs changed is rendered again
+        const surface = this.thumbCache.surface(pass, slide, idx, w, () => this.thumbSurface(slide, w))
+        const shown = item.querySelector('.beeslides-thumb-surface')
+        if (shown !== surface) shown?.replaceWith(surface)
         // comment badge tracks doc-level changes too (comments emit 'doc')
         const cmtState = thumbCommentState(slide)
         const badge = item.querySelector('.ed-thumb-cmt')
