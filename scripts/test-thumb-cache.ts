@@ -108,5 +108,58 @@ const s0 = cache.surface(p, dup.slides[0], 0, 200, () => ({ k: 0 }) as unknown a
 const s1 = cache.surface(p, dup.slides[1], 1, 200, () => ({ k: 1 }) as unknown as HTMLElement)
 ok(s0 !== s1, 'a duplicate slide id gets its own surface')
 
+// ---- inline pictures: keyed by token, still exact ---------------------------
+console.log('\ninline pictures')
+{
+  const big = new ThumbCache()
+  let n = 0
+  const run = (d: SlidomingoDoc, width = 200): string[] => {
+    const p = big.begin(d, '')
+    const out: string[] = []
+    d.slides.forEach((s, i) => big.surface(p, s, i, width, () => { out.push(s.id); return { n: n++ } as unknown as HTMLElement }))
+    big.prune(p)
+    return out
+  }
+  const keys = () => [...(big as unknown as { entries: Map<string, { key: string }> }).entries.values()].map((e) => e.key)
+  // same length, different last bytes: only an exact compare tells them apart
+  const pic = (tail: string) => `data:image/jpeg;base64,${'Q'.repeat(64 * 1024)}${tail}`
+  const P = pic('AAAA'), P2 = pic('AAAB')
+  const image = (id: string, src: string) => ({ id, type: 'image', x: 0, y: 0, w: 100, h: 100, rotation: 0, opacity: 1, src, fit: 'cover', radius: 0 }) as unknown as Slide['elements'][number]
+  const d = deck()
+  d.slides[0].elements.push(image('photo', P))
+  ok(same(run(d), ['a', 'b', 'c', 'd']), 'first pass renders every slide')
+  ok(keys().every((k) => k.length < 16 * 1024), `no key holds the picture's bytes (longest ${Math.max(...keys().map((k) => k.length))} chars for a ${P.length}-char picture)`)
+  ok(run(d).length === 0, 'an unchanged deck with a picture renders nothing')
+  ;(d.slides[0].elements[1] as { src: string }).src = P2
+  ok(same(run(d), ['a']), 'the picture swapped in place (same length, last bytes differ) re-renders its slide')
+  ;(d.slides[0].elements[1] as { src: string }).src = P
+  ok(same(run(d), ['a']), 'and swapped back, again')
+  d.slides[0].elements[0] = { ...d.slides[0].elements[0], x: 77 }
+  ok(same(run(d), ['a']), 'moving another element on the picture slide re-renders only it')
+  // a real string that looks like a token is not one: P is token 0 here
+  ;(d.slides[0].elements[1] as { src: string }).src = '\u00050'
+  ok(same(run(d), ['a']), 'a string spelled like the picture\'s token is a change')
+  ;(d.slides[0].elements[1] as { src: string }).src = P
+  run(d)
+  // a page field in a long text on a picture slide still follows the page number
+  d.slides[0].elements.push(text('long', `${'x'.repeat(2000)} {{page}}`))
+  d.slides.unshift({ ...emptySlide(), id: 'first' })
+  const moved = run(d)
+  ok(moved.includes('a') && moved.includes('first'), `a {{page}} in a long text on a picture slide still re-renders when its page moves (${moved})`)
+  // an undo hands out new objects with the same content: nothing to render
+  const undone = JSON.parse(JSON.stringify(d)) as SlidomingoDoc
+  ok(run(undone).length === 0, 'a re-parsed, equal deck (undo) re-renders nothing')
+  // a slide that grows big in place: one render, then quiet
+  undone.slides[2].elements.push(image('late', P2))
+  ok(same(run(undone), [undone.slides[2].id]), 'a picture added in place re-renders its slide')
+  ok(run(undone).length === 0, 'and the next pass (now keyed by token) renders nothing')
+  // a picture in the deck part (a slide type) is tokenized too
+  undone.layouts = [{ ...emptySlide(), id: 'L', elements: [image('logo', P)] }]
+  ok(run(undone).length === undone.slides.length, 'a picture in a slide type re-renders every slide')
+  ok(run(undone).length === 0, 'and then nothing')
+  ;(undone.layouts[0].elements[0] as { src: string }).src = P2
+  ok(run(undone).length === undone.slides.length, "swapping the slide type's picture re-renders every slide")
+}
+
 console.log(`\n${checks - failures}/${checks} checks passed`)
 process.exit(failures ? 1 : 0)
