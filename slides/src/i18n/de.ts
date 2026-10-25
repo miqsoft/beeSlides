@@ -49,6 +49,7 @@ export const de: Catalog = {
   "Allow": "Erlauben",
   "Don’t Allow": "Nicht erlauben",
   "AI wrote a slide from HTML ({n} elements)": "KI hat eine Folie aus HTML geschrieben ({n} Elemente)",
+  "AI wrote {n} slides from HTML": "KI hat {n} Folien aus HTML geschrieben",
   "AI ran a program on this deck (one undo step)": "KI hat ein Programm auf diesem Foliensatz ausgeführt (ein Rückgängig-Schritt)",
   "Style & canvas": "Stil & Arbeitsfläche",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Die Icons in einem der Stile des Sets zeigen — ein Stil malt nur neu an, nichts wird neu gezeichnet",

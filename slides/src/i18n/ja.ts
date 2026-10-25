@@ -49,6 +49,7 @@ export const ja: Catalog = {
   "Allow": "許可",
   "Don’t Allow": "許可しない",
   "AI wrote a slide from HTML ({n} elements)": "AI が HTML からスライドを作成しました（{n} 個の要素）",
+  "AI wrote {n} slides from HTML": "AI が HTML から {n} 枚のスライドを作成しました",
   "AI ran a program on this deck (one undo step)": "AI がこのデッキでプログラムを実行しました（取り消しは 1 回）",
   "Style & canvas": "スタイルとキャンバス",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "アイコンをセットのスタイルのいずれかで表示します — スタイルは塗り直すだけで、描き直しはしません",

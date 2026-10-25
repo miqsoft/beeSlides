@@ -328,3 +328,45 @@ export function segsToD(segs: readonly Seg[], ox = 0, oy = 0): string {
     return `${s[0]} ${r2(s[1] - ox)} ${r2(s[2] - oy)}`
   }).join(' ')
 }
+
+/** Where SVG markers sit on a path: every vertex (a subpath start, the end of
+ *  each segment), with the direction the path runs there in degrees (y
+ *  down, 0 = along +x). Start vertices take the outgoing direction, end
+ *  vertices the incoming one, the others the bisector of both, as
+ *  `orient="auto"` does. `Z` counts as a line back to its subpath start. */
+export function markerVertices(segs: readonly Seg[]): Array<{ x: number; y: number; angle: number }> {
+  const pts: Array<{ x: number; y: number; inX: number; inY: number; outX: number; outY: number }> = []
+  let cx = 0, cy = 0, sx = 0, sy = 0
+  const dir = (fx: number, fy: number, tx: number, ty: number): [number, number] => {
+    const l = Math.hypot(tx - fx, ty - fy)
+    return l > 1e-9 ? [(tx - fx) / l, (ty - fy) / l] : [0, 0]
+  }
+  const segEnd = (x: number, y: number, inDir: [number, number], outFirst: [number, number]) => {
+    const prev = pts.at(-1)
+    if (prev && !prev.outX && !prev.outY) { prev.outX = outFirst[0]; prev.outY = outFirst[1] }
+    pts.push({ x, y, inX: inDir[0], inY: inDir[1], outX: 0, outY: 0 })
+  }
+  for (const s of segs) {
+    if (s[0] === 'M') { cx = sx = s[1]; cy = sy = s[2]; pts.push({ x: cx, y: cy, inX: 0, inY: 0, outX: 0, outY: 0 }); continue }
+    if (s[0] === 'C') {
+      // a control point on its end point says nothing: fall back to the chord
+      const out = dir(cx, cy, s[1], s[2]), inn = dir(s[3], s[4], s[5], s[6])
+      const chord = dir(cx, cy, s[5], s[6])
+      segEnd(s[5], s[6], inn[0] || inn[1] ? inn : chord, out[0] || out[1] ? out : chord)
+      cx = s[5]; cy = s[6]
+      continue
+    }
+    const [x, y] = s[0] === 'L' ? [s[1], s[2]] : [sx, sy]
+    const d = dir(cx, cy, x, y)
+    segEnd(x, y, d, d)
+    cx = x; cy = y
+  }
+  const deg = (x: number, y: number) => (Math.atan2(y, x) * 180) / Math.PI
+  return pts.map((p, i) => {
+    const hasIn = !!(p.inX || p.inY), hasOut = !!(p.outX || p.outY)
+    if (i === 0 || !hasIn) return { x: p.x, y: p.y, angle: deg(p.outX, p.outY) }
+    if (i === pts.length - 1 || !hasOut) return { x: p.x, y: p.y, angle: deg(p.inX, p.inY) }
+    const bx = p.inX + p.outX, by = p.inY + p.outY
+    return { x: p.x, y: p.y, angle: Math.hypot(bx, by) > 1e-9 ? deg(bx, by) : deg(p.inX, p.inY) }
+  })
+}

@@ -52,6 +52,7 @@ export const pt: Catalog = {
   "Allow": "Permitir",
   "Don’t Allow": "Não permitir",
   "AI wrote a slide from HTML ({n} elements)": "A IA escreveu um slide a partir de HTML ({n} elementos)",
+  "AI wrote {n} slides from HTML": "A IA escreveu {n} slides a partir de HTML",
   "AI ran a program on this deck (one undo step)": "A IA executou um programa nesta apresentação (desfaz-se num passo)",
   "Style & canvas": "Estilo e tela",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "Mostra os ícones em um dos estilos do conjunto — um estilo apenas repinta, nada é redesenhado",

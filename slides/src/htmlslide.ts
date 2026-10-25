@@ -35,7 +35,7 @@ import type {
 } from './model'
 import { convertSvgToObjects } from './svgconvert'
 import { expandComponents, palette, type ComponentTheme } from './htmlcomponents'
-import { resolveSlideFonts, sanitizeHtml } from './render'
+import { resolveSlideFonts, sanitizeHtml, sanitizeRunFontFamily } from './render'
 import { sanitizeElement } from './untrusted'
 
 export interface HtmlSlideSource {
@@ -322,8 +322,12 @@ function parseShadows(v: string, lost?: (what: string) => void): ShadowSpec[] {
     const color = colorM ? cssToModelColor(colorM[1]) : '#000000'
     const nums = part.replace(colorM?.[1] ?? '', '').trim().split(/\s+/).map((n) => parseFloat(n)).filter((n) => Number.isFinite(n))
     if (!visibleColor(color) || nums.length < 2) continue
-    if (nums[3]) lost?.('a shadow spread')
-    out.push({ x: round(nums[0]), y: round(nums[1]), blur: round(nums[2] ?? 0), color })
+    // a spread grows or shrinks the shadow's shape; the format has none, so
+    // the blur stands in for it (a soft shadow tucked under a card, `0 14px
+    // 30px -14px`, stays small instead of spreading a 30px haze)
+    const spread = nums[3] ?? 0
+    if (spread) lost?.('a shadow spread (the blur stands in for it)')
+    out.push({ x: round(nums[0]), y: round(nums[1]), blur: round(Math.max(0, (nums[2] ?? 0) + spread)), color })
   }
   return out
 }
@@ -677,19 +681,29 @@ function richHtml(ctx: Ctx, el: Element, base: CSSStyleDeclaration): string {
     const wrap = (t: string) => { open += `<${t}>`; close = `</${t}>` + close }
     if (tag === 'A' && c.getAttribute('href')) { open += `<a href="${escapeText(c.getAttribute('href')!).replace(/"/g, '&quot;')}">`; close = '</a>' + close }
     if (tag === 'CODE') wrap('code')
-    if (isBold(cs.fontWeight) && !isBold(base.fontWeight)) wrap('b')
-    if (cs.fontStyle === 'italic' && base.fontStyle !== 'italic') wrap('i')
+    const bold = isBold(cs.fontWeight) && !isBold(base.fontWeight)
+    if (bold) wrap('b')
+    const italic = cs.fontStyle === 'italic' && base.fontStyle !== 'italic'
+    if (italic) wrap('i')
     const dec = decorations(cs), baseDec = decorations(base)
     if (dec.includes('underline') && !baseDec.includes('underline') && tag !== 'A') wrap('u')
     if (dec.includes('line-through') && !baseDec.includes('line-through')) wrap('s')
-    // a run carries only colour and size (render.ts sanitizeRunStyle)
-    const family = (s: string) => s.replace(/["']/g, '').split(',')[0].trim()
-    if (tag !== 'CODE' && tag !== 'KBD' && family(cs.fontFamily) !== family(base.fontFamily) && hasText(c)) ctx.notes.add(`Text in ${family(cs.fontFamily)} inside a text in ${family(base.fontFamily)} shows in ${family(base.fontFamily)}: a run inside a text keeps only bold, italics, colour and size. Give it an element of its own for another typeface.`)
-    if (!isBold(cs.fontWeight) && isBold(base.fontWeight) && hasText(c)) ctx.notes.add('A lighter run inside bold text shows bold: a run can only add bold. Give it an element of its own.')
+    // what b/i cannot say goes on a run span (render.ts sanitizeRunStyle)
     const styles: string[] = []
     const color = runColor(ctx, cs, base)
     if (color && tag !== 'A') styles.push(`color:${color}`)
     if (Math.abs(px(cs.fontSize) - px(base.fontSize)) > 0.25 && tag !== 'CODE') styles.push(`font-size:${round(px(cs.fontSize))}px`)
+    if (tag !== 'CODE' && tag !== 'KBD' && cs.fontFamily !== base.fontFamily && hasText(c)) {
+      const family = sanitizeRunFontFamily(cs.fontFamily)
+      if (family) styles.push(`font-family:${family}`)
+      else ctx.notes.add(`Text in ${cs.fontFamily.slice(0, 40)} inside another text keeps that text's typeface (the name needs quotes or symbols). Give it an element of its own.`)
+    }
+    const weight = Number(cs.fontWeight) || (cs.fontWeight === 'bold' ? 700 : 400)
+    if (weight !== (bold ? 700 : Number(base.fontWeight) || 400)) styles.push(`font-weight:${weight}`)
+    if (cs.fontStyle !== 'italic' && base.fontStyle === 'italic') styles.push('font-style:normal')
+    const spacing = cs.letterSpacing === 'normal' ? 0 : px(cs.letterSpacing)
+    const baseSpacing = base.letterSpacing === 'normal' ? 0 : px(base.letterSpacing)
+    if (Math.abs(spacing - baseSpacing) > 0.05) styles.push(`letter-spacing:${round(spacing, 100)}px`)
     if (styles.length) { open += `<span style="${styles.join(';')}">`; close = '</span>' + close }
     out += open + richHtml(ctx, c, cs) + close
   }
@@ -1215,7 +1229,8 @@ function emitTable(ctx: Ctx, table: HTMLTableElement, cs: CSSStyleDeclaration, f
 }
 
 /** The presentation properties an svg node's look comes from. */
-const SVG_PAINT = ['fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'font-size', 'font-family', 'font-weight', 'text-anchor']
+const SVG_PAINT = ['fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width', 'stroke-opacity', 'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray',
+  'marker-start', 'marker-mid', 'marker-end', 'font-size', 'font-family', 'font-weight', 'font-style', 'text-anchor', 'letter-spacing', 'opacity']
 
 /**
  * An inline <svg> drawing → native shapes, paths and text, exactly as the
@@ -1234,6 +1249,12 @@ function emitSvg(ctx: Ctx, el: Element, f: Frame, id: string, opacity: number) {
     for (const prop of SVG_PAINT) {
       const v = cs.getPropertyValue(prop)
       if (v && v !== 'normal') to[i].setAttribute(prop, v)
+    }
+    // a class that hides a node hides it in the copy too
+    if (cs.display === 'none') to[i].setAttribute('display', 'none')
+    // capitals set by CSS: SVG markup has no attribute for them
+    if (/^(uppercase|lowercase|capitalize)$/.test(cs.textTransform)) {
+      for (const t of Array.from(to[i].childNodes)) if (t.nodeType === Node.TEXT_NODE) t.textContent = transformText(t.textContent ?? '', cs.textTransform)
     }
   })
   copy.removeAttribute('style')
@@ -1300,8 +1321,13 @@ function visitChildren(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, box: Fram
     const top = Math.min(...rects.map((r) => r.top)), bottom = Math.max(...rects.map((r) => r.bottom))
     const left = Math.min(...rects.map((r) => r.left)), right = Math.max(...rects.map((r) => r.right))
     const content = contentBox(box, cs)
+    // a run in a flex or grid box is shrink-wrapped: one line gets the same
+    // room as any other one-line text (emitText measures the whole box)
+    const oneLine = new Set(rects.map((r) => Math.round(r.bottom))).size === 1
+    const slack = oneLine ? ONE_LINE_SLACK : 0
+    const a = ALIGN(cs)
     const f: Frame = isFlexOrGrid(cs.display)
-      ? { x: round(left), y: round(top), w: round(right - left), h: round(bottom - top), rotation: 0 }
+      ? { x: round(left - (a === 'center' ? slack / 2 : a === 'right' ? slack : 0)), y: round(top), w: round(right - left + slack), h: round(bottom - top), rotation: 0 }
       : { x: content.x, y: round(top), w: content.w, h: round(bottom - top), rotation: 0 }
     const holder = ctx.win.document.createElement('span')
     for (const n of nodesInRun) holder.appendChild(n.cloneNode(true))
@@ -1345,7 +1371,7 @@ function visit(ctx: Ctx, el: Element) {
   const isRoot = el.parentElement === ctx.win.document.body && el.children.length > 0 && Math.abs(f.x) < 1 && Math.abs(f.y) < 1
     && Math.abs(f.w - ctx.size.width) < 1 && Math.abs(f.h - ctx.size.height) < 1 && f.rotation === 0
   if (isRoot && !ctx.rootTaken) {
-    const bg = slideBackground(cs)
+    const bg = slideBackground(ctx, cs)
     const plain = !parseShadows(cs.boxShadow).length && px(cs.borderTopWidth) === 0 && px(cs.borderTopLeftRadius) === 0
     if (plain) {
       ctx.rootTaken = true
@@ -1359,7 +1385,7 @@ function visit(ctx: Ctx, el: Element) {
   // an empty box covering the slide whose paint no shape can carry (a radial
   // or layered background) is the slide's backdrop: the slide background
   if (!ctx.background && !ctx.out.length && !el.children.length && !hasText(el) && fullSlide(ctx, f)) {
-    const bg = slideBackground(cs)
+    const bg = slideBackground(ctx, cs)
     if (bg && !parseLinearGradient(bg) && !cssToModelColor(bg) && !parseShadows(cs.boxShadow).length && px(cs.borderTopWidth) === 0 && cs.filter === 'none') {
       ctx.background = bg
       if (topLevelSplit(cs.backgroundImage).length > 1) ctx.notes.add(`#${wanted ?? 'backdrop'}: only the top layer of a layered slide background was kept.`)
@@ -1430,23 +1456,38 @@ function reportUnkept(ctx: Ctx, el: Element, cs: CSSStyleDeclaration, wanted: st
   if (cs.textDecorationLine && cs.textDecorationLine !== 'none' && deco && deco !== 'solid') ctx.notes.add(`${who}: a ${deco} ${cs.textDecorationLine} became a plain one.`)
 }
 
-/** A background the slide itself can carry: a colour or one linear gradient. */
-function slideBackground(cs: CSSStyleDeclaration): string | null {
+/** A background the slide itself can carry: a colour or one gradient. A
+ *  gradient that is tiled (a grid or stripes) or lets the colour under it
+ *  show through is a pattern on that colour: the slide keeps the colour,
+ *  since the gradient alone would paint over nothing (a dark slide turned
+ *  white). */
+function slideBackground(ctx: Ctx, cs: CSSStyleDeclaration): string | null {
+  const c = cssToModelColor(cs.backgroundColor)
   const img = cs.backgroundImage
   if (img && img !== 'none') {
     const first = topLevelSplit(img)[0]
-    if (/^(linear|radial)-gradient\(/.test(first) && first.length <= 200 && !/url\s*\(/i.test(first)) return first
+    const size = topLevelSplit(cs.backgroundSize || 'auto')[0] ?? 'auto'
+    const tiled = !/^(auto|cover|contain|100%|100% 100%|auto auto)$/.test(size.trim())
+    const seeThrough = (gradientStops(first) ?? []).some((s) => s.color === 'transparent' || s.color.startsWith('rgba('))
+    const usable = /^(linear|radial)-gradient\(/.test(first) && first.length <= 200 && !/url\s*\(/i.test(first)
+    if (usable && !tiled && !(seeThrough && visibleColor(c))) return first
+    if (visibleColor(c)) ctx.notes.add(`The slide background keeps its colour ${c}; a ${tiled ? 'repeating pattern' : 'see-through gradient'} on it was left out (draw it with shapes if it matters).`)
   }
-  const c = cssToModelColor(cs.backgroundColor)
   return visibleColor(c) ? c : null
 }
 
-/** The text a computed `content` value puts on the page: quoted strings
- *  only (null for counters, attr(), quotes and pictures). */
-export function contentText(v: string): string | null {
+/** The text a computed `content` value puts on the page: quoted strings and
+ *  quote marks (`open-quote` from `quotes`, else curly double quotes); null
+ *  for counters, attr() and pictures. */
+export function contentText(v: string, quotes = 'auto'): string | null {
   const parts = v.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\S+/g) ?? []
+  const marks = quotes === 'auto' || quotes === 'none' ? null
+    : (quotes.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g) ?? []).map((q) => contentText(q) ?? '')
   let out = ''
   for (const p of parts) {
+    if (p === 'open-quote') { out += quotes === 'none' ? '' : marks?.[0] ?? '\u201C'; continue }
+    if (p === 'close-quote') { out += quotes === 'none' ? '' : marks?.[1] ?? '\u201D'; continue }
+    if (p === 'no-open-quote' || p === 'no-close-quote') continue
     if (!/^["']/.test(p)) return null
     out += p.slice(1, -1).replace(/\\([0-9a-fA-F]{1,6})\s?|\\(.)/g, (_, hex: string | undefined, ch: string | undefined) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : ch ?? ''))
   }
@@ -1472,7 +1513,7 @@ function materializePseudos(d: Document, notes: Set<string>) {
     for (const which of ['before', 'after'] as const) {
       const ps = win.getComputedStyle(host, `::${which}`)
       if (!ps.content || ps.content === 'none' || ps.content === 'normal' || ps.display === 'none') continue
-      const text = contentText(ps.content)
+      const text = contentText(ps.content, ps.quotes)
       if (text === null) { notes.add(`::${which} content that is not text (${ps.content.slice(0, 40)}) was left out.`); continue }
       const style: Array<[string, string]> = []
       for (let i = 0; i < ps.length; i++) {
@@ -1540,7 +1581,7 @@ export async function compileSlideHtml(doc: SlidomingoDoc, slide: Slide, src: Ht
     }
     const bodyCs = win.getComputedStyle(d.body)
     const htmlCs = win.getComputedStyle(d.documentElement)
-    ctx.background = slideBackground(bodyCs) ?? slideBackground(htmlCs) ?? undefined
+    ctx.background = slideBackground(ctx, bodyCs) ?? slideBackground(ctx, htmlCs) ?? undefined
     const bodyBox: Frame = { x: 0, y: 0, w: size.width, h: size.height, rotation: 0 }
     visitChildren(ctx, d.body, bodyCs, bodyBox, null, 1)
     const elements: SlideElement[] = []

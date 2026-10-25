@@ -1115,46 +1115,74 @@ function inheritedIds(doc: SlidomingoDoc, slide: Slide): Set<string> {
   return layout ? new Set(effectiveLayout(doc, layout).elements.map((e) => e.id)) : new Set()
 }
 
+/** One slide written from HTML: the body of `slide_html` write. */
+async function writeSlideHtml(ctx: OpContext, slideId: unknown, src: HtmlSlideSource, reflow: boolean): Promise<{ ok: true; summary: string; n: number } | { ok: false; error: string }> {
+  const html = ctx.html!
+  const first = targetSlide(ctx, slideId as string)
+  if (typeof first === 'string') return { ok: false, error: first }
+  if (typeof src.html !== 'string' || !src.html.trim()) return { ok: false, error: 'html is empty. To clear a slide, delete its elements with elements delete.' }
+  const compiled = await html.compile(first, src)
+  // the slide may have changed (or gone) while the HTML was laid out
+  const slide = targetSlide(ctx, first.id)
+  if (typeof slide === 'string') return { ok: false, error: slide }
+  const keep = inheritedIds(ctx.store.doc, slide)
+  const plan = mergeCompiled(slide.elements, compiled.elements, keep)
+  const svg = agentSvgViolation(ctx.store.doc, plan.elements, { existing: slide.elements })
+  if (svg) return { ok: false, error: svg }
+  const guard = writes(ctx).commit(slide.id, (s) => {
+    const merged = mergeCompiled(s.elements, compiled.elements, keep).elements
+    s.elements = merged
+    if (compiled.background) s.background = compiled.background
+    // fingerprinted BEFORE the layout guard: if it has to move anything,
+    // the source no longer describes the slide and read regenerates
+    if (compiled.remember) s.htmlSource = { ...compiled.remember, sig: htmlSignature(merged, s.background) }
+    else delete s.htmlSource
+  }, { reflow, placed: true })
+  html.show?.(slide.id)
+  const count = (k: string) => compiled.elements.filter((e) => e.type === k).length
+  const kinds = ['text', 'shape', 'image', 'table', 'chart', 'code'].map((k) => [k, count(k)] as const).filter(([, n]) => n).map(([k, n]) => plural(n, k)).join(', ')
+  const did = [
+    `Wrote ${slide.id} from HTML as one undo step: ${compiled.elements.length} elements (${kinds || 'none'}) — ${plan.updated.length} updated in place, ${plan.added.length} new, ${plan.removed.length} removed${plan.removed.length ? ` (${plan.removed.slice(0, 12).join(', ')}${plan.removed.length > 12 ? ', …' : ''})` : ''}.`,
+    ...(compiled.background ? [`Slide background: ${compiled.background}.`] : []),
+    ...(plan.added.length ? [`New ids: ${plan.added.slice(0, 40).join(', ')}${plan.added.length > 40 ? ', …' : ''}.`] : []),
+    ...compiled.notes.map((n) => `Note: ${n}`),
+  ]
+  const summary = writeReport(ctx, slide.id, did, guard, compiled.elements.map((e) => e.id))
+  return { ok: true, summary: `${summary}\nLook at it: review_slide {slideId:"${slide.id}"} shows the slide as drawn.`, n: compiled.elements.length }
+}
+
 const SLIDE_HTML: AreaHandlers['slide_html'] = {
   async write(ctx, a) {
     if (!ctx.html) return fail('slide_html needs the app: HTML is laid out by the browser the deck is open in.')
-    const first = targetSlide(ctx, a.slideId as string)
-    if (typeof first === 'string') return fail(first)
-    const src: HtmlSlideSource = { html: a.html as string, ...(typeof a.css === 'string' && a.css ? { css: a.css } : {}) }
-    if (src.html.length + (src.css?.length ?? 0) > MAX_SLIDE_HTML) return fail(`The HTML is too long (at most ${MAX_SLIDE_HTML} characters, pictures included).`)
-    if (!src.html.trim()) return fail('html is empty. To clear a slide, delete its elements with elements delete.')
-    const compiled = await ctx.html.compile(first, src)
-    // the slide may have changed (or gone) while the HTML was laid out
-    const slide = targetSlide(ctx, first.id)
-    if (typeof slide === 'string') return fail(slide)
-    const keep = inheritedIds(ctx.store.doc, slide)
-    const plan = mergeCompiled(slide.elements, compiled.elements, keep)
-    const svg = agentSvgViolation(ctx.store.doc, plan.elements, { existing: slide.elements })
-    if (svg) return fail(svg)
-    const guard = writes(ctx).commit(slide.id, (s) => {
-      const merged = mergeCompiled(s.elements, compiled.elements, keep).elements
-      s.elements = merged
-      if (compiled.background) s.background = compiled.background
-      // fingerprinted BEFORE the layout guard: if it has to move anything,
-      // the source no longer describes the slide and read regenerates
-      if (compiled.remember) s.htmlSource = { ...compiled.remember, sig: htmlSignature(merged, s.background) }
-      else delete s.htmlSource
-    }, { reflow: a.reflow !== false, placed: true })
-    ctx.html.show?.(slide.id)
-    const count = (k: string) => compiled.elements.filter((e) => e.type === k).length
-    const kinds = ['text', 'shape', 'image', 'table', 'chart', 'code'].map((k) => [k, count(k)] as const).filter(([, n]) => n).map(([k, n]) => plural(n, k)).join(', ')
-    const did = [
-      `Wrote ${slide.id} from HTML as one undo step: ${compiled.elements.length} elements (${kinds || 'none'}) — ${plan.updated.length} updated in place, ${plan.added.length} new, ${plan.removed.length} removed${plan.removed.length ? ` (${plan.removed.slice(0, 12).join(', ')}${plan.removed.length > 12 ? ', …' : ''})` : ''}.`,
-      ...(compiled.background ? [`Slide background: ${compiled.background}.`] : []),
-      ...(plan.added.length ? [`New ids: ${plan.added.slice(0, 40).join(', ')}${plan.added.length > 40 ? ', …' : ''}.`] : []),
-      ...compiled.notes.map((n) => `Note: ${n}`),
-    ]
-    const summary = writeReport(ctx, slide.id, did, guard, compiled.elements.map((e) => e.id))
-    return {
-      ok: true,
-      summary: `${summary}\nLook at it: review_slide {slideId:"${slide.id}"} shows the slide as drawn.`,
-      toast: t('AI wrote a slide from HTML ({n} elements)', { n: String(compiled.elements.length) }),
+    const css = typeof a.css === 'string' && a.css ? a.css : undefined
+    const reflow = a.reflow !== false
+    // several slides sharing one stylesheet: the deck written as one document
+    if (a.slides !== undefined) {
+      if (!Array.isArray(a.slides) || !a.slides.length) return fail('slides must be a list of {slideId, html}.')
+      if (a.slideId !== undefined || a.html !== undefined) return fail('Give either slideId and html, or slides — not both.')
+      const list = a.slides as Array<{ slideId?: unknown; html?: unknown }>
+      if (list.some((x) => !x || typeof x !== 'object')) return fail('slides must be a list of {slideId, html}.')
+      const total = list.reduce((n, x) => n + (typeof x.html === 'string' ? x.html.length : 0), 0) + (css?.length ?? 0)
+      if (total > MAX_SLIDE_HTML) return fail(`The HTML is too long (at most ${MAX_SLIDE_HTML} characters in one call, pictures included).`)
+      const parts: string[] = []
+      let wrote = 0, elements = 0
+      for (const x of list) {
+        const r = await writeSlideHtml(ctx, x.slideId, { html: x.html as string, ...(css ? { css } : {}) }, reflow)
+        if (r.ok) { wrote++; elements += r.n; parts.push(r.summary) }
+        else parts.push(`${String(x.slideId)}: not written — ${r.error}`)
+      }
+      if (!wrote) return fail(parts.join('\n\n'))
+      return {
+        ok: true,
+        summary: [`Wrote ${wrote} of ${list.length} slides (each its own undo step).`, ...parts].join('\n\n'),
+        toast: t('AI wrote {n} slides from HTML', { n: String(wrote) }),
+      }
     }
+    const src: HtmlSlideSource = { html: a.html as string, ...(css ? { css } : {}) }
+    if ((typeof src.html === 'string' ? src.html.length : 0) + (css?.length ?? 0) > MAX_SLIDE_HTML) return fail(`The HTML is too long (at most ${MAX_SLIDE_HTML} characters, pictures included).`)
+    const r = await writeSlideHtml(ctx, a.slideId, src, reflow)
+    if (!r.ok) return r
+    return { ok: true, summary: r.summary, toast: t('AI wrote a slide from HTML ({n} elements)', { n: String(r.n) }) }
   },
 
   async read(ctx, a) {

@@ -619,7 +619,8 @@ export function resolveMath(html: string): string {
 // The output is also re-run through renderer steps that splice strings —
 // resolveMath (`$…$`) and the field markers (`{{…}}`) — so a kept attribute
 // can never carry `$`, `{`, `}` or a quote: an href percent-encodes them and a
-// style is built only from digits, hex and fixed keywords.
+// style is built only from digits, hex, fixed keywords and font names made
+// of plain words (letters, digits, hyphens; no quotes).
 
 /** Tag → the attributes it may keep. Not in the map = not allowed. */
 const RICH_TAGS: Readonly<Record<string, readonly string[]>> = {
@@ -715,16 +716,65 @@ export function sanitizeRunFontSize(raw: string): string | null {
   return `${Math.round(n * 100) / 100}${unit}`
 }
 
+/** One family name: words of letters, digits and hyphens (a CSS identifier
+ *  each, so it needs no quotes), or a generic family. */
+const RUN_FAMILY_WORD = /^-?[a-z_][a-z0-9_-]*$/i
+const RUN_FAMILY_RESERVED = new Set(['inherit', 'initial', 'unset', 'revert', 'default'])
+
+/** A run font family: a list of up to 8 names, each unquoted, at most 64
+ *  characters. A name that is not plain words is left out of the list;
+ *  null when none is left. Written without quotes, as the splice passes
+ *  need (see the block comment above). */
+export function sanitizeRunFontFamily(raw: string): string | null {
+  const out: string[] = []
+  for (const part of raw.split(',').slice(0, 8)) {
+    const name = part.trim().replace(/^(["'])(.*)\1$/, '$2').trim()
+    if (!name || name.length > 64) continue
+    const words = name.split(/\s+/)
+    if (!words.every((w) => RUN_FAMILY_WORD.test(w) && !RUN_FAMILY_RESERVED.has(w.toLowerCase()))) continue
+    out.push(words.join(' '))
+  }
+  return out.length ? out.join(', ') : null
+}
+
+/** A run font weight: a number from 100 to 900, or normal / bold. */
+export function sanitizeRunFontWeight(raw: string): string | null {
+  const v = raw.trim().toLowerCase()
+  if (v === 'normal') return '400'
+  if (v === 'bold') return '700'
+  if (!/^\d{3}$/.test(v)) return null
+  const n = Number(v)
+  return n >= 100 && n <= 900 ? String(n) : null
+}
+
+/** A run letter spacing: px from -20 to 100, or em from -0.5 to 1. */
+export function sanitizeRunLetterSpacing(raw: string): string | null {
+  const m = /^(-?)(\d{1,3}(?:\.\d{1,4})?|\.\d{1,4})(px|em)$/i.exec(raw.trim())
+  if (!m) return null
+  const unit = m[3].toLowerCase()
+  const n = Number(m[1] + m[2])
+  const [lo, hi] = unit === 'px' ? [-20, 100] : [-0.5, 1]
+  if (!(n >= lo && n <= hi)) return null
+  return `${Math.round(n * 1000) / 1000}${unit}`
+}
+
 /**
- * A run's `style`: only `color` and `font-size`, each parsed by its own rule
- * above and written back from the parsed value. Every other property, any
- * `!important`, comment, escape, url(), expression() or behavior is simply
- * not one of the two shapes and is dropped. Returns '' for "no style".
+ * A run's `style`: `color`, `font-size`, `font-family`, `font-weight`,
+ * `font-style` (normal or italic) and `letter-spacing`, each parsed by its
+ * own rule above and written back from the parsed value. Every other
+ * property, any `!important`, comment,
+ * escape, url(), expression() or behavior is simply not one of these shapes
+ * and is dropped. Returns '' for "no style". Older readers keep only colour
+ * and size: the run then shows in the text's own typeface and weight.
  */
 export function sanitizeRunStyle(raw: unknown): string {
   if (typeof raw !== 'string' || raw.length > 1024) return ''
   let color: string | null = null
   let size: string | null = null
+  let family: string | null = null
+  let weight: string | null = null
+  let spacing: string | null = null
+  let fontStyle: string | null = null
   for (const decl of raw.split(';')) {
     const i = decl.indexOf(':')
     if (i < 0) continue
@@ -732,8 +782,15 @@ export function sanitizeRunStyle(raw: unknown): string {
     const value = decl.slice(i + 1)
     if (prop === 'color') color = sanitizeRunColor(value) ?? color
     else if (prop === 'font-size') size = sanitizeRunFontSize(value) ?? size
+    else if (prop === 'font-family') family = sanitizeRunFontFamily(value) ?? family
+    else if (prop === 'font-weight') weight = sanitizeRunFontWeight(value) ?? weight
+    else if (prop === 'letter-spacing') spacing = sanitizeRunLetterSpacing(value) ?? spacing
+    else if (prop === 'font-style' && /^\s*(normal|italic)\s*$/i.test(value)) fontStyle = value.trim().toLowerCase()
   }
-  return [color && `color:${color}`, size && `font-size:${size}`].filter(Boolean).join(';')
+  return [
+    color && `color:${color}`, size && `font-size:${size}`, family && `font-family:${family}`,
+    weight && `font-weight:${weight}`, fontStyle && `font-style:${fontStyle}`, spacing && `letter-spacing:${spacing}`,
+  ].filter(Boolean).join(';')
 }
 
 /** Keep pasted/edited rich text down to the allowlisted subset above. */

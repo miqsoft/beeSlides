@@ -219,6 +219,32 @@ await roundtrip('text', svg('d5', `<svg xmlns="http://www.w3.org/2000/svg" viewB
   ok(texts.length === 2 && texts.some((t) => /Title/.test(t.html) && t.align === 'center' && t.fontWeight === 700) && texts.some((t) => /Left aligned/.test(t.html) && t.align === 'left'), 'text became text elements with the right words, weight and alignment', texts.map((t) => [t.html, t.align]))
 } })
 
+// 5b. markers: arrowheads drawn where SVG draws them, turned with the line
+await roundtrip('markers', svg('d5b', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="context-stroke"/></marker>
+  <marker id="dot" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" refX="4" refY="4"><circle cx="4" cy="4" r="4" fill="#123"/></marker></defs>
+  <line x1="20" y1="20" x2="170" y2="70" stroke="#c40" stroke-width="2" marker-end="url(#ah)" marker-start="url(#ah)"/>
+  <path d="M20 85 L100 85 L100 40" fill="none" stroke="#236" stroke-width="2" marker-mid="url(#dot)" marker-end="url(#ah)"/></svg>`,
+  { x: 200, y: 150, w: 600, h: 300 }), { tol: 0.006, check: (out) => {
+  const heads = out.filter((e) => e.type === 'shape' && e.shape === 'path' && e.stroke === 'none')
+  ok(heads.length === 3 && heads.filter((e) => e.fill === '#cc4400').length === 2 && heads.some((e) => e.fill === '#223366'), 'three arrowheads, painted in their line\'s colour (context-stroke)', heads.map((e) => e.fill))
+  ok(out.some((e) => e.type === 'shape' && e.shape === 'ellipse' && e.fill === '#112233'), 'the middle marker is a dot on the corner')
+} })
+
+// 5c. capitals and tracking set by the diagram's CSS; a pattern becomes a tint
+console.log('\ncaps and patterns')
+await load([svg('d5c', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100"><style>.cap{text-transform:uppercase;letter-spacing:2px;font-size:12px}</style>
+  <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M0 6 L6 0" stroke="#c40" stroke-width="1.5"/></pattern></defs>
+  <text x="10" y="20" class="cap" fill="#555">sent, in order</text><rect x="10" y="40" width="60" height="40" fill="url(#hatch)"/></svg>`, { x: 200, y: 150, w: 600, h: 300 })])
+await convert('d5c')
+{
+  const out = await els()
+  const cap = out.find((e) => e.type === 'text')
+  ok(cap?.html === 'SENT, IN ORDER' && cap.letterSpacing === 6, 'text-transform and letter-spacing carry over (scaled with the drawing)', cap && [cap.html, cap.letterSpacing])
+  const tint = out.find((e) => e.type === 'shape')
+  ok(/^#cc4400[0-9a-f]{2}$/.test(tint?.fill ?? '') && tint.fill !== '#cc4400ff', 'a hatching pattern becomes a light tint of its ink', tint?.fill)
+}
+
 // 6. what cannot be carried over is said, and nothing breaks
 console.log('\nunsupported parts')
 await load([svg('d6', `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><filter id="f"><feGaussianBlur stdDeviation="2"/></filter><radialGradient id="r"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#06c"/></radialGradient></defs>

@@ -288,5 +288,17 @@ console.log('\nnested boxes: tight inset')
   ok(tightOf([outer(), rect('inner', 120, 160, 200, 100), arrow]).length === 0, 'the same arrow into a roomy inner box is clean')
 }
 
+console.log('\nempty band under the title')
+{
+  const bandOf = (els: SlideElement[]) => { const { doc, slide } = setup(els); return checkLayout(doc, slide, { measure }).filter((i) => i.code === 'layout-empty-band') }
+  const title = () => text('t', 96, 100, 1000, 70, { role: 'title' })
+  ok(bandOf([title(), rect('fig', 96, 230, 1088, 400)]).length === 0, 'content 60px under the title and down to the footer: no finding')
+  const low = bandOf([title(), rect('fig', 96, 300, 1088, 330)])
+  ok(low.length === 1 && /starts 130px below the title/.test(low[0].message), 'content starting 130px under the title: an empty band', )
+  const short = bandOf([title(), rect('fig', 96, 220, 1088, 200)])
+  ok(short.length === 1 && /lower 228px of the slide are empty/.test(short[0].message), 'content ending halfway down: the empty lower part')
+  ok(bandOf([text('t', 96, 300, 1000, 120, { role: 'title' }), rect('fig', 96, 560, 600, 40)]).length === 0, 'a title low on the slide (title or statement slide): not checked')
+}
+
 console.log(`\n${checks - failures}/${checks} passed`)
 if (failures) process.exit(1)

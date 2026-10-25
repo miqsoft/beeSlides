@@ -449,7 +449,7 @@ export interface ReflectionSpec {
 export interface TextElement extends ElementBase {
   type: 'text'
   /** Rich text as sanitized HTML — render.ts sanitizeHtml's allowlist:
-   *  b/i/u/s/code/br/div/p, a colour/size span, http(s)/mailto links, lists. */
+   *  b/i/u/s/code/br/div/p, a span with colour, size, font family, weight, style and letter spacing, http(s)/mailto links, lists. */
   html: string
   fontSize: number
   fontFamily: string

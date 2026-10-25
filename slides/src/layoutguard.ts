@@ -962,6 +962,38 @@ export function checkLayout(doc: SlidomingoDoc, slide: Slide, opts: {
     involved: scope, measured, measureEl, canvas, gapUnit: Math.round(16 * (doc.size.width / 1280)), priorFrame: null,
   }))
   out.push(...tightInsetFindings(doc, slide, { involved: scope, canvas, priorFrame: null }))
+  out.push(...emptyBandFindings(doc, slide, canvas, scope))
+  return out
+}
+
+/**
+ * Space a content slide leaves unused (design.md: the evidence fills the
+ * area below the title): an empty band between the title and the content,
+ * or an empty lower part of the slide. Only on slides with a title in the
+ * top part (not title or statement slides), and only when the check covers
+ * the title or the whole slide, since the band is about the slide as a whole.
+ */
+function emptyBandFindings(doc: SlidomingoDoc, slide: Slide, canvas: { width: number; height: number }, scope: Set<string> | null): LayoutFinding[] {
+  const H = canvas.height
+  const title = slide.elements.find((e): e is TextElement => e.type === 'text' && e.role === 'title' && !e.hidden && !!e.html?.replace(/<[^>]*>/g, '').trim())
+  if (!title || title.y + title.h > 0.45 * H || (scope && !scope.has(title.id))) return []
+  const below = slide.elements.filter((e) => e !== title && !e.hidden && !isChrome(e, doc, canvas) && !isFullBleed(e, doc)
+    && e.y >= title.y + title.h - 2 && e.y < 0.92 * H && e.h > 2)
+  if (!below.length) return []
+  const top = Math.min(...below.map((e) => e.y)), bottom = Math.max(...below.map((e) => e.y + e.h))
+  const titleBottom = title.y + title.h
+  const out: LayoutFinding[] = []
+  const gap = Math.round(top - titleBottom)
+  const usual = Math.round(48 * (H / 720))
+  if (gap > 0.14 * H) {
+    out.push({ code: 'layout-empty-band', severity: 'info', slide: slide.id, element: title.id,
+      message: `The content starts ${gap}px below the title "${title.id}", leaving an empty band: move it up to about ${usual}px below the title, or grow the evidence into the space.` })
+  }
+  const empty = Math.round(0.9 * H - bottom)
+  if (empty > 0.2 * H) {
+    out.push({ code: 'layout-empty-band', severity: 'info', slide: slide.id, element: title.id,
+      message: `The lower ${empty}px of the slide are empty: grow the evidence to fill the area below the title, or centre it there.` })
+  }
   return out
 }
 

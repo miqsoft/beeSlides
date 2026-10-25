@@ -20,10 +20,12 @@
 //   one element per SVG element so holes stay holes — editing a compound
 //   path's nodes is the editors' known limit, see editor/CLAUDE.md)
 //   text → a text element (one box, centred on the original text's box)
+//   markers (arrowheads, dots) → their own shapes at each vertex, as drawn
 // all in document order, sharing one groupId so they still move as one.
 //
 // WHAT IS NOT CARRIED OVER, and said so in `notes` rather than dropped quietly:
-// filters, masks, clip paths, patterns, <image>, <use>, markers, radial
+// filters, masks, clip paths, patterns (one tint of their colour), <image>,
+// <use>, radial
 // gradients (one that fades out becomes a soft, blurred shape in its inner
 // colour; any other is flattened to one colour), CSS animations and hover rules, and the
 // element's own shadow/blur/reflection/fx. Nothing here fetches or runs
@@ -32,7 +34,7 @@
 import { defaultShape, defaultText, uid, type ShapeElement, type SlideElement, type SlidomingoDoc, type SvgElement, type TextElement } from './model'
 import { renderElement } from './render'
 import {
-  apply, ellipseSegs, isAxisAligned, mul, parsePath, pointsSegs, rectSegs, rotateAbout, scaleOf, segsBBox, segsToD,
+  apply, ellipseSegs, isAxisAligned, markerVertices, mul, parsePath, pointsSegs, rectSegs, rotateAbout, scaleOf, segsBBox, segsToD,
   transformSegs, translate, type Mat, type Seg,
 } from './svgpath'
 
@@ -77,6 +79,8 @@ interface Ctx {
   root: SVGSVGElement
   notes: Set<string>
   out: SlideElement[]
+  /** inside a marker: what `context-fill` / `context-stroke` paint with */
+  context?: { fill: string; stroke: string }
 }
 
 const lengthOf = (v: SVGAnimatedLength) => v.baseVal.value
@@ -106,6 +110,10 @@ function paintOf(cs: CSSStyleDeclaration, which: 'fill' | 'stroke', alpha: numbe
   const op = parseFloat(cs.getPropertyValue(`${which}-opacity`))
   const a = alpha * (Number.isFinite(op) ? op : 1)
   if (!v || v === 'none') return { kind: 'none' }
+  if ((v === 'context-stroke' || v === 'context-fill') && ctx.context) {
+    const c = v === 'context-stroke' ? ctx.context.stroke : ctx.context.fill
+    return c === 'none' ? { kind: 'none' } : { kind: 'color', color: cssToHex(c, a) ?? c }
+  }
   const url = /^url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(v)
   if (url) return { kind: 'url', id: url[1] }
   const hex = cssToHex(v, a)
@@ -197,6 +205,25 @@ function radialGlowOf(g: Element, root: SVGSVGElement): { color: string; reach: 
   return { color: stops[0].color, reach, cx: frac('cx', 0.5), cy: frac('cy', 0.5) }
 }
 
+/** A pattern (hatching, dots) as one colour: its own background when it
+ *  paints one, else its ink at a third of its strength, which reads as the
+ *  same light tint the strokes make from a distance. */
+function patternTint(g: Element): string {
+  let ink: string | null = null
+  for (const c of Array.from(g.querySelectorAll('*'))) {
+    const cs = getComputedStyle(c)
+    const fill = cs.getPropertyValue('fill').trim(), stroke = cs.getPropertyValue('stroke').trim()
+    const tag = c.localName.toLowerCase()
+    if (tag === 'rect' && fill !== 'none' && cssToHex(fill)) {
+      const r = c as SVGRectElement, p = g as SVGPatternElement
+      if (r.width.baseVal.value >= p.width.baseVal.value && r.height.baseVal.value >= p.height.baseVal.value) return cssToHex(fill)!
+    }
+    const raw = stroke !== 'none' ? stroke : fill
+    if (!ink && raw !== 'none' && cssToHex(raw)) ink = raw
+  }
+  return ink ? cssToHex(ink, 0.35)! : '#000000'
+}
+
 /** A flat colour standing in for a paint server that cannot be carried over. */
 function flatOf(g: Element | null, root: SVGSVGElement): string {
   const stops = g ? stopsOf(g, root) : []
@@ -234,8 +261,9 @@ function styleOf(node: SVGGraphicsElement, m: Mat, box: { x: number; y: number; 
       ctx.notes.add('a radial gradient that fades out became a soft (blurred) shape')
     } else {
       if (g && g.localName.toLowerCase() === 'radialgradient') ctx.notes.add('radial gradients became one flat colour')
-      st.fill = flatOf(g, ctx.root)
-      if (g && g.localName.toLowerCase() === 'pattern') ctx.notes.add('a pattern fill became one flat colour')
+      const pattern = g && g.localName.toLowerCase() === 'pattern'
+      st.fill = pattern ? patternTint(g) : flatOf(g, ctx.root)
+      if (pattern) ctx.notes.add('a pattern fill (hatching, dots) became a light tint of its colour')
     }
   }
   if (sp.kind !== 'none') {
@@ -261,7 +289,74 @@ function unsupportedFor(cs: CSSStyleDeclaration, ctx: Ctx) {
   if (cs.getPropertyValue('filter').trim() && cs.getPropertyValue('filter').trim() !== 'none') ctx.notes.add('filters (blur, shadows…) were dropped')
   if (cs.getPropertyValue('clip-path').trim() && cs.getPropertyValue('clip-path').trim() !== 'none') ctx.notes.add('clip paths were dropped, so some parts may show that were hidden')
   if (cs.getPropertyValue('mask').trim() && cs.getPropertyValue('mask').trim() !== 'none') ctx.notes.add('masks were dropped, so some parts may show that were hidden')
-  if (cs.getPropertyValue('marker-start').trim() !== 'none' || cs.getPropertyValue('marker-mid').trim() !== 'none' || cs.getPropertyValue('marker-end').trim() !== 'none') ctx.notes.add('line markers (arrowheads) were dropped')
+}
+
+const MARKER_PROPS = ['marker-start', 'marker-mid', 'marker-end'] as const
+
+/**
+ * Markers (arrowheads, dots, bars) drawn at the vertices of `segs` (the
+ * node's own coordinates; `m` / `ml` take them to the slide / the element's
+ * box): each marker's shapes become shapes of their own, placed the way SVG
+ * places them — the marker's ref point on the vertex, turned with the path
+ * for `orient="auto"`, scaled by the stroke width for markerUnits
+ * strokeWidth, and its viewBox fitted into markerWidth × markerHeight.
+ */
+function convertMarkers(node: SVGGraphicsElement, segs: Seg[], m: Mat, ml: Mat, alpha: number, ctx: Ctx) {
+  const cs = getComputedStyle(node)
+  const vertices = markerVertices(segs)
+  if (!vertices.length) return
+  const fill = cs.getPropertyValue('fill').trim(), stroke = cs.getPropertyValue('stroke').trim()
+  const strokeWidth = parseFloat(cs.getPropertyValue('stroke-width')) || 1
+  for (const prop of MARKER_PROPS) {
+    const v = cs.getPropertyValue(prop).trim()
+    if (!v || v === 'none') continue
+    const ref = /^url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(v)
+    const marker = ref ? byId(ctx.root, ref[1]) : null
+    if (!marker || marker.localName.toLowerCase() !== 'marker') { ctx.notes.add('a line marker that could not be found was dropped'); continue }
+    const mk = marker as SVGMarkerElement
+    const at = prop === 'marker-start' ? vertices.slice(0, 1) : prop === 'marker-end' ? vertices.slice(-1) : vertices.slice(1, -1)
+    const units = marker.getAttribute('markerUnits') === 'userSpaceOnUse' ? 1 : strokeWidth
+    const vb = mk.viewBox.baseVal
+    const mw = marker.hasAttribute('markerWidth') ? mk.markerWidth.baseVal.value : 3
+    const mh = marker.hasAttribute('markerHeight') ? mk.markerHeight.baseVal.value : 3
+    const fit = vb && vb.width > 0 && vb.height > 0 ? Math.min(mw / vb.width, mh / vb.height) : 1
+    const orient = (marker.getAttribute('orient') ?? '0').trim()
+    const saved = ctx.context
+    ctx.context = { fill, stroke }
+    try {
+      for (const [i, p] of at.entries()) {
+        const turn = orient === 'auto' ? p.angle
+          : orient === 'auto-start-reverse' ? p.angle + (prop === 'marker-start' && i === 0 ? 180 : 0)
+          : parseFloat(orient) || 0
+        const place = mul(mul(mul(translate(p.x, p.y), rotateAbout(turn, 0, 0)), [units * fit, 0, 0, units * fit, 0, 0]),
+          translate(-mk.refX.baseVal.value, -mk.refY.baseVal.value))
+        visitMarker(marker, mul(m, place), mul(ml, place), alpha, ctx)
+      }
+    } catch {
+      ctx.notes.add('a line marker that could not be read was dropped')
+    } finally {
+      ctx.context = saved
+    }
+  }
+}
+
+/** The shapes inside a marker (or a group in it), `m` / `ml` from the
+ *  marker's own coordinates. Markers are never rendered by themselves, so
+ *  their transforms are read from the attributes, not the screen. */
+function visitMarker(parent: Element, m: Mat, ml: Mat, alpha: number, ctx: Ctx) {
+  for (const c of Array.from(parent.children)) {
+    const tag = c.localName.toLowerCase()
+    const g = c as unknown as SVGGraphicsElement
+    const t = g.transform?.baseVal.consolidate()?.matrix
+    const own: Mat = t ? [t.a, t.b, t.c, t.d, t.e, t.f] : [1, 0, 0, 1, 0, 0]
+    const cm = mul(m, own), cml = mul(ml, own)
+    const cs = getComputedStyle(c)
+    if (cs.display === 'none') continue
+    const a = alpha * (parseFloat(cs.opacity) || (cs.opacity === '0' ? 0 : 1))
+    if (tag === 'g') { visitMarker(c, cm, cml, a, ctx); continue }
+    if (!['path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon'].includes(tag)) continue
+    convertGeometry(g, tag, cm, cml, (box) => styleOf(g, cm, box, a, ctx), ctx)
+  }
 }
 
 /** A path shape for `segs` already in slide space. */
@@ -281,7 +376,8 @@ function pathShape(segs: Seg[], st: Style): ShapeElement | null {
   })
 }
 
-function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat, st0: (box: { x: number; y: number; w: number; h: number }) => Style, ctx: Ctx) {
+/** Draws `node` and returns its outline in its own coordinates (for markers). */
+function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat, st0: (box: { x: number; y: number; w: number; h: number }) => Style, ctx: Ctx): Seg[] | null {
   let segs: Seg[] | null = null
   let native: 'rect' | 'ellipse' | null = null
   let rx = 0
@@ -290,7 +386,7 @@ function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat,
   if (tag === 'rect') {
     const r = node as SVGRectElement
     const x = lengthOf(r.x), y = lengthOf(r.y), w = lengthOf(r.width), h = lengthOf(r.height)
-    if (!(w > 0 && h > 0)) return
+    if (!(w > 0 && h > 0)) return null
     let rrx = lengthOf(r.rx), rry = lengthOf(r.ry)
     if (!node.hasAttribute('rx') && node.hasAttribute('ry')) rrx = rry
     if (!node.hasAttribute('ry') && node.hasAttribute('rx')) rry = rrx
@@ -301,7 +397,7 @@ function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat,
     const cx = lengthOf(e.cx), cy = lengthOf(e.cy)
     const erx = tag === 'circle' ? lengthOf((node as SVGCircleElement).r) : lengthOf(e.rx)
     const ery = tag === 'circle' ? erx : lengthOf(e.ry)
-    if (!(erx > 0 && ery > 0)) return
+    if (!(erx > 0 && ery > 0)) return null
     segs = ellipseSegs(cx, cy, erx, ery)
     if (aligned) native = 'ellipse'
   } else if (tag === 'line') {
@@ -311,16 +407,16 @@ function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat,
     segs = pointsSegs(node.getAttribute('points') ?? '', tag === 'polygon')
   } else if (tag === 'path') {
     segs = parsePath(node.getAttribute('d') ?? '')
-    if (!segs) { ctx.notes.add('a path whose data could not be read was skipped'); return }
+    if (!segs) { ctx.notes.add('a path whose data could not be read was skipped'); return null }
   }
-  if (!segs) return
+  if (!segs) return null
   const placed = transformSegs(segs, m)
   const bb = segsBBox(placed)
-  if (!bb) return
+  if (!bb) return null
   const st = st0(bb)
   noteOverflow(segs, ml, st.strokeWidth, ctx)
-  if (tag === 'line' && st.stroke === 'none') return // a line with no stroke draws nothing
-  if (st.fill === 'none' && st.stroke === 'none') return // invisible
+  if (tag === 'line' && st.stroke === 'none') return segs // a line with no stroke draws nothing
+  if (st.fill === 'none' && st.stroke === 'none') return segs // invisible
   if (native === 'rect' || native === 'ellipse') {
     const half = st.strokeWidth / 2
     // a glow: the fading part of the gradient becomes the blur around a smaller shape
@@ -334,11 +430,12 @@ function convertGeometry(node: SVGGraphicsElement, tag: string, m: Mat, ml: Mat,
       ...(st.glow ? { blur: round2(Math.min(box.w, box.h) * 0.18) } : {}),
     })
     ctx.out.push(el)
-    return
+    return segs
   }
   const shape = pathShape(placed, st)
   if (shape && st.glow) shape.blur = round2(Math.min(shape.w, shape.h) * st.glow.reach * 0.18)
   if (shape) ctx.out.push(shape)
+  return segs
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100
@@ -365,6 +462,9 @@ function convertText(node: SVGTextElement, m: Mat, alpha: number, ctx: Ctx) {
   push()
   if (!lines.length) return
   const cs = getComputedStyle(node)
+  // capitals from the diagram's own <style>
+  const tt = cs.textTransform
+  if (tt === 'uppercase' || tt === 'lowercase') lines.forEach((l, i) => { lines[i] = tt === 'uppercase' ? l.toUpperCase() : l.toLowerCase() })
   const fill = paintOf(cs, 'fill', alpha, ctx)
   const color = fill.kind === 'color' ? fill.color : fill.kind === 'url' ? flatOf(byId(ctx.root, fill.id), ctx.root) : null
   if (!color) return // text with no fill draws nothing
@@ -381,7 +481,8 @@ function convertText(node: SVGTextElement, m: Mat, alpha: number, ctx: Ctx) {
   const weight = weightRaw === 'bold' ? 700 : weightRaw === 'normal' ? 400 : Number(weightRaw) || 400
   const lineHeight = lines.length > 1 ? Math.min(2, Math.max(1, round2((bb.height * k) / (lines.length * fontSize)))) : 1.2
   const w = round2(bb.width * k * 1.25 + 8)
-  const h = round2(Math.max(bb.height * k, lines.length * fontSize * lineHeight) + 4)
+  // no padding: labels stacked one line apart must not overlap (text grows to fit if it must)
+  const h = round2(Math.max(bb.height * k, lines.length * fontSize * lineHeight))
   const anchor = cs.getPropertyValue('text-anchor').trim()
   const el: TextElement = defaultText({
     x: round2(ccx - w / 2), y: round2(ccy - h / 2), w, h, rotation: round2(rot), opacity: 1,
@@ -397,6 +498,8 @@ function convertText(node: SVGTextElement, m: Mat, alpha: number, ctx: Ctx) {
     el.x = round2(el.align === 'right' ? edge[0] - w : edge[0])
     el.y = round2(edge[1] - h / 2)
   }
+  const spacing = cs.letterSpacing === 'normal' ? 0 : parseFloat(cs.letterSpacing)
+  if (spacing) el.letterSpacing = round2(spacing * k)
   if (alpha < 1) el.opacity = alpha
   ctx.out.push(el)
 }
@@ -426,7 +529,10 @@ function visit(node: Element, alpha: number, ctx: Ctx) {
   const ms = matrixOf(g, ctx)
   if (!ms) return
   const m = ms[1]
-  convertGeometry(g, tag, m, ms[0], (box) => styleOf(g, m, box, a, ctx), ctx)
+  const segs = convertGeometry(g, tag, m, ms[0], (box) => styleOf(g, m, box, a, ctx), ctx)
+  if (segs && ['path', 'line', 'polyline', 'polygon'].includes(tag) && MARKER_PROPS.some((p) => !['', 'none'].includes(cs.getPropertyValue(p).trim()))) {
+    convertMarkers(g, segs, m, ms[0], a, ctx)
+  }
 }
 
 export function convertSvgToObjects(el: SvgElement, doc: SlidomingoDoc): ConvertResult | { error: string } {

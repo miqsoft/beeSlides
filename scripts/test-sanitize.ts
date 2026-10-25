@@ -414,6 +414,11 @@ ok(sanitizeRunStyle('font-size:150%') === 'font-size:150%', 'a percentage size i
 ok(sanitizeRunStyle('font-size:18.333px') === 'font-size:18.33px', 'a size is rounded on the way through')
 ok(sanitizeRunStyle('color:#111;color:#222') === 'color:#222', 'the last valid declaration wins, as in CSS')
 ok(sanitizeRunStyle('color:#111;color:expression(alert(1))') === 'color:#111', 'an invalid later one does not erase a valid earlier one')
+ok(sanitizeRunStyle(`font-family: "Iowan Old Style", 'Palatino Linotype', Georgia, serif`) === 'font-family:Iowan Old Style, Palatino Linotype, Georgia, serif', 'a font family list is kept, written without quotes')
+ok(sanitizeRunStyle('font-family:"Source Sans 3", -apple-system, sans-serif') === 'font-family:-apple-system, sans-serif', 'a family name that needs quotes (a word starting with a digit) is left out of the list')
+ok(sanitizeRunStyle('font-weight:650;font-style:italic;letter-spacing:.14em') === 'font-weight:650;font-style:italic;letter-spacing:0.14em', 'weight, style and letter spacing are kept')
+ok(sanitizeRunStyle('font-family: Georgia, url(https://evil.example/f.woff), serif') === 'font-family:Georgia, serif', 'url() inside a family list costs only itself')
+ok(sanitizeRunStyle('font-weight:bold;letter-spacing:-1.5px;font-style:normal') === 'font-weight:700;font-style:normal;letter-spacing:-1.5px', 'bold becomes 700, a negative px spacing is kept')
 
 for (const [style, why] of [
   ['color: expression(alert(1))', 'expression()'],
@@ -438,6 +443,18 @@ for (const [style, why] of [
   ['font-size: 99999px', 'a size past the bound'],
   ['font-size: 1e3px', 'an exponent'],
   ['font-size: -12px', 'a negative size'],
+  ['font-family: url(https://evil.example/f.woff)', 'url() as a family'],
+  ['font-family: a$b', 'a dollar in a family'],
+  ['font-family: {{page}}', 'braces in a family'],
+  ['font-family: "Ev\\69l"', 'an escape in a family'],
+  ['font-family: inherit', 'a CSS-wide keyword as a family'],
+  ['font-family: x/**/y', 'a comment in a family'],
+  ['font-weight: 1000', 'a weight past 900'],
+  ['font-weight: 50', 'a weight below 100'],
+  ['font-weight: bolder', 'a relative weight'],
+  ['font-style: oblique 10deg', 'an oblique angle'],
+  ['letter-spacing: 3em', 'a spacing past the bound'],
+  ['letter-spacing: calc(1px)', 'calc() spacing'],
   ['font-size: 12pt', 'a unit not on the list'],
   ['font-size: calc(100vw)', 'calc()'],
   ['font-size: xxx-large', 'a keyword'],

@@ -554,6 +554,14 @@ console.log('-- slide_html (merge, keep, fingerprint; layout faked — the brows
   ok(tw.ok && kept.includes('ph-title') && kept.includes('ph-page') && kept.includes('new') && !kept.includes('old'), 'on a slide that follows a slide type, its placeholders and footer stay; old content goes', kept)
   const big = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: 'x'.repeat(4_000_001) }, ctx)
   ok(!big.ok, 'an over-long source is refused before any layout')
+  // several slides with one stylesheet: each compiled with the shared css
+  const seen: Array<{ id: string; css?: string }> = []
+  const multi = await runAreaOp('slide_html', { op: 'write', css: '.x{color:red}', slides: [{ slideId: 's1', html: '<p>a</p>' }, { slideId: 's2', html: '<p>b</p>' }, { slideId: 'nope', html: '<p>c</p>' }] },
+    { ...ctx, html: { ...html, compile: async (sl, src) => { seen.push({ id: sl.id, css: src.css }); return { elements: [defaultText({ id: `w-${sl.id}`, html: src.html })], notes: [], remember: null } } } }) as { ok: boolean; summary: string }
+  ok(multi.ok && /Wrote 2 of 3 slides/.test(multi.summary) && /nope: not written/.test(multi.summary), 'slides writes each slide and says which could not be written', multi)
+  ok(seen.length === 2 && seen.every((x) => x.css === '.x{color:red}') && store.doc.slides[1].elements.some((e) => e.id === 'w-s2'), 'every slide is laid out with the shared stylesheet')
+  const both = await runAreaOp('slide_html', { op: 'write', slideId: 's1', html: '<p>x</p>', slides: [{ slideId: 's2', html: '<p>y</p>' }] }, ctx)
+  ok(!both.ok, 'slideId with slides is refused as ambiguous')
 }
 
 // ---- 3g. variants ------------------------------------------------------------------

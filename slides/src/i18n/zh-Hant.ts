@@ -49,6 +49,7 @@ export const zhHant: Catalog = {
   "Allow": "允許",
   "Don’t Allow": "不允許",
   "AI wrote a slide from HTML ({n} elements)": "AI 根據 HTML 編寫了投影片（{n} 個元素）",
+  "AI wrote {n} slides from HTML": "AI 根據 HTML 編寫了 {n} 張投影片",
   "AI ran a program on this deck (one undo step)": "AI 在此簡報上執行了一個程式（可一步復原）",
   "Style & canvas": "樣式和畫布",
   "Show the icons in one of the set’s styles — a style only repaints, nothing is redrawn": "以這套圖示的某種樣式顯示圖示 — 樣式只重新上色，不會重新繪製",

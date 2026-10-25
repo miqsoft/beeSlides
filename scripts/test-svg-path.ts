@@ -6,7 +6,7 @@
 // a short `d`. Run (bundled, like test-validate.ts):
 //   slides/node_modules/.bin/esbuild scripts/test-svg-path.ts --bundle --platform=node --format=esm --outfile=/tmp/t.mjs && node /tmp/t.mjs
 import {
-  apply, ellipseSegs, isAxisAligned, mul, parsePath, pointsSegs, rectSegs, rotateAbout, scaleOf, segsBBox, segsToD, transformSegs, translate,
+  apply, ellipseSegs, isAxisAligned, markerVertices, mul, parsePath, pointsSegs, rectSegs, rotateAbout, scaleOf, segsBBox, segsToD, transformSegs, translate,
   type Seg,
 } from '../slides/src/svgpath.ts'
 
@@ -75,6 +75,17 @@ const back = parsePath(segsToD(parsePath('M0 0 C 1.234 5.678 9 9 10 0 Z')!))
 ok(back && JSON.stringify(back) === JSON.stringify([['M', 0, 0], ['C', 1.23, 5.68, 9, 9, 10, 0], ['Z']]), 'round-trips through its own output', back)
 const every = (segs: Seg[]) => segs.every((s) => 'MLCZ'.includes(s[0]))
 ok(every(parsePath('M0 0 q1 1 2 0 t2 0 a3 3 0 0 1 4 0 s1 1 2 2 h1 v1 z')!), 'whatever goes in, only M / L / C / Z comes out')
+
+console.log('-- marker vertices')
+const mv = markerVertices(parsePath('M0 0 L10 0 L10 10')!)
+ok(mv.length === 3 && near(mv[0].angle, 0) && near(mv[2].angle, 90) && near(mv[2].x, 10) && near(mv[2].y, 10), 'start points along the first segment, end along the last (90° = down on a y-down page)', mv)
+ok(near(mv[1].angle, 45), 'a middle vertex takes the bisector', mv[1])
+const mc = markerVertices(parsePath('M0 0 C 0 10 10 10 10 0')!)
+ok(near(mc[0].angle, 90) && near(mc[1].angle, -90), 'a curve: the tangents come from its control points', mc)
+const md = markerVertices(parsePath('M0 0 C 0 0 10 0 10 0')!)
+ok(near(md[0].angle, 0) && near(md[1].angle, 0), 'control points on the end points fall back to the chord', md)
+const ml = markerVertices(parsePath('M20 5 L0 5')!)
+ok(near(Math.abs(ml[1].angle), 180), 'a line drawn right to left ends pointing left', ml)
 
 console.log(failures ? `\n${failures} of ${checks} FAILED` : `\n${checks}/${checks} checks passed`)
 process.exit(failures ? 1 : 0)

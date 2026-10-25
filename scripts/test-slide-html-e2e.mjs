@@ -422,7 +422,7 @@ small{font-size:20px;font-weight:400;color:#7678ED}`,
       ok(m.get('blend')?.blend === 'screen', 'mix-blend-mode → blend')
       ok(this.background?.startsWith?.('radial-gradient') || (await slideOf(sid)).background?.startsWith('radial-gradient'), 'the radial root background → the slide background')
       ok(/#dots: a repeating background pattern was left out/.test(r), 'a tiled pattern is reported, not silently flattened', r)
-      ok(/Text in Georgia inside a text in .* shows in/.test(r), 'a run in another typeface is reported', r)
+      ok(/<span style="[^"]*font-family:Georgia, serif/.test(m.get('mixed')?.html ?? '') && !/Text in Georgia/.test(r), 'a run in another typeface keeps it', m.get('mixed')?.html)
       const num = m.get('num-text')
       ok(num?.align === 'center' && num.valign === 'middle', 'a number centred by flexbox stays centred (align and valign)', num && [num.align, num.valign])
       const rot = m.get('rot-1')
@@ -467,6 +467,48 @@ small{font-size:20px;font-weight:400;color:#7678ED}`,
       const o = m.get('ring-outline')
       ok(o?.stroke === '#264653' && o.strokeWidth === 4 && o.x === 592 && o.radius === 0, 'outline → a stroke-only shape outline-offset away', o && [o.x, o.y, o.w, o.radius])
       ok(/#spin: a CSS animation was left out/.test(r), 'a CSS animation is reported (use fx)', r)
+    },
+  },
+  {
+    name: 'typography',
+    title: 'A serif-italic word in a sans title, tracked caps, a quote from CSS, a dark slide with a grid, a diagram with arrows',
+    html: `<section class="dark">
+  <div id="eyebrow" class="eyebrow">01 · the problem</div>
+  <h1 id="tt">IP makes <em>no</em> promises.</h1>
+  <div id="hd" class="hd"><i></i>Acknowledgments</div>
+  <blockquote id="q">Every byte is numbered.</blockquote>
+  <svg id="arr" viewBox="0 0 300 100" style="position:absolute;left:700px;top:420px;width:450px;height:150px">
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="context-stroke"/></marker></defs>
+    <text x="10" y="20" class="cap">sent, in order</text>
+    <line x1="10" y1="40" x2="280" y2="80" stroke="#E2491D" stroke-width="2" marker-end="url(#ah)"/>
+  </svg>
+</section>`,
+    css: `.dark{position:absolute;inset:0;background-color:#121418;background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:40px 40px;color:#F3F0E8;font-family:Helvetica,Arial,sans-serif}
+.eyebrow{position:absolute;left:96px;top:80px;font:600 14px/1 Menlo,monospace;letter-spacing:.16em;text-transform:uppercase;color:#E2491D}
+h1{position:absolute;left:96px;top:120px;margin:0;font-size:64px;font-weight:700;letter-spacing:-0.03em}
+h1 em{font-family:Georgia,serif;font-style:italic;font-weight:400;letter-spacing:0}
+.hd{position:absolute;left:96px;top:260px;display:flex;align-items:center;gap:12px;font-size:28px;font-weight:650}
+.hd i{display:block;width:24px;height:4px;background:#E2491D}
+blockquote{position:absolute;left:96px;top:340px;margin:0;font:italic 30px Georgia,serif}
+blockquote::before{content:open-quote}blockquote::after{content:close-quote}
+svg .cap{font:600 11px Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;fill:#8A8F98}`,
+    tolerance: 0.03,
+    async check(sid) {
+      const list = await els(sid), m = byId(list)
+      const r = this.result ?? ''
+      const slide = await slideOf(sid)
+      ok(slide.background === '#121418', 'a grid laid over a dark colour keeps the colour as the slide background', slide.background)
+      ok(/repeating pattern on it was left out/.test(r), 'and the grid is reported', r)
+      const t = m.get('tt')
+      ok(/<i><span style="font-family:Georgia, serif;font-weight:400;letter-spacing:0px">no<\/span><\/i>/.test(t?.html ?? ''), 'the serif-italic word keeps its typeface, its lighter weight and its own tracking', t?.html)
+      ok(m.get('eyebrow')?.html === '01 · THE PROBLEM' && m.get('eyebrow').letterSpacing > 2, 'text-transform and letter-spacing on a label', m.get('eyebrow') && [m.get('eyebrow').html, m.get('eyebrow').letterSpacing])
+      const hd = m.get('hd-text')
+      ok(hd && hd.h < 40, 'a heading beside a bar in a flex row stays on one line', hd && [hd.w, hd.h])
+      ok(/\u201C/.test(list.map((e) => e.html ?? '').join('')) && /\u201D/.test(list.map((e) => e.html ?? '').join('')), 'open-quote and close-quote become quotation marks')
+      const cap = list.find((e) => e.type === 'text' && /SENT, IN ORDER/.test(e.html))
+      ok(cap?.letterSpacing > 1, 'a diagram label styled by a class keeps its capitals and tracking', cap && [cap.html, cap.letterSpacing])
+      ok(list.some((e) => e.id.startsWith('arr-') && e.type === 'shape' && e.stroke === 'none' && e.fill.toLowerCase().startsWith('#e2491d')), 'the line marker became an arrowhead in the line\'s colour')
+      ok(!/arrowheads\) were dropped|keeps only bold/.test(r), 'nothing about lost arrowheads or typefaces', r)
     },
   },
 ]
