@@ -8,11 +8,12 @@ import Moveable from 'moveable'
 import Selecto from 'selecto'
 import type { Store } from '../store'
 import { effectiveCanvasSize } from '../store'
-import { t } from '../i18n'
+import { locale, t } from '../i18n'
+import { offlineEnabled } from '../../../kernel/src/net.ts'
 import { ancestorElementIds, defaultShape, effectiveLayout, internAsset, lineDefaultsFor, normalizeCrop, shapeDefaultsFor, uid, type ShapeElement, type Slide, type SlideElement, type TableElement } from '../model'
 import { iconShapes, iconsetInfo } from '../iconset'
 import { lookPreviewUrl } from './iconsetactions'
-import { isBackdrop as isBackdropBox, renderSlide, sanitizeHtml } from '../render'
+import { isBackdrop as isBackdropBox, renderSlide, renderSlideElement, sanitizeHtml, slideRenderContext, type RenderOpts } from '../render'
 import { anim } from '../anim'
 import { previewBuilds, previewSlideFx, type BuildPreview } from '../present'
 import { buildPlan, stepsOf } from '../builds'
@@ -38,6 +39,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg'
 type DrawKind = 'line' | 'path' | 'connector' | 'free' | 'poly'
 import { CommentsUI } from './comments'
 import { FrameCoalescer, inLiveStep } from './livestep'
+import { DomDirt, alwaysRedraw, frameKey, patchNode, sameSig, signature, type Sig } from './canvaspatch'
 import { jsonClone } from '../jsonclone.ts'
 
 /** Editor-only view preference — never in the doc, same idiom as present.ts's
@@ -46,6 +48,18 @@ const SAFE_ZONE_KEY = 'slidomingo-safe-zone'
 const BUILD_BADGES_KEY = 'slidomingo-build-badges'
 /** How close (screen px) an edge or point must come to a line to snap to it. */
 const SNAP_SCREEN_PX = 6
+
+/** The surface on screen and what it was drawn from (SlideCanvas.render). */
+type ShownSurface = {
+  surface: HTMLElement
+  ctxSig: Sig
+  ids: string[]
+  sigs: Sig[]
+  frames: string[]
+  nodes: Array<HTMLElement | null>
+  /** `docEpoch` when it was last drawn or patched */
+  epoch: number
+}
 
 export class SlideCanvas {
   private stage: HTMLElement
@@ -76,7 +90,17 @@ export class SlideCanvas {
   private pendingRender = false
   /** a live step of a continuous panel edit (livestep.ts) redraws at the next
    *  frame; any synchronous render() supersedes it */
-  private readonly liveRender = new FrameCoalescer(() => this.render())
+  private readonly liveRender = new FrameCoalescer(() => this.render('patch'))
+  /** What the surface on screen was drawn from — the diff base of
+   *  render('patch'); null = draw in full next time. */
+  private shown: ShownSurface | null = null
+  /** element nodes someone else's code changed since they were drawn */
+  private readonly domDirt = new DomDirt()
+  /** counts the store's 'doc' events: an unchanged epoch means the model is
+   *  as last drawn, so even `alwaysRedraw` elements need no redraw */
+  private docEpoch = 0
+  /** how often each render path ran — e2e/bench diagnostics only */
+  readonly renderStats = { full: 0, patch: 0, unchanged: 0, patchedNodes: 0 }
   /** space is down and the canvas is armed to pan (see the keydown handler) */
   private spaceHeld = false
   /** a pan drag is in flight — keeps the grabbing cursor through a space release */
@@ -488,11 +512,15 @@ export class SlideCanvas {
     new ResizeObserver(() => this.relayout()).observe(wrap)
 
     store.on('current', () => this.render())
-    store.on('doc', () => (inLiveStep() ? this.liveRender.schedule() : this.render()))
+    store.on('doc', () => {
+      this.docEpoch++
+      if (inLiveStep()) this.liveRender.schedule()
+      else this.render('patch')
+    })
     store.on('look', () => this.render())
     // with a live redraw still waiting, the selection syncs against the new
     // surface — render() runs syncTargets itself
-    store.on('selection', () => (this.liveRender.pending ? this.render() : this.syncTargets()))
+    store.on('selection', () => (this.liveRender.pending ? this.render('patch') : this.syncTargets()))
     // while shapes are dragged, show them as drawn: the styled picture would lag behind
     this.gestureListeners.add((on) => this.scaleHost.classList.toggle('ed-lookview-live', on))
 
@@ -1815,7 +1843,14 @@ export class SlideCanvas {
     if (x1 - x0 < 2 || y1 - y0 < 2) return { rect: null, restore }
     return { rect: { x: Math.round(x0), y: Math.round(y0), width: Math.round(x1 - x0), height: Math.round(y1 - y0) }, restore }
   }
-  render() {
+  /**
+   * Draw the current surface. `'full'` (every outside caller) replaces the
+   * whole slide surface; `'patch'` (the store's 'doc'/'current' events and the
+   * live-step frame) redraws only the elements that changed when the surface
+   * on screen already shows this slide in the same context, and falls back to
+   * the full render whenever it cannot tell (see canvaspatch.ts).
+   */
+  render(mode: 'full' | 'patch' = 'full') {
     this.liveRender.cancel()
     // A slide switch is a hard boundary for an inline edit. Commit against
     // the slide where editing began (or discard if that slide was remotely
@@ -1831,15 +1866,21 @@ export class SlideCanvas {
     if (this.pathEditor?.active) this.pathEditor.cancel() // doc changed under us
     if (this.cropMode?.engaged) this.cropMode.cancel() // same: its rects are stale
     const slide = this.store.slide
-    const next = renderSlide(this.compositeForRender(slide), this.store.doc, {
+    const shown = this.compositeForRender(slide)
+    const opts: RenderOpts = {
       ghostIds: this.ghostIds(), lockedCursorIds: this.lockedCursorIds(), size: effectiveCanvasSize(this.store),
       fieldMarkers: true, showHidden: true, paintHit: true, language: this.store.termPreview ?? undefined,
-    })
+    }
     // hover-reveal slides: preview one set at a time; hidden sets are
     // display:none so they don't block selection
     const sets = [...new Set(slide.elements.map((e) => e.showOnHover).filter(Boolean))] as string[]
-    if (sets.length) {
-      const active = this.store.hoverPreview ?? slide.hover?.default ?? sets[0]
+    const active = sets.length ? this.store.hoverPreview ?? slide.hover?.default ?? sets[0] : null
+    const ctx = slideRenderContext(shown, this.store.doc, opts)
+    const ctxSig = this.contextSignature(shown, ctx, opts, sets, active)
+    if (mode === 'patch' && this.patch(shown, ctx, ctxSig, active)) return
+    this.renderStats.full++
+    const next = renderSlide(shown, this.store.doc, opts)
+    if (active !== null) {
       for (const node of next.querySelectorAll<HTMLElement>('[data-show-on-hover]')) {
         if (node.dataset.showOnHover !== active) node.style.display = 'none'
       }
@@ -1848,9 +1889,98 @@ export class SlideCanvas {
     if (this.surface) this.surface.replaceWith(next)
     else this.scaleHost.appendChild(next)
     this.surface = next
+    this.domDirt.watch(next)
+    this.shown = this.recordShown(next, shown, ctxSig)
     this.updateLookView()
     this.relayout()
     this.syncTargets()
+  }
+
+  /** Everything outside the elements the surface is drawn from. Any change
+   *  here redraws the whole surface. */
+  private contextSignature(shown: Slide, ctx: ReturnType<typeof slideRenderContext>, opts: RenderOpts, sets: string[], active: string | null): Sig {
+    const { slides: _s, layouts: _l, reusableObjects: _r, modified: _m, ...docRest } = this.store.doc
+    // speaker notes are typed live in the notes pane and never drawn here
+    const { elements: _e, notes: _n, ...slideRest } = shown
+    return signature([
+      docRest, slideRest, ctx.fields.page, ctx.fields.pages, ctx.fonts, [...ctx.footerOff], ctx.isType,
+      [...opts.ghostIds ?? []], [...opts.lockedCursorIds ?? []], opts.size, opts.language ?? null,
+      this.store.editingSurface, sets, active, offlineEnabled(), locale(),
+    ])
+  }
+
+  /** The diff base for the next patch: per element its signature, frame and
+   *  node (null when the surface leaves it out). */
+  private recordShown(surface: HTMLElement, shown: Slide, ctxSig: Sig): ShownSurface {
+    const children = Array.from(surface.children) as HTMLElement[]
+    let at = 0
+    const nodes = shown.elements.map((el) => {
+      const n = children[at]
+      if (n && n.dataset.elId === el.id) { at++; return n }
+      return null
+    })
+    return {
+      surface, ctxSig, nodes,
+      ids: shown.elements.map((el) => el.id),
+      sigs: shown.elements.map((el) => signature(el)),
+      frames: shown.elements.map(frameKey),
+      epoch: this.docEpoch,
+    }
+  }
+
+  /** render('patch'): redraw the changed elements into the surface on
+   *  screen. False = the full render must run (nothing was touched then
+   *  except, possibly, some element nodes that the full render replaces). */
+  private patch(shown: Slide, ctx: ReturnType<typeof slideRenderContext>, ctxSig: Sig, active: string | null): boolean {
+    const prev = this.shown
+    if (!prev || !this.surface || prev.surface !== this.surface || !this.surface.isConnected) return false
+    if (!sameSig(prev.ctxSig, ctxSig)) return false
+    const els = shown.elements
+    if (els.length !== prev.ids.length || els.some((el, i) => el.id !== prev.ids[i])) return false
+    const dirt = this.domDirt.take()
+    if (dirt.whole) return false
+    const doc = this.store.doc
+    const modelChanged = prev.epoch !== this.docEpoch
+    prev.epoch = this.docEpoch
+    let patched = 0
+    let moved = false
+    const fresh: Array<[number, Sig]> = []
+    const ok = this.domDirt.own(() => {
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i]
+        const old = prev.nodes[i]
+        const sig = signature(el)
+        if (sameSig(sig, prev.sigs[i]) && !(modelChanged && alwaysRedraw(el)) && !(old && dirt.nodes.has(old))) continue
+        fresh.push([i, sig])
+        const next = renderSlideElement(el, doc, ctx)
+        if (!next !== !old) return false // shown ⇄ left out: the node list changes
+        if (!next || !old) continue
+        if (active !== null) {
+          for (const n of [next, ...next.querySelectorAll<HTMLElement>('[data-show-on-hover]')]) {
+            if (n.dataset.showOnHover && n.dataset.showOnHover !== active) n.style.display = 'none'
+          }
+        }
+        patchNode(old, next)
+        patched++
+        if (frameKey(el) !== prev.frames[i]) moved = true
+      }
+      return true
+    })
+    if (!ok) return false
+    for (const [i, sig] of fresh) {
+      prev.sigs[i] = sig
+      prev.frames[i] = frameKey(els[i])
+    }
+    if (!patched) { this.renderStats.unchanged++; return true }
+    this.renderStats.patch++
+    this.renderStats.patchedNodes += patched
+    // relayout's other work (stage size, zoom, grid, guides, safe zone, snap
+    // lines) reads only what the context signature covers
+    if (moved) this.comments?.refresh()
+    if (this.buildBadgeLayer) this.updateBuildBadges()
+    this.updateLookView()
+    this.syncTargets() // data-sel, table handles, Moveable's rect
+    return true
   }
 
   /** Icon sets: with a style shown (store.iconLook), the icon is painted in
@@ -1992,8 +2122,10 @@ export class SlideCanvas {
     else { this.lineEditor.detach(); this.bezierEditor.detach() }
     const handled = curve || lineLike
     const anyLocked = sel.some((e) => e.locked)
-    this.surface?.querySelectorAll('[data-sel]').forEach((n) => n.removeAttribute('data-sel'))
-    for (const n of this.selectedNodes()) n.dataset.sel = '1'
+    this.domDirt.own(() => {
+      this.surface?.querySelectorAll('[data-sel]').forEach((n) => n.removeAttribute('data-sel'))
+      for (const n of this.selectedNodes()) n.dataset.sel = '1'
+    })
     const selNodes = this.editing || this.pathEditor?.active || cropping || handled ? [] : this.selectedNodes()
     // moveable.target gets the container's children too (live drag/resize
     // cascade — see containerCascadeChildren) but Selecto's own bookkeeping
@@ -2028,7 +2160,7 @@ export class SlideCanvas {
     // Keep Selecto's continue-select memory in lockstep with the store —
     // otherwise shift-click resurrects targets from a previously shown slide.
     this.selecto.setSelectedTargets(selNodes)
-    this.updateTableHandles()
+    this.domDirt.own(() => this.updateTableHandles())
     this.emitViewport()
   }
 

@@ -4,7 +4,7 @@
 // editor canvas, sidebar thumbnails, and Reveal.js sections.
 
 import { offlineEnabled, isRemoteUrl, remoteSrcBlocked } from '../../kernel/src/net.ts'
-import type { ImageElement, ReflectionSpec, SlidomingoDoc, ShapeElement, Slide, SlideElement, SvgElement, TableElement } from './model'
+import type { FooterRole, ImageElement, ReflectionSpec, SlidomingoDoc, ShapeElement, Slide, SlideElement, SvgElement, TableElement } from './model'
 import { tableLayout } from './tablespans'
 import { ancestorChain, footerHidden, morphKey, normalizeCrop, paginates, docLanguage, termText, svgVarValue, SVG_VAR_NAME } from './model'
 import { chartSnapshotSvg } from './charts'
@@ -2033,19 +2033,10 @@ export function renderSlide(slide: Slide, doc: SlidomingoDoc, opts: RenderOpts =
     const v = palette![slot]
     if (v) surface.style.setProperty(`--sl-${slot}`, v)
   }
-  const fields = opts.fields ?? fieldContext(doc, slide, opts.language || undefined)
-  const fonts = opts.fonts ?? resolveSlideFonts(doc, slide)
-  // A slide type (the Layout Manager's surface, its thumbnails) is where the
-  // footer is designed: a switched-off piece stays visible there, dimmed.
-  const isType = !!doc.layouts?.some((l) => l.id === slide.id)
-  const fieldMarkers = opts.fieldMarkers === true ? (isType ? 'name' : 'value') : opts.fieldMarkers
-  const footerOff = footerHidden(doc, slide)
+  const ctx = slideRenderContext(slide, doc, opts)
   for (const el of slide.elements) {
-    if (el.hidden && !opts.showHidden) continue
-    const off = el.type === 'text' && !!el.footerRole && footerOff.has(el.footerRole)
-    if (off && !isType) continue
-    const node = renderElement(el, doc, { ...opts, fields, fonts, fieldMarkers })
-    if (off) node.classList.add('beeslides-el-footer-off')
+    const node = renderSlideElement(el, doc, ctx)
+    if (!node) continue
     const loop = el.fx?.loop
     if (opts.stillTrails && loop?.type === 'motion-path' && loop.trail !== false && !el.showOnHover) {
       surface.appendChild(renderMotionTrail(el, loop.path, size))
@@ -2053,6 +2044,41 @@ export function renderSlide(slide: Slide, doc: SlidomingoDoc, opts: RenderOpts =
     surface.appendChild(node)
   }
   return surface
+}
+
+/** What `renderSlide` works out once per slide and hands every element: the
+ *  field values, the slide type's fonts, the footer pieces switched off. */
+export interface SlideRenderContext {
+  /** the element options: the caller's, with fields/fonts/fieldMarkers filled */
+  opts: RenderOpts
+  fields: FieldContext
+  fonts: { fontFamily?: string; headingFamily?: string }
+  footerOff: Set<FooterRole>
+  /** the slide is a `doc.layouts` entry (a slide type) */
+  isType: boolean
+}
+
+export function slideRenderContext(slide: Slide, doc: SlidomingoDoc, opts: RenderOpts = {}): SlideRenderContext {
+  const fields = opts.fields ?? fieldContext(doc, slide, opts.language || undefined)
+  const fonts = opts.fonts ?? resolveSlideFonts(doc, slide)
+  // A slide type (the Layout Manager's surface, its thumbnails) is where the
+  // footer is designed: a switched-off piece stays visible there, dimmed.
+  const isType = !!doc.layouts?.some((l) => l.id === slide.id)
+  const fieldMarkers = opts.fieldMarkers === true ? (isType ? 'name' : 'value') : opts.fieldMarkers
+  const footerOff = footerHidden(doc, slide)
+  return { opts: { ...opts, fields, fonts, fieldMarkers }, fields, fonts, footerOff, isType }
+}
+
+/** One element of a slide surface exactly as `renderSlide` draws it, or null
+ *  when the surface leaves it out (hidden, a footer piece switched off). The
+ *  editor canvas re-renders single elements through this (canvas.ts render). */
+export function renderSlideElement(el: SlideElement, doc: SlidomingoDoc, ctx: SlideRenderContext): HTMLElement | null {
+  if (el.hidden && !ctx.opts.showHidden) return null
+  const off = el.type === 'text' && !!el.footerRole && ctx.footerOff.has(el.footerRole)
+  if (off && !ctx.isType) return null
+  const node = renderElement(el, doc, ctx.opts)
+  if (off) node.classList.add('beeslides-el-footer-off')
+  return node
 }
 
 /** Dotted route of a motion-path element for static output (which never runs

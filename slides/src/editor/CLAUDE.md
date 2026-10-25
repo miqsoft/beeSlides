@@ -7,6 +7,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 
 - Moveable's control box mounts INSIDE `.ed-stage-scale` with `rootContainer: document.body` and `moveable.zoom = 1/scale` on relayout; mounted outside, its coordinates are garbage.
 - Never reset `moveable.target` to an identical array: listeners re-attach a frame later and a drag started in that frame is swallowed (`syncTargets` checks).
+- Store-driven redraws are `render('patch')`: changed element nodes are redrawn IN PLACE through render.ts `renderSlideElement`. A new input to the surface outside the elements goes into `contextSignature`, an element type that reads other slides or the clock into `canvaspatch.alwaysRedraw`, canvas-made edits of element nodes into `domDirt.own()`; outside callers use `render()` (full). Rig `scripts/test-canvas-patch-e2e.mjs`.
 - `[data-el-id=…]` also matches sidebar thumbnails; scope queries to the surface (`.ed-stage-scale …`, `.beeslides-el[data-el-id]`).
 - Small interactive labels get a padded transparent `link` hit-rect; never put `link` on both a rect and its label text.
 - `.ed-topbar` / `.ed-titlebar` / `.ed-ribbon` z-index is a CEILING (a flex item opens a stacking context even when static). Raising a child menu never escapes it; diagnose with `document.elementsFromPoint()`.
