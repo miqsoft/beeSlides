@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const ja: Catalog = {
+  "Export PowerPoint…": "PowerPoint に書き出す…",
+  "Building PowerPoint…": "PowerPoint を作成中…",
+  "Exported PowerPoint": "PowerPoint を書き出しました",
+  "Exported PowerPoint — note: {w}": "PowerPoint を書き出しました — 注意: {w}",
+  "Animations and builds are not exported": "アニメーションと段階表示は書き出されません",
+  "A background PowerPoint cannot draw was written as its colour": "PowerPoint で描けない背景は、その色として書き出しました",
   "Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.": "このフォルダーを 設定 ▸ アイコンライブラリ でもう一度選んでください — BeeSlides はこれからすべてのデッキで覚えておきます。",
   "This folder is not there any more — pick it again in Settings ▸ Icon library.": "このフォルダーはもうありません — 設定 ▸ アイコンライブラリ でもう一度選んでください。",
   "Choose this folder again — BeeSlides now remembers it for all your decks.": "このフォルダーをもう一度選んでください — BeeSlides はこれからすべてのデッキで覚えておきます。",

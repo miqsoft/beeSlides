@@ -98,7 +98,7 @@ ok(dis.menus.every((m) => noSepBugs(m.items)), 'skeleton has no separator bugs')
 const figure = serializeMenuModel({
   tr: (s) => s, expand: (k) => (k === 'transitions' ? [] : expand(k)), // Editor.expand drops invisible transitions
   state: (id) => {
-    if (id.startsWith('slide.') || id.startsWith('icon.') || id.startsWith('play.') || id === 'file.exportPdf' || id.startsWith('file.exportIcon')) return { visible: false }
+    if (id.startsWith('slide.') || id.startsWith('icon.') || id.startsWith('play.') || id === 'file.exportPdf' || id === 'file.exportPptx' || id.startsWith('file.exportIcon')) return { visible: false }
     if (id.startsWith('arrange.')) return { enabled: false }
     return undefined
   },
@@ -115,7 +115,7 @@ ok(arrangeItems.length === 12 && arrangeItems.every((it) => 'id' in it && !it.en
 ok(figure.menus.every((m) => noSepBugs(m.items)), 'figure mode has no separator bugs')
 
 // visibility: an icon set — the Slide menu holds the icon commands, Export the set's
-const iconsetDeckOnly = new Set(['slide.new', 'slide.changeType', 'slide.saveType', 'slide.layoutManager', 'slide.settings', 'slide.hide', 'file.exportPdf'])
+const iconsetDeckOnly = new Set(['slide.new', 'slide.changeType', 'slide.saveType', 'slide.layoutManager', 'slide.settings', 'slide.hide', 'file.exportPdf', 'file.exportPptx'])
 const iconset = serializeMenuModel({
   tr: (s) => s, expand: (k) => (k === 'transitions' ? [] : expand(k)),
   state: (id) => (iconsetDeckOnly.has(id) || id.startsWith('file.exportFigure') || (id.startsWith('play.') && id !== 'play.sendComments') ? { visible: false } : undefined),

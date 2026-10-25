@@ -26,6 +26,7 @@ import { outlineParts } from './outlinemodel'
 import { paletteOf, paletteSignature, resolveThemeRefs } from '../palette'
 import { SlideCanvas } from './canvas'
 import { exportDeckAsPdfDesktop, exportFigureAsPdfDesktop, exportFigureAsSvg, fitCanvasToContent, slideSnapshotHtml } from './figureexport'
+import { exportPptx } from './pptxexport'
 import { PropsPanel } from './panels'
 import { ElementEdits } from './elementactions'
 import { MiniToolbar, setLegacyQuickBarPlace } from './minitoolbar'
@@ -4127,6 +4128,12 @@ export class Editor {
     fitCanvasToContent(this.store, (2 * 96) / 25.4, (m) => this.toast(m))
   }
 
+  /** File ▸ Export to ▸ PowerPoint: slide types as masters and layouts (pptxexport.ts). */
+  async exportPowerPoint() {
+    this.canvas.commitTextEdit()
+    await exportPptx(this.store.doc, (m) => this.toast(m))
+  }
+
   async exportPdf() {
     if (this.layoutManagerOpen) { this.toast(t('Close the Layout Manager to export PDF')); return }
     this.canvas.commitTextEdit()
@@ -4479,6 +4486,7 @@ export class Editor {
     reg('file.importMarkdown', () => this.importMarkdown())
     reg('file.replaceJson', () => this.openReplaceJson())
     reg('file.exportPdf', () => this.exportPdf(), { visible: () => slidesOnly() && deckOnly(), enabled: noLM })
+    reg('file.exportPptx', () => void this.exportPowerPoint(), { visible: () => slidesOnly() && deckOnly(), enabled: noLM })
     reg('file.exportFigurePdf', () => void this.exportFigure('pdf'), { visible: () => this.isFigure })
     reg('file.exportFigureSvg', () => void this.exportFigure('svg'), { visible: () => this.isFigure })
     reg('file.exportFigureSvgOutlined', () => void this.exportFigure('svg-outlined'), { visible: () => this.isFigure })

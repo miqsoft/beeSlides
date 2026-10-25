@@ -32,11 +32,11 @@
 // re-encodes clipboard images and drops it.
 
 import type { Slide, SlidomingoDoc, SlideElement } from '../model'
-import { fieldContext, renderSlide, resolveFields, sanitizeHtml } from '../render'
+import { renderSlide } from '../render'
 import { emuPerPxFor, writeGvml } from '../../../kernel/src/convert/gvml.ts'
 import type { WElement } from '../../../kernel/src/convert/drawingml-write.ts'
 import { exportFigureSvg } from '../svgexport'
-import { fontFaceCss } from '../fonts'
+import { PNG_MAX_SIDE, altText, drawPicture, nativeContext, pictureArea, rasterize, toNative, withFonts, type Area } from './officeshapes'
 import { t } from '../i18n'
 import { lsJson, lsSetJson } from '../../../kernel/src/storage.ts'
 
@@ -125,10 +125,6 @@ export function copySpecial(format: CopyFormat, doc: SlidomingoDoc, slide: Slide
 
 // ---- pictures ---------------------------------------------------------------------
 
-type Area = { x: number; y: number; w: number; h: number }
-
-const PNG_MAX_SIDE = 8192
-
 /** Inches per slide px. */
 const inchPerPx = (doc: SlidomingoDoc): number => (doc.kind === 'figure' ? 1 / 96 : 7.5 / doc.size.height)
 
@@ -170,78 +166,7 @@ async function buildPicture(doc: SlidomingoDoc, slide: Slide, els: SlideElement[
   }
 }
 
-/** The elements' rotated bounding box, grown by what they paint outside it
- *  (shadows, blur, strokes), in whole slide px. */
-function pictureArea(els: SlideElement[]): Area {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
-  for (const e of els) {
-    const shadows = Array.isArray(e.shadow) ? e.shadow : e.shadow ? [e.shadow] : []
-    const stroke = 'strokeWidth' in e && typeof e.strokeWidth === 'number' ? e.strokeWidth / 2 : 0
-    const pad = Math.max(1, stroke, (e.blur ?? 0) * 2,
-      ...shadows.map((s) => s.blur + Math.max(Math.abs(s.x ?? 0), Math.abs(s.y ?? 0))))
-    const a = ((e.rotation || 0) * Math.PI) / 180
-    const cos = Math.abs(Math.cos(a))
-    const sin = Math.abs(Math.sin(a))
-    const hw = (e.w * cos + e.h * sin) / 2 + pad
-    const hh = (e.w * sin + e.h * cos) / 2 + pad
-    const cx = e.x + e.w / 2
-    const cy = e.y + e.h / 2
-    x0 = Math.min(x0, cx - hw); y0 = Math.min(y0, cy - hh)
-    x1 = Math.max(x1, cx + hw); y1 = Math.max(y1, cy + hh)
-  }
-  const x = Math.floor(x0)
-  const y = Math.floor(y0)
-  return { x, y, w: Math.max(1, Math.ceil(x1) - x), h: Math.max(1, Math.ceil(y1) - y) }
-}
-
-/** An <img> sees no page stylesheet: the deck's embedded fonts go inside. */
-function withFonts(doc: SlidomingoDoc, svg: string): string {
-  const fonts = fontFaceCss(doc)
-  return fonts ? svg.replace(/<svg\b[^>]*>/, (open) => `${open}<style><![CDATA[${fonts.replace(/]]>/g, '')}]]></style>`) : svg
-}
-
-async function rasterize(svg: string, w: number, h: number): Promise<Blob> {
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
-  try {
-    const img = new Image()
-    img.src = url
-    await img.decode()
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-    return await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('toBlob failed'))), 'image/png'))
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
-
 // ---- PowerPoint ---------------------------------------------------------------------
-
-const MATH_RE = /\$[^$\n]+\$/
-
-/** The element as the writer takes it natively, or null: draw a picture of it. */
-function toNative(el: SlideElement, doc: SlidomingoDoc, fields: ReturnType<typeof fieldContext>): WElement | null {
-  const rich = (html: string) => sanitizeHtml(resolveFields(html, fields))
-  switch (el.type) {
-    case 'text': {
-      // $…$ is typeset math: PowerPoint gets it as a picture
-      if (MATH_RE.test(el.html)) return null
-      return { ...el, html: rich(el.html) } as unknown as WElement
-    }
-    case 'shape': return el as unknown as WElement
-    case 'image': {
-      const src = el.src.startsWith('asset:') ? doc.assets?.[el.src.slice(6)] ?? '' : el.src
-      if (!/^data:image\/(png|jpeg|gif)[;,]/i.test(src)) return null
-      return { ...el, src } as unknown as WElement
-    }
-    case 'table': {
-      if (el.rows.some((r) => r.cells.some((c) => MATH_RE.test(c.html)))) return null
-      return { ...el, rows: el.rows.map((r) => ({ ...r, cells: r.cells.map((c) => ({ ...c, html: rich(c.html) })) })) } as unknown as WElement
-    }
-    default: return null
-  }
-}
 
 /** The package for PowerPoint (native where the writer can, a picture of
  *  the rest) and a PNG of the whole selection for every other app. */
@@ -249,21 +174,18 @@ async function buildPowerPoint(doc: SlidomingoDoc, slide: Slide, els: SlideEleme
   const ids = drawnIds(slide, els ?? slide.elements)
   const picked = slide.elements.filter((e) => ids.has(e.id))
   if (!picked.length) throw new Error('nothing visible to copy')
-  const fields = fieldContext(doc, slide)
+  const ctx = nativeContext(doc, slide)
   const out: WElement[] = []
   const warnings: string[] = []
   for (const el of picked) {
     // an empty placeholder is only a prompt on the canvas
     if (el.type === 'text' && el.placeholder && !el.html.replace(/<[^>]*>/g, '').trim()) continue
-    const native = toNative(el, doc, fields)
+    const native = toNative(el, doc, ctx)
     if (native) { out.push(native); continue }
-    const a = pictureArea([el])
-    const one = await exportFigureSvg(doc, slide, { only: new Set([el.id]), area: a, background: false, outlineText: prefs.outlineText }).catch(() => null)
-    if (!one) continue
-    warnings.push(...one.warnings)
-    const scale = Math.min(prefs.scale, PNG_MAX_SIDE / Math.max(a.w, a.h))
-    const png = await rasterize(withFonts(doc, one.svg), Math.max(1, Math.round(a.w * scale)), Math.max(1, Math.round(a.h * scale)))
-    out.push({ type: 'picture', id: el.id, ...a, groupId: el.groupId, png: new Uint8Array(await png.arrayBuffer()), alt: altText(el) })
+    const drawn = await drawPicture(doc, slide, el, { scale: prefs.scale, outlineText: prefs.outlineText })
+    if (!drawn) continue
+    warnings.push(...drawn.warnings)
+    out.push(drawn.picture)
   }
   const emuPerPx = doc.kind === 'figure' ? 9525 : emuPerPxFor(doc.size.height)
   const g = await writeGvml(out, { emuPerPx, theme: doc.theme })
@@ -402,12 +324,6 @@ function dataUrl(b: Blob): Promise<string> {
     r.onerror = () => fail(r.error)
     r.readAsDataURL(b)
   })
-}
-
-function altText(e: SlideElement): string {
-  if (e.type === 'text') return e.html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
-  if (e.type === 'math') return e.tex ?? ''
-  return 'alt' in e && typeof e.alt === 'string' ? e.alt : ''
 }
 
 const round = (n: number): number => Math.round(n * 100) / 100

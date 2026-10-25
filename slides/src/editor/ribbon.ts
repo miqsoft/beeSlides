@@ -128,7 +128,8 @@ declare global {
         Promise<{ ok: true; path: string; name: string } | { cancelled: true } | { error: string }>
       exportFigure?: (req:
         | { kind: 'svg'; svg: string; suggestedName: string }
-        | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string }) =>
+        | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string }
+        | { kind: 'pptx'; bytes: Uint8Array; suggestedName: string }) =>
         Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }>
       /** Copy special ▸ PowerPoint: the drawing package (+ PNG) onto the clipboard in one write. */
       copyOffice?: (req: { gvml: Uint8Array; png?: Uint8Array }) => Promise<{ ok: true } | { refused: true; error: string }>

@@ -9,6 +9,14 @@ every earlier version, and unknown fields are preserved.
 
 ## [Unreleased]
 
+- **Export to PowerPoint:** File ▸ Export to ▸ PowerPoint… saves the deck as
+  a .pptx you can keep editing in PowerPoint. Text, shapes, pictures and
+  tables stay editable; charts, diagrams and formulas come over as pictures.
+  Your slide types become PowerPoint's slide masters and layouts, so New
+  Slide in PowerPoint offers them with their title, text and picture slots.
+  Speaker notes, sections, hidden slides, slide numbers, links between
+  slides and transitions (Morph included) come along; builds and animations
+  do not.
 - **Claude Code and other AI apps outside BeeSlides (desktop app):** turn on
   Settings ▸ AI chat ▸ Advanced ▸ **Allow AI apps outside BeeSlides**, then
   install the BeeSlides plugin in Claude Code

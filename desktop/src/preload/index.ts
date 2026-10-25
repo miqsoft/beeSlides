@@ -380,10 +380,11 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
     ipcRenderer.invoke('slidomingo:save-document-as', req),
 
   /** Figure mode: native Save dialog + write of a finished SVG, or a print of
-   *  the figure's 1:1 HTML page to an exact-size vector PDF. */
+   *  the figure's 1:1 HTML page to an exact-size vector PDF; a deck's .pptx. */
   exportFigure: (req:
     | { kind: 'svg'; svg: string; suggestedName: string }
-    | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string },
+    | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string }
+    | { kind: 'pptx'; bytes: Uint8Array; suggestedName: string },
   ): Promise<{ ok: true; path: string } | { cancelled: true } | { error: string }> =>
     ipcRenderer.invoke('slidomingo:export-figure', req),
   /** Copy special ▸ PowerPoint: PowerPoint's own drawing package (+ a PNG

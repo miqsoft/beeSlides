@@ -14192,3 +14192,58 @@ this cannot open the version-2 database (VersionError), so it keeps its
 History in memory only; while such a tab holds the database open, the
 upgrade is blocked and the new shell does the same for that session.
 Rig: `scripts/test-actionlog-store.ts`.
+
+## 2026-10-25 — PowerPoint export: slide types become real masters and layouts
+
+**File ▸ Export to ▸ PowerPoint…** (`file.exportPptx`, decks only; a browser
+downloads, desktop shows the Save dialog through `exportFigure` kind `pptx`)
+writes the deck as a .pptx. Slide types are not flattened: they become
+PowerPoint's own slide masters and layouts, so the file goes on working as a
+template in PowerPoint (New Slide offers the layouts, with their slots). The
+mapping is the importer's tree (2026-09-27) run backwards:
+
+- **Root slide type → slide master**: its decoration, plus at most one title,
+  one body and the footer pieces as the master's own slots (a master allows
+  no others). Its fonts are its theme's.
+- **Every pickable type (and any type a slide uses) → a layout** under its
+  root's master: the decoration of the types between root and it, and EVERY
+  slot of its chain, because PowerPoint layouts declare their slots
+  themselves. Slots are text with a role, a prompt or a `footerRole`, and
+  `role:'media'` slots (`type="pic"`). Footer pieces have fixed idx 10/11/12
+  everywhere; the rest are numbered per layout.
+- **A slide on a type** writes only its own content. Inherited chrome (ids
+  of the chain that are not slots) is left to the master and layout; slot
+  copies fill the layout's slot by type + idx, written without a frame when
+  they sit exactly in the slot's (so they follow the layout), with their own
+  frame when moved, letterboxed or drawn. Footer pieces the slide switches
+  off are left out. A slide with no type lands on a blank layout under a
+  plain master.
+- **Accepted difference:** PowerPoint draws master and layout shapes under
+  every slide shape, so chrome a type paints ABOVE a slot lands below it.
+- Also written: speaker notes, sections, hidden slides (states too), element
+  links as slide jumps, transitions (morph with a fade fallback; shared morph
+  keys named `!!key` so PowerPoint's Morph pairs them), `{{page}}` as
+  PowerPoint's slide-number field, `var(--sl-*)` run colours as their values.
+  Not written: builds and animations (a note says so).
+
+**Kernel/app split.** `kernel/src/convert/pptx-write.ts` spells a package the
+caller has already sorted (`PptxMasterIn` / `PptxLayoutIn` / `PptxSlideIn`,
+slots as `WPh` on the writer's elements); `slides/src/editor/pptxexport.ts`
+does the sorting. Per element, native-or-picture is `editor/officeshapes.ts`,
+shared with Copy special ▸ PowerPoint (which gained the slide type's fonts
+and palette run colours from it). `gvml.ts` keeps only the clipboard
+package; what both share is `opc.ts`.
+
+**Two traps found in PowerPoint itself:** a run must say `b="0"` when it is
+not bold, or a master's bold title style leaks into it (slot `lstStyle`
+too); and a slide slot written without a frame whose layout lacks that slot
+collapses to nothing (the writer now keeps the frame then). A section id one
+hex digit short made PowerPoint demand a repair: Microsoft's Open XML SDK
+validator names such errors exactly, PowerPoint does not.
+
+**Verified:** `scripts/test-convert/write.ts` (the writer; read back through
+convertPptx as a linked tree), `scripts/test-pptx-export-e2e.mjs` (the
+editor's export of a two-level type tree), the Open XML SDK validator
+(0 errors), and PowerPoint for Mac 16.114: opens without repair, renders as
+the editor does, keeps masters/layouts/links/sections/notes on resave, and a
+new slide from an exported layout gets its slots.

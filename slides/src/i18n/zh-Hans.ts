@@ -4,6 +4,12 @@
 import type { Catalog } from '../i18n'
 
 export const zhHans: Catalog = {
+  "Export PowerPoint…": "导出为 PowerPoint…",
+  "Building PowerPoint…": "正在生成 PowerPoint…",
+  "Exported PowerPoint": "已导出 PowerPoint",
+  "Exported PowerPoint — note: {w}": "已导出 PowerPoint — 注意：{w}",
+  "Animations and builds are not exported": "动画和分步显示不会导出",
+  "A background PowerPoint cannot draw was written as its colour": "PowerPoint 无法绘制的背景已按其颜色写入",
   "Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.": "请在 设置 ▸ 图标库 中重新选择此文件夹 — BeeSlides 现在会为你的所有演示文稿记住它。",
   "This folder is not there any more — pick it again in Settings ▸ Icon library.": "此文件夹已不存在 — 请在 设置 ▸ 图标库 中重新选择。",
   "Choose this folder again — BeeSlides now remembers it for all your decks.": "请重新选择此文件夹 — BeeSlides 现在会为你的所有演示文稿记住它。",

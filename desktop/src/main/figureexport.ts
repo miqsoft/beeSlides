@@ -2,10 +2,11 @@
 // Copyright (c) 2026 The BeeSlides authors
 //
 // Figure mode's file export (docs/DECISIONS.md, "Figure mode"). The renderer
-// builds the finished artifact (an SVG string) or a self-contained HTML page
-// of the figure at 1:1; main shows the native Save dialog and writes it. For
-// PDF, main prints that page in a hidden window at the figure's exact size —
-// Chromium keeps text as embedded fonts and SVG as vector paths.
+// builds the finished artifact (an SVG string, a deck's .pptx bytes) or a
+// self-contained HTML page of the figure at 1:1; main shows the native Save
+// dialog and writes it. For PDF, main prints that page in a hidden window at
+// the figure's exact size — Chromium keeps text as embedded fonts and SVG as
+// vector paths.
 
 import { BrowserWindow, app, dialog } from 'electron'
 import { handleFrom } from './ipcguard.ts'
@@ -19,6 +20,7 @@ import { windowForDocWebContents } from './windows.ts'
 export type FigureExportReq =
   | { kind: 'svg'; svg: string; suggestedName: string }
   | { kind: 'pdf'; html: string; widthPx: number; heightPx: number; suggestedName: string }
+  | { kind: 'pptx'; bytes: Uint8Array; suggestedName: string }
 export type FigureExportResult = { ok: true; path: string } | { cancelled: true } | { error: string }
 
 async function printPdf(html: string, widthPx: number, heightPx: number): Promise<Buffer> {
@@ -51,16 +53,17 @@ async function exportFigure(ev: IpcMainInvokeEvent, req: FigureExportReq): Promi
   const win = windowForDocWebContents(ev.sender.id)
   if (!win) return { error: 'no-window' }
   const ext = req.kind
-  const stem = basename(req.suggestedName || 'figure').replace(/\.(svg|pdf)$/i, '')
+  if (req.kind === 'pptx' && !(req.bytes instanceof Uint8Array)) return { error: 'bad request' }
+  const stem = basename(req.suggestedName || 'figure').replace(/\.(svg|pdf|pptx)$/i, '')
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     defaultPath: join(app.getPath('documents'), `${stem}.${ext}`),
-    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    filters: [{ name: ext === 'pptx' ? 'PowerPoint' : ext.toUpperCase(), extensions: [ext] }],
     properties: ['createDirectory', 'showOverwriteConfirmation'],
   })
   if (canceled || !filePath) return { cancelled: true }
   const target = new RegExp(`\\.${ext}$`, 'i').test(filePath) ? filePath : `${filePath}.${ext}`
   try {
-    writeFileAtomic(target, req.kind === 'svg' ? req.svg : await printPdf(req.html, req.widthPx, req.heightPx))
+    writeFileAtomic(target, req.kind === 'svg' ? req.svg : req.kind === 'pptx' ? Buffer.from(req.bytes) : await printPdf(req.html, req.widthPx, req.heightPx))
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) }
   }

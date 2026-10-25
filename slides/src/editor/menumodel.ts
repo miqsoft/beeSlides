@@ -45,6 +45,7 @@ export const COMMANDS: Record<string, CmdMeta> = {
   'file.importMarkdown': { label: 'Import Quarto / Markdown…' },
   'file.replaceJson': { label: 'Replace from JSON…' },
   'file.exportPdf': { label: 'Export PDF…', accel: 'CmdOrCtrl+P' },
+  'file.exportPptx': { label: 'Export PowerPoint…' },
   'file.exportFigurePdf': { label: 'Export figure as PDF…' },
   'file.exportFigureSvg': { label: 'Export figure as SVG…' },
   'file.exportFigureSvgOutlined': { label: 'Export figure as SVG (text as outlines)…' },
@@ -191,7 +192,7 @@ export const MENU_MODEL: MenuSection[] = [
       'file.save', 'file.presentOnly',
       {
         label: 'Export to…', items: [
-          'file.exportPdf', 'file.exportFigurePdf', 'file.exportFigureSvg', 'file.exportFigureSvgOutlined',
+          'file.exportPdf', 'file.exportPptx', 'file.exportFigurePdf', 'file.exportFigureSvg', 'file.exportFigureSvgOutlined',
           'file.exportIconSet', 'file.exportIconSvg',
           '-', 'file.copyJson', 'file.copyJsonLight',
         ],

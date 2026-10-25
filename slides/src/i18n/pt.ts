@@ -7,6 +7,12 @@
 import type { Catalog } from '../i18n'
 
 export const pt: Catalog = {
+  "Export PowerPoint…": "Exportar para PowerPoint…",
+  "Building PowerPoint…": "Criando o PowerPoint…",
+  "Exported PowerPoint": "PowerPoint exportado",
+  "Exported PowerPoint — note: {w}": "PowerPoint exportado — nota: {w}",
+  "Animations and builds are not exported": "Animações e entradas não são exportadas",
+  "A background PowerPoint cannot draw was written as its colour": "Um fundo que o PowerPoint não consegue desenhar foi gravado como a sua cor",
   "Pick this folder again in Settings ▸ Icon library — BeeSlides now remembers it for all your decks.": "Escolha esta pasta de novo em Configurações ▸ Biblioteca de ícones — o BeeSlides agora se lembra dela para todas as suas apresentações.",
   "This folder is not there any more — pick it again in Settings ▸ Icon library.": "Esta pasta não existe mais — escolha-a de novo em Configurações ▸ Biblioteca de ícones.",
   "Choose this folder again — BeeSlides now remembers it for all your decks.": "Escolha esta pasta de novo — o BeeSlides agora se lembra dela para todas as suas apresentações.",
