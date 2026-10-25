@@ -302,7 +302,9 @@ async function driver() {
   ok(!!(await waitFor(async () => (mock.seen.length >= 3 ? true : null), 30000)), 'the model took its three turns')
   const first = mock.seen[0]
   ok(['list_dir', 'read_file', 'grep_files'].every((t) => first.tools.includes(t)), 'with a folder attached the chat is offered list_dir, read_file and grep_files')
-  ok(first.system.includes(realpathSync(attached)) && first.system.includes('never write'), '…and the system prompt names the folder and says read-only')
+  // The folder note's own words: the base prompt says "never write SVG", so a bare 'never write' proves nothing.
+  const folderNote = 'you may READ them (never write)'
+  ok(first.system.includes(realpathSync(attached)) && first.system.includes(folderNote), '…and the system prompt names the folder and says read-only')
   const fsaved = await waitFor(async () => {
     try { const t = JSON.parse(readFileSync(join(userData, 'api-chats', `${fchat.chatId}.json`), 'utf8')); return t.messages.filter((m) => m.role === 'tool').length >= 2 ? t : null } catch { return null }
   }, 10000)
@@ -313,7 +315,7 @@ async function driver() {
   mock.seen.length = 0
   await sendIn(fchat.id, 'hello again')
   ok(!!(await waitFor(async () => (mock.seen.length >= 1 ? true : null), 20000)), 'a request after detaching the folder')
-  ok(!mock.seen[0].tools.some((t) => ['list_dir', 'read_file', 'grep_files'].includes(t)) && !mock.seen[0].system.includes('never write'), '…carries no file tools and no folder note any more')
+  ok(!mock.seen[0].tools.some((t) => ['list_dir', 'read_file', 'grep_files'].includes(t)) && !mock.seen[0].system.includes(folderNote) && !mock.seen[0].system.includes(realpathSync(attached)), '…carries no file tools and no folder note any more')
 
   // ---- settings IPC: invalid commands never persist, no secret leaves main
   const saved = await wc.executeJavaScript(`window.slidomingoDesktop.saveAiProfiles([
