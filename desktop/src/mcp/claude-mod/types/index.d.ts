@@ -7,6 +7,9 @@
 export type Deck = {
   title: string
   file: string
+  /** The path open_deck was given (relative to the session's folder, or
+   *  absolute); '' for a deck the app had open. */
+  path: string
   /** A hidden BeeSlides instance (no window): the pane is all the user sees. */
   background: boolean
   /** Slide size, for the pictures' shape. */
@@ -17,13 +20,21 @@ export type Deck = {
 /** Designs waiting for a pick (variants previews). */
 export type Choice = { slideId: string; labels: string[]; pngs: string[] }
 
+/** One slide of the deck, in order: its id and a title to know it by. */
+export type SlideRow = { id: string; title: string }
+
 /** One comment thread of the slide in view that is not done: open (Claude
  *  has it to do) or waiting for the user's check (Claude marked it fixed). */
 export type Thread = { id: string; text: string; check: boolean; reply: string }
 
-/** A comment of the user's that Claude has not been told about yet. `id`
- *  absent: the app could not save it in the deck, it goes as words only. */
-export type Pending = { kind: 'add' | 'reopen'; slideId: string; text: string; id?: string }
+/** The slide in view as get_slide's summary tells it: its elements to
+ *  comment on, and its speaker notes. */
+export type SlideInfo = { slideId: string; elements: Array<{ id: string; label: string }>; notes: string }
+
+/** A message for Claude it has not had yet: a comment of the user's
+ *  (`add`, `reopen`; `id` absent when the app could not save it), or a
+ *  request in words (`ask`: `text` is the whole message, for the main loop). */
+export type Pending = { kind: 'add' | 'reopen' | 'ask'; slideId: string; text: string; id?: string; elementId?: string; element?: string }
 
 declare module 'claude-code' {
   interface PluginState {
@@ -35,10 +46,24 @@ declare module 'claude-code' {
       latest: Shaped<string | null>
       /** The slide the user swapped to; null = follow the latest. */
       view: Shaped<string | null>
-      /** The deck's slide ids in order, from outline. */
-      order: Shaped<string[]>
+      /** The deck's slides in order, from outline. */
+      order: Shaped<SlideRow[]>
+      /** slide id → its threads not done, for the jump list. */
+      counts: Shaped<Record<string, number>>
       /** The open threads of one slide (the one in view). */
       threads: Shaped<{ slideId: string; items: Thread[] } | null>
+      info: Shaped<SlideInfo | null>
+      /** The element the next comment is about; null = the whole slide. */
+      target: Shaped<{ slideId: string; elementId: string; label: string } | null>
+      /** Which list stands in for the picture: slides to jump to, or
+       *  elements to comment on. */
+      picker: Shaped<'jump' | 'element' | null>
+      /** comment id → the slide's picture when the user wrote it. */
+      befores: Shaped<Record<string, { slideId: string; png: string }>>
+      /** Showing the before picture of the thread to check. */
+      flip: Shaped<boolean>
+      /** The user pressed Hold: Claude stops after its current step. */
+      held: Shaped<boolean>
       /** The thread the comment field reopens, or null for a new comment. */
       reopening: Shaped<string | null>
       pending: Shaped<Pending[]>

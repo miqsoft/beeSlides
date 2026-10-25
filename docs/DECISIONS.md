@@ -13981,3 +13981,23 @@ comment stays on the slide, is checked off, and is seen in the app later.
 Rigs: `claude plugin test claude-plugin` (swap, comment mid-turn, idle
 comment, older app, Accept / Reopen), `desktop/scripts/e2e-background.mjs`
 §6c (the verb against a hidden instance, unlisted).
+
+**Then, the same day** (more ways to steer from the pane):
+
+- **Jump** lists the slides (outline name, else its first text) with the
+  count of threads not done; the slide's speaker notes show under it (from
+  `get_slide` view `summary`, which also gives the elements below).
+- **A comment on one element**: `pane_comment add` takes `elementId` (must
+  be on the slide), so the thread is anchored to it as one made in the app.
+- **Quick reactions** ("more visual", "less text") are ordinary comments;
+  **designs** asks for the slide-designs skill in words, not as a comment.
+- **Before / after**: the pane keeps the slide's picture from when a comment
+  was written (or reopened), so Accept / Reopen can be judged against it.
+- **Hold / go on**: a flag every loop hears once on its next beeslides call
+  (the main loop: finish the step, start nothing new, end the turn; a
+  subagent: finish its slide and say so); go on is a message to the main
+  loop. A hold is a request in words: the pane cannot stop a tool call.
+- **Open** copies the deck file (the path open_deck was given) to a temp
+  folder and opens the copy (`open`, else `xdg-open`). Never the file
+  itself: whatever opens it (the visible app, should it own `.html`) would
+  be a second writer next to the hidden instance.

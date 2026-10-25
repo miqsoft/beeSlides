@@ -6628,7 +6628,7 @@ export class Editor {
         // plugin (desktop/src/mcp/claude-mod): the MCP server takes the verb
         // but never lists it, so the model cannot call it and the agent's own
         // comment verb stays resolve_comment alone. add = a new thread on the
-        // slide flagged for the agent; accept / reopen = the thread footer's
+        // slide (or one of its elements) flagged for the agent; accept / reopen = the thread footer's
         // two buttons on a thread Claude finished (reopen with the user's reply).
         const op = args.op
         const text = typeof args.text === 'string' ? args.text.trim().slice(0, 2000) : ''
@@ -6637,9 +6637,10 @@ export class Editor {
           const slide = slideId ? this.store.doc.slides.find((s) => s.id === slideId) : undefined
           if (!slide) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
           if (!text) { respond({ requestId: cmd.requestId, ok: false, error: 'empty' }); return }
+          if (elementId && !slide.elements.some((el) => el.id === elementId)) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
           const id = uid('cmt')
           this.store.commit(() => {
-            slide.comments = [...(slide.comments ?? []), { id, author: commentAuthor(), text, at, forAgent: true }]
+            slide.comments = [...(slide.comments ?? []), { id, ...(elementId ? { elementId } : {}), author: commentAuthor(), text, at, forAgent: true }]
           })
           this.canvas.refreshComments()
           respond({ requestId: cmd.requestId, ok: true, commentId: id })

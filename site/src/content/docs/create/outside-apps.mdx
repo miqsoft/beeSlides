@@ -69,14 +69,22 @@ status line says so: type `/beeslides` to open it at any width.
 - When Claude offers designs for a slide, the pane shows each one with a
   **Use 1**, **Use 2**, … button and **Keep current**. Press one, or just
   answer with the number. Claude learns your pick either way.
-- **‹ prev** and **next ›** (keys `p` and `n`) swap through the deck;
-  **live** (`l`) follows Claude again.
+- **‹ prev** and **next ›** (keys `p` and `n`) swap through the deck,
+  **jump** (`j`) lists every slide with its open comments, and **live**
+  (`l`) follows Claude again. The slide's speaker notes show under it.
 - Under the slide, type a comment and press Enter. It is saved on that slide
   as a comment for Claude, and Claude reads it right away, even in the middle
-  of building the deck. When Claude has fixed it, the pane shows its reply
-  with **Accept** (`a`) and **Reopen** (`r`): Reopen asks what is still wrong
-  and sends that back. The comments are in the file, so you find them in the
-  app too.
+  of building the deck. **on: slide** (`e`) lets you pick one element of the
+  slide to comment on instead. **more visual** (`v`) and **less text** (`t`)
+  are ready-made comments; **designs** (`d`) asks for other designs for the
+  slide.
+- When Claude has fixed a comment, the pane shows its reply with **Accept**
+  (`a`) and **Reopen** (`r`): Reopen asks what is still wrong and sends that
+  back. **before** (`b`) shows the slide as it was when you wrote the
+  comment. The comments are in the file, so you find them in the app too.
+- **hold** (`h`) asks Claude to stop after the step it is on, so you can look
+  before it builds more; **go on** lets it carry on.
+- **open** (`o`) opens a copy of the deck, as last saved, in your browser.
 
 Pictures appear in terminals that can show images (kitty, Ghostty, iTerm2
 3.5 or newer); elsewhere the pane lists what there is. With BeeSlides open,

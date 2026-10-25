@@ -194,6 +194,14 @@ async function driver() {
     t = await thread()
     ok(t.resolved && !t.awaitingCheck, 'pane_comment accept: resolved, nothing left to check')
     ok((await mcp.tool('pane_comment', { op: 'add', slideId: 'nope', text: 'x' })).isError, 'pane_comment add on a missing slide is refused')
+    // the pane reads elements off get_slide's summary: `  <id> <type> … "text"`
+    const summary = textOf(await mcp.tool('get_slide', { slideId: s0, view: 'summary' }))
+    const textEl = /^ {2}(\S+) text\b.*"Hidden but here"/m.exec(summary)?.[1]
+    ok(!!textEl, `get_slide summary has the element line the pane parses (${summary.split('\n')[1]?.slice(0, 80)})`)
+    const onEl = await mcp.tool('pane_comment', { op: 'add', slideId: s0, elementId: textEl, text: 'Bigger' })
+    const anchored = JSON.parse(textOf(await mcp.tool('comments', { slideId: s0, resolved: false })))
+    ok(!onEl.isError && anchored.some((c) => c.text === 'Bigger' && c.anchor?.type === 'element' && c.anchor.elementId === textEl), 'pane_comment add on an element anchors the thread to it')
+    ok((await mcp.tool('pane_comment', { op: 'add', slideId: s0, elementId: 'nope', text: 'x' })).isError, 'pane_comment add on a missing element is refused')
 
     // ---- 7. the spike: the hidden doc view itself paints and runs rAF
     const doc = webContents.getAllWebContents().find((c) => !c.isDestroyed() && /BeeSlides\.beeslides\.html/.test(c.getURL()))
