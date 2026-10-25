@@ -150,7 +150,8 @@ name entries there).
 
 ## Comments and agents
 
-- Claude gets comments through ONE path: `sendCommentsToClaude` (sets `forAgent`).
+- Claude gets comments through ONE path: `sendCommentsToClaude` (sets `forAgent`). The one other
+  writer is the plugin pane's `pane_comment` verb (user-side, never listed to a model; DECISIONS 2026-10-25).
 - Prompts typed into the terminal must stay free of `'`, `$`, backtick and backslash
   (pty.ts quotes unescaped).
 - `commentAuthor()` is sync and never prompts; empty author is valid.

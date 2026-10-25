@@ -104,7 +104,7 @@ import { buildSaveIndicator, type SaveIndicator } from './saveindicator'
 import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
-import { commentStats, sendCommentsToClaude } from './comments'
+import { commentAuthor, commentStats, sendCommentsToClaude } from './comments'
 import { openPlanIcons } from './iconplan'
 import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, iconExportTip, lookPreviewUrl, planIconsWithAi, setIconCanvas } from './iconsetactions'
 import { ICON_CANVASES, addIconNames, iconCanvasId, iconCanvasUnits, iconsetInfo, type IconCanvasId } from '../iconset'
@@ -6620,6 +6620,44 @@ export class Editor {
           this.store.goTo(i)
           this.canvas.openCommentThread(commentId)
         })
+        respond({ requestId: cmd.requestId, ok: true, commentId })
+        return
+      }
+      case 'pane_comment': {
+        // The USER's comment writes from the BeeSlides pane of the Claude Code
+        // plugin (desktop/src/mcp/claude-mod): the MCP server takes the verb
+        // but never lists it, so the model cannot call it and the agent's own
+        // comment verb stays resolve_comment alone. add = a new thread on the
+        // slide flagged for the agent; accept / reopen = the thread footer's
+        // two buttons on a thread Claude finished (reopen with the user's reply).
+        const op = args.op
+        const text = typeof args.text === 'string' ? args.text.trim().slice(0, 2000) : ''
+        const at = new Date().toISOString()
+        if (op === 'add') {
+          const slide = slideId ? this.store.doc.slides.find((s) => s.id === slideId) : undefined
+          if (!slide) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
+          if (!text) { respond({ requestId: cmd.requestId, ok: false, error: 'empty' }); return }
+          const id = uid('cmt')
+          this.store.commit(() => {
+            slide.comments = [...(slide.comments ?? []), { id, author: commentAuthor(), text, at, forAgent: true }]
+          })
+          this.canvas.refreshComments()
+          respond({ requestId: cmd.requestId, ok: true, commentId: id })
+          return
+        }
+        if (op !== 'accept' && op !== 'reopen') { respond({ requestId: cmd.requestId, ok: false, error: 'op must be add, accept or reopen.' }); return }
+        const commentId = typeof args.commentId === 'string' ? args.commentId : ''
+        const owner = this.store.doc.slides.find((s) => s.comments?.some((c) => c.id === commentId))
+        if (!owner) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-comment' }); return }
+        this.store.commit(() => {
+          const live = owner.comments!.find((c) => c.id === commentId)!
+          delete live.agentDone
+          if (op === 'reopen') {
+            delete live.resolved
+            if (text) live.replies = [...(live.replies ?? []), { id: uid('cmt'), author: commentAuthor(), text, at }]
+          }
+        })
+        this.canvas.refreshComments()
         respond({ requestId: cmd.requestId, ok: true, commentId })
         return
       }

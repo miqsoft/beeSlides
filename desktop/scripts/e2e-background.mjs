@@ -177,6 +177,24 @@ async function driver() {
     ok(inked > 0.05, `the chart's bars are in the off-screen screenshot (${(inked * 100).toFixed(1)}% coloured pixels)`)
     await mcp.tool('deck', { op: 'delete', slideIds: [chartSlide] })
 
+    // ---- 6c. the pane's comments (claude-mod pane_comment): never listed, a
+    //          thread flagged for the agent, Accept / Reopen after resolve_comment
+    ok(!names.includes('pane_comment'), 'pane_comment is not listed: a model cannot call it')
+    const thread = async () => JSON.parse(textOf(await mcp.tool('comments', { slideId: s0 })))[0]
+    const pc = await mcp.tool('pane_comment', { op: 'add', slideId: s0, text: 'Shorter title' })
+    const cid = /"commentId":"([^"]+)"/.exec(textOf(pc))?.[1]
+    let t = await thread()
+    ok(!pc.isError && !!cid && t?.id === cid && t.forAgent && !t.resolved && t.text === 'Shorter title', `pane_comment add: a thread flagged for the agent (${textOf(pc).slice(0, 80)})`)
+    await mcp.tool('resolve_comment', { commentId: cid, reply: 'Cut it' })
+    await mcp.tool('pane_comment', { op: 'reopen', commentId: cid, text: 'Still too long' })
+    t = await thread()
+    ok(!t.resolved && !t.awaitingCheck && t.replies.at(-1)?.text === 'Still too long', 'pane_comment reopen: open again, the feedback as a reply')
+    await mcp.tool('resolve_comment', { commentId: cid })
+    await mcp.tool('pane_comment', { op: 'accept', commentId: cid })
+    t = await thread()
+    ok(t.resolved && !t.awaitingCheck, 'pane_comment accept: resolved, nothing left to check')
+    ok((await mcp.tool('pane_comment', { op: 'add', slideId: 'nope', text: 'x' })).isError, 'pane_comment add on a missing slide is refused')
+
     // ---- 7. the spike: the hidden doc view itself paints and runs rAF
     const doc = webContents.getAllWebContents().find((c) => !c.isDestroyed() && /BeeSlides\.beeslides\.html/.test(c.getURL()))
     ok(!!doc, 'the doc view exists')

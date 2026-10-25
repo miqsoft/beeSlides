@@ -4,6 +4,7 @@
 // The BeeSlides pane (hooks/register.tsx), against the engine's own test kit:
 //   claude plugin test claude-plugin
 import { expect, mock, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 const TOOL = 'mcp__plugin_beeslides_beeslides__'
 /** A 1×1 PNG, base64. */
@@ -78,8 +79,9 @@ test('previews become buttons; a press picks through the tool and tells Claude',
   await ui.press({ key: 'use-1' })
   expect(calls).toEqual([{ tool: 'variants', args: { op: 'pick', slideId: 's2', index: 2 } }])
   expect(prompts[0]).toContain('I picked design 2 (Timeline) for slide s2')
-  // the choice is gone once picked
-  expect(await ui.findAll({ type: 'Button' })).toHaveLength(0)
+  // the choice is gone once picked: the slide view is back
+  expect(await ui.find({ type: 'Button', key: 'use-0' })).toBeUndefined()
+  expect(await ui.find({ type: 'Button', key: 'next' })).toBeDefined()
   await ui.unmount()
 })
 
@@ -118,6 +120,7 @@ test('without the window, the pane opens at once and shows each slide as it is w
   }))
   on('tool.call', { tool: `${TOOL}slide_html` }, () => ({ result: [{ type: 'text', text: 'Wrote s1 from HTML as one undo step' }] }))
   on('mcp.call', (_, e) => {
+    if (e.tool !== 'render_preview') return { value: { content: [{ type: 'text', text: '[]' }], isError: false } }
     renders.push(e.args)
     return { value: { content: [{ type: 'image', data: PNG, mimeType: 'image/png' }], isError: false } }
   })
@@ -164,4 +167,128 @@ test('on a narrow terminal the pane waits and the status line says how to see it
   wide = true
   await $.command.run({ command: 'beeslides', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 120 } })
   expect(statuses.at(-1)).toBeUndefined()
+})
+
+/** The beeslides server as $.mcp.call reaches it: a slide order, pictures,
+ *  comment threads, and pane_comment's answer; every call kept. */
+function server(on: Parameters<TestBody>[1], o: { threads?: unknown[]; comment?: { text: string; isError?: boolean } } = {}) {
+  const calls: Array<{ tool: string; args: Record<string, unknown> }> = []
+  on('mcp.call', (_, e) => {
+    calls.push({ tool: e.tool, args: e.args })
+    const text = (t: string, isError = false) => ({ value: { content: [{ type: 'text', text: t }], isError } })
+    if (e.tool === 'outline') return text(JSON.stringify([{ id: 's1', index: 0 }, { id: 's2', index: 1 }, { id: 's3', index: 2 }]))
+    if (e.tool === 'render_preview') return { value: { content: [{ type: 'image', data: PNG, mimeType: 'image/png' }], isError: false } }
+    if (e.tool === 'comments') return text(JSON.stringify(o.threads ?? []))
+    if (e.tool === 'pane_comment') return text(o.comment?.text ?? JSON.stringify({ commentId: 'cmt_1' }), o.comment?.isError)
+    return text('{}')
+  })
+  return calls
+}
+
+const reviewed = (slideId: string) => ({
+  result: { content: [{ type: 'text', text: `Slide "${slideId}" (1280x720) — elements` }, { type: 'image', data: PNG, mimeType: 'image/png' }], isError: false },
+})
+
+test('prev / next swap through the deck; live follows the agent again', async ($, on) => {
+  const clock = mock.clock(on)
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('tool.call', { tool: `${TOOL}review_slide` }, (_, e) => reviewed(String((e as unknown as { slideId: string }).slideId)))
+  const calls = server(on)
+  await $.tool.call({ tool: `${TOOL}review_slide`, slideId: 's2' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Button', key: 'live' })).toBeUndefined()
+  await ui.press({ key: 'next' })
+  await clock.settle()
+  expect(await ui.find({ type: 'Text', text: /s3 · 3\/3/ })).toBeDefined()
+  // no picture of s3 yet: the pane made one, without taking it for the latest
+  expect(calls.filter((c) => c.tool === 'render_preview')).toEqual([{ tool: 'render_preview', args: { slideId: 's3' } }])
+  expect((await ui.find({ type: 'Button', key: 'live' }))?.text).toContain('s2')
+  await ui.press({ key: 'prev' })
+  await ui.press({ key: 'prev' })
+  expect(await ui.find({ type: 'Text', text: /s1 · 1\/3/ })).toBeDefined()
+  await ui.press({ key: 'live' })
+  expect(await ui.find({ type: 'Text', text: /s2 · 2\/3/ })).toBeDefined()
+  expect(await ui.find({ type: 'Button', key: 'live' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a comment while Claude works is saved on the slide and rides on its next beeslides call', async ($, on) => {
+  const prompts: string[] = []
+  let threads: unknown[] = []
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('prompt.submit', (_, e) => { prompts.push(e.text); return { text: e.text } })
+  on('tool.call', { tool: `${TOOL}review_slide` }, () => reviewed('s1'))
+  on('tool.call', { tool: `${TOOL}doc_info` }, () => ({ result: [{ type: 'text', text: '{}' }] }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.complete', () => ({ text: '' }))
+  const calls: Array<{ tool: string; args: Record<string, unknown> }> = []
+  on('mcp.call', (_, e) => {
+    calls.push({ tool: e.tool, args: e.args })
+    if (e.tool === 'pane_comment') threads = [{ id: 'cmt_1', text: 'Shorter title', resolved: false, awaitingCheck: false, replies: [] }]
+    const text = e.tool === 'pane_comment' ? JSON.stringify({ commentId: 'cmt_1' }) : JSON.stringify(threads)
+    return { value: { content: [{ type: 'text', text }], isError: false } }
+  })
+  await $.tool.call({ tool: `${TOOL}review_slide`, slideId: 's1' })
+  await $.turn.start({ text: 'build the deck', turnId: 't1' })
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const field = await ui.find({ type: 'Input' })
+  await ui.input({ key: field!.key!, text: 'Shorter title' })
+  expect(calls.find((c) => c.tool === 'pane_comment')?.args).toEqual({ op: 'add', slideId: 's1', text: 'Shorter title' })
+  expect(prompts).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /○ Shorter title/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /1 comment\(s\) wait/ })).toBeDefined()
+
+  const r = await $.tool.call({ tool: `${TOOL}doc_info` })
+  expect(r.context?.join('\n')).toContain('(comment cmt_1, flagged for you): "Shorter title"')
+  // told once: the next call and the turn's end carry nothing more
+  const again = await $.tool.call({ tool: `${TOOL}doc_info` })
+  expect(again.context ?? []).toEqual([])
+  await $.turn.complete({ answer: 'done', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' } as Parameters<typeof $.turn.complete>[0])
+  expect(prompts).toEqual([])
+  await ui.unmount()
+})
+
+test('an idle comment goes as a prompt; an app without pane_comment gets it as words', async ($, on) => {
+  const prompts: string[] = []
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('prompt.submit', (_, e) => { prompts.push(e.text); return { text: e.text } })
+  on('tool.call', { tool: `${TOOL}review_slide` }, () => reviewed('s2'))
+  server(on, { comment: { text: 'Error: Unknown verb: pane_comment', isError: true } })
+  await $.tool.call({ tool: `${TOOL}review_slide`, slideId: 's2' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const field = await ui.find({ type: 'Input' })
+  await ui.input({ key: field!.key!, text: 'Use the logo' })
+  expect(prompts).toHaveLength(1)
+  expect(prompts[0]).toContain('slide s2 in the BeeSlides pane: "Use the logo"')
+  expect(prompts[0]).not.toContain('resolve_comment')
+  expect(await ui.find({ type: 'Text', text: /cannot save pane comments yet/ })).toBeDefined()
+  await ui.unmount()
+})
+
+test('a thread Claude finished shows its reply with Accept and Reopen', async ($, on) => {
+  const prompts: string[] = []
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('prompt.submit', (_, e) => { prompts.push(e.text); return { text: e.text } })
+  on('tool.call', { tool: `${TOOL}review_slide` }, () => reviewed('s1'))
+  const calls = server(on, { threads: [
+    { id: 'cmt_1', text: 'Shorter title', resolved: true, awaitingCheck: true, replies: [{ author: 'Claude', text: 'Cut it to four words', at: '' }] },
+    { id: 'cmt_2', text: 'Done long ago', resolved: true, awaitingCheck: false, replies: [] },
+  ] })
+  await $.tool.call({ tool: `${TOOL}review_slide`, slideId: 's1' })
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Claude: Cut it to four words/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Done long ago/ })).toBeUndefined()
+
+  await ui.press({ key: 'reopen-cmt_1' })
+  expect(await ui.find({ type: 'Button', key: 'cancel' })).toBeDefined()
+  const field = await ui.find({ type: 'Input' })
+  await ui.input({ key: field!.key!, text: 'Still too long' })
+  expect(calls.find((c) => c.tool === 'pane_comment')?.args).toEqual({ op: 'reopen', commentId: 'cmt_1', text: 'Still too long' })
+  expect(prompts[0]).toContain('reopened comment cmt_1 on slide s1')
+
+  await ui.press({ key: 'accept-cmt_1' })
+  expect(calls.filter((c) => c.tool === 'pane_comment').at(-1)?.args).toEqual({ op: 'accept', commentId: 'cmt_1' })
+  await ui.unmount()
 })

@@ -13,6 +13,7 @@
 //   review_slide / render_preview  → the latest screenshot
 //   variants {op:"previews"}       → the designs to pick from
 //   doc_info / open_deck           → the deck line
+//   outline                        → the slide order
 // Without the window (background) nobody would see a slide until the agent
 // reviews it, so after each slide write the pane asks for a picture of that
 // slide itself (render_preview through $.mcp.call): the user watches the deck
@@ -21,12 +22,20 @@
 // in a prompt. Pictures draw on the terminal only; other surfaces get the
 // words.
 //
+// Prev / Next swap through the deck (pictures kept per slide, a missing one
+// made with render_preview); Live follows the agent again. Under the slide
+// the user comments on it (DECISIONS 2026-10-25): the comment is a real deck
+// comment flagged for the agent (pane_comment, a verb the server takes but
+// never lists), and the model hears of it at once: after its next beeslides
+// call while it works (the call's `context`), else as a prompt. A thread
+// Claude resolved shows its reply with Accept / Reopen, as in the app.
+//
 // Source: desktop/src/mcp/claude-mod/, copied into claude-plugin/ by
 // scripts/build-claude-plugin.mjs.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Choice, Deck, Shot } from '../types'
+import type { Choice, Deck, Pending, Thread } from '../types'
 
 const PANE = 'beeslides'
 const TITLE = 'BeeSlides'
@@ -37,16 +46,28 @@ const TOOLS = /^mcp__plugin_beeslides_beeslides__/
 // Change a tag when that value's fields change: a reload keeps what the
 // earlier version stored, and the tag declines it.
 const deck = atom({ plugin: 'beeslides', key: 'deck' } as const, null, { shape: 'deck-1' })
-const shot = atom({ plugin: 'beeslides', key: 'shot' } as const, null, { shape: 'shot-1' })
+const shots = atom({ plugin: 'beeslides', key: 'shots' } as const, {}, { shape: 'shots-1' })
+const latest = atom({ plugin: 'beeslides', key: 'latest' } as const, null, { shape: 'latest-1' })
+const view = atom({ plugin: 'beeslides', key: 'view' } as const, null, { shape: 'view-1' })
+const order = atom({ plugin: 'beeslides', key: 'order' } as const, [], { shape: 'order-1' })
+const threads = atom({ plugin: 'beeslides', key: 'threads' } as const, null, { shape: 'threads-1' })
+const reopening = atom({ plugin: 'beeslides', key: 'reopening' } as const, null, { shape: 'reopening-1' })
+const pending = atom({ plugin: 'beeslides', key: 'pending' } as const, [], { shape: 'pending-1' })
 const choice = atom({ plugin: 'beeslides', key: 'choice' } as const, null, { shape: 'choice-1' })
 const note = atom({ plugin: 'beeslides', key: 'note' } as const, '', { shape: 'note-1' })
 const log = atom({ plugin: 'beeslides', key: 'log' } as const, [], { shape: 'log-1' })
 
 /** How many progress lines the pane keeps. */
 const LOG_MAX = 40
-/** Tools that change one slide: in background mode the pane shows the slide
- *  afterwards. */
+/** How many slide pictures the pane keeps. */
+const SHOTS_MAX = 80
+/** How many threads the pane lists under the slide. */
+const THREADS_MAX = 3
+/** Tools that change one slide: its picture is stale afterwards, and in
+ *  background mode the pane shows the slide. */
 const SLIDE_WRITES = new Set(['slide_html', 'write_slide', 'update_element', 'insert_elements', 'set_frame', 'delete_element', 'duplicate_element', 'reorder_element', 'elements', 'icons'])
+/** Tools after which the slide order may have changed. */
+const ORDER_CHANGES = new Set(['deck', 'slide_html', 'write_slide', 'open_deck', 'apply_change_pattern'])
 
 type Block = { type?: unknown; text?: unknown; data?: unknown; source?: { data?: unknown } }
 
@@ -97,6 +118,34 @@ function deckOf(text: string): Deck | null {
   }
 }
 
+/** outline's JSON → the slide ids in order, or null when it is not that. */
+function orderOf(text: string): string[] | null {
+  try {
+    const rows = JSON.parse(text) as unknown
+    if (!Array.isArray(rows)) return null
+    return rows.flatMap((r) => (r && typeof (r as { id?: unknown }).id === 'string' ? [(r as { id: string }).id] : []))
+  } catch {
+    return null
+  }
+}
+
+/** comments' JSON → the threads not done, oldest first. */
+function threadsOf(text: string): Thread[] {
+  try {
+    const rows = JSON.parse(text) as unknown
+    if (!Array.isArray(rows)) return []
+    return rows.flatMap((r) => {
+      const c = r as { id?: unknown; text?: unknown; resolved?: unknown; awaitingCheck?: unknown; replies?: Array<{ author?: unknown; text?: unknown }> }
+      if (typeof c?.id !== 'string' || typeof c.text !== 'string') return []
+      if (c.resolved && !c.awaitingCheck) return []
+      const claude = (Array.isArray(c.replies) ? c.replies : []).filter((x) => x?.author === 'Claude' && typeof x.text === 'string').at(-1)
+      return [{ id: c.id, text: c.text, check: c.awaitingCheck === true, reply: typeof claude?.text === 'string' ? claude.text : '' }]
+    })
+  } catch {
+    return []
+  }
+}
+
 /** Opens the pane unasked, once per load. Claude Code seats an unasked pane
  *  only on a wide terminal (144 columns, 110 once asked) and keeps it waiting
  *  otherwise: then the status line says how to see it. Never fails. */
@@ -131,30 +180,166 @@ function lineFor(name: string, a: Record<string, unknown>, text: string): string
     case 'review_slide': return `Reviewed${slide}`
     case 'propose_variants': return `Proposed designs for${slide}`
     case 'variants': return op === 'pick' ? `Picked a design for${slide}` : null
+    case 'resolve_comment': return 'Finished a comment'
     case 'validate': return 'Checked the whole deck'
     case 'execute': return 'Ran a program on the deck'
     default: return SLIDE_WRITES.has(name) ? `${name}${op ? ` ${op}` : ''}${slide}` : null
   }
 }
 
+/** The slide the pane shows: the one the user swapped to, else the latest. */
+async function shown($: EngineInterface): Promise<string | null> {
+  return (await read($, view)) ?? (await read($, latest))
+}
+
+/** Keeps a slide's picture; the oldest go past SHOTS_MAX. */
+const keepShot = ($: EngineInterface, id: string, png: string) =>
+  update($, shots, (m) => {
+    const { [id]: _old, ...rest } = m ?? {}
+    const all = Object.entries({ ...rest, [id]: png })
+    return Object.fromEntries(all.slice(-SHOTS_MAX))
+  })
+
 /** Slides waiting for a picture, and whether one is being made: one at a
- *  time, the latest write of each slide only. */
-const toRender = new Set<string>()
+ *  time, the latest write of each slide only. A picture the agent's writes
+ *  made becomes the latest; one the user swapped to (`quiet`) does not. */
+const toRender = new Map<string, boolean>()
 let rendering = false
 async function renderNext($: EngineInterface): Promise<void> {
   if (rendering) return
   rendering = true
   try {
-    for (let id = toRender.values().next().value; id !== undefined; id = toRender.values().next().value) {
+    for (let next = toRender.entries().next().value; next !== undefined; next = toRender.entries().next().value) {
+      const [id, quiet] = next
       toRender.delete(id)
       const r = await $.mcp.call(SERVER, 'render_preview', { slideId: id }).catch(() => null)
       const png = r && !r.isError ? pngsOf(r.content as Block[])[0] : undefined
-      if (png) await update($, shot, () => ({ png, slideId: id }))
+      if (!png) continue
+      await keepShot($, id, png)
+      if (!quiet) await setLatest($, id)
     }
   } finally {
     rendering = false
   }
 }
+const queueRender = ($: EngineInterface, id: string, quiet: boolean) => {
+  toRender.set(id, (toRender.get(id) ?? true) && quiet)
+  $.clock.after(0, () => { void renderNext($) })
+}
+
+/** The agent's newest slide; when the pane follows it, that slide's threads. */
+async function setLatest($: EngineInterface, id: string): Promise<void> {
+  const before = await shown($)
+  await update($, latest, () => id)
+  if ((await read($, view)) === null && before !== id) await loadThreads($, id)
+}
+
+/** The open threads of `slideId`, fresh from the deck. */
+async function loadThreads($: EngineInterface, slideId: string): Promise<void> {
+  const r = await $.mcp.call(SERVER, 'comments', { slideId }).catch(() => null)
+  const items = r && !r.isError ? threadsOf(textOf(r.content as Block[])) : []
+  await update($, threads, () => ({ slideId, items }))
+}
+
+/** The slide order, asked for when the agent may have changed it. */
+let orderStale = true
+async function loadOrder($: EngineInterface): Promise<string[]> {
+  if (!orderStale) return read($, order)
+  const r = await $.mcp.call(SERVER, 'outline', {}).catch(() => null)
+  const ids = r && !r.isError ? orderOf(textOf(r.content as Block[])) : null
+  if (!ids) return read($, order)
+  orderStale = false
+  await update($, order, () => ids)
+  return ids
+}
+
+/** Prev / Next / Live: shows that slide, its picture made if the pane has none. */
+async function go($: EngineInterface, step: -1 | 1 | 'live'): Promise<void> {
+  await update($, reopening, () => null)
+  if (step === 'live') {
+    await update($, view, () => null)
+    const id = await read($, latest)
+    if (id) await loadThreads($, id)
+    return
+  }
+  const ids = await loadOrder($)
+  if (!ids.length) return
+  const now = await shown($)
+  const at = now ? ids.indexOf(now) : -1
+  const id = ids[at < 0 ? (step > 0 ? 0 : ids.length - 1) : Math.max(0, Math.min(ids.length - 1, at + step))]
+  if (!id) return
+  await update($, view, () => id)
+  if (!(await read($, shots))[id]) queueRender($, id, true)
+  await loadThreads($, id)
+}
+
+/** Whether the main loop is working: then a comment waits for its next
+ *  beeslides call, else it goes as a prompt. */
+let busy = false
+
+/** What the model reads of the user's comments. */
+function told(list: Pending[]): string {
+  return list.map((p) => {
+    if (p.kind === 'reopen') return `The user reopened comment ${p.id} on slide ${p.slideId} in the BeeSlides pane: "${p.text}". Fix it again, check with review_slide, then resolve_comment with a one-line reply.`
+    if (!p.id) return `The user commented on slide ${p.slideId} in the BeeSlides pane: "${p.text}". Work it into the slide.`
+    return `The user commented on slide ${p.slideId} in the BeeSlides pane (comment ${p.id}, flagged for you): "${p.text}". Work it in once the step you are on is done: fix the slide, check it with review_slide, then resolve_comment with a one-line reply.`
+  }).join('\n')
+}
+
+/** Tells the model now when it is idle; while it works, the next beeslides
+ *  call carries it (tool.call below), or the turn's end does. */
+async function deliver($: EngineInterface): Promise<void> {
+  if (busy) return
+  const list = await read($, pending)
+  if (!list.length) return
+  await update($, pending, () => [])
+  await $.prompt.submit({ text: told(list) })
+}
+
+/** The comment field's Enter: a new comment on the slide in view, or the
+ *  user's feedback on the thread being reopened. */
+async function comment($: EngineInterface, value: string): Promise<void> {
+  const text = value.trim()
+  const slideId = await shown($)
+  if (!text || !slideId) return
+  const reopen = await read($, reopening)
+  const args = reopen ? { op: 'reopen', commentId: reopen, text } : { op: 'add', slideId, text }
+  let failed = ''
+  let id: string | undefined
+  try {
+    const r = await $.mcp.call(SERVER, 'pane_comment', args)
+    const answer = textOf(r.content as Block[])
+    if (r.isError) failed = answer || 'the comment did not go through'
+    else id = (/"commentId":"([^"]+)"/.exec(answer)?.[1]) ?? reopen ?? undefined
+  } catch (err) {
+    failed = err instanceof Error ? err.message : String(err)
+  }
+  // an app from before pane_comment: the comment still reaches Claude, as words
+  const older = /Unknown (?:verb|tool)/.test(failed)
+  if (failed && !older) {
+    await update($, note, () => `Could not save the comment: ${failed}`)
+    return
+  }
+  sent++
+  await update($, reopening, () => null)
+  const p: Pending = { kind: reopen ? 'reopen' : 'add', slideId, text, ...(id ? { id } : {}) }
+  await update($, pending, (l) => [...(l ?? []), p])
+  await update($, note, () => older
+    ? 'This BeeSlides app cannot save pane comments yet: sent to Claude as a message.'
+    : busy ? 'Saved on the slide; Claude reads it after its current step.' : 'Saved on the slide and sent to Claude.')
+  await loadThreads($, slideId)
+  await deliver($)
+}
+
+/** Accept on a thread Claude finished: done for good. */
+async function accept($: EngineInterface, t: Thread, slideId: string): Promise<void> {
+  const r = await $.mcp.call(SERVER, 'pane_comment', { op: 'accept', commentId: t.id }).catch(() => null)
+  if (!r || r.isError) await update($, note, () => `Could not accept: ${r ? textOf(r.content as Block[]) : 'no answer'}`)
+  await loadThreads($, slideId)
+}
+
+/** Bumped per comment sent: the field is drawn anew, empty. */
+let sent = 0
 
 /** A button's pick: through the tool, then a prompt that tells the model. */
 async function pick($: EngineInterface, c: Choice, index: number | 'keep'): Promise<void> {
@@ -180,7 +365,7 @@ async function pick($: EngineInterface, c: Choice, index: number | 'keep'): Prom
 
 export const register: Register = (on) => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'beeslides', description: 'Show the BeeSlides pane: the slides Claude looks at and the designs to pick from' })
+    await $.command.register({ name: 'beeslides', description: 'Show the BeeSlides pane: the slides Claude works on, your comments, the designs to pick from' })
     return next(e)
   })
 
@@ -190,8 +375,23 @@ export const register: Register = (on) => {
     return { text: 'BeeSlides pane opened.' }
   })
 
-  // Every beeslides tool call: the result passes on untouched; the pane
-  // keeps what it shows.
+  on('turn.start', ($, e, next) => {
+    if (e.agentId === undefined) busy = true
+    return next(e)
+  })
+
+  // the turn ended before a beeslides call carried the comments: a prompt
+  on('turn.complete', async ($, e, next) => {
+    const r = await next(e)
+    if (e.agentId === undefined) {
+      busy = false
+      await deliver($)
+    }
+    return r
+  }).catch(($, e, next) => next(e))
+
+  // Every beeslides tool call: the result passes on untouched, with the
+  // user's new comments after it when some wait; the pane keeps what it shows.
   on('tool.call', { tool: TOOLS }, async ($, e, next) => {
     const ran = await next(e)
     if (ran.deny !== undefined || ran.isError) return ran
@@ -203,44 +403,72 @@ export const register: Register = (on) => {
     show($)
     const line = lineFor(name, args, text)
     if (line) await update($, log, (l) => [...(l ?? []), line].slice(-LOG_MAX))
+    if (ORDER_CHANGES.has(name)) orderStale = true
     if (name === 'open_deck') {
       // the deck line before any doc_info: the file, and whether it is hidden
       const file = /(?:opened|open) (\S+\.(?:beeslides|slidomingo)\.html)/i.exec(text)?.[1] ?? ''
+      const same = (await read($, deck))?.file === file
       await update($, deck, (d) => ({ title: d?.file === file ? d.title : '', file, background: /in the background/.test(text), width: d?.width ?? 1280, height: d?.height ?? 720 }))
-      await update($, shot, () => null)
+      if (!same) {
+        await update($, shots, () => ({}))
+        await update($, latest, () => null)
+        await update($, view, () => null)
+        await update($, order, () => [])
+        await update($, threads, () => null)
+        await update($, reopening, () => null)
+      }
     }
-    // nobody sees a hidden deck: show each slide as it is written
     const d = await read($, deck)
-    if (d?.background && SLIDE_WRITES.has(name) && typeof args.slideId === 'string' && !pngs.length) {
-      toRender.add(args.slideId)
-      $.clock.after(0, () => { void renderNext($) })
+    const slideId = typeof args.slideId === 'string' ? args.slideId : ''
+    if (slideId && SLIDE_WRITES.has(name) && !pngs.length) {
+      // the picture is stale: nobody sees a hidden deck, so show each slide
+      // as it is written; with the window, redo only the one the user views
+      const viewing = (await read($, view)) === slideId
+      await update($, shots, (m) => { const { [slideId]: _stale, ...rest } = m ?? {}; return rest })
+      if (d?.background || viewing) queueRender($, slideId, !d?.background)
     }
     if ((name === 'review_slide' || name === 'render_preview') && pngs[0]) {
-      const slideId = typeof args.slideId === 'string' ? args.slideId : (/^Slide "([^"]+)"/.exec(text)?.[1] ?? '')
-      await update($, shot, () => ({ png: pngs[0], slideId }))
+      const id = slideId || (/^Slide "([^"]+)"/.exec(text)?.[1] ?? '')
+      if (id && !args.elementIds && !args.area) {
+        await keepShot($, id, pngs[0])
+        await setLatest($, id)
+      }
       show($)
-    } else if (name === 'variants' && args.op === 'previews' && pngs.length && typeof args.slideId === 'string') {
-      await update($, choice, () => ({ slideId: args.slideId as string, labels: labelsOf(text, pngs.length), pngs }))
+    } else if (name === 'variants' && args.op === 'previews' && pngs.length && slideId) {
+      await update($, choice, () => ({ slideId, labels: labelsOf(text, pngs.length), pngs }))
       await update($, note, () => '')
       show($)
-    } else if (name === 'variants' && args.op === 'pick' && typeof args.slideId === 'string') {
-      await update($, choice, (c) => (c && c.slideId === args.slideId ? null : c))
+    } else if (name === 'variants' && args.op === 'pick' && slideId) {
+      await update($, choice, (c) => (c && c.slideId === slideId ? null : c))
     } else if (name === 'variants' && args.op === 'status') {
       // picked or kept in the app's compare view meanwhile: no buttons left to press
       await update($, choice, (c) => (c && new RegExp(`^${c.slideId.replace(/[^\w-]/g, '')} \\(slide \\d+\\): (picked|kept)`, 'm').test(text) ? null : c))
     } else if (name === 'propose_variants') {
       await update($, choice, () => null) // replaced: the previews of the new set follow
     } else if (name === 'doc_info') {
-      const d = deckOf(text)
-      if (d) await update($, deck, () => d)
+      const info = deckOf(text)
+      if (info) await update($, deck, () => info)
+    } else if (name === 'outline') {
+      const ids = orderOf(text)
+      if (ids) { orderStale = false; await update($, order, () => ids) }
+    } else if (name === 'resolve_comment') {
+      const t = await read($, threads)
+      if (t) await loadThreads($, t.slideId)
     }
-    return ran
+
+    // the user's comments: the main loop hears all, a subagent those on its slide
+    const waiting = await read($, pending)
+    const mine = waiting.filter((p) => e.agentId === undefined || p.slideId === slideId)
+    if (!mine.length) return ran
+    // $.state hands out copies: told ones are known by their contents
+    const toldNow = new Set(mine.map((p) => JSON.stringify(p)))
+    await update($, pending, (l) => (l ?? []).filter((p) => !toldNow.has(JSON.stringify(p))))
+    return { ...ran, context: [...(ran.context ?? []), told(mine)] }
   }).catch(($, e, next) => next(e)) // a pane bug never costs a tool call: the call's own answer stands
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const d = await read($, deck)
-    const s = await read($, shot)
     const c = await read($, choice)
     const said = await read($, note)
     const lines = await read($, log)
@@ -281,16 +509,72 @@ export const register: Register = (on) => {
         </Box>
       )
     }
-    // the latest slide on top, as large as leaves room for a few progress lines
-    const room = Math.min(lines.length, Math.max(3, Math.floor(rows / 3)))
-    const picRows = Math.max(4, rows - room - 4)
+
+    const pinned = await read($, view)
+    const live = await read($, latest)
+    const id = pinned ?? live
+    const png = id ? (await read($, shots))[id] : undefined
+    const ids = await read($, order)
+    const at = id ? ids.indexOf(id) : -1
+    const t = await read($, threads)
+    const list = t && t.slideId === id ? t.items : []
+    const reopen = await read($, reopening)
+    const waiting = (await read($, pending)).length
+    const { Input } = e.surface === 'mobile' ? { Input: undefined } : $.ui.resolve(e)
+
+    // the threads not done, Claude's finished ones first: they wait on the user
+    const listed = [...list.filter((x) => x.check), ...list.filter((x) => !x.check)].slice(0, THREADS_MAX)
+    const firstCheck = listed.find((x) => x.check)
+    const threadRows = listed.reduce((n, x) => n + (x.check ? 2 : 1), 0) + (list.length > listed.length ? 1 : 0)
+    // the slide as large as leaves room for the rest and a few progress lines
+    const room = Math.min(lines.length, Math.max(2, Math.floor(rows / 4)))
+    const fixed = 1 + 1 + threadRows + (id ? 1 : 0) + (said ? 1 : 0) + (waiting ? 1 : 0)
+    const picRows = Math.max(4, rows - room - fixed - 2)
+    const where = id ? `${id}${at >= 0 ? ` · ${at + 1}/${ids.length}` : ''}` : ''
     return (
       <Box flexDirection="column">
         {head}
-        {s
-          ? picture(s.png, Math.min(cols, picRows / ratio), `Slide ${s.slideId}`, 'shot')
-          : <Text dimColor>{d?.background ? 'Each slide shows here as it is written.' : 'The slides Claude reviews show here.'}</Text>}
-        {s ? <Text dimColor>{s.slideId}</Text> : null}
+        {png
+          ? picture(png, Math.min(cols, picRows / ratio), `Slide ${id}`, 'shot')
+          : <Text dimColor>{id ? `Making a picture of ${id}…` : d?.background ? 'Each slide shows here as it is written.' : 'The slides Claude reviews show here; ‹ › swaps through the deck.'}</Text>}
+        <Box flexDirection="row">
+          <Button key="prev" hotkey="p" plain label="‹ prev" onPress={() => { void go($, -1) }} />
+          <Text> </Text>
+          <Button key="next" hotkey="n" plain label="next ›" onPress={() => { void go($, 1) }} />
+          <Text dimColor>  {where}</Text>
+          {pinned
+            ? <Box flexDirection="row"><Text dimColor>  </Text><Button key="live" hotkey="l" plain label={live && live !== pinned ? `live (${live})` : 'live'} onPress={() => { void go($, 'live') }} /></Box>
+            : id ? <Text dimColor> · live</Text> : null}
+        </Box>
+        {listed.map((x) => x.check
+          ? (
+            <Box flexDirection="column" key={`thread-${x.id}`}>
+              <Text><Text color="green">✓ </Text>{x.text}{x.reply ? <Text dimColor> — Claude: {x.reply}</Text> : null}</Text>
+              <Box flexDirection="row">
+                <Text>  </Text>
+                <Button key={`accept-${x.id}`} hotkey={x === firstCheck ? 'a' : undefined} plain label="Accept" onPress={() => { void accept($, x, t!.slideId) }} />
+                <Text>  </Text>
+                <Button key={`reopen-${x.id}`} hotkey={x === firstCheck ? 'r' : undefined} plain label="Reopen" onPress={() => { void update($, reopening, () => x.id) }} />
+              </Box>
+            </Box>
+          )
+          : <Text key={`thread-${x.id}`}><Text dimColor>○ </Text>{x.text}</Text>)}
+        {list.length > listed.length ? <Text dimColor>  +{list.length - listed.length} more comment(s) on this slide</Text> : null}
+        {id && Input
+          ? (
+            <Box flexDirection="row">
+              <Input
+                key={`comment-${reopen ?? 'new'}-${sent}`}
+                label={reopen ? 'Still wrong: ' : 'Comment: '}
+                placeholder={reopen ? 'what Claude should change' : `on ${id}, for Claude`}
+                submitLabel="send"
+                onSubmit={(value) => { void comment($, value) }}
+              />
+              {reopen ? <Button key="cancel" plain label="cancel" onPress={() => { void update($, reopening, () => null) }} /> : null}
+            </Box>
+          )
+          : null}
+        {waiting ? <Text dimColor>{waiting} comment(s) wait for Claude's next step</Text> : null}
         {said ? <Text dimColor>{said}</Text> : null}
         {lines.slice(-room).map((l, i) => <Text dimColor={i < room - 1}>{i === room - 1 ? '▸ ' : '  '}{l}</Text>)}
       </Box>

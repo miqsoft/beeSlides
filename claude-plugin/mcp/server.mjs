@@ -864,6 +864,10 @@ const ACTION_VERBS = new Set([
   'update_element', 'insert_elements', 'set_frame', 'duplicate_element', 'delete_element', 'reorder_element',
   'apply_change_pattern', 'propose_variants', 'resolve_comment', 'create_reusable_object',
   'create_slide_type', 'promote_to_reusable_object',
+  // Never listed: the BeeSlides pane of the Claude Code plugin calls it for
+  // the user (claude-mod, $.mcp.call) to add, accept or reopen a comment; a
+  // model sees only listed tools, so its one comment write stays resolve_comment.
+  'pane_comment',
 ])
 // slide_type({op}) is one tool for Claude but still five verbs in the app.
 const SLIDE_TYPE_OPS = new Set(['rename', 'reorder', 'move', 'detach', 'relink'])

@@ -13945,3 +13945,39 @@ no annotations, a text recap, an empty band under two titles):
    slides and up, and the check looks at each slide once, a second time
    only after a rewrite (an `elements` edit's result already carries the
    layout check).
+
+## 2026-10-25 — The pane swaps slides and takes comments while Claude builds (amends 2026-10-24 "the pane")
+
+**Decision.** The BeeSlides pane of the Claude Code plugin
+(`desktop/src/mcp/claude-mod/`) is no longer only the latest picture:
+
+- **Prev / next / live** (`p`, `n`, `l`) swap through the deck. Pictures are
+  kept per slide (80 at most); a slide without one is drawn with
+  `render_preview`, which does not move "latest". The order comes from
+  `outline`, asked again after a call that may change it. A slide write
+  drops that slide's picture; with the app open only the slide the user
+  views is drawn again (the pane still draws no pictures of its own while it
+  follows the agent there).
+- **Comments under the slide are real deck comments**, flagged `forAgent`,
+  written by a new editor verb `pane_comment` (`add` / `accept` / `reopen`,
+  the last two being the thread footer's buttons). The MCP server takes the
+  verb but **never lists it**: a model only calls listed tools, so the
+  2026-08-22 rule stands (the agent's only comment write is
+  `resolve_comment`), and the pane writes as the user.
+- **The model hears of a comment at once.** While the main loop works
+  (`turn.start` … `turn.complete`), the next beeslides tool call carries it
+  as `context` after its result (a subagent's call only for comments on its
+  slide); if the turn ends first, or nothing runs, it goes as a prompt. The
+  words tell the model to finish its current step, fix, check with
+  `review_slide`, then `resolve_comment`, so the pane shows Claude's reply
+  with Accept / Reopen.
+- An app from before `pane_comment` answers "Unknown verb/tool": the pane
+  then sends the comment as words only and says so.
+
+**Why.** The user watching a hidden deck being built had no way to steer
+it but to interrupt; and remarks in the chat are lost once acted on, while a
+comment stays on the slide, is checked off, and is seen in the app later.
+
+Rigs: `claude plugin test claude-plugin` (swap, comment mid-turn, idle
+comment, older app, Accept / Reopen), `desktop/scripts/e2e-background.mjs`
+§6c (the verb against a hidden instance, unlisted).
