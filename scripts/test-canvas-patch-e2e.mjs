@@ -18,7 +18,8 @@
 // follows), a hover-reveal set, a table cell edit, a text edit, an equation
 // edit, crop mode opened and cancelled, svg gradients (ids unique, every
 // url(#…) resolves), undo/redo. Also: an edit keeps the slide surface (only
-// element nodes are redrawn).
+// element nodes are redrawn), an undo that switches slides draws the surface
+// once (not twice).
 import { existsSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -304,9 +305,31 @@ try {
   await markSurface()
   await p.evaluate(() => window.beeslides.undo()); await settle(150)
   await p.evaluate(() => window.beeslides.undo()); await settle(150)
+  check(await surfaceKept(), 'an undo on the same slide keeps the surface (patched)')
   await sameAsFull('after two undos')
   await p.evaluate(() => window.beeslides.redo()); await settle(150)
   await sameAsFull('after a redo')
+  // an edit on slide 2, then back on slide 1: undo switches slides — one surface draw
+  await thumb(1).click({ delay: 60 }); await settle()
+  await p.evaluate(() => window.beeslides.menu.run('insert.shape.0')); await settle(300)
+  const s2n = await p.evaluate(() => window.beeslides.doc.slides[1].elements.length)
+  check(s2n === 1, 'inserted a shape on slide 2', s2n)
+  await thumb(0).click({ delay: 60 }); await settle(250)
+  const draws = await p.evaluate(async () => {
+    const host = document.querySelector('.ed-stage-scale')
+    let n = 0
+    const mo = new MutationObserver((rs) => { for (const r of rs) for (const a of r.addedNodes) if (a.classList?.contains('beeslides-slide')) n++ })
+    mo.observe(host, { childList: true })
+    window.beeslides.undo()
+    await new Promise((r) => setTimeout(r, 50))
+    mo.disconnect()
+    return { n, slide: document.querySelector('.ed-stage-scale > .beeslides-slide').dataset.slideId }
+  })
+  check(draws.n === 1 && draws.slide === 'S2', 'an undo that switches slides draws the surface once', draws)
+  await p.evaluate(() => window.beeslides.redo()); await settle(150)
+  await thumb(0).click({ delay: 60 }); await settle(250)
+  await sameAsFull('after undo/redo across slides')
+
   check(!errors.length, 'no page errors', errors.slice(0, 5))
 } finally {
   await browser.close()

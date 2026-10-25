@@ -511,7 +511,9 @@ export class SlideCanvas {
 
     new ResizeObserver(() => this.relayout()).observe(wrap)
 
-    store.on('current', () => this.render())
+    // 'patch': draws only what changed. An undo emits 'doc' and then
+    // 'current' for the same state — the second pass finds nothing to draw.
+    store.on('current', () => this.render('patch'))
     store.on('doc', () => {
       this.docEpoch++
       if (inLiveStep()) this.liveRender.schedule()
