@@ -16,8 +16,9 @@ import { deflateSync } from 'node:zlib'
 import { convertPptx } from '../../kernel/src/convert/pptx.ts'
 import { readZip, crc32 } from '../../kernel/src/convert/zip.ts'
 import { parseXml, kids, kid, attr, NS } from '../../kernel/src/convert/xml.ts'
-import { writeGvml, writePptx } from '../../kernel/src/convert/gvml.ts'
-import { concreteFace, normalizePath, parseRich, type WElement } from '../../kernel/src/convert/drawingml-write.ts'
+import { writeGvml } from '../../kernel/src/convert/gvml.ts'
+import { slidePart, writePptx, type PptxLayoutIn, type PptxSlideIn } from '../../kernel/src/convert/pptx-write.ts'
+import { SLIDE_NUMBER, concreteFace, normalizePath, parseRich, type WElement, type WText } from '../../kernel/src/convert/drawingml-write.ts'
 
 let failures = 0
 let checks = 0
@@ -117,7 +118,7 @@ ok(line?.strokeStyle === 'dashed' && line.lineEnd === 'arrow' && line.fill === '
 ok(path?.x === 760 && path.y === 380 && path.w === 160 && path.h === 160 && path.fill === '#14B8A6', 'path: frame and fill (the importer reads custom outlines as a box)', path && [path.x, path.w, path.fill])
 ok(/<a:custGeom>[^]*<a:path w="100000" h="100000">[^]*<a:cubicBezTo>[^]*<a:close\/><\/a:path>/.test(slideXml), 'path: written as a custom outline with curves, in path units')
 ok(img?.type === 'image' && img.alt === 'blue half' && img.crop?.x === 0.5 && img.crop?.w === 0.5 && img.fit === 'cover', 'image: crop and alt text', img && [img.crop, img.alt, img.fit])
-ok([...parts.keys()].some((k) => /^ppt\/media\/s1-image1\.png$/.test(k)), 'image: the PNG is in the package')
+ok([...parts.keys()].some((k) => /^ppt\/media\/image\d+\.png$/.test(k)), 'image: the PNG is in the package')
 ok(tbl?.type === 'table' && tbl.columns.map((c: Any) => c.w).join() === '300,150,150', 'table: column widths 2 : 1 : 1', tbl?.columns)
 const cells = tbl?.rows.map((row: Any) => row.cells.map((c: Any) => c.html))
 ok(JSON.stringify(cells) === JSON.stringify([['Name', 'Q1', 'Q2'], ['Merged <b>across</b>', '', '7'], ['Tall', '3', '4'], ['', '5', '6']]), 'table: every cell back', cells)
@@ -127,6 +128,124 @@ const st = tbl?.style ?? {}
 ok(st.headerBg === '#1E3A8A' && st.headerColor === '#FFFFFF' && st.zebra === '#F3F4F6' && st.borderColor === '#999999' && st.borderWidth === 1, 'table: header, zebra and border colours', st)
 ok(st.cellPadX === 8 && st.cellPadY === 6 && near(st.fontSize, 20, 0.5) && st.color === '#111111', 'table: padding, text size and colour', st)
 ok(g1?.groupId && g1.groupId === g2?.groupId && g1.x === 760 && g2.x === 860, 'group: both shapes back as one group, in place', [g1?.groupId, g2?.groupId])
+
+console.log('— a deck: masters, layouts, filled slots, notes, sections, transitions')
+{
+  const text = (id: string, frame: [number, number, number, number], html: string, more: Partial<WText> = {}): WText => ({
+    ...base, id, type: 'text', x: frame[0], y: frame[1], w: frame[2], h: frame[3], html,
+    fontSize: 32, fontFamily: 'Georgia, serif', fontWeight: 400, color: '#1D1119', align: 'left', valign: 'top', ...more,
+  })
+  const TITLE: [number, number, number, number] = [80, 40, 1120, 100]
+  const master: WElement[] = [
+    { ...base, id: 'bar', type: 'shape', shape: 'rect', x: 0, y: 690, w: 1280, h: 30, fill: '#2563EB' },
+    text('m-title', TITLE, 'Click to add title', { fontSize: 44, fontWeight: 700, ph: { type: 'title', template: true } }),
+    text('m-body', [80, 160, 1120, 480], 'Click to add text', { ph: { type: 'body', idx: 1, template: true } }),
+    text('m-ftr', [80, 650, 600, 30], 'Acme confidential', { fontSize: 14, ph: { type: 'ftr', idx: 11, template: true } }),
+    text('m-num', [1100, 650, 100, 30], SLIDE_NUMBER, { fontSize: 14, align: 'right', ph: { type: 'sldNum', idx: 12, template: true } }),
+  ]
+  const layouts: PptxLayoutIn[] = [
+    { name: 'Title', master: 0, elements: [
+      text('t-title', [80, 250, 1120, 120], 'Click to add title', { fontSize: 60, align: 'center', ph: { type: 'title', template: true } }),
+      text('t-sub', [80, 390, 1120, 60], 'Click to add subtitle', { align: 'center', ph: { type: 'subTitle', idx: 1, template: true } }),
+    ] },
+    { name: 'Content + picture', master: 0, background: { color: '#F8FAFC' }, elements: [
+      { ...base, id: 'dot', type: 'shape', shape: 'ellipse', x: 1180, y: 40, w: 40, h: 40, fill: '#F59E0B' },
+      text('c-title', TITLE, 'Click to add title', { fontSize: 44, ph: { type: 'title', template: true } }),
+      text('c-body', [80, 160, 560, 480], 'Click to add text', { ph: { type: 'body', idx: 1, template: true } }),
+      { ...base, id: 'c-pic', type: 'shape', shape: 'rect', x: 680, y: 160, w: 520, h: 480, fill: '#F5EEF1', stroke: '#DCCCD3', strokeWidth: 1.5, ph: { type: 'pic', idx: 2, template: true } },
+    ] },
+  ]
+  const slides: PptxSlideIn[] = [
+    { layout: 0, elements: [
+      text('t-title', [80, 250, 1120, 120], 'Hello', { fontSize: 60, align: 'center', ph: { type: 'title', inheritFrame: true } }),
+      text('t-sub', [80, 390, 1120, 60], '', { align: 'center', ph: { type: 'subTitle', idx: 1, inheritFrame: true } }),
+    ] },
+    { layout: 1, notes: 'Say hello\n\nThen the agenda & more', transition: { kind: 'push', dir: 'l' }, elements: [
+      text('c-title', TITLE, 'Agenda', { fontSize: 44, ph: { type: 'title', inheritFrame: true } }),
+      text('c-body', [80, 160, 560, 480], '<ul><li>One</li><li>Two</li></ul>', { ph: { type: 'body', idx: 1, inheritFrame: true } }),
+      { ...base, id: 'c-pic', type: 'image', x: 680, y: 160, w: 520, h: 480, src: PNG_URI, fit: 'fill', ph: { type: 'pic', idx: 2, inheritFrame: true } },
+      { ...base, id: 'back', type: 'shape', shape: 'rect', x: 80, y: 600, w: 120, h: 40, fill: '#111827', jump: slidePart(0), name: 'Back to start' },
+      text('m-num', [1100, 650, 100, 30], `Page ${SLIDE_NUMBER}`, { fontSize: 14, align: 'right', ph: { type: 'sldNum', idx: 12, inheritFrame: true } }),
+    ] },
+    { layout: 1, hidden: true, transition: { kind: 'morph' }, elements: [
+      text('c-title', [80, 60, 1120, 100], 'Backup', { fontSize: 44, ph: { type: 'title' } }),
+    ] },
+    { elements: [text('free', [100, 100, 400, 80], 'No slide type', { fontSize: 24 })], background: '#0F172A' },
+  ]
+  const deck = await writePptx({
+    size: SIZE, slides, masters: [{ name: 'Brand', elements: master, background: { gradient: { angle: 180, stops: [{ at: 0, color: '#FFFFFF' }, { at: 1, color: '#E0E7FF' }] } } }],
+    layouts, theme: { fontFamily: 'Inter, sans-serif', headingFamily: 'Georgia, serif', accent: '#2563EB' },
+    sections: [{ name: 'Intro', first: 0 }, { name: 'Main', first: 1 }], title: 'Rig deck',
+  })
+  // to open it in PowerPoint by hand: WRITE_RIG_PPTX=/path/deck.pptx
+  if (process.env.WRITE_RIG_PPTX) (await import('node:fs')).writeFileSync(process.env.WRITE_RIG_PPTX, deck.bytes)
+  const z = await readZip(deck.bytes)
+  const txt = (n: string) => new TextDecoder().decode(z.get(n))
+  const names = [...z.keys()]
+  for (const n of ['ppt/slideMasters/slideMaster1.xml', 'ppt/slideMasters/slideMaster2.xml', 'ppt/slideLayouts/slideLayout3.xml', 'ppt/theme/theme2.xml',
+    'ppt/notesMasters/notesMaster1.xml', 'ppt/theme/theme3.xml', 'ppt/notesSlides/notesSlide2.xml', 'ppt/presProps.xml', 'docProps/core.xml']) ok(z.has(n), `part ${n}`)
+  ok(!z.has('ppt/notesSlides/notesSlide1.xml'), 'no notes page for a slide without notes')
+  // every XML part parses, every internal relationship lands, every part has a content type
+  const xmlParts = names.filter((n) => /\.(xml|rels)$/.test(n))
+  const bad = xmlParts.filter((n) => { try { parseXml(txt(n)); return false } catch { return true } })
+  ok(!bad.length, 'every XML part is well-formed', bad)
+  const dangling: string[] = []
+  for (const n of names.filter((x) => x.endsWith('.rels'))) {
+    const dir = n.replace(/_rels\/[^/]*\.rels$/, '')
+    for (const m of txt(n).matchAll(/Target="([^"]+)"(?! TargetMode)/g)) {
+      const parts = (dir + m[1]).split('/')
+      const out: string[] = []
+      for (const p of parts) { if (p === '..') out.pop(); else if (p && p !== '.') out.push(p) }
+      if (!z.has(out.join('/'))) dangling.push(`${n} → ${m[1]}`)
+    }
+  }
+  ok(!dangling.length, 'every internal relationship points at a part that exists', dangling)
+  const ct = txt('[Content_Types].xml')
+  const untyped = names.filter((n) => n.endsWith('.xml') && n !== '[Content_Types].xml' && !ct.includes(`PartName="/${n}"`))
+  ok(!untyped.length, 'every XML part has a content type', untyped)
+  ok(names.filter((n) => n.startsWith('ppt/media/')).length === 1, 'a picture shown twice is stored once', names.filter((n) => n.startsWith('ppt/media/')))
+
+  const m1 = txt('ppt/slideMasters/slideMaster1.xml')
+  ok(/<p:ph type="title" hasCustomPrompt="1"\/>/.test(m1) && /<p:ph type="sldNum" idx="12"\/>/.test(m1), 'master: title and slide-number slots')
+  ok(/<a:fld id="[^"]+" type="slidenum">[^]*?<a:t>‹#›<\/a:t><\/a:fld>/.test(m1), 'master: the slide number is PowerPoint’s field')
+  ok(/<p:titleStyle><a:lvl1pPr algn="l"><a:buNone\/><a:defRPr sz="3300" b="1"/.test(m1), 'master: title style from its title slot (44 px = 33 pt, bold)')
+  ok(/<p:bg><p:bgPr><a:gradFill/.test(m1), 'master: gradient background')
+  const l3 = txt('ppt/slideLayouts/slideLayout2.xml')
+  ok(/<p:cSld name="Content \+ picture">/.test(l3) && /<p:ph type="pic" idx="2"\/>/.test(l3), 'layout: named, with its picture slot')
+  ok(!/DCCCD3/.test(l3), 'layout: the picture slot carries no border down to its pictures')
+  ok(/<a:lstStyle><a:lvl1pPr marL="0" indent="0" algn="l"><a:buNone\/><a:defRPr sz="2400" b="0">/.test(l3), 'layout: a text slot hands its look down (lstStyle)')
+  const s1 = txt('ppt/slides/slide1.xml')
+  ok(/<p:nvPr><p:ph type="title"\/><\/p:nvPr><\/p:nvSpPr><p:spPr><a:prstGeom/.test(s1), 'slide: a filled slot in the layout’s frame is written without one')
+  ok(/<p:ph type="subTitle" idx="1"\/>/.test(s1), 'slide: an empty slot is kept (PowerPoint shows its prompt while editing)')
+  const s2 = txt('ppt/slides/slide2.xml')
+  ok(/<p:pic><p:nvPicPr><p:cNvPr [^>]*\/><p:cNvPicPr><a:picLocks noGrp="1" noChangeAspect="1"\/><\/p:cNvPicPr><p:nvPr><p:ph type="pic" idx="2"\/>/.test(s2), 'slide: the picture fills the picture slot')
+  ok(/<p:cNvPr id="\d+" name="Back to start"><a:hlinkClick r:id="(rId\d+)" action="ppaction:\/\/hlinksldjump"\/>/.test(s2) &&
+    /Type="[^"]*\/slide" Target="slide1.xml"/.test(txt('ppt/slides/_rels/slide2.xml.rels')), 'slide: a jump to another slide, by name')
+  ok(/<a:t>Page <\/a:t><\/a:r><a:fld [^>]*type="slidenum">[^]*?<a:t>2<\/a:t><\/a:fld>/.test(s2), 'slide: "Page {{page}}" keeps the number as a field')
+  ok(/<p:transition spd="med"><p:push dir="l"\/><\/p:transition>/.test(s2), 'slide: push transition')
+  ok(/<p:ph type="sldNum" idx="12"\/><\/p:nvPr><\/p:nvSpPr><p:spPr><a:xfrm>/.test(s2), 'slide: a slot its layout lacks keeps its own frame')
+  ok(/<a:t>Hello<\/a:t>/.test(s1) && /<a:rPr [^>]*b="0"[^>]*>(?:(?!<\/a:rPr>).)*<\/a:rPr><a:t>Hello/.test(s1), 'slide: a light title says so (the master’s bold title style must not leak in)')
+  ok(/<p159:morph option="byObject"\/>/.test(txt('ppt/slides/slide3.xml')) && /<p:sld [^>]*show="0"/.test(txt('ppt/slides/slide3.xml')), 'slide: morph (with a fade fallback) and hidden')
+  const pres = txt('ppt/presentation.xml')
+  ok(/<p14:section name="Intro"[^>]*><p14:sldIdLst><p14:sldId id="256"\/><\/p14:sldIdLst>/.test(pres) && /name="Main"[^>]*><p14:sldIdLst><p14:sldId id="257"\/><p14:sldId id="258"\/><p14:sldId id="259"\/>/.test(pres), 'presentation: sections')
+  ok((pres.match(/<p:sldMasterId /g) ?? []).length === 2, 'presentation: the brand master + a plain one for the slide with no type')
+
+  // and back through our own importer: the tree, the links, the notes
+  const back = await convertPptx(deck.bytes)
+  const lay = (back.doc.layouts ?? []) as Any[]
+  const brand = lay.find((l) => l.id === 'pptx-master-1')
+  ok(!!brand && !brand.parentId, 'import: the master is a root slide type', lay.map((l) => [l.id, l.parentId, l.name]))
+  const children = lay.filter((l) => l.parentId === 'pptx-master-1')
+  ok(children.length === 2, 'import: both layouts come back under it', children.map((l) => l.name))
+  const bs = back.doc.slides as Any[]
+  ok(bs.length === 4 && bs[2].hidden === true, 'import: four slides, the third hidden', bs.map((s) => s.hidden))
+  ok(bs[1].notes === 'Say hello\n\nThen the agenda & more', 'import: speaker notes', bs[1].notes)
+  ok(bs[1].transition === 'push', 'import: the transition', bs[1].transition)
+  const t0 = (bs[0].elements as Any[]).find((e) => e.role === 'title')
+  ok(t0?.html === 'Hello' && t0.x === 80 && t0.y === 250, 'import: the filled title, in the layout’s frame', t0 && [t0.html, t0.x, t0.y])
+  ok(bs.slice(0, 2).every((s) => !!s.layoutId), 'import: slides on a layout come back linked to it', bs.map((s) => s.layoutId))
+  ok(deck.warnings.length === 0, 'no warnings', deck.warnings)
+}
 
 console.log('— the clipboard package (writeGvml)')
 {

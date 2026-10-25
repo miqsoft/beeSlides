@@ -22,7 +22,14 @@
 //
 // No DOM: rich text is the sanitizer's small, well-formed allowlist
 // (render.ts sanitizeHtml), read by a tokenizer here, so the rig runs in
-// Node. Fields ({{page}}) and $math$ must be resolved by the caller.
+// Node. Fields ({{page}}) and $math$ must be resolved by the caller; a
+// slide number the caller marks with SLIDE_NUMBER becomes PowerPoint's own
+// field, so it counts in PowerPoint too.
+//
+// Placeholders ('slide' only): an element with `ph` is a placeholder — on a
+// master or layout (`ph.template`) the slot itself, whose text is the prompt
+// and whose look new slides start from; on a slide the shape filling the
+// layout's slot of the same type and idx.
 // Units: slide px × `emuPerPx` (9525 = 96 dpi, the importer's EMU_PER_PX;
 // the editor passes 6858000 / slide height so a slide is 7.5 in tall).
 
@@ -31,8 +38,25 @@ export type Flavor = 'canvas' | 'slide'
 export interface WShadow { x?: number; y?: number; blur: number; color: string }
 export interface WGradient { angle: number; stops: Array<{ at: number; color: string }> }
 
+/** A placeholder slot ('slide' flavour; the canvas has none). */
+export interface WPh {
+  type: 'title' | 'subTitle' | 'body' | 'pic' | 'dt' | 'ftr' | 'sldNum'
+  /** every slot but the title has one, unique on its layout */
+  idx?: number
+  /** a master's or layout's own slot, not a slide's filling of it */
+  template?: boolean
+  /** a slide's filling in the slot's own frame: written without one, so it
+   *  follows the layout */
+  inheritFrame?: boolean
+}
+
 export interface WBase {
   id: string
+  /** the shape's name in PowerPoint's selection pane (default: its kind + number) */
+  name?: string
+  ph?: WPh
+  /** a click jumps to this slide part ('slide' only), e.g. 'slide3.xml' */
+  jump?: string
   x: number; y: number; w: number; h: number
   rotation?: number
   opacity?: number
@@ -117,9 +141,17 @@ export interface WriteOpts {
   emuPerPx: number
   /** the deck's body face, for text that names only a generic family */
   fontFamily?: string
+  /** the first relationship id the drawing may use (default 2: rId1 is the
+   *  theme on the clipboard, the layout on a slide) */
+  firstRel?: number
+  /** what a SLIDE_NUMBER field shows until PowerPoint renumbers it */
+  slideNumber?: string
 }
 
-export interface WRel { id: string; type: 'image' | 'hyperlink'; target: string }
+/** Marks a slide number in text html: written as PowerPoint's slide-number field. */
+export const SLIDE_NUMBER = '\uE000'
+
+export interface WRel { id: string; type: 'image' | 'hyperlink' | 'slide'; target: string }
 export interface WMedia { name: string; data: Uint8Array; contentType: string }
 
 export interface Written {
@@ -134,9 +166,7 @@ export interface Written {
 
 export const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
 export const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink'
-
-/** Relationship ids start here: rId1 is the theme (clipboard) or the layout (slide). */
-const FIRST_REL = 2
+export const REL_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide'
 
 export function writeDrawingML(elements: WElement[], opts: WriteOpts): Written {
   const w = new Writer(opts)
@@ -176,6 +206,12 @@ class Writer {
     this.p = this.c ? 'a' : 'p'
   }
 
+  private rel(type: WRel['type'], target: string): string {
+    const id = `rId${(this.opts.firstRel ?? 2) + this.rels.length}`
+    this.rels.push({ id, type, target })
+    return id
+  }
+
   private emu(px: number): number { return Math.round(px * this.opts.emuPerPx) }
   /** slide px → hundredths of a point */
   private hpt(px: number): number { return Math.round(px * this.opts.emuPerPx / 127) }
@@ -199,17 +235,27 @@ class Writer {
 
   // ---- non-visual properties, transforms -----------------------------------------
 
-  private cNvPr(name: string, descr?: string): string {
+  private cNvPr(name: string, o: { descr?: string; el?: WBase }): string {
     const id = this.nextId++
-    return `<${this.p}:cNvPr id="${id}" name="${esc(`${name} ${id}`)}"${descr ? ` descr="${esc(descr)}"` : ''}/>`
+    const label = o.el?.name || `${name} ${id}`
+    const jump = !this.c && o.el?.jump ? `<a:hlinkClick r:id="${this.rel('slide', o.el.jump)}" action="ppaction://hlinksldjump"/>` : ''
+    const attrs = `id="${id}" name="${esc(label)}"${o.descr ? ` descr="${esc(o.descr)}"` : ''}`
+    return jump ? `<${this.p}:cNvPr ${attrs}>${jump}</${this.p}:cNvPr>` : `<${this.p}:cNvPr ${attrs}/>`
   }
-  /** a: or p: nv block: cNvPr + the kind's own cNv*Pr (+ p:nvPr in a slide) */
-  private nv(kind: 'Sp' | 'Pic' | 'GraphicFrame' | 'GrpSp', name: string, o: { attrs?: string; inner?: string; descr?: string } = {}): string {
+  /** a: or p: nv block: cNvPr + the kind's own cNv*Pr (+ p:nvPr in a slide,
+   *  naming the placeholder slot when `el` fills one) */
+  private nv(kind: 'Sp' | 'Pic' | 'GraphicFrame' | 'GrpSp', name: string, o: { attrs?: string; inner?: string; descr?: string; el?: WBase } = {}): string {
     const p = this.p
-    const own = `<${p}:cNv${kind}Pr${o.attrs ?? ''}${o.inner ? `>${o.inner}</${p}:cNv${kind}Pr>` : '/>'}`
-    return `<${p}:nv${kind}Pr>${this.cNvPr(name, o.descr)}${own}${this.c ? '' : '<p:nvPr/>'}</${p}:nv${kind}Pr>`
+    const ph = this.c ? undefined : o.el?.ph
+    // a placeholder is no text box, and PowerPoint keeps it out of groups
+    const attrs = ph ? '' : o.attrs ?? ''
+    const inner = ph && kind === 'Sp' ? '<a:spLocks noGrp="1"/>' : ph && kind === 'Pic' ? '<a:picLocks noGrp="1" noChangeAspect="1"/>' : o.inner
+    const own = `<${p}:cNv${kind}Pr${attrs}${inner ? `>${inner}</${p}:cNv${kind}Pr>` : '/>'}`
+    const nvPr = this.c ? '' : ph ? `<p:nvPr>${phXml(ph)}</p:nvPr>` : '<p:nvPr/>'
+    return `<${p}:nv${kind}Pr>${this.cNvPr(name, { descr: o.descr, el: o.el })}${own}${nvPr}</${p}:nv${kind}Pr>`
   }
   private xfrm(el: WBase, frame = el, tag = 'a:xfrm', flips = true): string {
+    if (el.ph?.inheritFrame && !el.ph.template && !this.c) return ''
     const rot = Math.round(((((el.rotation ?? 0) % 360) + 360) % 360) * 60000)
     const attrs = (rot ? ` rot="${rot}"` : '') + (flips && el.flipH ? ' flipH="1"' : '') + (flips && el.flipV ? ' flipV="1"' : '')
     return `<${tag}${attrs}><a:off x="${this.emu(frame.x)}" y="${this.emu(frame.y)}"/><a:ext cx="${this.emu(Math.max(frame.w, 0))}" cy="${this.emu(Math.max(frame.h, 0))}"/></${tag}>`
@@ -217,20 +263,8 @@ class Writer {
 
   // ---- paint ---------------------------------------------------------------------
 
-  private solid(css: string, opacity = 1): string {
-    const c = parseColor(css)
-    if (!c || c.a * opacity <= 0) return '<a:noFill/>'
-    return `<a:solidFill>${clr(c.hex, c.a * opacity)}</a:solidFill>`
-  }
-  private gradient(g: WGradient, opacity = 1): string {
-    const stops = g.stops.map((s) => {
-      const c = parseColor(s.color) ?? { hex: '000000', a: 1 }
-      return `<a:gs pos="${Math.round(clamp01(s.at) * 100000)}">${clr(c.hex, c.a * opacity)}</a:gs>`
-    }).join('')
-    // CSS 0deg = bottom→top, clockwise; DrawingML 0 = left→right, clockwise
-    const ang = Math.round(((((g.angle - 90) % 360) + 360) % 360) * 60000)
-    return `<a:gradFill rotWithShape="1"><a:gsLst>${stops}</a:gsLst><a:lin ang="${ang}" scaled="0"/></a:gradFill>`
-  }
+  private solid(css: string, opacity = 1): string { return solidFill(css, opacity) }
+  private gradient(g: WGradient, opacity = 1): string { return gradFill(g, opacity) }
   private effects(el: WBase): string {
     const s = Array.isArray(el.shadow) ? el.shadow[0] : el.shadow
     if (!s) return ''
@@ -262,6 +296,7 @@ class Writer {
   // ---- shapes --------------------------------------------------------------------
 
   shape(el: WShape): string {
+    if (el.ph && !this.c) return this.slot(el)
     const op = el.opacity ?? 1
     const isLine = el.shape === 'line'
     let geom: string
@@ -297,7 +332,16 @@ class Writer {
     const fill = isLine ? '<a:noFill/>' : el.fillGradient?.stops.length ? this.gradient(el.fillGradient, op) : this.solid(el.fill, op)
     const spPr = `<${this.p}:spPr>${this.xfrm(el, frame)}${geom}${fill}${this.line(el, isLine)}${this.effects(el)}</${this.p}:spPr>`
     const name = isLine ? 'Line' : el.shape === 'path' ? 'Freeform' : el.shape === 'ellipse' ? 'Oval' : el.shape === 'triangle' ? 'Triangle' : el.shape === 'arrow' ? 'Arrow' : 'Rectangle'
-    return `<${this.p}:sp>${this.nv('Sp', name)}${spPr}</${this.p}:sp>`
+    return `<${this.p}:sp>${this.nv('Sp', name, { el })}${spPr}</${this.p}:sp>`
+  }
+
+  /** An empty picture slot. On a layout: the frame and nothing else — a fill
+   *  or border here would land on every picture placed in it. On a slide:
+   *  shown only while editing in PowerPoint, as its "insert picture" prompt. */
+  private slot(el: WShape): string {
+    const geom = el.ph?.template ? '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' : ''
+    return `<p:sp>${this.nv('Sp', 'Picture Placeholder', { el })}<p:spPr>${this.xfrm(el)}${geom}</p:spPr>` +
+      '<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></p:txBody></p:sp>'
   }
 
   /** An SVG path, stretched from `pathBox` to the frame (render.ts
@@ -325,7 +369,7 @@ class Writer {
   // ---- text ----------------------------------------------------------------------
 
   text(el: WText): string {
-    const body = this.txBody(el.html, {
+    const base: RunBase = {
       size: el.fontSize,
       face: this.face(el.fontFamily),
       color: el.colorGradient?.stops.length ? el.colorGradient.stops[0].color : el.color,
@@ -335,10 +379,23 @@ class Writer {
       spacing: el.letterSpacing,
       stroke: el.textStroke,
       opacity: el.opacity ?? 1,
-    }, `<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="${el.valign === 'middle' ? 'ctr' : el.valign === 'bottom' ? 'b' : 't'}" rtlCol="0"><a:noAutofit/></a:bodyPr>`)
+    }
+    // a master's or layout's slot hands its look down to the slides made from it
+    const lst = el.ph?.template && !this.c ? this.lstStyle(base) : '<a:lstStyle/>'
+    const body = this.txBody(el.html, base, `<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" anchor="${el.valign === 'middle' ? 'ctr' : el.valign === 'bottom' ? 'b' : 't'}" rtlCol="0"><a:noAutofit/></a:bodyPr>`, lst)
     const spPr = `<${this.p}:spPr>${this.xfrm(el, el, 'a:xfrm', false)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/>${this.effects(el)}</${this.p}:spPr>`
     const tx = this.c ? `<a:txSp>${body}<a:useSpRect/></a:txSp>` : body.replace(/^<a:txBody>/, '<p:txBody>').replace(/<\/a:txBody>$/, '</p:txBody>')
-    return `<${this.p}:sp>${this.nv('Sp', 'TextBox', { attrs: ' txBox="1"' })}${spPr}${tx}</${this.p}:sp>`
+    const name = el.ph && !this.c ? PH_NAMES[el.ph.type] : 'TextBox'
+    return `<${this.p}:sp>${this.nv('Sp', name, { attrs: ' txBox="1"', el })}${spPr}${tx}</${this.p}:sp>`
+  }
+
+  /** A slot's look as its first list level: what PowerPoint gives text typed into it. */
+  private lstStyle(base: RunBase): string {
+    const algn = base.align === 'center' ? 'ctr' : base.align === 'right' ? 'r' : 'l'
+    const ln = base.lineHeight ? `<a:lnSpc><a:spcPct val="${Math.round(base.lineHeight * 100000)}"/></a:lnSpc>` : ''
+    return `<a:lstStyle><a:lvl1pPr marL="0" indent="0" algn="${algn}">${ln}<a:buNone/>` +
+      `<a:defRPr sz="${Math.max(100, Math.min(400000, this.hpt(base.size)))}" b="${base.bold ? 1 : 0}">${this.solid(base.color, base.opacity)}` +
+      `<a:latin typeface="${esc(base.face)}"/><a:cs typeface="${esc(base.face)}"/></a:defRPr></a:lvl1pPr></a:lstStyle>`
   }
 
   /** The face for a CSS stack; a generic one falls back to the deck's face. */
@@ -348,14 +405,14 @@ class Writer {
   }
 
   /** a:txBody (always spelled a:, the caller renames for p:) from rich html. */
-  private txBody(html: string, base: RunBase, bodyPr: string): string {
+  private txBody(html: string, base: RunBase, bodyPr: string, lstStyle = '<a:lstStyle/>'): string {
     const paras = parseRich(html)
     const ps = paras.map((para) => {
       const ppr = this.pPr(para, base)
       const runs = para.runs.map((r) => this.run(r, base)).join('')
       return `<a:p>${ppr}${runs}<a:endParaRPr lang="en-US" sz="${this.hpt(base.size)}" dirty="0"/></a:p>`
     })
-    return `<a:txBody>${bodyPr}<a:lstStyle/>${ps.join('') || '<a:p><a:endParaRPr lang="en-US"/></a:p>'}</a:txBody>`
+    return `<a:txBody>${bodyPr}${lstStyle}${ps.join('') || '<a:p><a:endParaRPr lang="en-US"/></a:p>'}</a:txBody>`
   }
 
   private pPr(para: Para, base: RunBase): string {
@@ -380,7 +437,8 @@ class Writer {
     const attrs = [
       'lang="en-US"',
       `sz="${Math.max(100, Math.min(400000, this.hpt(size)))}"`,
-      (r.bold || base.bold) ? 'b="1"' : '',
+      // said both ways: a slot's style (a master's bold title) must not leak in
+      (r.bold || base.bold) ? 'b="1"' : 'b="0"',
       r.italic ? 'i="1"' : '',
       r.underline || r.href ? 'u="sng"' : '',
       r.strike ? 'strike="sngStrike"' : '',
@@ -390,13 +448,12 @@ class Writer {
     const stroke = base.stroke && base.stroke.width > 0 ? `<a:ln w="${this.emu(base.stroke.width)}">${this.solid(base.stroke.color, base.opacity)}</a:ln>` : ''
     const fill = base.stroke?.fill === 'none' ? '<a:noFill/>' : this.solid(r.color ?? base.color, base.opacity)
     const face = r.code ? 'Courier New' : base.face
-    let link = ''
-    if (r.href) {
-      const id = `rId${FIRST_REL + this.rels.length}`
-      this.rels.push({ id, type: 'hyperlink', target: r.href })
-      link = `<a:hlinkClick r:id="${id}"/>`
-    }
-    return `<a:r><a:rPr ${attrs}>${stroke}${fill}<a:latin typeface="${esc(face)}"/><a:cs typeface="${esc(face)}"/>${link}</a:rPr><a:t>${esc(r.text)}</a:t></a:r>`
+    const link = r.href ? `<a:hlinkClick r:id="${this.rel('hyperlink', r.href)}"/>` : ''
+    const rPr = `<a:rPr ${attrs}>${stroke}${fill}<a:latin typeface="${esc(face)}"/><a:cs typeface="${esc(face)}"/>${link}</a:rPr>`
+    // a marked slide number is PowerPoint's field: it renumbers with the deck
+    return r.text.split(SLIDE_NUMBER).map((part, i) =>
+      (i ? `<a:fld id="${SLIDENUM_FIELD_ID}" type="slidenum">${rPr}<a:t>${esc(this.opts.slideNumber ?? '‹#›')}</a:t></a:fld>` : '') +
+      (part ? `<a:r>${rPr}<a:t>${esc(part)}</a:t></a:r>` : '')).join('')
   }
 
   // ---- pictures ------------------------------------------------------------------
@@ -405,9 +462,7 @@ class Writer {
     const ext = contentType === 'image/jpeg' ? 'jpeg' : contentType === 'image/gif' ? 'gif' : 'png'
     const name = `image${this.media.length + 1}.${ext}`
     this.media.push({ name, data, contentType })
-    const id = `rId${FIRST_REL + this.rels.length}`
-    this.rels.push({ id, type: 'image', target: name })
-    return id
+    return this.rel('image', name)
   }
 
   private pic(el: WBase, frame: WBase, relId: string, srcRect: string, geom: string, descr?: string): string {
@@ -415,7 +470,7 @@ class Writer {
     const alpha = op < 1 ? `<a:alphaModFix amt="${Math.round(op * 100000)}"/>` : ''
     const blip = `<${this.p}:blipFill><a:blip r:embed="${relId}">${alpha}</a:blip>${srcRect}<a:stretch><a:fillRect/></a:stretch></${this.p}:blipFill>`
     const spPr = `<${this.p}:spPr>${this.xfrm(el, frame)}${geom}${this.effects(el)}</${this.p}:spPr>`
-    return `<${this.p}:pic>${this.nv('Pic', 'Picture', { inner: '<a:picLocks noChangeAspect="1"/>', descr })}${blip}${spPr}</${this.p}:pic>`
+    return `<${this.p}:pic>${this.nv('Pic', 'Picture', { inner: '<a:picLocks noChangeAspect="1"/>', descr, el })}${blip}${spPr}</${this.p}:pic>`
   }
 
   image(el: WImage): string {
@@ -503,7 +558,7 @@ class Writer {
     // the clipboard's GVML frame lists its graphic BEFORE its transform (a
     // slide's p:graphicFrame the other way round); in slide order PowerPoint
     // refuses the whole clipboard package
-    const nv = this.nv('GraphicFrame', 'Table', { inner: '<a:graphicFrameLocks noGrp="1"/>' })
+    const nv = this.nv('GraphicFrame', 'Table', { inner: '<a:graphicFrameLocks noGrp="1"/>', el })
     return `<${this.p}:graphicFrame>${nv}${this.c ? graphic + xfrm : xfrm + graphic}</${this.p}:graphicFrame>`
   }
 
@@ -515,6 +570,22 @@ class Writer {
     const inner = members.map((m) => this.element(m)).join('')
     return `<${this.p}:grpSp>${this.nv('GrpSp', 'Group')}<${this.p}:grpSpPr>${xfrm}</${this.p}:grpSpPr>${inner}</${this.p}:grpSp>`
   }
+}
+
+const PH_NAMES: Record<WPh['type'], string> = {
+  title: 'Title', subTitle: 'Subtitle', body: 'Text Placeholder', pic: 'Picture Placeholder',
+  dt: 'Date Placeholder', ftr: 'Footer Placeholder', sldNum: 'Slide Number Placeholder',
+}
+
+/** PowerPoint's slide-number field id (it writes this same one in every deck). */
+const SLIDENUM_FIELD_ID = '{B6F15528-21DE-4FAA-801E-634DDDAF4B2B}'
+
+/** A text slot's own text is the prompt PowerPoint shows in it on a slide. */
+const PROMPTED = new Set<WPh['type']>(['title', 'subTitle', 'body'])
+
+function phXml(ph: WPh): string {
+  const prompt = ph.template && PROMPTED.has(ph.type) ? ' hasCustomPrompt="1"' : ''
+  return `<p:ph type="${ph.type}"${ph.idx !== undefined ? ` idx="${ph.idx}"` : ''}${prompt}/>`
 }
 
 interface RunBase {
@@ -801,6 +872,24 @@ export function parseColor(css: string | undefined): { hex: string; a: number } 
   }
   const named = NAMED_COLORS[s]
   return named ? { hex: named.toUpperCase(), a: 1 } : null
+}
+
+/** a:solidFill of a CSS colour; a:noFill for none or transparent. */
+export function solidFill(css: string, opacity = 1): string {
+  const c = parseColor(css)
+  if (!c || c.a * opacity <= 0) return '<a:noFill/>'
+  return `<a:solidFill>${clr(c.hex, c.a * opacity)}</a:solidFill>`
+}
+
+/** a:gradFill of a linear gradient (CSS angle). */
+export function gradFill(g: WGradient, opacity = 1): string {
+  const stops = g.stops.map((s) => {
+    const c = parseColor(s.color) ?? { hex: '000000', a: 1 }
+    return `<a:gs pos="${Math.round(clamp01(s.at) * 100000)}">${clr(c.hex, c.a * opacity)}</a:gs>`
+  }).join('')
+  // CSS 0deg = bottom→top, clockwise; DrawingML 0 = left→right, clockwise
+  const ang = Math.round(((((g.angle - 90) % 360) + 360) % 360) * 60000)
+  return `<a:gradFill rotWithShape="1"><a:gsLst>${stops}</a:gsLst><a:lin ang="${ang}" scaled="0"/></a:gradFill>`
 }
 
 function clr(hex: string, alpha: number): string {
