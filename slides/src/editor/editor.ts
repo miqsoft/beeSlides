@@ -6628,8 +6628,9 @@ export class Editor {
         // plugin (desktop/src/mcp/claude-mod): the MCP server takes the verb
         // but never lists it, so the model cannot call it and the agent's own
         // comment verb stays resolve_comment alone. add = a new thread on the
-        // slide (or one of its elements) flagged for the agent; accept / reopen = the thread footer's
-        // two buttons on a thread Claude finished (reopen with the user's reply).
+        // slide (or one of its elements) flagged for the agent; accept /
+        // reopen = the thread footer's two buttons on a thread Claude
+        // finished (reopen with the user's reply).
         const op = args.op
         const text = typeof args.text === 'string' ? args.text.trim().slice(0, 2000) : ''
         const at = new Date().toISOString()
