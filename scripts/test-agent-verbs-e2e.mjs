@@ -448,6 +448,18 @@ console.log('\napply_change_pattern')
   await refuse('apply_change_pattern', { slideId: 's-free', sourceElementId: 'r3', targetElementIds: ['r2'] }, 'no-reapplicable-change', 'a source whose last change was a move')
 }
 
+await reset()
+console.log('\napply_change_pattern reflow:false')
+{
+  const recolor = await act('update_element', { slideId: 's-free', elementId: 'r1', props: { fill: '#ff8800', w: 150, x: 120 } })
+  ok(recolor.ok, `setup: r1 recoloured and resized (${recolor.error ?? 'ok'})`)
+  const s = await succeed('apply_change_pattern', { slideId: 's-free', sourceElementId: 'r1', targetElementIds: ['r2'], reflow: false }, 'r1 → r2, placed exactly')
+  const r2 = elOf(s.after, 's-free', 'r2')
+  ok(r2.fill === '#ff8800' && r2.w === 150, 'the fill and width are copied')
+  ok(isDeepStrictEqual(elOf(s.after, 's-free', 'r3'), elOf(s.before, 's-free', 'r3')), 'reflow:false: the neighbour r3 stays where it was')
+  await oneUndo('apply_change_pattern', s)
+}
+
 ok(!pageErrors.length, `no page errors (${pageErrors.length})`)
 await browser.close()
 console.log(failures ? `\n${failures} of ${checks} FAILED` : `\nall ${checks} checks passed`)

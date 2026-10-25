@@ -520,6 +520,7 @@ const TOOLS = [
         slideId: SLIDE_ID,
         sourceElementId: { type: 'string' },
         targetElementIds: { type: 'array', items: { type: 'string' } },
+        reflow: { type: 'boolean', description: 'Default true: the app keeps neighbours/arrows/text fitting around the edit. false = place exactly, only report.' },
       },
       required: ['slideId', 'sourceElementId', 'targetElementIds'],
     },

@@ -183,9 +183,9 @@ export const ELEMENT_VERBS = {
     // "find similar" heuristic. Claude already has doc_info/outline to
     // decide "similar" itself; this keeps the mutating verb as small and
     // auditable as the five above. Same patch computeReapplicablePatch
-    // produces for the manual armed tool (editor/reapplychange.ts), so a
-    // human doing this by hand and Claude calling this verb behave
-    // identically for the same source change.
+    // produces for the manual armed tool (editor/reapplychange.ts). Unlike
+    // that tool, this is an agent write: the layout guard keeps neighbours
+    // fitting around it (and may move them) unless `reflow: false`.
     const sourceElementId = typeof args.sourceElementId === 'string' ? args.sourceElementId : undefined
     const rawTargets = Array.isArray(args.targetElementIds) ? args.targetElementIds : undefined
     if (!slideId || !sourceElementId || !rawTargets?.length) {
@@ -214,7 +214,7 @@ export const ELEMENT_VERBS = {
           const target = findAgentTarget(ctx.store.doc, slideId!, id)
           if (target) applyReapplicablePatch(patch, target.el)
         }
-      })
+      }, undefined, { reflow: args.reflow !== false })
       ctx.toast(t('Claude Code applied a recent change to {n} element(s) on slide “{id}”', { n: applied.length, id: slideId }))
     }
     respond({ requestId: cmd.requestId, ok: true, applied, skipped, warnings: ctx.warningsForSlide(slideId), ...ctx.layoutReport() })

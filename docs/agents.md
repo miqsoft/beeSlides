@@ -892,6 +892,8 @@ for the whole session. The details behind them:
   `groupId`, position and `type` are never copied; a target of another type
   lands in `skipped`, not an error. There is no "find similar": decide the
   targets yourself from `outline`/`get_slide`. One undo step for the batch.
+  Like the other writes it reflows neighbours that a bigger target would
+  crowd; `reflow:false` applies the change exactly and only reports.
 - **`create_slide_type`** — `sourceId` must be an existing slide type (never
   a built-in layout). `parent` starts EMPTY and always shows `sourceId`'s
   design; `basis` is a one-time copy with fresh element ids.
