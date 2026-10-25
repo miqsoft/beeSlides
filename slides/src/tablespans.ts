@@ -18,6 +18,7 @@
 // `normalizeTableSpans` writes exactly that layout back.
 
 import type { TableCell, TableElement } from './model'
+import { jsonClone } from './jsonclone.ts'
 
 /** An inclusive cell rectangle, `r0 <= r1`, `c0 <= c1`. */
 export interface CellRect { r0: number; c0: number; r1: number; c1: number }
@@ -323,7 +324,7 @@ export function copyCells(el: TableElement, rect: CellRect): { rect: CellRect; r
   const rows: Array<{ cells: TableCell[] }> = []
   for (let r = R.r0; r <= R.r1; r++) {
     const cells: TableCell[] = []
-    for (let c = R.c0; c <= R.c1; c++) cells.push(JSON.parse(JSON.stringify(el.rows[r].cells[c] ?? { html: '' })) as TableCell)
+    for (let c = R.c0; c <= R.c1; c++) cells.push(jsonClone(el.rows[r].cells[c] ?? { html: '' }))
     rows.push({ cells })
   }
   return { rect: R, rows }
@@ -362,7 +363,7 @@ export function pasteCells(el: TableElement, r: number, c: number, block: Array<
   block.slice(0, h).forEach((row, i) => {
     for (let j = 0; j < w; j++) {
       const cell = row.cells[j]
-      el.rows[r + i].cells[c + j] = cell ? (JSON.parse(JSON.stringify(cell)) as TableCell) : { html: '' }
+      el.rows[r + i].cells[c + j] = cell ? jsonClone(cell) : { html: '' }
     }
   })
   // a block's own spans never reach past the block

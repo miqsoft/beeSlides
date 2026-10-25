@@ -35,6 +35,7 @@ import type { Store } from '../store'
 import { afterSlideBlock, deleteSection, deleteSlidesByIds, duplicateSlidesInStore, insertSectionBefore, insertSlidesFromLayout, renameSection, slidesDeleteImpact, survivesDeletion } from './slideops'
 import { applyTokens, moveSlidesTo, stepSlides, tokensOf } from './slideorder'
 import { addLinkedState, clampPageEdge, commitHeaderFooter, footerElement, footerRolesInUse, patchPresent, setSlideFooterVisible, syncStateWithParent } from './decksettings'
+import { jsonClone } from '../jsonclone.ts'
 
 export interface OpContext {
   store: Store
@@ -484,7 +485,7 @@ export function patchTheme(th: SlidomingoDoc['theme'], patch: ThemePatch): void 
  *  design that brings its own theme; `doc` itself is not touched. */
 export function themedDoc(doc: SlidomingoDoc, patch: ThemePatch | undefined): SlidomingoDoc {
   if (!patch) return doc
-  const theme = JSON.parse(JSON.stringify(doc.theme)) as SlidomingoDoc['theme']
+  const theme = jsonClone(doc.theme)
   patchTheme(theme, patch)
   return { ...doc, theme }
 }
@@ -1306,8 +1307,8 @@ export function slideFromCompiled(doc: SlidomingoDoc, slide: Slide, compiled: Co
   const merged = mergeCompiled(slide.elements, compiled.elements, inheritedIds(doc, slide)).elements
   const svg = agentSvgViolation(doc, merged, { existing: slide.elements })
   if (svg) return svg
-  const out = JSON.parse(JSON.stringify(slide)) as Slide
-  out.elements = JSON.parse(JSON.stringify(merged)) as SlideElement[]
+  const out = jsonClone(slide)
+  out.elements = jsonClone(merged)
   if (compiled.background) out.background = compiled.background
   if (compiled.remember) out.htmlSource = { ...compiled.remember, sig: htmlSignature(out.elements, out.background) }
   else delete out.htmlSource

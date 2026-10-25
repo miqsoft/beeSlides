@@ -35,6 +35,7 @@ import { canCreateTemplateFiles, createNewTemplate, createTemplateFrom } from '.
 import { convertPptx } from '../../kernel/src/convert/pptx.ts'
 import { convertMarkdown } from '../../kernel/src/convert/qmd.ts'
 import type { FidelityReport } from '../../kernel/src/convert/report.ts'
+import { jsonClone } from './jsonclone.ts'
 
 export interface StartupChoice {
   doc: SlidomingoDoc
@@ -2019,7 +2020,7 @@ function usedLayoutIds(deck: SlidomingoDoc): Set<string> {
  *  file's own slides as samples (the deck-mode slides, whose `layoutId`s
  *  already name the template's types; their pictures merged in). */
 function pptxTemplateDoc(tpl: SlidomingoDoc, deck: SlidomingoDoc, o: { onlyUsed: boolean; samples: boolean }): SlidomingoDoc {
-  const doc: SlidomingoDoc = JSON.parse(JSON.stringify(tpl))
+  const doc: SlidomingoDoc = jsonClone(tpl)
   if (o.onlyUsed) {
     const keep = new Set<string>()
     const used = usedLayoutIds(deck)
@@ -2029,7 +2030,7 @@ function pptxTemplateDoc(tpl: SlidomingoDoc, deck: SlidomingoDoc, o: { onlyUsed:
   }
   const ids = new Set((doc.layouts ?? []).map((l) => l.id))
   if (o.samples && deck.slides.length) {
-    doc.slides = JSON.parse(JSON.stringify(deck.slides)) as Slide[]
+    doc.slides = jsonClone(deck.slides)
     for (const s of doc.slides) if (s.layoutId && !ids.has(s.layoutId)) delete s.layoutId
     doc.assets = { ...(deck.assets ?? {}), ...(doc.assets ?? {}) }
   } else {

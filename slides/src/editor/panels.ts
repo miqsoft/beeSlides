@@ -61,6 +61,7 @@ import { buildMathPalette, insertIntoTextarea, openProsePalette, tabToSlot } fro
 import { ZOOM_SECONDS, ensureTerm, termText, zoomCover, type ZoomElement } from '../model'
 import { openZoomPicker, zoomTargetLabel } from './zoompicker'
 import { FrameCoalescer, inLiveStep, liveStep } from './livestep'
+import { jsonClone } from '../jsonclone.ts'
 
 // parseColor/combineColor now live in colorpicker.ts (the color popover needs
 // them too); re-exported here so this module's public surface is unchanged.
@@ -4542,7 +4543,7 @@ export class PropsPanel {
   saveSlideAsLayout(name: string) {
     this.edit(() => {
       const doc = this.store.doc
-      const copy: Slide = JSON.parse(JSON.stringify(this.store.slide))
+      const copy: Slide = jsonClone(this.store.slide)
       doc.layouts = [...(doc.layouts ?? []), { ...copy, id: uid('layout'), name, stateOf: undefined, notes: '' }]
     }, true)
   }
@@ -4553,7 +4554,7 @@ export class PropsPanel {
     const idMap = new Map<string, string>()
     for (const el of els) idMap.set(el.id, uid(el.type[0]))
     const clones: SlideElement[] = els.map((el) => ({
-      ...JSON.parse(JSON.stringify(el)),
+      ...jsonClone(el),
       id: idMap.get(el.id)!,
       x: el.x + 24,
       y: el.y + 24,

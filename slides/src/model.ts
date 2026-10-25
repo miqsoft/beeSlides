@@ -10,6 +10,7 @@ import { missingFeatures } from '../../kernel/src/doc.ts'
 import { mayHoldStoreRefs, resolveAssets, storeOf } from '../../kernel/src/assetstore.ts'
 import { currentFormat } from '../../kernel/src/legacynames.ts'
 import type { Guides, LayoutGrid } from './layoutgrid.ts'
+import { jsonClone } from './jsonclone.ts'
 
 export const FORMAT = 'beeslides/slides'
 export const FORMAT_VERSION = 1
@@ -1871,7 +1872,6 @@ export function setPersonalStyleDefaults(sd: StyleDefaults | null | undefined): 
   personalDefaults = sd && Object.keys(sd).length ? sd : null
 }
 
-const clone = <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)))
 /** Whether `path` (a themeRefs key) points at a string on `obj`. */
 const readRefTarget = (obj: unknown, path: string): boolean =>
   typeof path.split('.').reduce<any>((cur, seg) => (cur == null ? cur : cur[seg]), obj) === 'string'
@@ -1898,11 +1898,11 @@ export function shapeDefaultsFor(doc: SlidomingoDoc, surface: Slide, kind: Style
   const out: Partial<ShapeElement> = {
     fill: v.fill, stroke: v.stroke, strokeWidth: v.strokeWidth, radius: v.radius, opacity: v.opacity,
   }
-  if (v.fillGradient) out.fillGradient = clone(v.fillGradient)
+  if (v.fillGradient) out.fillGradient = jsonClone(v.fillGradient)
   if (v.strokeStyle && v.strokeStyle !== 'solid') out.strokeStyle = v.strokeStyle
   if (v.strokeDash) out.strokeDash = v.strokeDash
   // an invisible shadow is how a type says "no shadow" over an inherited one
-  if (v.shadow && isVisibleColor(v.shadow.color)) out.shadow = clone(v.shadow)
+  if (v.shadow && isVisibleColor(v.shadow.color)) out.shadow = jsonClone(v.shadow)
   const refs = Object.fromEntries(Object.entries(r.refs).filter(([path]) => readRefTarget(out, path)))
   if (Object.keys(refs).length) out.themeRefs = refs
   return out
@@ -2277,7 +2277,7 @@ export function builtinLayouts(size?: { width: number; height: number }): Slide[
 
 /** A fresh slide from a layout — new slide id, element ids KEPT (lineage). */
 export function instantiateLayout(layout: Slide): Slide {
-  const copy: Slide = JSON.parse(JSON.stringify(layout))
+  const copy: Slide = jsonClone(layout)
   return { ...copy, id: uid('slide'), name: undefined, stateOf: undefined, notes: '' }
 }
 
@@ -2330,7 +2330,7 @@ export function applyLayout(
 ): SlideElement[] {
   const { slots, leftovers } = matchLayout(slide, layout, knownLayoutElementIds, locked)
   const out: SlideElement[] = slots.map(({ slot: lel, donor: d }) => {
-    const copy = JSON.parse(JSON.stringify(lel)) as SlideElement
+    const copy = jsonClone(lel)
     if (d && !isLockedChrome(lel, locked)) {
       if (lel.role === 'media' && d.type !== copy.type) {
         // Donor is a different concrete type than the placeholder (the
@@ -2339,7 +2339,7 @@ export function applyLayout(
         // id/frame/rotation/role so the SLOT's identity (and morph lineage)
         // stays with the layout, not the donor.
         const { id, x, y, w, h, rotation, role } = copy
-        const donorCopy = JSON.parse(JSON.stringify(d)) as SlideElement
+        const donorCopy = jsonClone(d)
         // a cropped picture always fills its frame: re-cut it to the slot's
         // shape, or the slot's aspect would stretch it
         if (donorCopy.type === 'image' && donorCopy.crop) {
@@ -2637,7 +2637,7 @@ export function removeLayout(doc: SlidomingoDoc, id: string): void {
  *  `detachSlideType` (`from` = the child's own parent). */
 export function bakeInheritedInto(doc: SlidomingoDoc, child: Slide, from: Slide): void {
   const baked = effectiveLayout(doc, from).elements
-  child.elements = [...(JSON.parse(JSON.stringify(baked)) as SlideElement[]), ...child.elements]
+  child.elements = [...jsonClone(baked), ...child.elements]
   delete child.parentId
 }
 
@@ -2817,7 +2817,7 @@ export function createSlideTypeAsBasis(
   name: string,
   remint: (elements: SlideElement[]) => SlideElement[],
 ): Slide {
-  const clone = { ...(JSON.parse(JSON.stringify(effectiveLayout(doc, source))) as Slide), id: uid('layout'), name }
+  const clone = { ...jsonClone(effectiveLayout(doc, source)), id: uid('layout'), name }
   delete clone.stateOf
   delete clone.parentId
   clone.notes = ''
@@ -4051,7 +4051,7 @@ export function stampAsTemplate(
   doc: SlidomingoDoc,
   opts: { templateId?: string; samples?: boolean } = {},
 ): SlidomingoDoc {
-  const clone = JSON.parse(JSON.stringify(doc)) as SlidomingoDoc
+  const clone = jsonClone(doc)
   clone.template = true
   delete (clone as { docId?: string }).docId
   delete clone.basedOn
@@ -4187,8 +4187,8 @@ export function mergeTemplateDesign(
   if (template.size?.width !== deck.size?.width || template.size?.height !== deck.size?.height) {
     return { error: 'size-mismatch' }
   }
-  const out = JSON.parse(JSON.stringify(template)) as SlidomingoDoc
-  const src = JSON.parse(JSON.stringify(deck)) as SlidomingoDoc
+  const out = jsonClone(template)
+  const src = jsonClone(deck)
   const oldLayoutIds = layoutElementIds(out)
 
   // Template-side part (everything but the design layer), with colliding
@@ -4257,7 +4257,7 @@ export function adoptTemplateDesign(
     return { error: 'size-mismatch' }
   }
   // design layer only — the template's sample slides don't vouch for assets
-  const t = JSON.parse(JSON.stringify({ ...template, slides: [] })) as SlidomingoDoc
+  const t = jsonClone({ ...template, slides: [] }) as SlidomingoDoc
   const wanted = referencedAssetKeys(t)
   const deckAssets = deck.assets ?? {}
   const tAssets = t.assets ?? {}

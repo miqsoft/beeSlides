@@ -41,6 +41,7 @@ import {
   borderPoint, boxCenter, isLineLike, lineEndpoints, pathAnchors, pathIsClosed, pathIsStraight,
   rerouteConnectors, setLineEndpoints, setPathAnchors, sideMidpoint,
 } from './editor/lineedit.ts'
+import { jsonClone } from './jsonclone.ts'
 
 export type Frame = { x: number; y: number; w: number; h: number }
 /** What an element looked like before the edit — the guard's baseline. */
@@ -304,7 +305,7 @@ export function guardLayout(doc: SlidomingoDoc, slide: Slide, before: Baseline, 
   const apply = opts.apply
   // In report-only mode work on a scratch copy, so every pass can still run
   // (what grows decides what overlaps) without touching the caller's slide.
-  const work: Slide = apply ? slide : JSON.parse(JSON.stringify(slide))
+  const work: Slide = apply ? slide : jsonClone(slide)
   const els = work.elements
   const byId = new Map(els.map((e) => [e.id, e]))
   const gapUnit = Math.round(16 * (doc.size.width / 1280))

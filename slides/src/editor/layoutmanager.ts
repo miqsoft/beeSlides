@@ -75,6 +75,7 @@ import { buildSaveIndicator, type SaveIndicator } from './saveindicator'
 import { desktopStatusSource } from './desktopdoc'
 import { buildSaveToTemplateMenu } from './templatemenu'
 import { formatGate } from '../formatgate'
+import { jsonClone } from '../jsonclone.ts'
 
 export interface LayoutManagerSession {
   exit(): void
@@ -174,7 +175,7 @@ export function remintElements(elements: SlideElement[]): SlideElement[] {
   const cloned = elements.map((e) => {
     const id = uid(e.type[0])
     idMap.set(e.id, id)
-    return { ...(JSON.parse(JSON.stringify(e)) as SlideElement), id }
+    return { ...jsonClone(e), id }
   })
   for (const el of cloned) {
     if (el.groupId) el.groupId = gidMap.get(el.groupId) ?? gidMap.set(el.groupId, `grp-${uid()}`).get(el.groupId)!
@@ -784,7 +785,7 @@ export function openLayoutManager(
     const idMap = new Map<string, string>()
     for (const ly of foreign.layouts ?? []) idMap.set(ly.id, uid('layout'))
     const clonedLayouts: Slide[] = (foreign.layouts ?? []).map((ly) => {
-      const clone = JSON.parse(JSON.stringify(ly)) as Slide
+      const clone = jsonClone(ly)
       clone.id = idMap.get(ly.id)!
       clone.elements = remintElements(clone.elements)
       if (clone.parentId) {

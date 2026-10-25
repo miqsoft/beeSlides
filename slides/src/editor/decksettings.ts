@@ -12,6 +12,7 @@ import {
   defaultText, readableInk, uid,
   type FooterRole, type Slide, type SlideElement, type SlidomingoDoc,
 } from '../model'
+import { jsonClone } from '../jsonclone.ts'
 
 // ---- page size -------------------------------------------------------------------
 
@@ -74,7 +75,7 @@ export type HeaderFooter = NonNullable<SlidomingoDoc['headerFooter']>
  *  normalised: `show` only when false, empty strings and parts dropped. */
 export function commitHeaderFooter(store: Store, mut: (hf: HeaderFooter) => void): void {
   store.commit(() => {
-    const hf: HeaderFooter = JSON.parse(JSON.stringify(store.doc.headerFooter ?? {}))
+    const hf: HeaderFooter = jsonClone(store.doc.headerFooter ?? {})
     mut(hf)
     for (const k of ['date', 'slideNumber', 'footer'] as const) {
       const part = hf[k] as Record<string, unknown> | undefined
@@ -128,7 +129,7 @@ export function addLinkedState(store: Store, srcId: string, linkFrom?: string, n
   const doc = store.doc
   const src = doc.slides.find((s) => s.id === srcId)
   if (!src) return null
-  const clone = JSON.parse(JSON.stringify(src)) as Slide
+  const clone = jsonClone(src)
   clone.id = uid('slide')
   clone.stateOf = src.stateOf ?? src.id
   clone.name = name || `${src.name ?? 'state'} ${doc.slides.filter((s) => s.stateOf === clone.stateOf).length + 2}`
@@ -164,7 +165,7 @@ export function syncStateWithParent(store: Store, stateId: string): { added: num
     const mine = own.get(pe.id)
     if (mine) { own.delete(pe.id); return mine }
     added++
-    return JSON.parse(JSON.stringify(pe))
+    return jsonClone(pe)
   })
   const extras = [...own.values()]
   store.commit(() => { state.elements = [...merged, ...extras] })

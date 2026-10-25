@@ -133,6 +133,7 @@ import { applyThemePatch, isAreaTool, runAreaOp, sectionRows, slideFromCompiled,
 import { compileSlideHtml, type CompileResult } from '../htmlslide'
 import { MAX_SLIDE_HTML } from '../agentops/spec'
 import { slideToHtml } from '../htmlemit'
+import { jsonClone } from '../jsonclone.ts'
 
 
 /** Per-BROWSER, not per-deck: whether the "this browser can't rewrite files"
@@ -1935,7 +1936,7 @@ export class Editor {
    *  into the same start card (player.ts). */
   async savePresentationPackage() {
     if (refuseGatedWrite((m) => this.toast(m))) return
-    const clone = JSON.parse(JSON.stringify(this.store.doc)) as import('../model').SlidomingoDoc
+    const clone = jsonClone(this.store.doc)
     clone.readonly = true
     const saved = t('Presentation file saved — it opens on a start card to present')
     try {
@@ -2086,7 +2087,7 @@ export class Editor {
   async saveAsNewDeck() {
     if (refuseGatedWrite((m) => this.toast(m))) return
     if (this.templateMode) { await this.newDeckFromTemplate(); return }
-    const clone = JSON.parse(JSON.stringify(this.store.doc)) as import('../model').SlidomingoDoc
+    const clone = jsonClone(this.store.doc)
     clone.docId = newDocId()
     if (desktopBound()) {
       // Never swap identities under a bound file (autosave would write the
@@ -5807,7 +5808,7 @@ export class Editor {
       docId: doc.docId,
       title: doc.title,
       size: { ...doc.size },
-      theme: JSON.parse(JSON.stringify(doc.theme)),
+      theme: jsonClone(doc.theme),
       meta: doc.meta ? { ...doc.meta } : undefined,
       present: doc.present ? { ...doc.present } : undefined,
       slideCount: doc.slides.length,
@@ -5821,7 +5822,7 @@ export class Editor {
       // What deck section_* ops address (agentops.ts).
       sections: sectionRows(this.store),
       // What deck_settings header_footer / theme set (read back after a write).
-      headerFooter: doc.headerFooter ? JSON.parse(JSON.stringify(doc.headerFooter)) : undefined,
+      headerFooter: doc.headerFooter ? jsonClone(doc.headerFooter) : undefined,
       palette: paletteOf(doc),
       // The column grid people see and snap to (deck_settings layout_grid);
       // elements arrange fills a span of it with within "columns 7-12".
@@ -6859,7 +6860,7 @@ export class Editor {
       // stay untouched in case the picker is reopened before this commit
       // (it won't be, since clearPendingVariants runs right after, but a
       // clone costs nothing and avoids a stale-reference footgun).
-      const slide = JSON.parse(JSON.stringify(chosen.slide)) as Slide
+      const slide = jsonClone(chosen.slide)
       mergeClipResources({ assets: pending.assets, fonts: pending.fonts }, doc, slide.elements)
       doc.slides[idx] = slide
       if (chosen.theme) applyThemePatch(doc, chosen.theme)
@@ -8343,12 +8344,12 @@ function reportList(notes: string): HTMLElement {
  * collaboration has been removed outright (docs/DECISIONS.md, 2026-09-02).
  */
 export function docForAgent(doc: import('../model').SlidomingoDoc): import('../model').SlidomingoDoc {
-  return JSON.parse(JSON.stringify(doc)) as import('../model').SlidomingoDoc
+  return jsonClone(doc)
 }
 
 /** Deep-clone an element with a fresh id (same-slide duplicates must not share ids). */
 function cloneElement(el: SlideElement): SlideElement {
-  return { ...JSON.parse(JSON.stringify(el)), id: uid(el.type[0]), x: el.x + 24, y: el.y + 24 }
+  return { ...jsonClone(el), id: uid(el.type[0]), x: el.x + 24, y: el.y + 24 }
 }
 
 // --- figure-folder pick (the markdown importer's repair action) -------------

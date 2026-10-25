@@ -10,6 +10,7 @@ import type { SlideElement } from '../../model.ts'
 import { MODEL_KEYS } from '../../modelkeys.generated.ts'
 import { CHORD_KEY, PANEL_SECTIONS, TOKENS, TOOLBAR_ITEMS, type PanelSection } from './catalog.ts'
 import { PROFILE_PARTS, SHORTCUT_NONE, type UiToolbar, UI_PROFILE_FORMAT, UI_PROFILE_VERSION, type UiAction, type UiChrome, type UiMenu, type UiPart, type UiProfile } from './schema.ts'
+import { jsonClone } from '../../jsonclone.ts'
 
 // ---- chords ------------------------------------------------------------------
 
@@ -79,7 +80,7 @@ export function mergePatch(target: unknown, patch: unknown): unknown {
   return out
 }
 
-export const clone = <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v)))
+export const clone = jsonClone
 
 /** Key-order-independent JSON, for "did this change" checks. */
 export function stableJson(v: unknown): string {

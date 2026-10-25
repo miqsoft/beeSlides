@@ -38,6 +38,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg'
 type DrawKind = 'line' | 'path' | 'connector' | 'free' | 'poly'
 import { CommentsUI } from './comments'
 import { FrameCoalescer, inLiveStep } from './livestep'
+import { jsonClone } from '../jsonclone.ts'
 
 /** Editor-only view preference — never in the doc, same idiom as present.ts's
  *  'slidomingo-reduce-motion' (a VIEWER setting, not a document property). */
@@ -2123,7 +2124,7 @@ export class SlideCanvas {
         // duplicate-drag: snapshot the selection now; the stationary copies
         // are committed in one undo step together with the moved frames
         this.pendingCopy = this.store.selectedElements.map(
-          (el) => JSON.parse(JSON.stringify(el)) as SlideElement,
+          (el) => jsonClone(el),
         )
       }
     }

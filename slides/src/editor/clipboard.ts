@@ -19,6 +19,7 @@ import { lineDefaultsFor, shapeDefaultsFor, textDefaultsFor, uid, type StyleShap
 import { firstFamily } from '../fonts'
 import { LIMITS, sanitizeAssets, sanitizeElement, sanitizeFonts, sanitizeSlide } from '../untrusted'
 import { isZoomElement, remapZoomTarget } from '../model'
+import { jsonClone } from '../jsonclone.ts'
 
 export interface ClipPayload {
   __slidomingo: 'clip'
@@ -61,7 +62,7 @@ export function serializeElements(els: SlideElement[], doc: SlidomingoDoc): stri
   const fonts = fontsFor(els, doc)
   const payload: ClipPayload = {
     __slidomingo: 'clip', kind: 'elements',
-    elements: JSON.parse(JSON.stringify(els)),
+    elements: jsonClone(els),
     assets: collectAssets(els, fonts, doc),
     fonts,
   }
@@ -73,7 +74,7 @@ export function serializeSlides(slides: Slide[], doc: SlidomingoDoc): string {
   const fonts = fontsFor(els, doc)
   const payload: ClipPayload = {
     __slidomingo: 'clip', kind: 'slides',
-    slides: JSON.parse(JSON.stringify(slides)),
+    slides: jsonClone(slides),
     assets: collectAssets(els, fonts, doc),
     fonts,
   }
@@ -318,7 +319,7 @@ export function insertElements(payload: ClipPayload, doc: SlidomingoDoc, slide: 
   const els: SlideElement[] = (payload.elements ?? []).map((e) => {
     const id = uid(e.type[0])
     idMap.set(e.id, id)
-    return { ...(JSON.parse(JSON.stringify(e)) as SlideElement), id, x: (e.x ?? 0) + off, y: (e.y ?? 0) + off }
+    return { ...jsonClone(e), id, x: (e.x ?? 0) + off, y: (e.y ?? 0) + off }
   })
   rewriteRefs(els, remap)
   if (opts.plain) for (const el of els) restyleToDefaults(el, slide, doc)
@@ -364,7 +365,7 @@ export function insertSlides(payload: ClipPayload, doc: SlidomingoDoc, at: numbe
   const remap = mergeAssets(payload, doc)
   mergeFonts(payload, doc, remap)
   const slides: Slide[] = (payload.slides ?? []).map((s) => {
-    const copy = JSON.parse(JSON.stringify(s)) as Slide
+    const copy = jsonClone(s)
     copy.id = uid('slide')
     if (copy.stateOf) delete copy.stateOf // a pasted state becomes a normal slide
     // A slide's layoutId points at a doc.layouts entry IN ITS OWN DECK — that

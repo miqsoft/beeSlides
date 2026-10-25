@@ -12,6 +12,7 @@ import {
   type Section, type Slide, type SlidomingoDoc,
 } from '../model'
 import { slideBlocks } from './slideorder'
+import { jsonClone } from '../jsonclone.ts'
 
 /** Index just past slide `i`'s block (it and the states that follow it) —
  *  where something inserted "after" it must go, so it never lands between
@@ -88,7 +89,7 @@ export function cloneSlides(slides: Slide[], copyOf: Map<string, string>): Slide
   const local = new Map(slides.map((s) => [s.id, uid('slide')]))
   for (const [from, to] of local) copyOf.set(from, to)
   return slides.map((s) => {
-    const c = JSON.parse(JSON.stringify(s)) as Slide
+    const c = jsonClone(s)
     c.id = local.get(s.id)!
     if (c.stateOf && local.has(c.stateOf)) c.stateOf = local.get(c.stateOf)
     for (const el of c.elements) if (el.link && local.has(el.link)) el.link = local.get(el.link)

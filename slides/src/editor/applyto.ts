@@ -37,6 +37,7 @@ import type { Store } from '../store'
 import { linkedSlides, uid, type Slide } from '../model'
 import { renderThumbnail } from '../render'
 import { t } from '../i18n'
+import { jsonClone } from '../jsonclone.ts'
 
 /** One selectable row in an Apply-to dialog: a thumbnail + label + optional
  *  blast-radius annotation (e.g. "(3 slides)"), keyed by the id that gets
@@ -244,7 +245,7 @@ export function openApplyTo(store: Store, layoutId: string, onDone: () => void):
     onApply: (selectedIds, name) => {
       store.commit(() => {
         const cloneId = uid('layout')
-        const clone: Slide = { ...(JSON.parse(JSON.stringify(layout)) as Slide), id: cloneId, name: name || t('New slide type') }
+        const clone: Slide = { ...jsonClone(layout), id: cloneId, name: name || t('New slide type') }
         delete clone.stateOf
         clone.notes = ''
         doc.layouts = [...(doc.layouts ?? []), clone]

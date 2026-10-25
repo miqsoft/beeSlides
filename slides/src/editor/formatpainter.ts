@@ -10,6 +10,7 @@
 import type { Store } from '../store'
 import type { SlideCanvas } from './canvas'
 import type { ElementBase, ShapeElement, SlideElement, TextElement } from '../model'
+import { jsonClone } from '../jsonclone.ts'
 
 const UNIVERSAL_KEYS = ['shadow', 'blur', 'blend', 'backdropFilter'] as const
 const TEXT_KEYS = ['fontFamily', 'fontSize', 'fontWeight', 'color', 'align', 'valign', 'lineHeight'] as const
@@ -27,7 +28,7 @@ interface StyleBag {
 }
 
 function clone<T>(v: T): T {
-  return v && typeof v === 'object' ? (JSON.parse(JSON.stringify(v)) as T) : v
+  return v && typeof v === 'object' ? jsonClone(v) : v
 }
 
 export class FormatPainter {

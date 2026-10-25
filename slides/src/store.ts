@@ -4,6 +4,7 @@ import { inLinearFlow, resolveAgentSlide, REUSABLE_OBJECT_CANVAS, syncContentReq
 import type { IconLook, SlidomingoDoc, Slide, SlideElement } from './model'
 import { ActionLog, jsonEqual, type ElementChange } from './actionlog'
 import { scheduleBlobSweep } from './bloburls'
+import { jsonClone } from './jsonclone.ts'
 
 export type StoreEvent =
   | 'doc'        // any document mutation
@@ -702,11 +703,11 @@ export class Store {
       } else if (change.after == null) {
         // this action DELETED the element — revert re-inserts it (appended;
         // its original position in the array isn't part of ElementChange)
-        container.elements.push(JSON.parse(JSON.stringify(change.before)))
+        container.elements.push(jsonClone(change.before))
         applied = true
       } else if (idx >= 0) {
         // this action MODIFIED the element — revert restores the prior snapshot
-        container.elements[idx] = JSON.parse(JSON.stringify(change.before))
+        container.elements[idx] = jsonClone(change.before)
         applied = true
       }
     })
