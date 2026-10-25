@@ -116,7 +116,7 @@ try {
     ok(!bundled.includes('/*@AGENT_AREAS@*/') && bundled.includes('"name":"variants"') && bundled.includes('/*@CODE_MODE@*/false'), 'mcp/server.mjs: the agent areas filled in, Code Mode off')
     for (const name of ['build-deck', 'restyle-deck', 'polish-deck', 'slide-designs']) {
       const md = readFileSync(join(plugin, 'skills', name, 'SKILL.md'), 'utf8')
-      ok(md.startsWith(`---\nname: ${name}\n`) && md.includes('`../../reference/agents.md`'), `skill ${name}: frontmatter first, then where the reference docs are`)
+      ok(md.startsWith(`---\nname: ${name}\n`) && md.includes('`reference/<name>`') && existsSync(join(plugin, 'reference', 'design.md')), `skill ${name}: frontmatter first, then where the reference docs are`)
     }
   }
 
@@ -124,6 +124,7 @@ try {
   await withLauncher({ BEESLIDES_AGENT_DIR: join(work, 'nothing-here') }, async (rpc) => {
     const init = (await rpc('initialize', { protocolVersion: '2025-06-18', clientInfo: { name: 'claude-code' } })).result
     ok(init?.protocolVersion === '2025-06-18' && /BeeSlides deck/.test(init.instructions) && /Allow AI apps outside BeeSlides/.test(init.instructions), 'initialize: the plugin instruction and the setup steps')
+    ok(init.instructions.length <= 4096, `it fits Claude Code's 4096-character cut for server instructions (${init.instructions.length})`)
     const tools = (await rpc('tools/list', {})).result.tools.map((t) => t.name)
     ok(tools.length === 1 && tools[0] === 'setup_status', 'one tool: setup_status')
     const r = (await rpc('tools/call', { name: 'setup_status', arguments: {} })).result
@@ -149,12 +150,14 @@ try {
         const init = (await rpc('initialize', { protocolVersion: '2024-11-05', clientInfo: { name: 'claude-code' } })).result
         ok(init?.serverInfo?.name === 'beeslides' && init.serverInfo.version !== 'setup', 'initialize comes from the app\'s own server')
         const ref = /top of (\S+)\/agents\.md/.exec(init.instructions ?? '')?.[1]
-        ok(!!ref && existsSync(join(ref, 'agents.md')) && existsSync(join(ref, 'format.md')), `the instruction points at the plugin's reference docs (${ref})`)
-        ok(/no editing context line/.test(init.instructions) && !/selection\.json/.test(init.instructions), 'it is the outside instruction, not the panel\'s')
-        ok(/Mode: the BeeSlides app is open/.test(init.instructions), 'with the visible mode line')
+        ok(!!ref && existsSync(join(ref, 'agents.md')) && existsSync(join(ref, 'design.md')), `the instruction points at the plugin's reference docs (${ref})`)
+        ok(/Nothing is selected in this chat/.test(init.instructions) && !/selection\.json/.test(init.instructions), 'it is the outside instruction, not the panel\'s')
+        ok(init.instructions.startsWith('Mode: the BeeSlides app is open'), 'with the visible mode line first')
+        ok(init.instructions.length <= 4096, `it fits Claude Code's 4096-character cut (${init.instructions.length})`)
         const tools = (await rpc('tools/list', {})).result.tools.map((t) => t.name)
         // the raw server source; the app adds its grouped tools (slide_html, …) when it writes it out
         ok(tools.includes('review_slide') && tools.includes('open_deck') && tools.includes('propose_variants'), `the app's tools pass through (${tools.length})`)
+        ok(!tools.includes('ui_profile'), 'no ui_profile: customizing the app is the panel\'s job')
         const r = (await rpc('tools/call', { name: 'doc_info', arguments: {} })).result
         ok(!r.isError && /"mode":"visible"/.test(r.content[0].text), 'a call reaches the visible app')
       })
@@ -175,7 +178,8 @@ try {
     const env = { BEESLIDES_AGENT_DIR: agent, BEESLIDES_APP: bin, FAKE_MARKS: marks }
     await withLauncher(env, async (rpc, launcher) => {
       const init = (await rpc('initialize', { protocolVersion: '2024-11-05', clientInfo: { name: 'claude-code' } })).result
-      ok(/Mode: the BeeSlides app is not open/.test(init.instructions) && /open_deck/.test(init.instructions), 'initialize: the background mode line (open_deck first)')
+      ok(init.instructions.startsWith('Mode: the BeeSlides app is not open') && /open_deck/.test(init.instructions), 'initialize: the background mode line first (open_deck first)')
+      ok(init.instructions.length <= 4096, `it fits Claude Code's 4096-character cut (${init.instructions.length})`)
       const tools = (await rpc('tools/list', {})).result.tools.map((t) => t.name)
       ok(tools.includes('slide_html') && tools.includes('variants') && tools.includes('open_deck') && !tools.includes('execute'), `the bundled server lists the tools, areas filled, no Code Mode (${tools.length})`)
       const help = (await rpc('tools/call', { name: 'variants', arguments: { op: 'help' } })).result

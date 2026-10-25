@@ -299,7 +299,7 @@ const TOOLS = [
       'text) plus notes, about a tenth of the size; enough to read the content ' +
       'and address elements by id. Default "full": the whole JSON (styles, ' +
       'background, ...), needed before write_slide or to copy exact styling. ' +
-      'Skip it when the attached editing context or outline already says enough; ' +
+      'Skip it when outline (or, in the app, the editing context) already says enough; ' +
       'to locate content use find_text, not one get_slide per slide.',
     inputSchema: { type: 'object', properties: { slideId: SLIDE_ID, view: { type: 'string', enum: ['summary', 'full'] } }, required: ['slideId'] },
   },
@@ -599,8 +599,11 @@ const TOOLS = [
       'each as HTML + CSS exactly like slide_html write (same rules, ids ' +
       'merge into the slide), or as a whole slide (write_slide shape). Make ' +
       'them differ in layout and emphasis, not just colour; give each a short ' +
-      'label and a one-line note on what it does differently. Applies ' +
-      'nothing; the result lists any design that could not be made. ' +
+      'label and a one-line note on what it does differently. To offer ' +
+      'LOOKS for the whole deck, give each design a theme: it is laid out ' +
+      'and previewed under it (diagram components take their colours from ' +
+      'the theme, not from your CSS) and becomes the deck theme when picked. ' +
+      'Applies nothing; the result lists any design that could not be made. ' +
       'variants {op:"status"} tells you later what the user picked. A new ' +
       'call replaces an unpicked set.',
     inputSchema: {
@@ -619,6 +622,15 @@ const TOOLS = [
               slide: { type: 'object', description: 'Instead of html: a whole slide (write_slide shape, same id).' },
               label: { type: 'string', description: 'A few words, e.g. "Three cards".' },
               note: { type: 'string', description: 'One line: what this design does differently.' },
+              theme: {
+                type: 'object',
+                description: 'Only for a look offered for the whole deck: the theme it needs (as deck_settings theme). Set on the deck when this design is picked.',
+                properties: {
+                  background: { type: 'string' }, color: { type: 'string' }, accent: { type: 'string' },
+                  accent2: { type: 'string' }, accent3: { type: 'string' }, accent4: { type: 'string' }, accent5: { type: 'string' }, accent6: { type: 'string' },
+                  fontFamily: { type: 'string' }, headingFamily: { type: 'string' },
+                },
+              },
             },
           },
         },
@@ -658,7 +670,10 @@ TOOLS.push(...AGENT_AREAS.map((a) => a.def))
 
 // An outside app names the deck it works on; main answers both itself
 // (main/agentdecks.ts). Not for the panel: its chat belongs to its window.
+// ui_profile customizes the app's own UI (the panel's customize-ui skill):
+// nothing an outside app's deck job needs.
 if (endpointDir) {
+  TOOLS.splice(TOOLS.findIndex((t) => t.name === 'ui_profile'), 1)
   TOOLS.push(
     {
       name: 'open_deck',

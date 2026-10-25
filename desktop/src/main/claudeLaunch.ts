@@ -56,31 +56,33 @@ export const claudeInstruction = (sharedDir: string): string =>
   `request naming a slide type, such as content slides, targets that slide ` +
   `type by id (from the context line or doc_info), and every deck slide using ` +
   `it follows. The full snapshot is ./${sharedDir}/selection.json if you ever ` +
-  `need more. ` + toolGuidance(`./${sharedDir}`, true)
+  `need more. ` + toolGuidance(`./${sharedDir}`)
 
-/** The same guidance for an AI app outside BeeSlides (the Claude Code plugin,
- *  scripts/build-claude-plugin.mjs): no panel next to it, so no editing
- *  context line and no selection snapshot. Says nothing about whether the
- *  app is visible: the plugin's launcher adds that line (mcp/plugin-launch.mjs
- *  MODE_LINES). `refDir` is where agents.md and
- *  format.md are — the plugin fills in its own folder when it starts. Not a
- *  shell string, but kept to the same characters as claudeInstruction. */
+/** The instruction for an AI app outside BeeSlides (the Claude Code plugin,
+ *  scripts/build-claude-plugin.mjs). Claude Code cuts server instructions at
+ *  4096 characters and the launcher puts its mode line in front
+ *  (mcp/plugin-launch.mjs MODE_LINES), so this stays short and says only
+ *  what the tool descriptions do not: where to start, which tool for which
+ *  job, the skills, where the rules are (DECISIONS 2026-10-25). `refDir` is
+ *  where design.md and agents.md are; the plugin fills in its own folder.
+ *  Kept to the same characters as claudeInstruction. */
 export const outsideInstruction = (refDir: string): string =>
-  `You are editing BeeSlides decks through the beeslides tools; the ` +
-  `BeeSlides app on this computer does the work (layout, screenshots, saving). ` +
-  `open_deck with a deck file's path makes it the deck every later call works ` +
-  `on (create:true makes a new one); doc_info names the file. There is no ` +
-  `editing context line in this chat: when the user says this or the ` +
-  `current slide, find it with outline and find_text, or ask which slide ` +
-  `they mean. After propose_variants, call variants with op previews so the ` +
-  `user sees the designs in the BeeSlides pane, and learn their pick from ` +
-  `variants with op status instead of asking; tell them they can pick in the ` +
-  `pane or answer with the number. ` + toolGuidance(refDir, false)
+  `The beeslides tools edit BeeSlides decks; the BeeSlides app does layout, ` +
+  `screenshots and saving. Start with open_deck on the deck file the user ` +
+  `names (create:true makes a new one), then doc_info. Nothing is selected in ` +
+  `this chat: find what the user means by this slide with outline and ` +
+  `find_text, or ask. Write a new or restructured slide as HTML with ` +
+  `slide_html; change a few things with update_element or elements; slides, ` +
+  `notes and transitions with deck; theme and size with deck_settings; icons ` +
+  `only from the icons tool. Look at what you made with review_slide. To ` +
+  `build a deck use the build-deck skill, for a new look restyle-deck, to ` +
+  `clean one up polish-deck, for options on one slide slide-designs; a small ` +
+  `edit needs none of them. Before designing slides, read ${refDir}/design.md ` +
+  `once. Element details: the quick reference at the top of ${refDir}/agents.md.`
 
-/** What both instructions share: which verb to reach for, the skills, the
- *  review loop, comments. `withContextLine` = the panel, whose context line
- *  often makes a read unnecessary. */
-const toolGuidance = (refDir: string, withContextLine: boolean): string =>
+/** The panel's guidance: which verb to reach for, the skills, the review
+ *  loop, comments. */
+const toolGuidance = (refDir: string): string =>
   `Edit through the beeslides MCP tools and prefer the ` +
   `smallest one: update_element to change properties of one element, ` +
   `elements({op}) for several elements in one call and for layout (edit a ` +
@@ -103,9 +105,8 @@ const toolGuidance = (refDir: string, withContextLine: boolean): string =>
   `(profile, outline, a family of slide types, one reference slide per type, then parallel subagents write the rest); ` +
   `to give a whole deck a new look, restyle-deck; to fix one up without changing its look, polish-deck. ` +
   `A small edit needs no skill and no questions: keep the slide on its slide type and inside the deck look. ` +
-  (withContextLine
-    ? `Skip get_slide when the context line already says enough; find content `
-    : `Find content `) +
+  `Before designing slides, read ${refDir}/design.md once. ` +
+  `Skip get_slide when the context line already says enough; find content ` +
   `with find_text (not one get_slide per ` +
   `slide) and read a slide with get_slide view "summary" unless you are about ` +
   `to rewrite it. After a write, the app keeps arrows attached and ` +

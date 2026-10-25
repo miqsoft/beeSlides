@@ -106,14 +106,11 @@ function findApp() {
 
 const MODE_LINES = {
   visible:
-    'Mode: the BeeSlides app is open on this computer. Without open_deck every tool works on the deck window the user ' +
-    'last focused there; to work on a file the user names, call open_deck with its path (create:true makes a new deck), ' +
-    'which opens it in a window. The user sees every change in the app and picks designs in its compare view.',
+    'Mode: the BeeSlides app is open, and the user watches every change there. Without open_deck the tools work on ' +
+    'the deck window the user last focused; open_deck opens a named file in a window of its own.',
   background:
-    'Mode: the BeeSlides app is not open, so the tools run in a hidden BeeSlides that nobody sees. Call open_deck with ' +
-    'the path of the deck first (create:true makes a new one); every change is saved to that file. The user sees ' +
-    'slides only in the BeeSlides pane of this chat: after propose_variants call variants {op:"previews"} so they can ' +
-    'pick there, and learn the pick from variants {op:"status"}.',
+    'Mode: the BeeSlides app is not open, so the tools run in a hidden BeeSlides nobody sees. Call open_deck first; ' +
+    'every change is saved to that file. The user sees slides only in the BeeSlides pane of this chat.',
 }
 
 const SETUP = [
@@ -125,7 +122,8 @@ const SETUP = [
 
 const write = (msg) => process.stdout.write(JSON.stringify(msg) + '\n')
 const withInstruction = (result, mode) => {
-  const ours = mode ? `${instruction}\n\n${MODE_LINES[mode]}` : instruction
+  // the mode line first: Claude Code keeps only the first 4096 characters
+  const ours = mode ? `${MODE_LINES[mode]}\n\n${instruction}` : instruction
   return { ...result, instructions: result?.instructions ? `${ours}\n\n${result.instructions}` : ours }
 }
 

@@ -3,7 +3,7 @@ name: draw-icons
 description: Draw or redraw icons of an icon set (doc kind "iconset") from native path shapes, all in the set's one style — many icons are split across parallel subagents. Also adds a style to the set (icons op style) when the user describes a look.
 ---
 
-_In this plugin: `task` is the Agent tool (subagents), and `read_reference("agents.md")` means reading `reference/agents.md` of the BeeSlides plugin, two folders up from this skill's base directory (`../../reference/agents.md`)._
+_In this plugin: `task` is the Agent tool (subagents), and `read_reference("<name>")` means reading `reference/<name>` of the BeeSlides plugin, two folders up from this skill's base directory (e.g. `../../reference/design.md`)._
 
 **Planning first.** When the user asks for icons in their own words ("think about 12 icons for …") and the set has no plan for them yet, plan before drawing: decide the list (names, one line each of what it shows, 2-5 keywords, consistent metaphors) and write it with ONE `icons` call, op `plan`. Then stop and let the user review; draw only when they say so or press Draw with AI.
 

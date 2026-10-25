@@ -2539,6 +2539,7 @@ export const zhHans: Catalog = {
   "Design {n}": "设计 {n}",
   "Used “{label}” on slide {num} — undo brings the old slide back": "已在第 {num} 张幻灯片上使用“{label}”——撤销可恢复原来的幻灯片",
   "Kept the current slide.": "已保留当前幻灯片。",
+  "Also sets the colours and fonts of the whole deck.": "同时设置整个演示文稿的颜色和字体。",
   "Claude proposed {n} designs for this slide — compare them": "Claude 为此幻灯片提出了 {n} 个设计——比较一下",
   "{n} designs for slide {num}": "第 {num} 张幻灯片的 {n} 个设计",
   "Proposed by Claude. Nothing on the slide changes until you pick one.": "由 Claude 提出。在你选择之前，幻灯片不会有任何变化。",

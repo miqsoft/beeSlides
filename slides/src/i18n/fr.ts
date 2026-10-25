@@ -2539,6 +2539,7 @@ export const fr: Catalog = {
   "Design {n}": "Maquette {n}",
   "Used “{label}” on slide {num} — undo brings the old slide back": "« {label} » appliquée à la diapositive {num} — Annuler rétablit l’ancienne diapositive",
   "Kept the current slide.": "La diapositive actuelle est conservée.",
+  "Also sets the colours and fonts of the whole deck.": "Change aussi les couleurs et les polices de toute la présentation.",
   "Claude proposed {n} designs for this slide — compare them": "Claude a proposé {n} maquettes pour cette diapositive — les comparer",
   "{n} designs for slide {num}": "{n} maquettes pour la diapositive {num}",
   "Proposed by Claude. Nothing on the slide changes until you pick one.": "Proposées par Claude. Rien ne change sur la diapositive tant que vous n’en choisissez pas une.",

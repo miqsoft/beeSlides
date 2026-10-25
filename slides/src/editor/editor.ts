@@ -128,7 +128,7 @@ import { validateProfile } from './customize/validate'
 import { QUICKBAR_PLACES, emptyProfile, type QuickBarPlace, type UiProfile } from './customize/schema'
 import type { RibbonHandle } from './ribbon'
 import { agentFindText } from './findtext'
-import { isAreaTool, runAreaOp, sectionRows, slideFromCompiled, type HtmlLayout, type IconLibraryAccess, type SlideWrites, type VariantAccess, type VariantOutcome } from './agentops'
+import { applyThemePatch, isAreaTool, runAreaOp, sectionRows, slideFromCompiled, themedDoc, themePatch, type HtmlLayout, type ThemePatch, type IconLibraryAccess, type SlideWrites, type VariantAccess, type VariantOutcome } from './agentops'
 import { compileSlideHtml, type CompileResult } from '../htmlslide'
 import { MAX_SLIDE_HTML } from '../agentops/spec'
 import { slideToHtml } from '../htmlemit'
@@ -6651,9 +6651,16 @@ export class Editor {
     for (const [i, raw] of rawVariants.entries()) {
       const n = i + 1
       if (!raw || typeof raw !== 'object') { dropped.push(`variant ${n}: not an object`); continue }
-      const candidate = raw as { slide?: unknown; html?: unknown; css?: unknown; label?: unknown; note?: unknown }
+      const candidate = raw as { slide?: unknown; html?: unknown; css?: unknown; label?: unknown; note?: unknown; theme?: unknown }
       const label = typeof candidate.label === 'string' && candidate.label.trim() ? candidate.label.trim().slice(0, 60) : undefined
       const note = typeof candidate.note === 'string' && candidate.note.trim() ? candidate.note.trim().slice(0, 240) : undefined
+      // a look of its own: laid out and previewed under it, set on Use
+      let theme: ThemePatch | undefined
+      if (candidate.theme !== undefined) {
+        const patch = candidate.theme && typeof candidate.theme === 'object' ? themePatch(candidate.theme as Record<string, unknown>) : 'not an object'
+        if (typeof patch === 'string') { dropped.push(`variant ${n}: theme: ${patch}`); continue }
+        theme = patch
+      }
       if (typeof candidate.html === 'string') {
         const target = this.store.doc.slides.find((s) => s.id === slideId)
         if (!target) return { ok: false, error: 'no-such-slide' }
@@ -6661,17 +6668,22 @@ export class Editor {
         if (!candidate.html.trim()) { dropped.push(`variant ${n}: html is empty`); continue }
         if (candidate.html.length + (css?.length ?? 0) > MAX_SLIDE_HTML) { dropped.push(`variant ${n}: the HTML is too long (at most ${MAX_SLIDE_HTML} characters)`); continue }
         let compiled: CompileResult
-        try { compiled = await this.agentHtml.compile(target, { html: candidate.html, ...(css ? { css } : {}) }) } catch (e) {
+        // components take their colours from the theme as they are laid out
+        const layoutDoc = themedDoc(this.store.doc, theme)
+        try { compiled = await compileSlideHtml(layoutDoc, target, { html: candidate.html, ...(css ? { css } : {}) }, this.agentCanvasSize(target.id)) } catch (e) {
           dropped.push(`variant ${n}: ${e instanceof Error ? e.message : String(e)}`)
           continue
         }
         // laid out against the slide as it is NOW (it may have changed meanwhile)
         const now = this.store.doc.slides.find((s) => s.id === slideId)
         if (!now) return { ok: false, error: 'no-such-slide' }
-        const made = slideFromCompiled(this.store.doc, now, compiled)
+        const made = slideFromCompiled(themedDoc(this.store.doc, theme), now, compiled)
         if (typeof made === 'string') { dropped.push(`variant ${n}: ${made}`); continue }
+        // a slide still on the deck's background takes the look's (slides
+        // store their background, so it would stay white under a dark look)
+        if (theme?.background && made.background?.toLowerCase() === this.store.doc.theme.background.toLowerCase()) made.background = theme.background
         for (const line of compiled.notes) notes.push(`variant ${n}: ${line}`)
-        survivors.push({ slide: made, label, note })
+        survivors.push({ slide: made, label, note, ...(theme ? { theme } : {}) })
         continue
       }
       // Same untrusted-fragment rebuild write_slide runs a whole slide
@@ -6683,7 +6695,7 @@ export class Editor {
       const sanitized = sanitizeSlide(candidate.slide)
       if (!sanitized) { dropped.push(`variant ${n}: give html (+ css) or a whole slide`); continue }
       if (sanitized.id !== slideId) { dropped.push(`variant ${n}: slide.id must be "${slideId}"`); continue }
-      survivors.push({ slide: sanitized, label, note })
+      survivors.push({ slide: sanitized, label, note, ...(theme ? { theme } : {}) })
     }
     if (!survivors.length) return { ok: false, error: `no-valid-variants${dropped.length ? ` (${dropped.join('; ')})` : ''}` }
     const target = this.store.doc.slides.find((s) => s.id === slideId)
@@ -6774,12 +6786,13 @@ export class Editor {
       const slide = JSON.parse(JSON.stringify(chosen.slide)) as Slide
       mergeClipResources({ assets: pending.assets, fonts: pending.fonts }, doc, slide.elements)
       doc.slides[idx] = slide
+      if (chosen.theme) applyThemePatch(doc, chosen.theme)
     }, 'slides')
     if (pending.fonts.length) injectFonts(this.store.doc)
     this.clearPendingVariants()
     if (idx !== this.store.currentIndex && !this.store.editingSurface) this.store.goTo(idx)
     const label = chosen.label ?? t('Design {n}', { n: index + 1 })
-    this.variantOutcomes.set(pending.slideId, { kind: 'picked', index, label: chosen.label ?? `Design ${index + 1}`, by })
+    this.variantOutcomes.set(pending.slideId, { kind: 'picked', index, label: chosen.label ?? `Design ${index + 1}`, by, ...(chosen.theme ? { themed: true } : {}) })
     this.toast(t('Used “{label}” on slide {num} — undo brings the old slide back', { label, num: idx + 1 }))
   }
 
@@ -6815,7 +6828,7 @@ export class Editor {
       const area = { x: 0, y: 0, w: width, h: height }
       return p.variants.map((v) => {
         const previewDoc: SlidomingoDoc = {
-          ...this.store.doc,
+          ...themedDoc(this.store.doc, v.theme),
           assets: { ...this.store.doc.assets, ...p.assets },
           slides: this.store.doc.slides.map((s) => (s.id === p.slideId ? v.slide : s)),
         }

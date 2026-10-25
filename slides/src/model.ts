@@ -2779,7 +2779,8 @@ export function slideTypeRows(doc: SlidomingoDoc): Array<{ layout: Slide; depth:
  *  already-localized, non-empty `name` (slide types require a real name,
  *  enforced by the creation dialog). */
 export function createSlideTypeBlank(doc: SlidomingoDoc, name: string): Slide {
-  const slide = emptySlide({ id: uid('layout'), name })
+  // the theme's background, linked so it follows later theme changes
+  const slide = emptySlide({ id: uid('layout'), name, background: doc.theme.background, themeRefs: { background: 'bg1' } })
   doc.layouts = [...(doc.layouts ?? []), slide]
   return slide
 }

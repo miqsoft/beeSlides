@@ -3,7 +3,7 @@ name: translate-deck
 description: Translate all text of the deck into another language in place, keeping layout, formatting and ids.
 ---
 
-_In this plugin: `task` is the Agent tool (subagents), and `read_reference("agents.md")` means reading `reference/agents.md` of the BeeSlides plugin, two folders up from this skill's base directory (`../../reference/agents.md`)._
+_In this plugin: `task` is the Agent tool (subagents), and `read_reference("<name>")` means reading `reference/<name>` of the BeeSlides plugin, two folders up from this skill's base directory (e.g. `../../reference/design.md`)._
 
 Translate the deck's text into the language the user named (ask only if none was given). Change words, not design.
 

@@ -13,7 +13,7 @@ export function quickReference(agentsMd: string): string {
   return agentsMd.slice(start, next < 0 ? undefined : next).trim()
 }
 
-export const REFERENCE_NAMES = ['format.md', 'agents.md'] as const
+export const REFERENCE_NAMES = ['format.md', 'agents.md', 'design.md'] as const
 
 /** How to check a finished edit: by screenshot, or (a text-only model) by numbers. */
 function reviewRule(textOnly: boolean, vision: boolean): string {
@@ -36,7 +36,7 @@ export function apiSystemPrompt(agentsMd: string, skills: Array<{ name: string; 
     'Prefer the smallest tool: update_element to change properties of one element, the elements tool for several elements in one call and for layout (edit a batch, delete, arrange as a row or grid, align, distribute, match_size: say how things should sit and the app computes every frame, so never loop set_frame over several elements), insert_elements to add, write_slide only to restructure a whole slide. After removing content, rebalance what is left (elements arrange within "space") unless the empty space is wanted. Skip get_slide when the context line already says enough. Deck structure (adding, duplicating, moving, hiding or deleting slides, interactive states, hover groups, transitions, backgrounds, speaker notes, sections, document properties) goes through the deck tool, deck-wide settings (theme colours and fonts, slide size, slideshow, slide timing, header & footer, numbering) through deck_settings; op "help" explains any op. Icons come from the user\'s icon library through the icons tool (search with a short noun, then insert the ref): use it whenever a slide shows concepts, features, steps or roles, and never write SVG (it is refused: compose shapes, path shapes and text) or download artwork from the internet yourself (licensing): the library records where each icon came from and its license. When doc_info says kind "iconset", the document is an icon set (one icon per slide): draw its icons with the draw-icons skill, only from path elements like doc_info iconset.pathElement, each with an iconPart; a look the user describes for the set is one icons op style call, not a redraw. Delete only slides you added, unless the user asked. To find where something is, call find_text once instead of reading slides one by one; to read a slide, call get_slide with view "summary" and ask for the full view only before write_slide or to copy exact styling.',
     `After a write, the app keeps arrows attached and shifts neighbours to preserve spacing (reported as "LAYOUT ADJUSTED"); a "LAYOUT" warning banner means something still overlaps, so fix it, then call check_layout, at most 3 rounds. ${reviewRule(!!o.textOnly, !!o.vision)} Keep the change the user asked for and do not redesign unrelated parts of the slide.`,
     'Open comments flagged forAgent are tasks: fix them (an area comment names its region and elementIds; a latest reply from the user is feedback on your earlier attempt), then finish each with resolve_comment.',
-    'For anything beyond the quick reference below, call read_reference with "agents.md" (agent guide) or "format.md" (the full element/format spec) — read only what you need.',
+    'Before designing slides, read the design rules once: read_reference with "design.md". For anything beyond the quick reference below, read_reference "agents.md" (agent guide) or "format.md" (the full element/format spec) — read only what you need.',
     'For big, separable work call task (a subagent with a fresh context and the same slide tools; its prompt must be self-contained). Several task calls in one turn run in parallel — give each subagent its own disjoint set of slides.',
     ...skillLines,
     'Answer briefly; the user watches the deck change next to this chat.',
@@ -47,7 +47,7 @@ export function apiSystemPrompt(agentsMd: string, skills: Array<{ name: string; 
 
 export const READ_REFERENCE_TOOL = {
   name: 'read_reference',
-  description: 'Read one of the reference documents: "agents.md" (guide for AI agents: quick reference, recipes, gotchas) or "format.md" (the full document format spec). Use it when you need element JSON details the system prompt lacks.',
+  description: 'Read one of the reference documents: "design.md" (what makes a slide look good, and four starter looks), "agents.md" (guide for AI agents: quick reference, recipes, gotchas) or "format.md" (the full document format spec).',
   inputSchema: {
     type: 'object',
     properties: { name: { type: 'string', enum: [...REFERENCE_NAMES], description: 'Which document.' } },

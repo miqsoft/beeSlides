@@ -25,9 +25,12 @@ import { createDocumentWindow, readAppShell, requestWindowClose, whenDeckReady, 
 
 const fail = (error: string): Record<string, unknown> => ({ ok: false, error })
 
-/** The new-deck defaults of model.ts's `newDoc()`, restated (main cannot
- *  import the renderer's model; libraryfs.ts seedLibraryDoc does the same):
- *  a fresh docId, the default theme, 16:9, one empty slide. */
+/** A new deck for an agent: a fresh docId, 16:9, one empty slide, as
+ *  model.ts's `newDoc()` (main cannot import the renderer's model;
+ *  libraryfs.ts seedLibraryDoc does the same). The theme is a neutral one in
+ *  the spirit of docs/slide-design.md (near-black on white, one deep teal
+ *  accent): what a deck looks like when nobody picked a look, and what its
+ *  diagram components are drawn in until someone does. */
 export function newDeckDoc(title: string): Record<string, unknown> {
   return {
     format: 'beeslides/slides',
@@ -37,8 +40,8 @@ export function newDeckDoc(title: string): Record<string, unknown> {
     size: { width: 1280, height: 720 },
     theme: {
       background: '#FFFFFF',
-      color: '#1D1119',
-      accent: '#9A5F00',
+      color: '#1D2433',
+      accent: '#1F5C78',
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     },
     slides: [{ id: `slide-${randomUUID().slice(0, 8)}`, background: '#FFFFFF', transition: 'fade', elements: [], notes: '' }],

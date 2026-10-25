@@ -2539,6 +2539,7 @@ export const de: Catalog = {
   "Design {n}": "Entwurf {n}",
   "Used “{label}” on slide {num} — undo brings the old slide back": "„{label}“ auf Folie {num} übernommen — Rückgängig holt die alte Folie zurück",
   "Kept the current slide.": "Die aktuelle Folie bleibt.",
+  "Also sets the colours and fonts of the whole deck.": "Setzt auch die Farben und Schriften der ganzen Präsentation.",
   "Claude proposed {n} designs for this slide — compare them": "Claude hat {n} Entwürfe für diese Folie vorgeschlagen — vergleichen",
   "{n} designs for slide {num}": "{n} Entwürfe für Folie {num}",
   "Proposed by Claude. Nothing on the slide changes until you pick one.": "Von Claude vorgeschlagen. An der Folie ändert sich nichts, bis du einen auswählst.",

@@ -2539,6 +2539,7 @@ export const zhHant: Catalog = {
   "Design {n}": "設計 {n}",
   "Used “{label}” on slide {num} — undo brings the old slide back": "已在第 {num} 張投影片上使用「{label}」——復原可取回原來的投影片",
   "Kept the current slide.": "已保留目前的投影片。",
+  "Also sets the colours and fonts of the whole deck.": "同時設定整份簡報的色彩與字型。",
   "Claude proposed {n} designs for this slide — compare them": "Claude 為此投影片提出了 {n} 個設計——比較一下",
   "{n} designs for slide {num}": "第 {num} 張投影片的 {n} 個設計",
   "Proposed by Claude. Nothing on the slide changes until you pick one.": "由 Claude 提出。在你選擇之前，投影片不會有任何變化。",

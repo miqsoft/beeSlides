@@ -154,12 +154,14 @@ elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
 
 ```json
 { "op": "write", "slideId": "s3",
-  "css": ".slide{width:100%;height:100%;padding:72px var(--bs-margin);display:flex;flex-direction:column;gap:20px} .cards{display:flex;gap:28px;margin-top:32px} .card{flex:1;background:#fff;border-radius:18px;padding:28px;box-shadow:0 8px 24px rgba(0,0,0,.12)} h3{margin:0 0 12px;font-size:30px} p{margin:0;font-size:22px;line-height:1.4}",
+  "css": ".slide{width:100%;height:100%;padding:72px var(--bs-margin);display:flex;flex-direction:column;gap:20px} .cards{display:flex;gap:28px;margin-top:32px} .card{flex:1;background:var(--bs-tint);border-radius:8px;padding:28px} h3{margin:0 0 12px;font-size:28px} p{margin:0;font-size:24px;line-height:1.35;color:var(--bs-muted)}",
   "html": "<main class=\"slide\"><h1 id=\"title\">Three reasons</h1><div class=\"cards\"><div class=\"card\" id=\"c1\"><h3 id=\"c1h\">Flow</h3><p id=\"c1p\">…</p></div><div class=\"card\" id=\"c2\">…</div><div class=\"card\" id=\"c3\">…</div></div></main>" }
 ```
 
 - **The page is the slide.** `body` is `doc.size` (usually 1280×720). Theme
   variables: `--bs-bg`, `--bs-text`, `--bs-accent` … `--bs-accent6`,
+  `--bs-muted` (secondary text), `--bs-line` (hairlines), `--bs-tint` (a pale
+  accent panel; the diagram components use the same three),
   `--bs-font`, `--bs-heading-font`, `--bs-margin` (96px). Defaults:
   `box-sizing: border-box`, body text `var(--bs-font)` 24px/1.2.
 - **What becomes what.** A box with a background, border or shadow → a rect
@@ -841,6 +843,11 @@ for the whole session. The details behind them:
   pending, which one was picked, or that the slide was kept. There is ONE
   pending slot: a new call before they pick replaces the earlier set (they
   are told). Make the designs differ in layout and emphasis, not only colour.
+  To offer LOOKS for the whole deck, give each design a `theme` (the
+  `deck_settings` theme params): it is laid out and previewed under that
+  theme — diagram components take their colours from the theme, not from
+  your CSS — and picking it sets the deck theme in the same undo step
+  (`status` then says so).
 - **`variants`** — the designs `propose_variants` offered: `status` (pending,
   picked "<label>", kept), `previews {slideId}` (one picture per pending
   design, numbered as in the compare view; outside the app they show in

@@ -2539,6 +2539,7 @@ export const it: Catalog = {
   "Design {n}": "Design {n}",
   "Used “{label}” on slide {num} — undo brings the old slide back": "Usato «{label}» sulla diapositiva {num} — Annulla riporta la diapositiva precedente",
   "Kept the current slide.": "Mantenuta la diapositiva attuale.",
+  "Also sets the colours and fonts of the whole deck.": "Imposta anche i colori e i caratteri di tutta la presentazione.",
   "Claude proposed {n} designs for this slide — compare them": "Claude ha proposto {n} design per questa diapositiva — confrontali",
   "{n} designs for slide {num}": "{n} design per la diapositiva {num}",
   "Proposed by Claude. Nothing on the slide changes until you pick one.": "Proposti da Claude. La diapositiva non cambia finché non ne scegli uno.",

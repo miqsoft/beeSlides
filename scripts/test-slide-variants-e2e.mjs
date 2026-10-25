@@ -206,6 +206,33 @@ ok(await page.evaluate(() => document.querySelector('.ed-variants-warn')?.hidden
 await shot('4-warn')
 await page.keyboard.press('Escape')
 
+console.log('-- looks with a theme: laid out and previewed under it, set on Use --')
+const seq = `<div id="hs" data-component="sequence" data-actors='["Client","Server"]' data-messages='[{"from":1,"to":2,"label":"SYN"},{"from":2,"to":1,"label":"SYN-ACK"}]' style="position:absolute;left:80px;top:200px;width:1100px;height:420px"></div>`
+const look = (label, accent, background = '#FFFFFF', color = '#111111') => ({ label, theme: { accent, background, color, headingFamily: 'Georgia' }, css: 'h1{position:absolute;left:80px;top:60px;margin:0;font-size:52px}', html: `<h1 id="title">Handshake</h1>${seq}` })
+const themeBefore = (await doc()).theme
+const r5 = await act('propose_variants', { slideId: sid, variants: [look('Teal', '#0F766E'), look('Cobalt', '#1D4ED8', '#17202B', '#E9EDF2'), { ...look('Bad', '#000'), theme: { accent: 'red;x' } }] })
+ok(r5.ok && r5.count === 2 && /variant 3: theme: accent: not a CSS colour/.test(r5.dropped?.[0] ?? ''), 'two looks made, the one with a bad theme dropped with why', r5)
+ok(JSON.stringify((await doc()).theme) === JSON.stringify(themeBefore), 'proposing changes no theme')
+await page.waitForTimeout(250)
+const themed = await page.evaluate(() => ({
+  notes: [...document.querySelectorAll('.ed-variants-card .ed-variants-note')].map((e) => e.textContent),
+  html: [...document.querySelectorAll('.ed-variants-card .ed-variants-shot')].map((e) => e.innerHTML),
+}))
+ok(themed.notes.filter((n) => /whole deck/.test(n)).length === 2, 'each look says it sets the whole deck\'s colours and fonts', themed.notes)
+const has = (html, hex) => html.toLowerCase().includes(hex.toLowerCase()) || html.includes(`rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`)
+ok(has(themed.html[0], '#0F766E') && !has(themed.html[0], '#1D4ED8'), 'look 1\'s diagram is drawn in its own accent', themed.html[0].slice(0, 200))
+ok(has(themed.html[1], '#1D4ED8') && !has(themed.html[1], themeBefore.accent), 'look 2\'s diagram in its accent, not the deck\'s old one')
+await page.locator('.ed-variants-card').nth(1).locator('.ed-variants-use').click()
+await page.waitForTimeout(250)
+const afterUse = await doc()
+ok(afterUse.theme.accent.toLowerCase() === '#1d4ed8' && afterUse.theme.headingFamily === 'Georgia', 'Use sets the look\'s theme on the deck', afterUse.theme)
+ok(afterUse.slides.find((x) => x.id === sid)?.background === '#17202B', 'a dark look brings its background to the slide (not the deck\'s white)', afterUse.slides.find((x) => x.id === sid)?.background)
+const st = await act('variants', { op: 'status', slideId: sid })
+ok(/its theme is the deck theme/.test(st.summary ?? JSON.stringify(st)), 'variants status tells the agent the theme came along', st.summary)
+await page.evaluate(() => window.beeslides.undo())
+await page.waitForTimeout(150)
+ok(JSON.stringify((await doc()).theme) === JSON.stringify(themeBefore), 'one undo takes the slide AND the theme back')
+
 console.log('-- a whole-slide design is still accepted; a wrong id is dropped --')
 const asSlide = { ...(await slideOf(sid)), elements: (await slideOf(sid)).elements.slice(0, 1) }
 const r3 = await act('propose_variants', { slideId: sid, variants: [{ slide: asSlide, label: 'Title only' }, { slide: { ...asSlide, id: 'nope' } }] })

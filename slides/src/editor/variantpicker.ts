@@ -29,6 +29,7 @@ import type { Editor } from './editor'
 import { renderThumbnail } from '../render'
 import { ICONS } from '../icons'
 import { t } from '../i18n'
+import { themedDoc, type ThemePatch } from './agentops'
 
 /** The most designs one propose_variants call offers. */
 export const MAX_VARIANTS = 6
@@ -39,6 +40,9 @@ export interface PendingVariant {
   label?: string
   /** One line on what the design does differently (from the agent). */
   note?: string
+  /** A look offered with its own theme: previewed under it, and Use sets
+   *  it as the deck theme (in the same undo step). */
+  theme?: ThemePatch
 }
 
 /** Editor.pendingVariants' shape — a single pending slot (not a queue): a
@@ -84,18 +88,19 @@ export function openVariantPicker(editor: Editor, store: Store): void {
   const num = store.doc.slides.indexOf(current) + 1
   const n = pending.variants.length
   // a design stands in its slide's place, so {{page}} reads as it will once used
-  const previewDocFor = (slide: Slide): SlidomingoDoc => ({
-    ...store.doc,
+  // and one with a theme of its own shows under it
+  const previewDocFor = (v: PendingVariant): SlidomingoDoc => ({
+    ...themedDoc(store.doc, v.theme),
     assets: { ...store.doc.assets, ...pending.assets },
-    slides: store.doc.slides.map((s) => (s.id === pending.slideId ? slide : s)),
+    slides: store.doc.slides.map((s) => (s.id === pending.slideId ? v.slide : s)),
   })
   const aspect = store.doc.size.width / store.doc.size.height
   const labelOf = (i: number) => pending.variants[i].label || t('Design {n}', { n: i + 1 })
 
   /** A rendered slide at `width` px, or a quiet placeholder if it fails. */
-  const shot = (slide: Slide, width: number): HTMLElement => {
+  const shot = (v: PendingVariant | null, width: number): HTMLElement => {
     try {
-      return renderThumbnail(slide, slide === current ? store.doc : previewDocFor(slide), Math.max(40, Math.floor(width)))
+      return renderThumbnail(v ? v.slide : current, v ? previewDocFor(v) : store.doc, Math.max(40, Math.floor(width)))
     } catch {
       const broken = el('div', 'ed-variants-broken', t('Preview unavailable'))
       broken.style.width = `${Math.floor(width)}px`
@@ -158,12 +163,13 @@ export function openVariantPicker(editor: Editor, store: Store): void {
       const pic = el('button', 'ed-variants-shot')
       pic.type = 'button'
       pic.title = t('See it large')
-      pic.append(shot(v.slide, w), el('span', 'ed-variants-key', String(i + 1)))
+      pic.append(shot(v, w), el('span', 'ed-variants-key', String(i + 1)))
       pic.addEventListener('click', () => show(i + 1))
       const info = el('div', 'ed-variants-meta')
       const text = el('div', 'ed-variants-text')
       text.append(el('strong', 'ed-variants-label', labelOf(i)))
       if (v.note) text.append(el('span', 'ed-variants-note', v.note))
+      if (v.theme) text.append(el('span', 'ed-variants-note', t('Also sets the colours and fonts of the whole deck.')))
       info.append(text, button('ed-variants-btn ed-primary ed-variants-use', t('Use'), () => editor.applyVariant(i)))
       card.append(pic, info)
       grid.append(card)
@@ -180,11 +186,12 @@ export function openVariantPicker(editor: Editor, store: Store): void {
     const stripH = 64
     const w = Math.max(240, Math.min(contentWidth(), (window.innerHeight - 330 - stripH) * aspect))
     const big = el('div', 'ed-variants-big')
-    big.append(shot(k === 0 ? current : pending.variants[k - 1].slide, w))
+    big.append(shot(k === 0 ? null : pending.variants[k - 1], w))
     const caption = el('div', 'ed-variants-caption')
     caption.append(el('strong', 'ed-variants-label', k === 0 ? t('Current slide') : labelOf(k - 1)))
     const note = k === 0 ? t('The slide as it is now.') : pending.variants[k - 1].note
     if (note) caption.append(el('span', 'ed-variants-note', note))
+    if (k > 0 && pending.variants[k - 1].theme) caption.append(el('span', 'ed-variants-note', t('Also sets the colours and fonts of the whole deck.')))
     const strip = el('div', 'ed-variants-strip')
     strip.setAttribute('role', 'tablist')
     for (let j = 0; j <= n; j++) {
@@ -193,7 +200,7 @@ export function openVariantPicker(editor: Editor, store: Store): void {
       tab.setAttribute('role', 'tab')
       tab.setAttribute('aria-selected', String(j === k))
       tab.title = j === 0 ? t('Current slide') : labelOf(j - 1)
-      tab.append(shot(j === 0 ? current : pending.variants[j - 1].slide, stripH * aspect), el('span', 'ed-variants-key', j === 0 ? t('Now') : String(j)))
+      tab.append(shot(j === 0 ? null : pending.variants[j - 1], stripH * aspect), el('span', 'ed-variants-key', j === 0 ? t('Now') : String(j)))
       tab.addEventListener('click', () => show(j))
       strip.append(tab)
     }

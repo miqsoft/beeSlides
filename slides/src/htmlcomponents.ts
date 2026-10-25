@@ -55,8 +55,11 @@ const luminance = (c: string): number => {
   return v ? (0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]) / 255 : 0.5
 }
 
-interface Palette { accent: string; onAccent: string; tint: string; line: string; muted: string; text: string; bg: string }
-function palette(t: ComponentTheme): Palette {
+export interface Palette { accent: string; onAccent: string; tint: string; line: string; muted: string; text: string; bg: string }
+/** The colours components draw with, derived from the theme; slide HTML
+ *  gets the same ones as --bs-muted, --bs-line and --bs-tint (htmlslide.ts
+ *  baseCss), so hand-written parts match the diagrams. */
+export function palette(t: ComponentTheme): Palette {
   const bg = rgbOf(t.background) ? t.background : '#FFFFFF'
   const text = rgbOf(t.color) ? t.color : '#1F2328'
   const accent = rgbOf(t.accent) ? t.accent : '#2563EB'
@@ -65,7 +68,8 @@ function palette(t: ComponentTheme): Palette {
     onAccent: luminance(accent) > 0.6 ? text : '#FFFFFF',
     tint: mix(accent, bg, 0.1) ?? '#EEF2F7',
     line: mix(text, bg, 0.22) ?? '#C9CED6',
-    muted: mix(text, bg, 0.62) ?? '#6B7280',
+    // 0.7: at least 4.5:1 on the background and on the tint (WCAG 1.4.3)
+    muted: mix(text, bg, 0.7) ?? '#6B7280',
   }
 }
 

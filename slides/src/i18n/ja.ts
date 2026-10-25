@@ -2539,6 +2539,7 @@ export const ja: Catalog = {
   "Design {n}": "デザイン {n}",
   "Used “{label}” on slide {num} — undo brings the old slide back": "スライド {num} に「{label}」を適用しました — 元に戻すと前のスライドに戻ります",
   "Kept the current slide.": "現在のスライドをそのままにしました。",
+  "Also sets the colours and fonts of the whole deck.": "プレゼンテーション全体の色とフォントも変わります。",
   "Claude proposed {n} designs for this slide — compare them": "Claude がこのスライドのデザイン案を {n} 件提案しました — 比較する",
   "{n} designs for slide {num}": "スライド {num} のデザイン案 {n} 件",
   "Proposed by Claude. Nothing on the slide changes until you pick one.": "Claude による提案です。選ぶまでスライドは変わりません。",

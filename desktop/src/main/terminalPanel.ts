@@ -68,6 +68,8 @@ import { ensureWorkspace, isUntitledKey, workspaceKey } from './workspaces.ts'
 // without a separate copy-at-build step or a runtime fetch of the repo.
 import FORMAT_MD from '../../../docs/format.md?raw'
 import AGENTS_MD from '../../../docs/agents.md?raw'
+// The design rules the deck skills build on (read as design.md).
+import DESIGN_MD from '../../../docs/slide-design.md?raw'
 // Condensed design brief used ONLY by the generate flow (writeGenerateFiles
 // below) — format.md/agents.md above stay the full reference for ordinary
 // write_slide/insert_elements MCP edits in every terminal session.
@@ -1360,6 +1362,7 @@ async function openPanel(win: BrowserWindow, opts?: { initialTask?: string; comp
     writeFileSync(join(contextDir, 'README.md'), CONTEXT_README, 'utf8')
     writeFileSync(join(contextDir, 'format.md'), FORMAT_MD, 'utf8')
     writeFileSync(join(contextDir, 'agents.md'), AGENTS_MD, 'utf8')
+    writeFileSync(join(contextDir, 'design.md'), DESIGN_MD, 'utf8')
     writeFileSync(join(contextDir, 'slides-mcp-server.mjs'), mcpServerSource(), 'utf8')
     writeFileSync(join(contextDir, 'selection-digest.mjs'), SELECTION_DIGEST, 'utf8')
     writeFileSync(join(contextDir, 'session-note.mjs'), SESSION_NOTE, 'utf8')

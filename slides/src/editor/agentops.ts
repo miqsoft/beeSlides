@@ -59,7 +59,7 @@ export interface OpContext {
  *  `user` = the app's compare view; `agent` = the `variants` pick op, which
  *  both a model and the Claude Code pane's buttons use. */
 export type VariantOutcome =
-  | { kind: 'picked'; index: number; label: string; by: 'user' | 'agent' }
+  | { kind: 'picked'; index: number; label: string; by: 'user' | 'agent'; themed?: boolean }
   | { kind: 'kept'; by: 'user' | 'agent' }
 
 /** The propose_variants designs as the `variants` handlers see them (the
@@ -438,36 +438,71 @@ const DECK: AreaHandlers['deck'] = {
 /** A font family an agent may set: a name list, nothing that could end the declaration. */
 const FONT_RE = /^[^;{}<>\\]{1,100}$/
 
+const THEME_COLOURS = ['background', 'color', 'accent', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'] as const
+
+/** A checked change of the deck theme: deck_settings theme's params, also
+ *  what a propose_variants design may carry (a look picked with its theme). */
+export type ThemePatch = Partial<Record<(typeof THEME_COLOURS)[number] | 'fontFamily' | 'headingFamily', string>>
+
+/** The theme change in `a`, or why it is not one. */
+export function themePatch(a: Record<string, unknown>): ThemePatch | string {
+  const given = THEME_COLOURS.filter((k) => a[k] !== undefined)
+  if (!given.length && a.fontFamily === undefined && a.headingFamily === undefined) return 'Give at least one colour or font.'
+  const bad = given.filter((k) => !cssColor(a[k], '', 48))
+  if (bad.length) return `${bad.join(', ')}: not a CSS colour.`
+  if (a.fontFamily !== undefined && (typeof a.fontFamily !== 'string' || !FONT_RE.test(a.fontFamily.trim()))) return 'fontFamily must be a font name.'
+  if (a.headingFamily !== undefined && a.headingFamily !== '' && (typeof a.headingFamily !== 'string' || !FONT_RE.test(a.headingFamily.trim()))) return 'headingFamily must be a font name, or "" for the body font.'
+  const patch: ThemePatch = {}
+  for (const k of given) patch[k] = cssColor(a[k], '', 48)
+  if (typeof a.fontFamily === 'string') patch.fontFamily = a.fontFamily.trim()
+  if (typeof a.headingFamily === 'string') patch.headingFamily = a.headingFamily.trim()
+  return patch
+}
+
+/** `theme` with `patch` applied, in place. */
+export function patchTheme(th: SlidomingoDoc['theme'], patch: ThemePatch): void {
+  for (const k of THEME_COLOURS) {
+    const v = patch[k]
+    if (v === undefined) continue
+    if (k === 'background' || k === 'color' || k === 'accent') th[k] = v
+    else (th.palette ??= {})[k] = v
+  }
+  if (patch.fontFamily !== undefined) th.fontFamily = patch.fontFamily
+  if (patch.headingFamily !== undefined) { if (patch.headingFamily) th.headingFamily = patch.headingFamily; else delete th.headingFamily }
+}
+
+/** A copy of `doc` under the patched theme, for laying out and previewing a
+ *  design that brings its own theme; `doc` itself is not touched. */
+export function themedDoc(doc: SlidomingoDoc, patch: ThemePatch | undefined): SlidomingoDoc {
+  if (!patch) return doc
+  const theme = JSON.parse(JSON.stringify(doc.theme)) as SlidomingoDoc['theme']
+  patchTheme(theme, patch)
+  return { ...doc, theme }
+}
+
+/** Sets the deck theme: call inside a store.commit. True when elements
+ *  using theme colours (themeRefs) moved with it. */
+export function applyThemePatch(doc: SlidomingoDoc, patch: ThemePatch): boolean {
+  const accentBefore = doc.theme.accent
+  const th = doc.theme
+  patchTheme(th, patch)
+  // A stored chart palette was derived from the old accent: keep it in step.
+  if (th.chartPalette?.length && th.accent !== accentBefore) th.chartPalette = deriveChartPalette(th.accent)
+  // Colours picked from the palette follow, in the same undo step.
+  return resolveThemeRefs(doc)
+}
+
 const SETTINGS: AreaHandlers['deck_settings'] = {
   theme(ctx, a) {
-    const colourKeys = ['background', 'color', 'accent', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'] as const
-    const given = colourKeys.filter((k) => a[k] !== undefined)
-    if (!given.length && a.fontFamily === undefined && a.headingFamily === undefined) return fail('Give at least one colour or font.')
-    const bad = given.filter((k) => !cssColor(a[k], '', 48))
-    if (bad.length) return fail(`${bad.join(', ')}: not a CSS colour.`)
-    if (a.fontFamily !== undefined && !FONT_RE.test((a.fontFamily as string).trim())) return fail('fontFamily must be a font name.')
-    if (a.headingFamily !== undefined && a.headingFamily !== '' && !FONT_RE.test((a.headingFamily as string).trim())) return fail('headingFamily must be a font name, or "" for the body font.')
+    const patch = themePatch(a)
+    if (typeof patch === 'string') return fail(patch)
     const doc = ctx.store.doc
-    const accentBefore = doc.theme.accent
     let moved = false
-    ctx.store.commit(() => {
-      const th = doc.theme
-      for (const k of given) {
-        const v = cssColor(a[k], '', 48)
-        if (k === 'background' || k === 'color' || k === 'accent') th[k] = v
-        else (th.palette ??= {})[k] = v
-      }
-      if (typeof a.fontFamily === 'string') th.fontFamily = a.fontFamily.trim()
-      if (typeof a.headingFamily === 'string') { if (a.headingFamily.trim()) th.headingFamily = a.headingFamily.trim(); else delete th.headingFamily }
-      // A stored chart palette was derived from the old accent: keep it in step.
-      if (th.chartPalette?.length && th.accent !== accentBefore) th.chartPalette = deriveChartPalette(th.accent)
-      // Colours picked from the palette follow, in the same undo step.
-      moved = resolveThemeRefs(doc)
-    })
+    ctx.store.commit(() => { moved = applyThemePatch(doc, patch) })
     const p = paletteOf(doc)
     return {
       ok: true,
-      summary: `Theme set: ${[...given, ...(a.fontFamily !== undefined ? ['fontFamily'] : []), ...(a.headingFamily !== undefined ? ['headingFamily'] : [])].join(', ')}. Palette now: ${Object.entries(p).map(([k, v]) => `${k} ${v}`).join(', ')}.${moved ? ' Elements using theme colours were updated.' : ''}`,
+      summary: `Theme set: ${Object.keys(patch).join(', ')}. Palette now: ${Object.entries(p).map(([k, v]) => `${k} ${v}`).join(', ')}.${moved ? ' Elements using theme colours were updated.' : ''}`,
       toast: t('AI changed the theme'),
     }
   },
@@ -1168,7 +1203,7 @@ function variantRows(ctx: OpContext, v: VariantAccess, only?: string): Array<{ s
     // a pick through the tool is the pane's button or a model told the number
     const who = o.by === 'user' ? 'the user, in the app' : 'variants pick: the BeeSlides pane or you'
     const line = o.kind === 'picked'
-      ? `${id} (slide ${num(id)}): picked design ${o.index + 1} "${o.label}" (by ${who}); it is on the slide now`
+      ? `${id} (slide ${num(id)}): picked design ${o.index + 1} "${o.label}" (by ${who}); it is on the slide now${o.themed ? ', and its theme is the deck theme' : ''}`
       : `${id} (slide ${num(id)}): kept the current slide (by ${who}); the designs are gone`
     rows.push({ slideId: id, slide: num(id), state: o.kind === 'picked' ? `picked ${o.label}` : 'kept', line })
   }

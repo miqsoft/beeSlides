@@ -34,7 +34,7 @@ import type {
   ChartElement, CodeElement, GradientFill, ImageElement, ShadowSpec, ShapeElement, Slide, SlideElement, SlidomingoDoc, SvgElement, TableCell, TableElement, TextElement,
 } from './model'
 import { convertSvgToObjects } from './svgconvert'
-import { expandComponents, type ComponentTheme } from './htmlcomponents'
+import { expandComponents, palette, type ComponentTheme } from './htmlcomponents'
 import { resolveSlideFonts, sanitizeHtml } from './render'
 import { sanitizeElement } from './untrusted'
 
@@ -73,13 +73,16 @@ export function baseCss(doc: SlidomingoDoc, slide: Slide, size: { width: number;
   const fonts = resolveSlideFonts(doc, slide)
   const body = fonts.fontFamily || doc.theme.fontFamily
   const heading = fonts.headingFamily || doc.theme.headingFamily || body
-  const th = doc.theme as unknown as Record<string, unknown>
+  // accents 2-6 live in theme.palette (deck_settings theme writes them there)
+  const pal = (doc.theme.palette ?? {}) as Record<string, unknown>
+  const derived = palette(doc.theme)
   const vars: string[] = [
     `--bs-w:${size.width}px`, `--bs-h:${size.height}px`, `--bs-margin:96px`,
     `--bs-bg:${cssValue(doc.theme.background)}`, `--bs-text:${cssValue(doc.theme.color)}`, `--bs-accent:${cssValue(doc.theme.accent)}`,
+    `--bs-muted:${cssValue(derived.muted)}`, `--bs-line:${cssValue(derived.line)}`, `--bs-tint:${cssValue(derived.tint)}`,
     `--bs-font:${cssValue(body)}`, `--bs-heading-font:${cssValue(heading)}`,
   ]
-  for (let k = 2; k <= 6; k++) if (typeof th[`accent${k}`] === 'string') vars.push(`--bs-accent${k}:${cssValue(th[`accent${k}`] as string)}`)
+  for (let k = 2; k <= 6; k++) if (typeof pal[`accent${k}`] === 'string') vars.push(`--bs-accent${k}:${cssValue(pal[`accent${k}`] as string)}`)
   return [
     `:root{${vars.join(';')}}`,
     '*,*::before,*::after{box-sizing:border-box}',
