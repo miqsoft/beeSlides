@@ -149,9 +149,18 @@ export const ELEMENT_VERBS = {
     // step()/reorder(), which act on whatever slide is currently VIEWED.
     const to = args.to as 'front' | 'back' | 'forward' | 'backward' | undefined
     if (!slideId || !elementId || !to) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId, elementId or to.' }); return }
+    // any other value used to fall through to a backward step and report ok
+    if (!['front', 'back', 'forward', 'backward'].includes(to)) { respond({ requestId: cmd.requestId, ok: false, error: 'to must be front, back, forward or backward.' }); return }
     const target = findAgentTarget(ctx.store.doc, slideId, elementId)
     if (!target) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
     { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
+    // already at the top (front/forward) or bottom (back/backward): nothing
+    // to move, so no undo step
+    const atTop = target.idx === target.slide.elements.length - 1
+    if (to === 'front' || to === 'forward' ? atTop : target.idx === 0) {
+      respond({ requestId: cmd.requestId, ok: true, unchanged: true, warnings: ctx.warningsForSlide(slideId) })
+      return
+    }
     ctx.commitAgentWrite(slideId, () => {
       const arr = target.slide.elements
       const i = target.idx

@@ -405,10 +405,15 @@ console.log('\nreorder_element')
   ok(ids(slideOf(bwd.after, 's-free').elements) === 'r2,r1,r3,t1,pic', 'backward swaps with the previous one')
   await oneUndo('reorder_element', bwd)
   await page.evaluate(() => window.beeslides.undo())
-  const edge = await succeed('reorder_element', { slideId: 's-free', elementId: 'pic', to: 'forward' }, 'the top one forward')
-  ok(ids(slideOf(edge.after, 's-free').elements) === 'r1,r2,r3,t1,pic', 'already on top: the order stays')
-  await page.evaluate(() => window.beeslides.undo())
+  // already at the edge: ok, but nothing changes and no undo step is left
+  for (const [elementId, to] of [['pic', 'forward'], ['pic', 'front'], ['r1', 'backward'], ['r1', 'back']]) {
+    const before = await docNow()
+    const r = await act('reorder_element', { slideId: 's-free', elementId, to })
+    ok(r.ok === true && r.unchanged === true, `${elementId} ${to} at the edge: ok, unchanged (${JSON.stringify(r.error ?? r.unchanged)})`)
+    ok(isDeepStrictEqual(await docNow(), before), `${elementId} ${to} at the edge changes nothing (not even modified)`)
+  }
   ok(await order() === 'r1,r2,r3,t1,pic', 'cleanup: original order')
+  await refuse('reorder_element', { slideId: 's-free', elementId: 'r1', to: 'up' }, 'to must be front, back, forward or backward.', 'an unknown to')
   await refuse('reorder_element', { slideId: 's-free', elementId: 'r1' }, 'Missing slideId, elementId or to.', 'no to')
   await refuse('reorder_element', { slideId: 's-free', to: 'front' }, 'Missing slideId, elementId or to.', 'no elementId')
   await refuse('reorder_element', { slideId: 'nope', elementId: 'r1', to: 'front' }, 'no-such-element', 'an unknown slide')
