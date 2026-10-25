@@ -52,6 +52,18 @@ export function extractDocBlock(html: string): unknown | null {
   try { return JSON.parse(text) } catch { return null }
 }
 
+/** An icon set's document text, refs resolved, for reading its icons
+ *  (an agent's `icons` call with `set`, agenticonsets.ts) — or what the file
+ *  is instead, to finish "<file> …". */
+export function iconSetDocText(html: string): { text: string } | { error: string } {
+  const format = detectFormat(html)
+  if (format === 'enc') return { error: 'is encrypted: open it in BeeSlides and export the set to a folder instead' }
+  if (format !== 'slides') return { error: 'is not a BeeSlides document' }
+  if (docKindOfText(rawDocBlockText(html) ?? '') !== 'iconset') return { error: 'is a deck, not an icon set (doc kind "iconset")' }
+  const text = extractDocBlockText(html)
+  return text ? { text } : { error: 'has no document in it' }
+}
+
 /** The doc block parsed WITHOUT resolving refs — for the flags and title
  *  checks below, which run on every write and every listing. */
 function rawDocBlock(html: string): unknown | null {

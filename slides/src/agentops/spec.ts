@@ -291,15 +291,16 @@ export const MAX_ICON_RESULTS = 30
 
 export const ICONS_AREA = {
   tool: 'icons',
-  summary: 'The icon library the user set up in Settings ▸ Icon library (an icon server or a folder of SVG/PNG files). Search it and insert real icons instead of drawing your own SVG. In an icon set, plan writes the icons to draw and style adds a look the whole set is painted in.',
+  summary: 'The icon library the user set up in Settings ▸ Icon library (an icon server or a folder of SVG/PNG files), or an icon-set file (set): search it and insert real icons instead of drawing your own SVG. In an icon set, plan writes the icons to draw and style adds a look the whole set is painted in.',
   ops: {
     search: {
       summary: 'find icons by keyword; returns refs to insert',
       params: {
         query: { type: 'string', description: 'One or two plain keywords, e.g. "cloud", "user", "shield" ("" lists some).', required: true },
         limit: { type: 'integer', description: `How many to list (1-${MAX_ICON_RESULTS}, default 12).`, min: 1, max: MAX_ICON_RESULTS },
+        set: { type: 'string', description: 'An icon-set file (.beeslides.html, doc kind "iconset") to search instead of the library: an absolute path, or one relative to this deck\'s folder. Lists its drawn icons and its styles.' },
       },
-      details: 'Search per concept with short, concrete nouns (several searches are cheap); a folder source matches file names only. Refs stay valid for this editor session.',
+      details: 'Search per concept with short, concrete nouns (several searches are cheap); a folder source matches file names only. Refs stay valid for this editor session. With set, the icon set is read from its file (BeeSlides saves it first when it is open) and matched on icon names, keywords and "what it shows"; never written. Icons not drawn yet are counted, not listed: draw them in the set first (open_deck it). Refs keep the drawings as they were at this search: search again after redrawing.',
     },
     insert: {
       summary: 'put a found icon on a slide; returns its element id',
@@ -310,16 +311,23 @@ export const ICONS_AREA = {
         y: { type: 'number', description: 'Top edge in slide px (default: centred).' },
         size: { type: 'number', description: 'Width and height in px (default 96).', min: 8, max: 2000 },
         alt: { type: 'string', description: 'Alt text ("" = decorative, the default).' },
+        style: { type: 'string', description: 'A style of an icon set by name. insert (a ref from a set search): paint it in that style (the search lists them; default: the set\'s own drawing). tweak: the style to change (doc_info iconset.variants).' },
+        ink: { type: 'string', description: 'Set icons only: the colour of their one-colour ink, "accent" (the deck accent, default), "text" (the deck text colour) or a CSS hex.' },
       },
-      details: 'The icon becomes an ordinary svg (or image) element, square at size; move or resize it later with elements edit. Icons keep their own colours: check they read on the slide background (look_at_slide / review_slide). The icon\'s source and license are recorded on the element. One icon per call.',
+      details: 'The icon becomes an ordinary svg (or image) element, square at size; move or resize it later with elements edit. Library icons keep their own colours: check they read on the slide background (look_at_slide / review_slide). An icon from a set is built from its drawing (in style, if given); its ink becomes the deck\'s accent colour (ink changes that), a colourful style keeps its own colours. The icon\'s source and license are recorded on the element. One icon per call.',
     },
     plan: {
       summary: 'icon sets only: write a plan of icons as empty, named icons for the user to review',
       params: {
         icons: { type: 'object[]', description: 'The planned icons: [{name, prompt, keywords}] — name a short noun phrase ("evidence bag"), prompt one line of what it shows, keywords 2-5 search words.', required: true },
         replace: { type: 'boolean', description: 'true: remove still-empty icons this plan does not name (drawn or commented ones stay).' },
+        brief: { type: 'string', description: 'What the set is for and how its icons are drawn, in words (the set brief every drawer reads).' },
+        strokeWidth: { type: 'number', description: 'The set\'s stroke width in grid units (default 2 of 24); only while nothing is drawn.', min: 0.5, max: 4 },
+        cap: { type: 'string', description: 'Line ends.', enum: ['round', 'square', 'butt'] },
+        join: { type: 'string', description: 'Corners.', enum: ['round', 'bevel', 'miter'] },
+        iconFill: { type: 'string', description: 'outline = strokes only, solid = filled shapes, duotone = strokes plus a faint fill; only while nothing is drawn.', enum: ['outline', 'solid', 'duotone'] },
       },
-      details: 'Only in an icon set (doc_info kind "iconset"). An icon already there by name gets the new prompt and keywords; blank starter icons are filled first; the rest are added. Draws nothing: the user reviews the plan and presses Draw with AI. Call it again to revise the plan.',
+      details: 'Only in an icon set (doc_info kind "iconset"). An icon already there by name gets the new prompt and keywords; blank starter icons are filled first; the rest are added. Draws nothing: the user reviews the plan (in the app, then presses Draw with AI; in a chat, show them the list and draw after their OK). Call it again to revise the plan. brief, strokeWidth, cap, join and iconFill set how the whole set is drawn (for a set made for a deck: match the deck\'s look); a set with drawings keeps its drawing style: give it a style (op style) instead.',
     },
     style: {
       summary: 'icon sets only: add (or update, by name) a style the whole set is also shown and exported in — nothing is redrawn',

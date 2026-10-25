@@ -14,6 +14,7 @@
 //   - `iconFileNames`, `iconManifest`, `parseIconManifest`, `manifestMatches`
 //                          the exported folder's names and its `icons.json`,
 //                          which a folder icon source reads for keywords
+//   - `findSetIcons`       an agent's search in a set file (`icons` with `set`)
 //
 // Only shapes are icon material (path, rect, ellipse, triangle, arrow, line);
 // anything else is reported in `skipped` and left out of the file.
@@ -491,6 +492,21 @@ export function manifestMatches(q: string, fileName: string, entry: ManifestEntr
   if (fileName.toLowerCase().includes(q)) return true
   if (!entry) return false
   return entry.name.toLowerCase().includes(q) || entry.keywords.some((k) => k.toLowerCase().includes(q))
+}
+
+/** The drawn icons of a set that match `query` (every word in the name,
+ *  keywords or "what it shows"; "" = all), in slide order, and how many
+ *  icons are not drawn yet — the agent's `icons` search with `set`. */
+export function findSetIcons(doc: SlidomingoDoc, query: string): { hits: Slide[]; undrawn: number } {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const hits: Slide[] = []
+  let undrawn = 0
+  for (const s of doc.slides) {
+    if (!iconShapes(doc, s).shapes.length) { undrawn++; continue }
+    const hay = [s.name ?? '', ...(s.icon?.keywords ?? []), s.icon?.prompt ?? ''].join(' ').toLowerCase()
+    if (words.every((w) => hay.includes(w))) hits.push(s)
+  }
+  return { hits, undrawn }
 }
 
 /** The icons a "Draw with AI" run should draw: the selected ones, else every empty one. */

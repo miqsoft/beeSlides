@@ -68,7 +68,7 @@ declare global {
        *  apply_change_pattern/propose_variants/release_slide) — see editor.ts
        *  applyAgentAction and terminalPanel.ts's agent-action watcher.
        *  `sessionId` is the lock registry's owner id — see store.ts. */
-      onAgentAction: (cb: (cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string }) => void) => void
+      onAgentAction: (cb: (cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string; iconSet?: { file: string; text: string } }) => void) => void
       sendAgentActionResult: (result: { requestId: string; ok: boolean; [key: string]: unknown }) => void
       /** "Polish with Claude" / "Send comments to Claude": type a prompt into
        *  the panel's session (`comments` = editor/comments.ts SentComment[]). */

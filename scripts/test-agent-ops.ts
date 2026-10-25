@@ -280,7 +280,12 @@ console.log('-- icons --')
       inserted.push({ slideId, file: icon.file, frame, alt })
       return { elementId: `svg-${inserted.length}` }
     },
+    async insertSvg(slideId, markup, provenance, frame, alt) {
+      artwork.push({ slideId, markup, provenance, frame, alt })
+      return { elementId: `set-${artwork.length}` }
+    },
   }
+  const artwork: Array<{ slideId: string; markup: string; provenance: Record<string, unknown>; frame: unknown; alt: string }> = []
   const ctx: OpContext = { store, created: new Set(), icons: icons as IconLibraryAccess }
   const run = (a: Record<string, unknown>) => Promise.resolve(runAreaOp('icons', a, ctx)) as Promise<any>
   const found = await run({ op: 'search', query: 'cloud' })
@@ -345,6 +350,54 @@ console.log('-- icons --')
   ok((runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['ghost'] }, sctx) as any).error.includes('Not shapes of this icon: ghost'), 'a shape of another icon is refused')
   ok((runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: icon.id, elementIds: ['drawn'], fill: 'url(#x)' }, sctx) as any).error.includes('not a colour'), 'a bad colour is refused')
   ok(!(runAreaOp('icons', { op: 'tweak', style: 'Comic', slideId: 'a', elementIds: ['x'] }, ctx) as any).ok, 'tweak in a deck is refused')
+
+  // plan sets how a NEW set is drawn (a set made for a deck); a drawn set keeps it
+  const fresh = new Store(newIconsetDoc())
+  const fctx: OpContext = { store: fresh, created: new Set() }
+  const styled = runAreaOp('icons', { op: 'plan', icons: [{ name: 'gear' }], brief: 'thin, technical, like the deck', strokeWidth: 1.3, cap: 'butt', iconFill: 'duotone' }, fctx) as any
+  const fst = fresh.doc.iconset!.style
+  ok(styled.ok && fst.strokeWidth === 1.25 && fst.cap === 'butt' && fst.join === 'round' && fst.fill === 'duotone' && fresh.doc.iconset!.brief === 'thin, technical, like the deck', `plan writes the drawing style and brief (${JSON.stringify(fst)})`)
+  ok((fresh.doc.theme.styleDefaults?.shape as any)?.strokeWidth === 1.25 * fresh.doc.iconset!.scale && styled.summary.includes('Drawing style now'), 'new shapes on the canvas follow it; the summary says so')
+  const refusedDrawing = runAreaOp('icons', { op: 'plan', icons: [{ name: 'x' }], strokeWidth: 3 }, sctx) as any
+  ok(!refusedDrawing.ok && refusedDrawing.error.includes('op style'), 'a set with drawings keeps its drawing style: a style is the way')
+  ok((runAreaOp('icons', { op: 'plan', icons: [{ name: 'fingerprint' }], brief: 'forensics' }, sctx) as any).ok && set.doc.iconset!.brief === 'forensics', 'the brief may change any time')
+
+  // search and insert from an icon-set FILE (main hands its document over as iconSet)
+  const fp = set.doc.slides[0]
+  fp.elements = [{ id: 'drawn', type: 'shape', shape: 'path', x: 0, y: 0, w: 384, h: 384, rotation: 0, opacity: 1, radius: 0, pathBox: [0, 0, 24, 24], d: 'M4 4 H20 V20 H4 Z', fill: 'transparent', stroke: '#000000', strokeWidth: 32 } as never]
+  fp.icon = { ...fp.icon, keywords: ['print', 'finger'] }
+  set.doc.iconset!.license = 'CC-BY-4.0'
+  set.doc.iconset!.author = 'Ada'
+  set.doc.title = 'Forensics'
+  const iconSet = { file: 'talk.icons.beeslides.html', text: JSON.stringify(set.doc) }
+  const deckStore = new Store(deck())
+  deckStore.doc.theme.accent = '#1F5C78'
+  const dctx: OpContext = { store: deckStore, created: new Set(), icons: icons as IconLibraryAccess, iconSet }
+  const runD = (a: Record<string, unknown>) => Promise.resolve(runAreaOp('icons', a, dctx)) as Promise<any>
+  const fromSet = await runD({ op: 'search', query: 'finger', set: 'talk.icons.beeslides.html' })
+  ok(fromSet.ok && fromSet.refs.length === 1 && fromSet.summary.includes('“Forensics” (talk.icons.beeslides.html)') && fromSet.summary.includes('license: CC-BY-4.0, by Ada') && fromSet.summary.includes('"fingerprint" (a fingerprint in a magnifier)'), `a set search lists its drawn icons with the set's terms (${fromSet.summary.split('\n')[0]})`)
+  ok(fromSet.summary.includes('Styles: "comic"') && fromSet.summary.includes('1 icon(s) of the set are not drawn yet'), 'it names the styles and counts the icons still to draw')
+  const all = await runD({ op: 'search', query: '', set: 'x' })
+  ok(all.refs.length === 1, 'the undrawn icon is never a ref')
+  ok((await runD({ op: 'search', query: 'zebra', set: 'x' })).summary.includes('No drawn icon'), 'no hit in the set: ok, says so')
+  const ref = fromSet.refs[0]
+  const putSet = await runD({ op: 'insert', slideId: 'a', ref, x: 10, y: 20, size: 48 })
+  const art = artwork[0]
+  ok(putSet.ok && art.markup.includes('stroke="#1F5C78"') && !art.markup.includes('currentColor') && art.markup.includes('d="M4 4 H20 V20 H4 Z"') && /viewBox="0 0 24 24"/.test(art.markup), `the plain drawing goes in, ink = the deck accent (${putSet.summary})`)
+  ok(art.provenance.origin === 'Icon set Forensics (talk.icons.beeslides.html)' && art.provenance.license === 'CC-BY-4.0' && art.provenance.author === 'Ada' && JSON.stringify(art.frame) === JSON.stringify({ x: 10, y: 20, w: 48, h: 48 }), `provenance names the set and its terms (${JSON.stringify(art.provenance)})`)
+  const inStyle = await runD({ op: 'insert', slideId: 'a', ref, style: 'COMIC', ink: 'text' })
+  ok(inStyle.ok && inStyle.summary.includes('in the style "comic"') && artwork[1].markup !== art.markup, `a style by name, any case (${inStyle.summary})`)
+  const hex = await runD({ op: 'insert', slideId: 'a', ref, ink: '#ff0000' })
+  ok(hex.ok && artwork[2].markup.includes('#ff0000'), 'ink as a hex colour')
+  ok((await runD({ op: 'insert', slideId: 'a', ref, ink: 'red;x' })).error.includes('not "accent"'), 'a bad ink is refused')
+  ok((await runD({ op: 'insert', slideId: 'a', ref, style: 'Neon' })).error.includes('No style "Neon"'), 'an unknown style is refused, naming the ones there are')
+  ok((await runD({ op: 'insert', slideId: 'a', ref: 'i1', style: 'comic' })).error.includes('keeps its own look'), 'style/ink on a library icon is refused')
+  const noFile = await Promise.resolve(runAreaOp('icons', { op: 'search', query: '', set: 'x' }, { ...dctx, iconSet: undefined })) as any
+  ok(!noFile.ok && noFile.error.includes('desktop app'), 'without main to read the file (the browser): a clear error')
+  const notASet = await Promise.resolve(runAreaOp('icons', { op: 'search', query: '', set: 'x' }, { ...dctx, iconSet: { file: 'deck.beeslides.html', text: JSON.stringify(deck()) } })) as any
+  ok(!notASet.ok && notASet.error.includes('is not an icon set'), 'a deck is not an icon set')
+  const newer = await Promise.resolve(runAreaOp('icons', { op: 'search', query: '', set: 'x' }, { ...dctx, iconSet: { file: 'n.beeslides.html', text: JSON.stringify({ ...set.doc, requires: ['warp-drive'] }) } })) as any
+  ok(!newer.ok && newer.error.includes('newer version'), 'a set from a newer BeeSlides is refused')
 }
 
 // ---- 3e. elements ------------------------------------------------------------------

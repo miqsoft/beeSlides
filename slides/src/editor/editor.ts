@@ -13,7 +13,7 @@ import {
   instantiateTemplate, layoutElementIds, newDocId, parseDoc, parseTemplateForEditing, resolveStoreRefs, removeLayout, resolveAgentSlide, textDefaultsFor,
   stampAsTemplate, starterSlide, syncLinkedChart, templateFileDoc, uid,
   ancestorElementIds, paginates, inLinearFlow, extraParent, sectionsInOrder, sectionOf, sectionRange,
-  type RelinkPreview, type SlidomingoDoc, type ChartElement, type CommentFilter, type Section, type ShapeElement, type Slide, type SlideElement, type TableElement, type TextElement, type TransitionKind, setSlideTransition } from '../model'
+  type Provenance, type RelinkPreview, type SlidomingoDoc, type ChartElement, type CommentFilter, type Section, type ShapeElement, type Slide, type SlideElement, type TableElement, type TextElement, type TransitionKind, setSlideTransition } from '../model'
 import { THEME_CHOICES, onThemeChange, resolvedTheme, setTheme, themeChoice } from '../../../kernel/src/theme.ts'
 import { offlineEnabled, setOffline } from '../../../kernel/src/net.ts'
 import { renderSlide, renderThumbnail, sanitizeHtml } from '../render'
@@ -6149,17 +6149,25 @@ export class Editor {
       try { picked = await icon.load() } catch (e) {
         return { error: `Could not fetch that icon: ${e instanceof Error ? e.message : String(e)}` }
       }
-      // the fetch took time: the deck may have been locked or the slide deleted meanwhile
-      if (isEncryptionActive() || this.store.readOnly) return { error: 'The deck cannot be edited right now.' }
-      const key = uid('a')
-      const provenance = Object.keys(icon.provenance).length ? icon.provenance : undefined
-      const spec = picked.kind === 'svg'
-        ? { id: 'agent-icon', type: 'svg', ...frame, rotation: 0, opacity: 1, asset: key, alt, ...(provenance ? { provenance } : {}) }
-        : { ...defaultImage(picked.dataUrl, { ...frame, fit: 'contain' }), id: 'agent-icon', alt, ...(provenance ? { provenance } : {}) }
-      const r = this.agentInsertElements(slideId, [spec], picked.kind === 'svg' ? { [key]: picked.markup } : undefined, { nudge: false })
-      if ('error' in r) return r
-      return r.added[0] ? { elementId: r.added[0].id } : { error: 'The icon could not be inserted.' }
+      return this.agentInsertIcon(slideId, picked, icon.provenance, frame, alt)
     },
+    // an icon from a set file, built from its drawing (agentops.ts searchSet)
+    insertSvg: async (slideId, markup, provenance, frame, alt) => this.agentInsertIcon(slideId, { kind: 'svg', markup }, provenance, frame, alt),
+  }
+
+  /** One icon as an agent write: the insert_elements path (sanitized like a
+   *  paste, one undo step), with where it came from recorded. */
+  private agentInsertIcon(slideId: string, picked: Awaited<ReturnType<IconResult['load']>>, from: Provenance, frame: { x: number; y: number; w: number; h: number }, alt: string): { elementId: string } | { error: string } {
+    // a fetch took time: the deck may have been locked or the slide deleted meanwhile
+    if (isEncryptionActive() || this.store.readOnly) return { error: 'The deck cannot be edited right now.' }
+    const key = uid('a')
+    const provenance = Object.keys(from).length ? from : undefined
+    const spec = picked.kind === 'svg'
+      ? { id: 'agent-icon', type: 'svg', ...frame, rotation: 0, opacity: 1, asset: key, alt, ...(provenance ? { provenance } : {}) }
+      : { ...defaultImage(picked.dataUrl, { ...frame, fit: 'contain' }), id: 'agent-icon', alt, ...(provenance ? { provenance } : {}) }
+    const r = this.agentInsertElements(slideId, [spec], picked.kind === 'svg' ? { [key]: picked.markup } : undefined, { nudge: false })
+    if ('error' in r) return r
+    return r.added[0] ? { elementId: r.added[0].id } : { error: 'The icon could not be inserted.' }
   }
 
   /** insert_elements: an agent's element specs through the SAME untrusted-
@@ -6190,7 +6198,7 @@ export class Editor {
    *  a success is a non-blocking validateDoc() pass filtered to the touched
    *  slide, so an agent gets an immediate signal (off-canvas, overflowing
    *  text, …) without a separate validate() round trip. */
-  private applyAgentAction(cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string }) {
+  private applyAgentAction(cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string; iconSet?: { file: string; text: string } }) {
     const respond = (result: Record<string, unknown> & { requestId: string; ok: boolean }) =>
       window.slidomingoDesktop?.sendAgentActionResult(result)
     if (isEncryptionActive()) { respond({ requestId: cmd.requestId, ok: false, error: 'encrypted' }); return }
@@ -6226,7 +6234,9 @@ export class Editor {
     // ../agentops/spec.ts and runs the op as one undo step.
     if (isAreaTool(cmd.verb)) {
       if ((cmd.verb === 'icons' || cmd.verb === 'elements' || cmd.verb === 'slide_html') && slideId) lockError(slideId)
-      void Promise.resolve(runAreaOp(cmd.verb!, args, { store: this.store, created: this.agentCreatedSlides, icons: this.agentIcons, writes: this.agentSlideWrites, html: this.agentHtml, variants: this.agentVariants })).then((r) => {
+      // iconSet: the file `icons` named with `set`, read by desktop main (agenticonsets.ts)
+      const iconSet = cmd.verb === 'icons' && cmd.iconSet && typeof cmd.iconSet.text === 'string' && typeof cmd.iconSet.file === 'string' ? cmd.iconSet : undefined
+      void Promise.resolve(runAreaOp(cmd.verb!, args, { store: this.store, created: this.agentCreatedSlides, icons: this.agentIcons, iconSet, writes: this.agentSlideWrites, html: this.agentHtml, variants: this.agentVariants })).then((r) => {
         if (r.ok && r.toast) this.toast(r.toast)
         respond({ requestId: cmd.requestId, ...r })
       })

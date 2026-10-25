@@ -74,7 +74,7 @@ export const outsideInstruction = (refDir: string): string =>
   `find_text, or ask. Write a new or restructured slide as HTML with ` +
   `slide_html; change a few things with update_element or elements; slides, ` +
   `notes and transitions with deck; theme and size with deck_settings; icons ` +
-  `only from the icons tool. Look at what you made with review_slide. To ` +
+  `only from the icons tool (the library, or an icon-set file with set). Look at what you made with review_slide. To ` +
   `build a deck use the build-deck skill, for a new look restyle-deck, to ` +
   `clean one up polish-deck, for options on one slide slide-designs; a small ` +
   `edit needs none of them. Before designing slides, read ${refDir}/design.md ` +
@@ -94,7 +94,7 @@ const toolGuidance = (refDir: string): string =>
   `notes, sections) and deck_settings({op}) for theme, slide size, slideshow, ` +
   `timing, header & footer, numbering (op help explains them; delete only ` +
   `slides you added unless asked). Icons come from the icon library the user set up: ` +
-  `icons({op:"search"}) then icons({op:"insert"}); never write SVG (it is refused: compose shapes, path shapes and text), ` +
+  `icons({op:"search"}) then icons({op:"insert"}), or from an icon-set file (search with set: the file); never write SVG (it is refused: compose shapes, path shapes and text), ` +
   `and never download or embed artwork from the internet yourself (licensing): the library records where each icon came from and its license. ` +
   `When doc_info says kind "iconset", the document is an icon set (one icon per slide, the slide name is the icon): draw icons only from ` +
   `path elements like doc_info iconset.pathElement (d in grid units, inside the padding, in the set style), each with an iconPart (body, detail or accent); ` +

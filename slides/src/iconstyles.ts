@@ -26,7 +26,7 @@
 
 import type { IconLook, IconPaint, IconShapeTweak, Slide, SlidomingoDoc } from './model.ts'
 import { ICONSET_STYLE_DEFAULTS, uid } from './model.ts'
-import { escXml, iconShapes, iconsetInfo, isNoPaint, n3, normColor, type IconShape, type IconSvg } from './iconset.ts'
+import { escXml, iconShapes, iconSlideSvg, iconsetInfo, isNoPaint, n3, normColor, type IconShape, type IconSvg } from './iconset.ts'
 import { segsBBox, segsToD, type Seg } from './svgpath.ts'
 
 export type IconPart = 'body' | 'detail' | 'accent'
@@ -453,6 +453,27 @@ export function iconLookSvg(doc: SlidomingoDoc, slide: Slide, lookIn: IconLook, 
   const title = opts.title && slide.name ? `<title>${escXml(slide.name)}</title>` : ''
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${gs}" height="${ghs}" viewBox="0 0 ${gs} ${ghs}">${title}${finalBody}</svg>\n`
   return { svg, skipped: [...skipped] }
+}
+
+// ---- a set's icon in a deck ----------------------------------------------------------------
+
+/**
+ * One icon of a set as artwork for a deck (the agent's `icons` insert from a
+ * set file, DECISIONS 2026-10-25): in the set style named `style` (any case),
+ * else the plain drawing, with the one-colour ink (`currentColor`) written as
+ * `ink`. A deck has no text colour the icon could inherit everywhere it is
+ * drawn (thumbnails are `<img>`s, exports leave the page), so the colour is
+ * fixed here. A colourful style keeps its own colours. A string = the error.
+ */
+export function setIconSvg(doc: SlidomingoDoc, slide: Slide, style: string | undefined, ink: string): { svg: string; look?: string; inked: boolean } | string {
+  const key = style?.trim().toLowerCase()
+  const look = key ? doc.iconset?.variants?.find((l) => l.name.toLowerCase() === key) : undefined
+  if (key && !look) {
+    const names = (doc.iconset?.variants ?? []).map((l) => `"${l.name}"`)
+    return `No style "${style}" in this set (${names.length ? `it has ${names.join(', ')}` : 'it has none'}); leave style out for its own drawing.`
+  }
+  const { svg } = look ? iconLookSvg(doc, slide, look) : iconSlideSvg(doc, slide)
+  return { svg: svg.replace(/currentColor/g, escXml(safeColor(ink))), inked: svg.includes('currentColor'), ...(look ? { look: look.name } : {}) }
 }
 
 // ---- learning a look ---------------------------------------------------------------------

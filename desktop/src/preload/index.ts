@@ -218,7 +218,7 @@ contextBridge.exposeInMainWorld('slidomingoDesktop', {
    *  via the editor's own applyVariant/discardVariants, not this channel. It
    *  still participates in locking (see the lock-contract note in
    *  docs/agents.md) since it targets one slide exclusively while pending. */
-  onAgentAction: (cb: (cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string }) => void): void => {
+  onAgentAction: (cb: (cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string; iconSet?: { file: string; text: string } }) => void): void => {
     ipcRenderer.on('slidomingo:agent-action', (_ev, cmd) => cb(cmd))
   },
 

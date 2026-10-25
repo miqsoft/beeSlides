@@ -14077,3 +14077,89 @@ encrypted by a separate Electron run with another userData) and a folder,
 and left the user's files untouched. Not tested: Windows and Linux, a
 packaged build, the visible desktop app's Settings card with real windows
 (the renderer rig stubs main), and a real plugin launch.
+
+## 2026-10-25 — Icons drawn for a deck: insert from an icon-set file (amends 2026-10-15 "Icon sets")
+
+**Decision.** A model building a deck can now draw the icons the deck needs
+as an icon set and put them in the deck, without the user exporting
+anything:
+
+- **`icons` reads an icon-set file.** `search {query, set}` names a
+  `.beeslides.html` icon set (absolute; relative = the deck's folder, or the
+  current folder through the plugin's MCP server). Desktop main reads it in
+  `agentbridge.ts forwardAgentRequest` (`agenticonsets.ts`): only a
+  BeeSlides document of kind "iconset" (`docfile.ts iconSetDocText`, legacy
+  `#slidomingo-doc` accepted, asset refs resolved; a deck, an encrypted or a
+  foreign file refused), never written. The document goes to the editor
+  beside the request as `iconSet` (main strips any `iconSet` a caller sent),
+  where `agentops.ts searchSet` lists the set's drawn icons as the usual
+  refs (`i1`, `i2` …) with its licence, styles and how many are still
+  undrawn. `insert {ref, style?, ink?}` builds the icon from the set's MODEL
+  (`iconstyles.ts setIconSvg`: `iconSlideSvg`, or `iconLookSvg` for a style
+  by name) and inserts it through the library icons' own path
+  (`Editor.agentInsertIcon` → `agentInsertElements`: sanitized like a
+  paste, one undo step), with `provenance` naming the set file, its licence
+  and author. The model never handles SVG.
+- **Ink.** The set's ink is `currentColor`, but a deck has no text colour
+  an icon could inherit everywhere it is drawn (thumbnails and exports are
+  `<img>`s or leave the page), so the colour is written in at insert: the
+  deck's accent by default, `ink:"text"` or a hex otherwise; a colourful
+  style keeps its colours. Recolouring an inserted icon later is still not
+  there (2026-10-11).
+- **A set open in a window** (the agent drew it a moment ago, or the user
+  has it open) is flushed to disk first (`windows.ts flushToDisk`: the
+  close protocol's flush, nothing closed, nobody asked), then the file is
+  read. Reading the window's live document would have been a second way
+  for a whole document to leave an editor; the file is the path that
+  already exists and is what the user has. A window that cannot save leaves
+  the older file, which is read as is.
+- **Making the set.** `open_deck {create:true, kind:"iconset"}` writes a new
+  icon set: `newdocs.ts newIconsetFileDoc`, the start page's
+  `newIconsetDoc()` written by hand in main (main cannot import the model),
+  kept equal by `scripts/test-agent-iconsets.ts`. `icons` op `plan` may now
+  also set the set's `brief`, `strokeWidth`, `cap`, `join` and `iconFill`
+  while nothing is drawn (a drawn set refuses: give it a style instead), so
+  a set made for a deck takes the deck's look without a panel.
+- **One open file per chat.** `open_deck` binds the whole MCP connection,
+  so a Claude Code chat and its subagents switch together; the file left
+  behind stays open. build-deck therefore draws the set after the slide
+  writers are done, draw-icons tells its subagents never to call
+  `open_deck`, and the main agent switches back to the deck only when all
+  are back. Fixed on the way: `windowForPath` now also matches a path
+  spelled through a symlink (macOS `/var` vs `/private/var`); before, an
+  agent that opened a deck by a relative path and named it absolutely later
+  got a SECOND window bound to the same file (found by the e2e below, which
+  lost a pick that way).
+- **Skills.** build-deck's decoration gains "icons drawn for this deck"
+  (plain stays the default for a talk): concepts listed with the outline,
+  library first, the rest planned into `<deck>.icons.beeslides.html` (or a
+  set the user names, which gets a STYLE for the deck rather than a
+  redraw), drawing style from the deck's type weight, the plan shown for an
+  OK, draw-icons draws, then insert from the set. polish-deck and
+  slide-design.md say where such icons come from.
+
+**Amends 2026-10-15.** "Opening a `.beeslides.html` icon set directly as a
+source was considered and left out … for no gain over the exported
+folder." The gain is now real: an agent cannot do the export (a native
+folder picker) or add a library folder (Settings, a grant only a user
+gesture gives), so a set it drew was unusable in the deck it drew it for.
+The second trust path the entry feared stays narrow: it is not a library
+source the popover or a search walks, only a file an agent names in one
+call, read by main like the files `open_deck` already opens, and every icon
+still leaves through the paste sanitizer.
+
+Not done: a library source that is a set file (Insert ▸ Icons still needs
+the export); `search` without `set` does not remember sets the deck used
+(the deck stores only the file name, never a path); in the in-app chat
+there is no `open_deck`, so the user makes and draws the set and the model
+inserts from it; the pane shows the set's icons while the agent works there.
+Tested: `scripts/test-agent-ops.ts` (search/insert from a set, styles, ink,
+refusals, plan drawing params), `scripts/test-agent-iconsets.ts` (new set
+= start page's, file reading, matching, artwork),
+`scripts/test-agent-iconsets-e2e.mjs` (real editor, a set file read by
+main's code, inserted, rendered, undo, thumbnails),
+`desktop/scripts/e2e-background.mjs` §9b (hidden instance through the MCP
+server: create a set, plan, draw three icons with `write_slide`, switch
+back, search the still-open set, insert, screenshot in the deck accent).
+Not tested: the visible app with the set in a shown window, and a real
+model running the build-deck flow end to end.

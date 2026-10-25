@@ -15,7 +15,7 @@ Build the deck the user asked for, step by step, telling the user in one short l
    - purpose: conference talk · lecture · meeting · pitch · for reading;
    - length: minutes → slides (about 1 per minute for a talk, 0.5 for a lecture or meeting), plus backup slides; for reading, a slide count;
    - typical slide: mostly text · text + small visual · balanced · visual + one-line takeaway · visual only;
-   - visuals the user has (figures, photos to attach); decoration: plain · icons · imagery;
+   - visuals the user has (figures, photos to attach); decoration: plain (the default for a talk) · icons from the user's library · icons drawn for this deck (its own icon set, in its look) · imagery;
    - content that needs its own slide type: equations, code, tables, timeline, quotes, references;
    - motion: none · subtle (fades, morph) · expressive;
    - simplicity: minimal · clean · rich;
@@ -23,7 +23,7 @@ Build the deck the user asked for, step by step, telling the user in one short l
 
    The profile sets tone and budgets as design.md's "Tone and density" says.
 
-3. **Outline.** A numbered outline in chat, grouped by section, one row per slide: its message (the one sentence the audience takes away; it becomes the title or takeaway), its evidence kind and its material (which figure, which numbers). Evidence kinds: title · section · closing · statement (one sentence, big) · one-result (one figure + takeaway) · comparison (two side by side) · detail (a figure with callouts) · overview (3–4 small multiples) · number (one figure beside what it is compared with) · process (steps / flow / sequence) · table · list (3–5 points) · equation · code · quote. Choose the kind from what the slide must show. Slides showing the same kind of thing share one kind on purpose (they read as a series and morph); unrelated slides of one kind stay at 3 in a row. Keep to what the material supports. A summary or recap row gets evidence too (the mechanisms side by side, a problem → fix table), not a list of headings. Where the form is open (a table or a chart, one figure or small multiples, a diagram or a list), write both in the row, your pick first, in at most 3 rows. Over 10 slides, wait for the user's OK ("Outline OK?").
+3. **Outline.** A numbered outline in chat, grouped by section, one row per slide: its message (the one sentence the audience takes away; it becomes the title or takeaway), its evidence kind and its material (which figure, which numbers). Evidence kinds: title · section · closing · statement (one sentence, big) · one-result (one figure + takeaway) · comparison (two side by side) · detail (a figure with callouts) · overview (3–4 small multiples) · number (one figure beside what it is compared with) · process (steps / flow / sequence) · table · list (3–5 points) · equation · code · quote. Choose the kind from what the slide must show. Slides showing the same kind of thing share one kind on purpose (they read as a series and morph); unrelated slides of one kind stay at 3 in a row. Keep to what the material supports. A summary or recap row gets evidence too (the mechanisms side by side, a problem → fix table), not a list of headings. Where the form is open (a table or a chart, one figure or small multiples, a diagram or a list), write both in the row, your pick first, in at most 3 rows. With icon decoration, add one line after the outline: the icon concepts, one short noun each ("evidence bag", not "slide 4 icon") with the slides that use it; one concept is one icon everywhere. Over 10 slides, wait for the user's OK ("Outline OK?").
 
 4. **The look.** It comes from what the user asked for, else the deck's own look (a template, its slide types, a theme someone set): keep it, reuse its slide types and add only the kinds it lacks, as children of its parent type. A deck without a look of its own (over 5 slides) gets one the user picks:
    - Write the outline's most typical content slide in 2–3 looks with ONE `propose_variants` call on it (add the slide, or reuse the deck's empty first slide; it stays and becomes that outline row).
@@ -44,7 +44,7 @@ Build the deck the user asked for, step by step, telling the user in one short l
 
 7. **Finishing touches.**
    - Animations, within the profile's motion: one `elements` `{op:"edit"}` per slide carrying every `fx`.
-   - Icons, with decoration icons only: `icons` `{op:"search"}` with one short noun per concept, then `{op:"insert"}`; one size per slide. Without an icon library, say so in the report.
+   - Icons, with icon decoration only: from the library, `icons` `{op:"search"}` with one short noun per concept, then `{op:"insert"}`; one size per slide. Without an icon library, say so in the report. Icons drawn for this deck: the section below, then insert them the same way from the set.
    - A figure the user has not supplied: a marked placeholder box ("Figure: <what it shows>") in its slot, never a chart of made-up numbers.
    - Speaker notes on every slide with `deck` `{op:"notes"}`.
 
@@ -53,6 +53,17 @@ Build the deck the user asked for, step by step, telling the user in one short l
 9. **Alternatives where a choice matters.** Name up to 4 slides where another design is most likely better (the main result, the critic's weakest) and offer them in one line. On a yes, one slide at a time: ONE `propose_variants` call holding the current form arranged differently, the other evidence form (table ↔ chart, diagram ↔ list, one figure ↔ small multiples) and the simplest version that still carries the point; keep the content, the deck stylesheet, the strip and title, and the ids of elements that stay. Learn the pick as in step 4, then offer the same treatment to slides of the same kind. Without questions, name the slides in the report instead.
 
 10. **Report** in two or three lines: what you built, the profile in one line, and what is left for the user (figures to drop in, anything `deck` help lists as not available yet).
+
+## Icons drawn for this deck
+
+With decoration "icons drawn for this deck" the deck gets its own icons, drawn in its look and kept in an icon set file next to it. Do this after the slides are written (step 6) and before step 7's icons, never while writers are still at work: the tools work on one open file at a time for you and your subagents together.
+
+1. **Library first.** `icons` `{op:"search", query}` per concept from the outline; a hit that fits the look is used as it is (skip this when the user wants every icon in one hand). The rest are drawn.
+2. **The set.** Outside the app: an icon set the user names, else `<deck name>.icons.beeslides.html` next to the deck (reused when it is there): `open_deck` `{path, create:true, kind:"iconset"}`, then `doc_info`. Inside the app there is no `open_deck`: ask the user to make one (File ▸ New Icon Set…, saved next to the deck) and to draw it there (Plan with AI, Draw with AI), then go on with step 6 below.
+3. **Its look comes from the deck.** In a new or empty set, ONE `icons` `{op:"plan", icons:[{name, prompt, keywords}, …]}` writes the icons to draw and how the set is drawn: `brief` (what the deck is about and how its icons look, in a line or two), `strokeWidth` (about the weight of the deck's text: 1.5 for a light, thin type, 2 regular, 2.5 bold), `cap` and `join` (round for a soft look, butt and miter for a technical one), `iconFill` (outline unless the deck is bold and flat: solid). The set's ink stays black: the deck colours it when the icons go in. A set that already has drawings keeps its drawing style: plan only the missing icons and give it a style for this deck instead (`icons` `{op:"style", name:"<deck name>", weight, …}`, only what differs, nothing redrawn).
+4. **Show the plan** (the names and what each shows) and wait for the user's OK; without questions, go on and list it in the report.
+5. **Draw** with the draw-icons skill, its subagents included (3 or more icons). They work on the set as you left it open: they never call `open_deck`, and you wait until all are back. Look at a few with `review_slide`.
+6. **Back to the deck.** `open_deck` the deck again (the set stays open; nothing is lost), then `icons` `{op:"search", query:"", set:"<the set file>"}` lists the set's drawn icons as refs and its styles; `{op:"insert", slideId, ref, x, y, size, style?}` puts one on a slide. The ink becomes the deck's accent colour (`ink:"text"` or a hex for another), a style for this deck goes in with `style`. One size per slide; check them with `review_slide`.
 
 ## Writers: plan once, write in parallel
 

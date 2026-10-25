@@ -38,7 +38,7 @@ ONE tool, `deck({op, …})`; deck-wide settings — theme colours and fonts,
 slide size, slideshow, slide timing, header & footer, numbering — are
 `deck_settings({op, …})`. Icons come from the user's icon library:
 `icons({op:"search", query})` lists refs, `icons({op:"insert", slideId, ref, x, y, size})`
-places one — never write SVG (it is refused), and never download artwork from the
+places one (`set:"<file>"` on search reads an icon-set file instead) — never write SVG (it is refused), and never download artwork from the
 internet yourself (licensing): the icon records where it came from and its
 license (`provenance`). `op:"help"` explains every op. `add` returns the new ids, so create
 all slides first, then fill them. Delete only slides you added unless the
@@ -281,7 +281,7 @@ built for it:
 | a **headline number** in a pitch | big text + `fx:{countUp:true}` | in a talk, lecture or meeting, show it beside what it is compared with instead |
 | **repeated chrome / a logo** | keep its `id` stable across slides | it stays in place instead of popping |
 | a **demo clip / recording** | a **media** element (embed short, link long) | the real thing beats a screenshot |
-| **concepts / roles** side by side, with decoration icons | one **icon per item** from the user's library (`icons` search → insert, one size) | a list becomes scannable in the house style |
+| **concepts / roles** side by side, with decoration icons | one **icon per item** from the user's library, or from the deck's own icon set (`icons` search → insert, one size) | a list becomes scannable in the house style |
 
 ### Recipes as element JSON (`write_slide`, file editing)
 
@@ -793,6 +793,20 @@ for the whole session. The details behind them:
   user, and fall back to simple shapes rather than hand-written SVG. A folder
   with an `icons.json` (an exported icon set) also matches its names and
   keywords.
+  **From an icon-set file:** `search {query, set}` with `set` = an icon set's
+  `.beeslides.html` (absolute, or relative to the deck's folder; outside the
+  app relative to the current folder) reads that file instead of the library
+  — never writes it; when the set is open in BeeSlides it is saved first, so
+  icons just drawn are there. It lists the set's DRAWN icons (matched on
+  name, keywords and "what it shows"; `""` lists all) as refs, its licence,
+  its styles, and how many icons are not drawn yet. Refs keep the drawings as
+  they were at the search: search again after a redraw. `insert` builds the
+  icon from its drawing (in `style`, a set style by name, else the plain
+  drawing) as an `svg` element; its one-colour ink becomes the deck's accent
+  (`ink: "text"` or a CSS hex for another colour), a colourful style keeps
+  its colours. The element's `provenance` names the set (file, licence,
+  author). Only a desktop app reads files: in a browser the error says to
+  export the set to a folder and add it as a library source.
 - **Icon sets** — when `doc_info` says `kind: "iconset"`, the document IS an
   icon set: one icon per slide, the slide `name` is the icon's name and
   `slide.icon.prompt` what it shows (`outline` lists both). `doc_info.iconset`
@@ -805,7 +819,12 @@ for the whole session. The details behind them:
   amount of detail, proportions) with your own paths, never copies.
   Asked for icons in the user's own words, PLAN first: one `icons` call, op
   `plan`, with `[{name, prompt, keywords}]` — it creates empty, named icons
-  and draws nothing; the user reviews them and presses Draw with AI.
+  and draws nothing; the user reviews them and presses Draw with AI (in a
+  chat outside the app: show the list, draw after their OK). While nothing
+  is drawn, `plan` may also set how the whole set is drawn: `brief`,
+  `strokeWidth` (grid units), `cap`, `join`, `iconFill`
+  (outline/solid/duotone) — for a set made for a deck, from the deck's look;
+  a set with drawings refuses that (give it a style instead).
   Draw icons only from copies of it (new `id` and `d`): every point inside
   `paddingBox`, whole or half units, few simple shapes; a solid detail is a
   path with the ink as `fill` and a transparent stroke. No text, pictures or
@@ -856,8 +875,13 @@ for the whole session. The details behind them:
   index | keep:true}` (only when the user told you which: the same as the
   compare view's Use / Keep).
 - **`open_deck` / `close_deck`** (AI apps outside BeeSlides only) —
-  `open_deck {path, create?}` makes a deck file the one every later call
-  works on; `create:true` writes a new empty 16:9 deck there first. With
+  `open_deck {path, create?, kind?}` makes a deck file the one every later call
+  works on; `create:true` writes a new empty 16:9 deck there first
+  (`kind:"iconset"`: a new, empty icon set, as File ▸ New Icon Set makes).
+  One file at a time per chat, subagents included: `open_deck` switches it
+  for all of them, and the file left behind stays open (switching back is
+  instant, nothing is lost). So a subagent never calls it, and work on a
+  deck and on its icon set does not overlap. With
   the BeeSlides app open it opens in a window; without it, in a hidden
   BeeSlides that saves every change to the file (`doc_info` says
   `background: true`, and names the `file`). `close_deck` saves and closes

@@ -36,7 +36,9 @@ The deck's profile (purpose, typical slide, simplicity, decoration, motion;
   included. A deck for reading may go down to 13 px.
 - **Motion:** none means a plain fade at most; subtle adds fades and morph;
   expressive allows any effect. **Decoration:** plain means no icons or
-  imagery; icons come from the user's icon library.
+  imagery (the default for a talk); icons come from the user's icon library,
+  or are drawn for the deck as its own icon set, in its look (build-deck,
+  "Icons drawn for this deck").
 
 ## The look: one system, carried through
 

@@ -28,7 +28,7 @@
 import { DOC_EXT } from '../../../kernel/src/docext.ts'
 import { BrowserWindow, WebContentsView, app, dialog, screen, session, type IpcMainEvent, type IpcMainInvokeEvent, type Session, type WebPreferences, type WebContents } from 'electron'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addRecent } from './recent.ts'
@@ -387,9 +387,17 @@ export function openBoundPaths(): Set<string> {
   return out
 }
 
-/** The document window bound to `path`, if one is open. */
+/** The document window bound to `path`, if one is open. Also when the two
+ *  spell it differently through a symlink (macOS /var → /private/var: an
+ *  agent's relative path resolved against a real cwd, then the same file
+ *  named absolutely): open_deck must never bind a second window to a file. */
 export function windowForPath(path: string): BrowserWindow | null {
-  const st = stateForPath(path)
+  let st = stateForPath(path)
+  if (!st) {
+    const real = (p: string): string | null => { try { return realpathSync(p) } catch { return null } }
+    const want = real(path)
+    if (want) for (const s of stateByDocWcId.values()) if (s.binding && real(s.binding.path) === want) { st = s; break }
+  }
   return st && !st.win.isDestroyed() ? st.win : null
 }
 
@@ -605,6 +613,16 @@ async function runLeaveFlow(st: WinState, why: 'close' | 'switch'): Promise<bool
     if (answer === null) return false
   }
   return proceed
+}
+
+/** Puts what `win` shows on disk now, as an autosave would (the flush half
+ *  of the close protocol, nothing closed, nobody asked): true when the file
+ *  holds it. An agent reading another open file uses it (agenticonsets.ts). */
+export async function flushToDisk(win: BrowserWindow): Promise<boolean> {
+  const st = stateByWinId.get(win.id)
+  if (!st || win.isDestroyed()) return false
+  const answer = await askRenderer(st, 'flush').catch(() => null)
+  return answer?.status === 'clean' || answer?.status === 'flushed'
 }
 
 /** Close a window through the flush protocol. Resolves true once it's closed,

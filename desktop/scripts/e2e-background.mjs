@@ -16,6 +16,8 @@
 //   - autosave lands on disk
 //   - propose_variants → variants previews (one picture per design) →
 //     status pending → pick → status picked, the design on the slide
+//   - an icon set made with open_deck create kind iconset, drawn with
+//     write_slide, its icons inserted into the deck from the file (9b)
 //   - close_deck flushes and closes; open_deck reopens the file
 //   - SIGTERM quits through the flush: the last edit is in the file
 //   - no Recent entries, no session; the user's settings are only read
@@ -316,13 +318,57 @@ async function driver() {
     const after = textOf(await mcp.tool('get_slide', { slideId: s0, view: 'summary' }))
     ok(/Design B/.test(after), 'the picked design is on the slide')
 
+    // ---- 9b. icons drawn for the deck (DECISIONS 2026-10-25): open_deck
+    //          create kind iconset, plan + draw three icons there, switch back,
+    //          insert them from the set file (main flushes the open set first)
+    const setFile = join(work, 'bg.icons.beeslides.html')
+    const mk = await mcp.tool('open_deck', { path: 'bg.icons.beeslides.html', create: true, kind: 'iconset' }, 60000)
+    ok(!mk.isError && /Created and opened the icon set bg\.icons\.beeslides\.html/.test(textOf(mk)), `open_deck create kind iconset (${textOf(mk).slice(0, 90)})`)
+    const setInfo = JSON.parse(textOf(await mcp.tool('doc_info', {})))
+    ok(setInfo.kind === 'iconset' && setInfo.iconset?.grid === 24 && !!setInfo.iconset?.pathElement, 'doc_info: an icon set with its pathElement')
+    const planned = await mcp.tool('icons', { op: 'plan', icons: [{ name: 'cloud', prompt: 'a cloud', keywords: ['server'] }, { name: 'lock', prompt: 'a padlock' }, { name: 'chart', prompt: 'rising bars' }], strokeWidth: 1.5 })
+    ok(!planned.isError && /Drawing style now/.test(textOf(planned)), `plan with the deck's stroke (${textOf(planned).slice(0, 80)})`)
+    const pe = JSON.parse(textOf(await mcp.tool('doc_info', {}))).iconset.pathElement
+    const setIcons = JSON.parse(textOf(await mcp.tool('outline', {})))
+    const drawings = { cloud: ['M7 18 H17 A4 4 0 0 0 17 10 A5 5 0 0 0 7.5 9 A4.5 4.5 0 0 0 7 18 Z'], lock: ['M6 11 H18 V20 H6 Z', 'M8.5 11 V8 A3.5 3.5 0 0 1 15.5 8 V11'], chart: ['M5 19 V13 M10 19 V9 M15 19 V11 M20 19 V5'] }
+    for (const ic of setIcons) {
+      const full = JSON.parse(textOf(await mcp.tool('get_slide', { slideId: ic.id })))
+      full.elements = drawings[ic.name].map((d, k) => ({ ...pe, id: `${ic.name}-${k}`, d, iconPart: k ? 'detail' : 'body' }))
+      const wr = await mcp.tool('write_slide', { slideId: ic.id, slide: full }, 30000)
+      ok(!wr.isError, `drew "${ic.name}" with write_slide from pathElement`)
+    }
+    // named absolutely now (the first open was relative: through the temp
+    // folder's symlink, /var vs /private/var on macOS) — still the same window
+    const backToDeck = await mcp.tool('open_deck', { path: deck }, 60000)
+    ok(!backToDeck.isError && /already open bg\.beeslides\.html/.test(textOf(backToDeck)), `open_deck switches back to the deck's own window, the set stays open (${textOf(backToDeck).slice(0, 80)})`)
+    await mcp.tool('deck', { op: 'add', count: 1 })
+    const iconSlide = JSON.parse(textOf(await mcp.tool('outline', {}))).at(-1)?.id
+    const fromSet = await mcp.tool('icons', { op: 'search', query: '', set: 'bg.icons.beeslides.html' }, 30000)
+    const refs = [...textOf(fromSet).matchAll(/^(i\d+) "/gm)].map((m) => m[1])
+    ok(!fromSet.isError && refs.length === 3, `search the set file (relative: the server resolves it): the three icons just drawn, the open set saved first (${textOf(fromSet).split('\n')[0]})`)
+    for (const [k, ref] of refs.entries()) {
+      const r = await mcp.tool('icons', { op: 'insert', slideId: iconSlide, ref, x: 200 + k * 320, y: 240, size: 220 }, 30000)
+      ok(!r.isError && /ink #/.test(textOf(r)), `insert ${ref} from the set (${textOf(r).slice(0, 90)})`)
+    }
+    const irv = await mcp.tool('review_slide', { slideId: iconSlide }, 30000)
+    const ishot = imagesOf(irv)[0]
+    if (ishot && process.env.E2E_DUMP) writeFileSync(join(root, 'icons.png'), Buffer.from(ishot.data, 'base64'))
+    const teal = ishot ? share(ishot.data, (r, g, b) => b > r + 30 && g > r + 20 && r < 90) : 0
+    ok(teal > 0.005, `the icons show in the deck accent (${(teal * 100).toFixed(2)}% teal pixels)`)
+    ok(/"kind":\s*"iconset"/.test(readFileSync(setFile, 'utf8')), 'the set file is still an icon set')
+    const notSet = await mcp.tool('icons', { op: 'search', query: '', set: deck })
+    ok(notSet.isError && /not an icon set/.test(textOf(notSet)), 'a deck named as set is refused')
+
     // ---- 10. close_deck flushes; open_deck reopens
     const closed = await mcp.tool('close_deck', {}, 30000)
     ok(!closed.isError && /Saved and closed/.test(textOf(closed)), `close_deck (${textOf(closed)})`)
-    ok(readFileSync(deck, 'utf8').includes('Design B'), 'close_deck flushed the pick to the file')
+    ok(readFileSync(deck, 'utf8').includes('Design B'), `close_deck flushed the pick to the file (${(readFileSync(deck, 'utf8').match(/Design [AB]|Hidden but here|Written right/g) ?? []).join()})`)
     ok(BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed()).every((w) => !w.webContents.getURL().includes('beeslides.html')), 'its window is gone')
+    const setOpen = JSON.parse(textOf(await mcp.tool('doc_info', {})))
+    ok(setOpen.kind === 'iconset', 'with the deck closed, calls go to the deck still open: the set')
+    ok(!(await mcp.tool('close_deck', { path: setFile }, 30000)).isError, 'close_deck closes the set too')
     const gone = await mcp.tool('doc_info', {})
-    ok(gone.isError && /open_deck/.test(textOf(gone)), 'with the deck closed, calls ask for open_deck again')
+    ok(gone.isError && /open_deck/.test(textOf(gone)), 'with no deck open, calls ask for open_deck again')
     const re = await mcp.tool('open_deck', { path: deck }, 60000)
     ok(!re.isError && /Opened bg\.beeslides\.html/.test(textOf(re)), 'open_deck reopens the file')
     const last = await mcp.tool('slide_html', { op: 'write', slideId: s0, html: '<h1 id="title">Written right before SIGTERM</h1>' }, 30000)

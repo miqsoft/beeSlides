@@ -70,6 +70,7 @@ Electron shell around `slides/`; see the root `AGENTS.md` for the repo map and h
 - Its endpoint is always on, asks nobody and writes no `launch`. The visible app writes `agent/app.json` at every start (`recordAppLaunch`): that is how the launcher finds the binary.
 - Main-answered verbs that need no window (`open_deck`, `close_deck`) register with `registerWindowlessVerb` (`agentdecks.ts`); the endpoint binds the client to the window they return.
 - A request sent before a new window's editor listens is lost: wait with `whenDeckReady` (its first doc-state report).
+- `icons` with `set` (DECISIONS 2026-10-25): main reads the icon-set file in `forwardAgentRequest` (`agenticonsets.ts`, flushing a window that has it open) and sends it as `iconSet`; a caller's own `iconSet` is stripped. `open_deck` binds the whole connection, subagents included.
 - E2E: `scripts/e2e-background.mjs` (does not fake `show`; `E2E_DUMP=1` keeps the screenshots). The pane mod's source is `src/mcp/claude-mod/` (`claude plugin test claude-plugin`).
 
 ## AI profiles, API chat, tokens

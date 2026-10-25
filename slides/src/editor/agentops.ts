@@ -22,9 +22,9 @@ import {
 import { checkLayout, guardLayout, snapshotSlide, type GuardResult, type LayoutFinding } from '../layoutguard'
 import { checkElementProp, isWholePictureCrop, REQUIRED_KEYS } from '../untrusted'
 import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
-import { applyIconPlan, readIconPlan } from '../iconset'
-import { iconTweaks, readLook, readTweak, setTweak } from '../iconstyles'
-import type { IconShapeTweak } from '../model'
+import { applyIconPlan, findSetIcons, iconShapes, readIconPlan } from '../iconset'
+import { iconTweaks, readLook, readTweak, safeColor, setIconSvg, setTweak } from '../iconstyles'
+import { ICONSET_STYLE_DEFAULTS, iconsetStyleDefaults, parseDoc, unsupportedFeatures, type IconShapeTweak, type IconsetInfo, type IconsetStyle, type Provenance } from '../model'
 import { defaultLayoutGrid, layoutTracks, normalizeLayoutGrid, parseSpan, spanRect } from '../layoutgrid'
 import { paletteOf, resolveThemeRefs } from '../palette'
 import { ancestorElementIds, effectiveLayout } from '../model'
@@ -43,6 +43,10 @@ export interface OpContext {
   created: Set<string>
   /** The user's icon library (`icons` tool); absent where there is none. */
   icons?: IconLibraryAccess
+  /** The icon-set file an `icons` call names with `set`, as desktop main read
+   *  it (agenticonsets.ts: only a BeeSlides icon set, saved first when it is
+   *  open). Absent where nothing reads files (the browser) or none was named. */
+  iconSet?: { file: string; text: string }
   /** How element writes reach the slide (`elements` tool). The editor passes
    *  its agent-write path (text measured by the real renderer, linked slides
    *  resynced); without one, a plain store commit + layout guard. */
@@ -126,7 +130,10 @@ export interface AgentIcon {
   /** The label of the source that found it. */
   source?: string
   /** What is known of its origin and terms (model.ts Provenance). */
-  provenance?: { license?: string }
+  provenance?: Provenance
+  /** An icon of an icon-set file (search with `set`): built from its drawing
+   *  at insert, in the style and ink the insert asks for. */
+  fromSet?: { doc: SlidomingoDoc; slideId: string }
 }
 
 /** The editor's icon library, as the `icons` handlers see it. The editor
@@ -138,6 +145,8 @@ export interface IconLibraryAccess<I extends AgentIcon = AgentIcon> {
   /** Fetches `icon` and inserts it on `slideId` as ONE agent write (the
    *  insert_elements path: sanitized like a paste, one undo step). */
   insert(slideId: string, icon: I, frame: { x: number; y: number; w: number; h: number }, alt: string): Promise<{ elementId: string } | { error: string }>
+  /** Inserts artwork built here (an icon from a set) the same way. */
+  insertSvg(slideId: string, markup: string, provenance: Provenance, frame: { x: number; y: number; w: number; h: number }, alt: string): Promise<{ elementId: string } | { error: string }>
   /** ref ("i3") → icon, filled by search. */
   refs: Map<string, I>
 }
@@ -656,12 +665,65 @@ const SETTINGS: AreaHandlers['deck_settings'] = {
 /** Refs handed out per session before the oldest are forgotten. */
 const MAX_ICON_REFS = 2000
 
+/** The icon set `set` named, as `ctx.iconSet` carries it, or why not. */
+function readIconSetFile(ctx: OpContext): { doc: SlidomingoDoc; file: string } | string {
+  const got = ctx.iconSet
+  if (!got) return 'Reading an icon-set file needs the BeeSlides desktop app. Here, the user exports the set to a folder and adds it in Settings ▸ Icon library; then search without set.'
+  const doc = parseDoc(got.text)
+  if (!doc || doc.kind !== 'iconset') return `${got.file} is not an icon set (doc_info kind "iconset" when open).`
+  if (unsupportedFeatures(doc).length) return `${got.file} was made with a newer version of BeeSlides; update BeeSlides to use its icons.`
+  return { doc, file: got.file }
+}
+
+/** Search an icon-set file: its drawn icons as refs, its styles named. */
+function searchSet(ctx: OpContext, lib: IconLibraryAccess, query: string, limit: number): OpOutcome {
+  const set = readIconSetFile(ctx)
+  if (typeof set === 'string') return fail(set)
+  const { hits, undrawn } = findSetIcons(set.doc, query)
+  const name = set.doc.title && set.doc.title !== 'Untitled icon set' ? `“${set.doc.title}” (${set.file})` : set.file
+  const terms = [set.doc.iconset?.license && `license: ${set.doc.iconset.license}`, set.doc.iconset?.author && `by ${set.doc.iconset.author}`].filter(Boolean).join(', ') || 'license unknown'
+  const styles = (set.doc.iconset?.variants ?? []).map((l) => `"${l.name}"`)
+  const notes = [
+    styles.length ? `Styles: ${styles.join(', ')} (insert with style; without it, the set's own drawing).` : 'No styles: icons go in as drawn.',
+    ...(undrawn ? [`${undrawn} icon(s) of the set are not drawn yet (open_deck the set and draw them first).`] : []),
+  ].join('\n')
+  const shown = hits.slice(0, Math.min(limit, MAX_ICON_RESULTS))
+  if (!shown.length) return { ok: true, refs: [], summary: `No drawn icon in ${name} for "${query}". ${query ? 'Try another word, or "" to list them all.' : ''}\n${notes}`, toast: '' }
+  if (lib.refs.size + shown.length > MAX_ICON_REFS) lib.refs.clear()
+  const provenance: Provenance = {
+    origin: `Icon set ${set.doc.title || set.file} (${set.file})`,
+    ...(set.doc.iconset?.license ? { license: set.doc.iconset.license } : {}),
+    ...(set.doc.iconset?.author ? { author: set.doc.iconset.author } : {}),
+  }
+  const refs: string[] = []
+  const lines = shown.map((s) => {
+    const ref = `i${lib.refs.size + 1}`
+    lib.refs.set(ref, { name: s.name ?? s.id, ext: 'svg', source: set.file, provenance, fromSet: { doc: set.doc, slideId: s.id } })
+    refs.push(ref)
+    return `${ref} "${s.name ?? s.id}"${s.icon?.prompt ? ` (${s.icon.prompt})` : ''}`
+  })
+  return {
+    ok: true, refs,
+    summary: `${shown.length}${hits.length > shown.length ? ` of ${hits.length}` : ''} icon(s) from ${name} [${terms}]:\n${lines.join('\n')}\n${notes}\nInsert one with op "insert" {slideId, ref, x, y, size, style?, ink?}.`,
+    toast: '',
+  }
+}
+
+/** The colour `ink` names: "accent" (default), "text" or a CSS colour; null = not a colour. */
+function inkColor(doc: SlidomingoDoc, ink: unknown): string | null {
+  const v = typeof ink === 'string' ? ink.trim() : ''
+  if (!v || v === 'accent') return safeColor(doc.theme.accent, safeColor(doc.theme.color))
+  if (v === 'text') return safeColor(doc.theme.color)
+  return /^#[0-9a-f]{3,8}$/i.test(v) ? v : null
+}
+
 const ICONS: AreaHandlers['icons'] = {
   async search(ctx, a) {
     const lib = ctx.icons
     if (!lib) return fail('No icon library here (it needs the editor). Draw simple shapes instead.')
     const query = (a.query as string).trim()
     const limit = (a.limit as number | undefined) ?? 12
+    if (typeof a.set === 'string') return searchSet(ctx, lib, query, limit)
     let found: AgentIcon[]
     let notes: string[]
     try { ({ icons: found, notes } = await lib.search(query)) } catch (e) {
@@ -693,14 +755,35 @@ const ICONS: AreaHandlers['icons'] = {
     if (ctx.store.doc.kind !== 'iconset') return fail('plan works in an icon set only (doc_info kind "iconset"); in a deck, search and insert icons.')
     const plan = readIconPlan(a.icons)
     if (typeof plan === 'string') return fail(plan)
+    // how the set is drawn: only before anything is, so drawings never drift from it
+    const drawing: Partial<IconsetStyle> = {}
+    if (a.strokeWidth !== undefined) drawing.strokeWidth = Math.round((a.strokeWidth as number) * 4) / 4
+    if (a.cap !== undefined) drawing.cap = a.cap as IconsetStyle['cap']
+    if (a.join !== undefined) drawing.join = a.join as IconsetStyle['join']
+    if (a.iconFill !== undefined) drawing.fill = a.iconFill as IconsetStyle['fill']
+    const doc0 = ctx.store.doc
+    if (Object.keys(drawing).length && doc0.slides.some((s) => iconShapes(doc0, s).shapes.length)) {
+      return fail('This set already has drawings, so its drawing style stays (strokeWidth, cap, join, iconFill). For another look give it a style with op style, and plan without those params.')
+    }
+    const brief = typeof a.brief === 'string' ? a.brief.trim().slice(0, 2000) : undefined
     let r: ReturnType<typeof applyIconPlan> = { slideIds: [], added: 0, updated: 0, removed: 0 }
-    ctx.store.commit(() => { r = applyIconPlan(ctx.store.doc, plan, a.replace === true) })
+    ctx.store.commit(() => {
+      const doc = ctx.store.doc
+      r = applyIconPlan(doc, plan, a.replace === true)
+      if (!Object.keys(drawing).length && brief === undefined) return
+      const info: IconsetInfo = { ...doc.iconset!, style: { ...ICONSET_STYLE_DEFAULTS, ...doc.iconset!.style, ...drawing } }
+      if (brief) info.brief = brief
+      else if (brief === '') delete info.brief
+      doc.iconset = info
+      doc.theme.styleDefaults = iconsetStyleDefaults(info)
+    })
     for (const id of r.slideIds) ctx.created.add(id)
     const parts = [r.added && `${r.added} added`, r.updated && `${r.updated} updated`, r.removed && `${r.removed} empty removed`].filter(Boolean).join(', ')
     return {
       ok: true, slideIds: r.slideIds,
       summary: `Planned ${plural(plan.length, 'icon')} (${parts}): ${plan.map((p, k) => `${r.slideIds[k]} "${p.name}"`).join(', ')}. ` +
-        'They are empty on purpose: tell the user to review them (rename, edit "What it shows", delete, add) and press Draw with AI. Do not draw them now.',
+        (Object.keys(drawing).length || brief !== undefined ? `Drawing style now: ${JSON.stringify(ctx.store.doc.iconset!.style)}${ctx.store.doc.iconset!.brief ? ', with the brief' : ''} (doc_info iconset.pathElement follows it). ` : '') +
+        'They are empty on purpose: the user reviews them first. In the app: rename, edit "What it shows", delete, add, then press Draw with AI. In a chat: show the list and draw after their OK (draw-icons). Do not draw them before that.',
       toast: t('AI planned {n} icons', { n: String(plan.length) }),
     }
   },
@@ -786,11 +869,27 @@ const ICONS: AreaHandlers['icons'] = {
     const { width, height } = ctx.store.doc.size
     const x = (a.x as number | undefined) ?? Math.round(width / 2 - size / 2)
     const y = (a.y as number | undefined) ?? Math.round(height / 2 - size / 2)
-    const r = await lib.insert(a.slideId as string, icon, { x, y, w: size, h: size }, typeof a.alt === 'string' ? a.alt : '')
+    const frame = { x, y, w: size, h: size }
+    const alt = typeof a.alt === 'string' ? a.alt : ''
+    let how = ''
+    let r: { elementId: string } | { error: string }
+    if (icon.fromSet) {
+      const slide = icon.fromSet.doc.slides.find((s) => s.id === icon.fromSet!.slideId)
+      if (!slide) return fail(`No icon "${a.ref}" in its set any more: search the set again.`)
+      const ink = inkColor(ctx.store.doc, a.ink)
+      if (!ink) return fail(`ink "${String(a.ink)}" is not "accent", "text" or a CSS hex colour.`)
+      const art = setIconSvg(icon.fromSet.doc, slide, a.style as string | undefined, ink)
+      if (typeof art === 'string') return fail(art)
+      how = ` from ${icon.source}${art.look ? ` in the style "${art.look}"` : ''}${art.inked ? `, ink ${ink}` : ', in the style\'s own colours'}`
+      r = await lib.insertSvg(a.slideId as string, art.svg, icon.provenance ?? {}, frame, alt)
+    } else {
+      if (a.style !== undefined || a.ink !== undefined) return fail('style and ink are for icons from an icon set (search with set); a library icon keeps its own look.')
+      r = await lib.insert(a.slideId as string, icon, frame, alt)
+    }
     if ('error' in r) return fail(r.error)
     return {
       ok: true, elementId: r.elementId,
-      summary: `Inserted icon "${icon.name}" as ${r.elementId} on ${a.slideId} at ${x},${y} (${size}x${size}).`,
+      summary: `Inserted icon "${icon.name}"${how} as ${r.elementId} on ${a.slideId} at ${x},${y} (${size}x${size}).`,
       toast: t('AI inserted an icon'),
     }
   },

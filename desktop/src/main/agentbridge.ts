@@ -8,6 +8,7 @@
 
 import type { BrowserWindow, IpcMainEvent, NativeImage } from 'electron'
 import { type AgentChannel, type AgentResult } from './agentchannels.ts'
+import { iconSetArg, readIconSetForAgent } from './agenticonsets.ts'
 import { writeBlocked } from './programrun.ts'
 import { onFrom } from './ipcguard.ts'
 import { captureSlideSnapshot, isSnapshotRequest } from './slidesnapshot.ts'
@@ -107,9 +108,26 @@ export const PROGRAM_BUSY = 'A program is running on this deck right now, so thi
  *  (store.ts) — a terminal tab's id, or an endpoint client's. `program`:
  *  the call comes from the running program itself (agentexec.ts). */
 export function forwardAgentRequest(win: BrowserWindow, sessionId: string, channel: AgentChannel, payload: unknown, reply: AgentReply, opts: { program?: boolean } = {}): void {
-  const body = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {}
+  // `iconSet` is main's to fill (below), never a caller's
+  const { iconSet: _foreign, ...body } = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {}
   const requestId = body.requestId
   if (!isSafeId(requestId)) return
+  // icons with `set`: main reads the icon-set file and sends its document
+  // along (agenticonsets.ts); the editor never reads files itself
+  const set = channel === 'agent-action' ? iconSetArg(body.verb, body.args) : undefined
+  if (set !== undefined) {
+    void readIconSetForAgent(win, set).then(
+      (r) => ('error' in r ? reply({ requestId, ok: false, error: r.error }) : sendToEditor(win, sessionId, channel, { ...body, iconSet: r }, reply, opts)),
+      (err) => reply({ requestId, ok: false, error: String((err as Error)?.message ?? err) }),
+    )
+    return
+  }
+  sendToEditor(win, sessionId, channel, body, reply, opts)
+}
+
+/** forwardAgentRequest once everything main adds is in `body`. */
+function sendToEditor(win: BrowserWindow, sessionId: string, channel: AgentChannel, body: Record<string, unknown>, reply: AgentReply, opts: { program?: boolean }): void {
+  const requestId = body.requestId as string
   // ui_profile customizes the APP, not this deck: main answers it (uiprofile.ts)
   if (channel === 'agent-action' && body.verb === 'ui_profile') {
     reply({ requestId, ...uiProfileToolResult(body.args) } as AgentResult)

@@ -680,13 +680,14 @@ if (endpointDir) {
       name: 'open_deck',
       description:
         'Open a deck file to work on; every later call works on it. create:true makes a new, empty 16:9 deck at path ' +
-        'first. In the BeeSlides app it opens in a window; without the app (doc_info background) it opens hidden and ' +
-        'every change is saved to the file.',
+        'first (kind:"iconset": a new, empty icon set). In the BeeSlides app it opens in a window; without the app (doc_info background) it opens hidden and ' +
+        'every change is saved to the file. One deck at a time for this chat and its subagents.',
       inputSchema: {
         type: 'object',
         properties: {
           path: { type: 'string', description: 'The deck file, ending in .beeslides.html (relative = to the current folder).' },
           create: { type: 'boolean', description: 'Make a new deck there when no file exists.' },
+          kind: { type: 'string', enum: ['deck', 'iconset'], description: 'With create: what to make (default deck).' },
         },
         required: ['path'],
       },
@@ -1056,7 +1057,11 @@ async function callTool(name, args) {
       const about = typeof args.about === 'string' ? args.about : ''
       return { content: [{ type: 'text', text: area.help[about] ?? `${about ? `No op "${about}".\n\n` : ''}${area.help['*']}` }] }
     }
-    const result = await roundTrip('agent-action', 'agent-action-result', { verb: name, args: args ?? {} }, SLOW_AREAS.has(name) ? NETWORK_TIMEOUT_MS : TIMEOUT_MS)
+    const a = { ...(args ?? {}) }
+    // an icon-set file: relative = to the current folder, as open_deck (the
+    // app resolves a relative one against the deck's folder for its panel)
+    if (endpointDir && name === 'icons' && typeof a.set === 'string') a.set = absolutePath(a.set)
+    const result = await roundTrip('agent-action', 'agent-action-result', { verb: name, args: a }, SLOW_AREAS.has(name) ? NETWORK_TIMEOUT_MS : TIMEOUT_MS)
     if (!result.ok) return { content: [{ type: 'text', text: `Error: ${result.error ?? 'unknown error'}` }], isError: true }
     // variants previews: one picture per design, numbered like the labels
     const images = Array.isArray(result.images) ? result.images.filter((im) => im?.data) : []

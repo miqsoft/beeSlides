@@ -211,6 +211,9 @@ name entries there).
 - The icon list is the slide list laid out as a grid (`.ed-iconset .ed-sidebar`,
   `Editor.iconTiles`, `thumbSurface` placeholder for empty icons) — never a second sidebar.
   `ed-not-iconset` hides a control in icon sets; the grid switch is `GridPref.iconOn`, not `on`.
+- A set's icons reach a DECK only from its model (`iconstyles.ts setIconSvg`, ink written in) via the
+  agent `icons` `set` route (DECISIONS 2026-10-25); the editor never reads the file: desktop main sends it
+  as `iconSet`.
 - Adding icons happens IN the grid: the + tile becomes a name field (`Editor.iconAddTile`,
   state `iconAdding` survives the list rebuild; one commit per name via `iconset.addIconNames`:
   blank starter first, no duplicate names). Plan with AI without a request is `editor/iconplan.ts`.

@@ -10,61 +10,41 @@
 // open_deck binds the calling client to the deck's window: its later calls
 // go there, whatever the user focuses (agentendpoint.ts serveClient).
 // create:true writes a new deck first — the built editor shell with a minimal
-// document spliced in, exactly as a library file is made (libraryfs.ts).
+// document spliced in, exactly as a library file is made (libraryfs.ts);
+// kind:"iconset" makes it a new icon set instead (newdocs.ts).
 
 import type { BrowserWindow } from 'electron'
-import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import { hasDocExt, stripDocExt } from '../../../kernel/src/docext.ts'
 import { registerWindowlessVerb, type DeckBinding } from './agentbridge.ts'
 import { isBackground } from './background.ts'
-import { looksLikeShell, openAsFor } from './docfile.ts'
+import { docKindOfText, looksLikeShell, openAsFor, rawDocBlockText } from './docfile.ts'
 import { spliceDocBlock } from './libraryfs.ts'
+import { newDeckDoc, newIconsetFileDoc } from './newdocs.ts'
 import { createDocumentWindow, readAppShell, requestWindowClose, whenDeckReady, windowForPath } from './windows.ts'
 
 const fail = (error: string): Record<string, unknown> => ({ ok: false, error })
-
-/** A new deck for an agent: a fresh docId, 16:9, one empty slide, as
- *  model.ts's `newDoc()` (main cannot import the renderer's model;
- *  libraryfs.ts seedLibraryDoc does the same). The theme is a neutral one in
- *  the spirit of docs/slide-design.md (near-black on white, one deep teal
- *  accent): what a deck looks like when nobody picked a look, and what its
- *  diagram components are drawn in until someone does. */
-export function newDeckDoc(title: string): Record<string, unknown> {
-  return {
-    format: 'beeslides/slides',
-    version: 1,
-    docId: randomUUID(),
-    title: title || 'Untitled',
-    size: { width: 1280, height: 720 },
-    theme: {
-      background: '#FFFFFF',
-      color: '#1D2433',
-      accent: '#1F5C78',
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    },
-    slides: [{ id: `slide-${randomUUID().slice(0, 8)}`, background: '#FFFFFF', transition: 'fade', elements: [], notes: '' }],
-    modified: new Date().toISOString(),
-  }
-}
 
 /** Windows open_deck opened, by the client that asked: in the visible app a
  *  client may close only those (the user's own windows are theirs). */
 const openedBy = new Map<number, string>()
 
 async function openDeck(sessionId: string, args: unknown, deck: DeckBinding): Promise<Record<string, unknown>> {
-  const a = (args && typeof args === 'object' ? args : {}) as { path?: unknown; create?: unknown }
+  const a = (args && typeof args === 'object' ? args : {}) as { path?: unknown; create?: unknown; kind?: unknown }
+  if (a.kind !== undefined && a.kind !== 'deck' && a.kind !== 'iconset') return fail('kind must be "deck" or "iconset".')
   if (typeof a.path !== 'string' || !a.path.trim()) return fail('path is required: the deck file, ending in .beeslides.html.')
   if (!isAbsolute(a.path)) return fail('path must be absolute.')
   const path = resolve(a.path)
   if (!hasDocExt(path)) return fail(`A BeeSlides deck file ends in .beeslides.html; "${basename(path)}" does not.`)
   let created = false
+  let iconset = a.kind === 'iconset'
   if (!existsSync(path)) {
     if (a.create !== true) return fail(`There is no file at ${path}. Pass create:true to make a new deck there.`)
     if (!existsSync(dirname(path)) || !statSync(dirname(path)).isDirectory()) return fail(`The folder ${dirname(path)} does not exist.`)
     const shell = readAppShell()
-    const html = shell ? spliceDocBlock(shell, newDeckDoc(stripDocExt(basename(path)))) : null
+    const title = stripDocExt(basename(path))
+    const html = shell ? spliceDocBlock(shell, iconset ? newIconsetFileDoc(title) : newDeckDoc(title)) : null
     if (!html) return fail('This BeeSlides build has no editor shell to make a deck from.')
     // 'wx': never over a file that appeared meanwhile
     try { writeFileSync(path, html, { encoding: 'utf8', flag: 'wx' }) } catch (err) {
@@ -77,6 +57,7 @@ async function openDeck(sessionId: string, args: unknown, deck: DeckBinding): Pr
     if (!looksLikeShell(html) || openAsFor(html) !== 'deck') {
       return fail(`${basename(path)} is not a BeeSlides deck (or it is a layout file, which opens as a new deck in the app).`)
     }
+    iconset = docKindOfText(rawDocBlockText(html) ?? '') === 'iconset'
   }
   const already = windowForPath(path)
   let win: BrowserWindow
@@ -93,7 +74,8 @@ async function openDeck(sessionId: string, args: unknown, deck: DeckBinding): Pr
     file: basename(path),
     created,
     background: isBackground(),
-    summary: `${created ? 'Created and opened' : already ? 'Working on the already open' : 'Opened'} ${basename(path)}${isBackground() ? ' (in the background: no window; every change is saved to the file)' : ''}. Every tool call from here on works on it. Start with doc_info.`,
+    kind: iconset ? 'iconset' : 'deck',
+    summary: `${created ? 'Created and opened' : already ? 'Working on the already open' : 'Opened'} ${iconset ? 'the icon set ' : ''}${basename(path)}${isBackground() ? ' (in the background: no window; every change is saved to the file)' : ''}. Every tool call from here on works on it. Start with doc_info${iconset ? '; plan and draw its icons with the draw-icons skill' : ''}.`,
   }
 }
 
