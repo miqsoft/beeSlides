@@ -32,6 +32,24 @@ every earlier version, and unknown fields are preserved.
   learns which design you picked, in the pane or in the app, without asking.
 - **Fixed:** the design compare view showed the wrong page number in a
   design's footer.
+- **Looks come with their colours:** when Claude offers 2–3 looks for a
+  deck, each one brings its own theme. Diagrams in the previews show in that
+  look's colours (they used to keep the deck's old ones, unreadable on a
+  dark look), and using a look sets the deck's colours and fonts in the same
+  undo step. The compare view says so under each such look.
+- **Better-looking decks from Claude:** Claude now follows a short set of
+  design rules (one type scale, a title that states the point, one accent
+  with one job, space and hairlines instead of boxes) and offers looks
+  starting from four tested ones: Editorial, Swiss, Soft panel and Lecture
+  dark. A new deck Claude makes starts in calm near-black and teal.
+- **Fixed:** Claude Code did not get the line telling it whether BeeSlides
+  runs with or without its window (the instruction was cut off).
+- **Fixed:** the second to sixth theme accents were not available to slides
+  written as HTML.
+- **Questions as questions:** in Claude Code, Claude asks its questions about
+  a new deck (purpose, length, how full a slide may be, the look) as choices
+  to pick from, with its suggestion first. Say "no questions" or "just do
+  it" and it asks nothing, states its assumptions and builds.
 - **Claude builds calmer, more readable decks:** it asks one question about
   the deck (purpose, length, how full a slide may be) together with an
   outline. You pick the look from 2–3 designs, and it builds a family of

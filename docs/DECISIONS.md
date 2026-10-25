@@ -13781,3 +13781,76 @@ Rigs: `desktop/scripts/e2e-background.mjs` (Electron, real hiding),
 SIGTERM with a fake app), `scripts/test-agent-endpoint.mjs`
 (`BEESLIDES_NO_LAUNCH`), `scripts/test-agent-ops.ts` (`variants`),
 `claude plugin test claude-plugin` (the pane).
+
+## 2026-10-25 — Looks carry their theme; asking with or without questions (amends the 2026-10-24 deck pipeline)
+
+**Decision.**
+
+1. A `propose_variants` design may carry a `theme` (the `deck_settings`
+   theme params, checked by the same `themePatch`). It is laid out and
+   previewed under that theme, and **Use** sets it on the deck in the same
+   undo step (`applyThemePatch`, the path `deck_settings` theme takes).
+   `variants status` says when a pick brought its theme.
+2. The deck skills have two ways of working, and nothing else differs
+   between them. **With questions** (the default): ask with the client's
+   question tool where there is one (AskUserQuestion in Claude Code: the
+   proposal first, "(Recommended)"), else in one message. **Without
+   questions** ("just do it", "no questions", or nobody to answer): ask
+   nothing, wait for nothing, take every proposal, and state the
+   assumptions. There is no setting: the request says which.
+
+**Why.** In a live run ("create slides about TCP", background mode) the
+first three looks all drew the handshake diagram in the default theme's
+brown, because diagram components take their colours from the theme while
+a design could only bring CSS. On the dark look the arrow labels could not
+be read. Claude then drew the diagram by hand to get its colours, which
+does not scale to a deck and loses the component. In the same run, the
+profile question, asked as "here is what I'd suggest, change it or say go",
+did not read as a question: the user's next message counted as "go" and
+they reported getting no questions.
+
+## 2026-10-25 — Agent context: one place per rule, design rules that say what to do
+
+**Decision.** A review of everything the plugin puts in front of the model
+(instruction, 35 tool descriptions, 6 skills, `agents.md`), held against
+Anthropic's guides (skill authoring best practices; writing tools for agents;
+context engineering; the MCP post on server instructions; Claude prompting
+best practices) and published slide-design guidance (Alley's assertion–
+evidence, MIT CommLab, Duarte, Tufte, Butterick, Refactoring UI, WCAG 2.2,
+Anthropic's pptx and frontend-design skills). First steps:
+
+1. **The plugin instruction says only what the tools do not**, mode line
+   first: about 1.2k characters instead of 4.4k. Claude Code cuts server
+   instructions at 4096 characters, and the mode line (open_deck first in
+   background mode) sat right at the cut, so it never arrived.
+   `test-claude-plugin.mjs` holds it under the limit.
+2. **`docs/slide-design.md`**, shipped as `design.md` to the plugin, the
+   terminal panel's context folder and the API chat's `read_reference`:
+   23 positive rules (one type scale, claims as titles, one accent with one
+   job, space before hairlines before tint panels, contrast) and four tested
+   starter looks (Editorial, Swiss, Soft panel, Lecture dark) as `theme` +
+   CSS. The skills read it instead of `agents.md`'s "Make a GREAT deck"
+   section, which asks for motion on every cover and count-ups and so
+   contradicts the deck pipeline's tone rule.
+3. **Slide HTML gets `--bs-muted`, `--bs-line` and `--bs-tint`**, the same
+   colours the diagram components derive from the theme, so hand-written
+   parts match the diagrams without literal hex. Muted text is mixed at 0.7
+   (was 0.62), which keeps it at 4.5:1 or more. `--bs-accent2…6` now read
+   `theme.palette`, where `deck_settings` writes them; before, they were
+   never set.
+4. **A deck made by `open_deck create` starts near-black on white with a
+   deep teal accent**, not the brown and cream that read as generic. The
+   app's own new-deck default is unchanged. Slides store their own
+   background, so a look must bring it along: a design with a theme takes
+   the theme's background where its slide still had the deck's, the starter
+   looks set `body{background:var(--bs-bg)}`, and a new blank slide type
+   starts on the theme background, linked (`themeRefs`) so it follows.
+5. `ui_profile` (customizing the app's UI) is not offered to outside apps.
+
+**Why.** Every rule in one layer: the variants and pane flow was written in
+six places, and contradicting layers let the model "pick one arbitrarily"
+(Claude Code memory docs). The design rules were nearly all prohibitions,
+which gives correct but plain slides; the sources agree on what to do
+instead. **Next:** the skills keep only their workflow, `agents.md` is
+trimmed for the plugin, and the single-element tools fold into `elements`;
+a fixed set of headless runs measures each step.
