@@ -8,7 +8,7 @@
 import { t } from '../../i18n'
 import {
   createReusableObject, createSlideTypeAsBasis, createSlideTypeAsParentChild, createSlideTypeBlank, detachSlideType,
-  layoutElementIds, moveSlideTypeInTree, relinkSlide, resolveAgentSlide, resyncLinkedSlides,
+  isDescendantOf, layoutElementIds, moveSlideTypeInTree, relinkSlide, resolveAgentSlide, resyncLinkedSlides,
   type RelinkPreview, type Slide, type SlideElement,
 } from '../../model'
 import { moveLayoutWithinParent, remintElements } from '../layoutmanager'
@@ -112,12 +112,16 @@ export const SLIDE_TYPE_VERBS = {
     const doc = ctx.store.doc
     if (!doc.layouts?.some((l) => l.id === layoutId)) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide-type' }); return }
     if (parentId && !doc.layouts.some((l) => l.id === parentId)) { respond({ requestId: cmd.requestId, ok: false, error: `No slide type with id "${parentId}" to move under.` }); return }
+    // the same cycle check moveSlideTypeInTree makes, before the commit, so
+    // a refusal leaves no empty undo step behind
+    const cycle = 'Refused: a slide type cannot be moved under itself or one of its own descendants.'
+    if (parentId !== undefined && isDescendantOf(doc, parentId, layoutId)) { respond({ requestId: cmd.requestId, ok: false, error: cycle }); return }
     let moved = false
     ctx.store.commit(() => {
       moved = moveSlideTypeInTree(doc, layoutId, parentId, beforeId)
       if (moved) resyncLinkedSlides(doc, layoutId, layoutElementIds(doc))
     })
-    if (!moved) { respond({ requestId: cmd.requestId, ok: false, error: 'Refused: a slide type cannot be moved under itself or one of its own descendants.' }); return }
+    if (!moved) { respond({ requestId: cmd.requestId, ok: false, error: cycle }); return }
     ctx.toast(t('Claude Code moved a slide type'))
     respond({ requestId: cmd.requestId, ok: true })
     return

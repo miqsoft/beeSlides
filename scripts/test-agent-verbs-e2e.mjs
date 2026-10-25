@@ -252,10 +252,8 @@ console.log('\nmove_slide_type')
   await refuse('move_slide_type', { layoutId: 'OTHER', parentId: 5 }, 'parentId must be a slide type id, or null for a top-level slide type.', 'a numeric parentId')
   await refuse('move_slide_type', { layoutId: 'nope', parentId: null }, 'no-such-slide-type', 'an unknown type')
   await refuse('move_slide_type', { layoutId: 'OTHER', parentId: 'nope' }, 'No slide type with id "nope" to move under.', 'an unknown parent')
-  // the cycle is found inside the commit (moveSlideTypeInTree), so this
-  // refusal still runs an empty store.commit: `modified` moves, nothing else
-  await refuse('move_slide_type', { layoutId: 'BASE', parentId: 'CHILD' }, 'Refused: a slide type cannot be moved under itself or one of its own descendants.', 'a move under its own child', { ignore: ['modified'] })
-  await refuse('move_slide_type', { layoutId: 'BASE', parentId: 'BASE' }, 'Refused: a slide type cannot be moved under itself or one of its own descendants.', 'a move under itself', { ignore: ['modified'] })
+  await refuse('move_slide_type', { layoutId: 'BASE', parentId: 'CHILD' }, 'Refused: a slide type cannot be moved under itself or one of its own descendants.', 'a move under its own child')
+  await refuse('move_slide_type', { layoutId: 'BASE', parentId: 'BASE' }, 'Refused: a slide type cannot be moved under itself or one of its own descendants.', 'a move under itself')
 }
 
 await reset()
