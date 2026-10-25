@@ -323,8 +323,8 @@ const TOOLS = [
     name: 'write_slide',
     description:
       'Replace one slide wholesale (slide.id must equal slideId). Only for ' +
-      'restructuring a slide; use update_element/insert_elements/set_frame ' +
-      'for smaller edits. Shape: agents.md quick reference.',
+      'restructuring a slide (slide_html write is easier); use update_element, ' +
+      'elements or insert_elements for smaller edits. Shape: agents.md quick reference.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -671,9 +671,10 @@ TOOLS.push(...AGENT_AREAS.map((a) => a.def))
 // An outside app names the deck it works on; main answers both itself
 // (main/agentdecks.ts). Not for the panel: its chat belongs to its window.
 // ui_profile customizes the app's own UI (the panel's customize-ui skill):
-// nothing an outside app's deck job needs.
+// nothing an outside app's deck job needs. set_frame and delete_element are
+// what elements edit does too: one tool less to choose between.
 if (endpointDir) {
-  TOOLS.splice(TOOLS.findIndex((t) => t.name === 'ui_profile'), 1)
+  for (const name of ['ui_profile', 'set_frame', 'delete_element']) TOOLS.splice(TOOLS.findIndex((t) => t.name === name), 1)
   TOOLS.push(
     {
       name: 'open_deck',

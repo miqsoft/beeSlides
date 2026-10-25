@@ -110,14 +110,17 @@ full shared field set: `id, x, y, w, h, rotation, opacity`.
 
 ## Make it look designed, not just correct
 
+How it should look (one type scale, one accent with one job, space before
+boxes, four starter looks) is in `design.md` in this same directory. Match
+the material to the feature:
+
 | Material | Reach for | Why |
 |---|---|---|
 | numbers to compare visually | a **chart** | bars/lines read instantly |
-| consecutive slides, same thing changing | **morph**: same element `id` + `transition:"morph"` on the later slide | the signature move you'll almost always miss |
+| consecutive slides, same thing changing | **morph**: same element `id` + `transition:"morph"` on the later slide | the change is visible |
 | a point to drill into | a **state slide** (`stateOf` + element `link`) | keeps the linear story clean |
-| a hero/full-slide image | full-bleed image + scrim + text, with **ken-burns** | static photos feel dead |
-| a headline number in a pitch or keynote | big text + `fx:{countUp:true}` | count-up earns attention; in a scientific talk or lecture, show it beside its comparison (chart or table) instead |
-| every cover/section divider | at least one ambient motion | a still cover is a missed first impression |
+| a full-slide photo | full-bleed image + scrim + text; a slow **ken-burns** for an expressive deck | the picture carries the slide |
+| a headline number in a pitch or keynote | big text + `fx:{countUp:true}` | in a talk or lecture, show it beside its comparison (chart or table) instead |
 
 ### Copy-paste recipes
 

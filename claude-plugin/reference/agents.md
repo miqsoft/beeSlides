@@ -5,7 +5,7 @@ guide matches the BeeSlides shell of the same version. A deck's `#beeslides-doc`
 JSON is always the source of truth — if it was written by a newer shell it may
 carry features beyond this guide; unknown keys are ignored, never fatal.
 
-## Quick reference (desktop terminal sessions: read only this section first)
+## Quick reference (read this first)
 
 **Create or restructure a slide by writing HTML**: `slide_html({op:"write",
 slideId, html, css})`. The slide is the page body (1280×720): lay it out with
@@ -261,29 +261,29 @@ changes until they do.
 
 ---
 
-## Make a GREAT deck, not just a correct one
+## The feature for the material
 
-**Read this section first — it is the difference between a wall of text and a
-BeeSlides deck.** The format's whole value is motion, morph, charts and
-interactivity. A correct-but-static result (bullets on slides) wastes it and
-is the #1 failure mode. The move is to look at the *source material* and map
-each kind of content to the feature built for it:
+How a slide should LOOK (type, space, colour, the starter looks) is in
+`design.md`, and the deck's profile decides how much motion and decoration it
+gets. This section is about matching each kind of material to the feature
+built for it:
 
 | When the material is… | Reach for | Why |
 |---|---|---|
-| numbers to **compare visually** (trend, magnitude, share) | a **chart** element | bars/lines read instantly |
-| a **comparison / spec / pricing / feature grid** (rows × columns of labels + values) | a **table** element | structured cells beat 20 hand-placed text boxes; it styles cohesively |
-| consecutive slides about the **same thing changing** (before/after, process steps, a metric across stages) | **morph**: same element `id` on both slides + `transition:"morph"` on the later one | the shared elements glide; this is the signature move you'll almost always miss |
-| a point to **drill into** (a definition, "click to see how", a sub-topic) | a **state slide** (`stateOf` + element `link`) | keeps the linear story clean; the detail is one click away |
-| a **hero / full-slide image** | full-bleed image + scrim rect + text, with **ken-burns** | static photos feel dead; a slow drift feels intentional |
-| a **sequence / flow / timeline / connection** | a line or `path` with a **`dash-march` loop**, or morph a highlight through the steps | motion carries the eye along the sequence |
-| a **headline number** in a pitch or keynote | big text + `fx:{countUp:true}` | the count-up earns attention; in a scientific talk or a lecture, show the number beside what it is compared with (a chart or table) instead — a hero number there reads as marketing |
-| **every cover / section divider** | at least **one ambient motion** (ken-burns, an orbiting accent) | a still cover is a missed first impression |
-| **repeated chrome / a logo** | keep its `id` stable across slides | it morphs in place instead of popping on every slide |
-| a **demo clip / recording / soundbite** | a **media** element (embed short, link long) | a live video/audio beats a screenshot of one |
-| **concepts / features / steps / roles** side by side (an agenda, a 3-up, a process) | an **icon per item** from the user's library: `icons` search (one short noun per concept) → insert, same size for all | icons make a list scannable; the user's own library keeps the house style — never hand-draw icon SVG |
+| numbers to **compare** (trend, magnitude, share) | a **chart** element | bars and lines read at a glance |
+| a **comparison / spec / feature grid** (rows × columns of labels and values) | a **table** element | real cells align and style as one |
+| consecutive slides about the **same thing changing** (before/after, steps, a metric across stages) | **morph**: the same element `id` on both slides + `transition:"morph"` on the later one (motion subtle or expressive) | the shared elements glide, so the change is visible |
+| a point to **drill into** (a definition, "click to see how") | a **state slide** (`stateOf` + element `link`) | the story stays linear; the detail is one click away |
+| a **steps / sequence / flow / comparison** diagram | a **component** (`slide_html` `data-component`) | one line of data, the deck's colours, steps reveal with `data-active` |
+| a **full-slide photo** | a full-bleed image + scrim + text; a slow **ken-burns** with motion expressive | the picture carries the slide |
+| a **headline number** in a pitch | big text + `fx:{countUp:true}` | in a talk, lecture or meeting, show it beside what it is compared with instead |
+| **repeated chrome / a logo** | keep its `id` stable across slides | it stays in place instead of popping |
+| a **demo clip / recording** | a **media** element (embed short, link long) | the real thing beats a screenshot |
+| **concepts / roles** side by side, with decoration icons | one **icon per item** from the user's library (`icons` search → insert, one size) | a list becomes scannable in the house style |
 
-### Copy-paste recipes
+### Recipes as element JSON (`write_slide`, file editing)
+
+With the deck tools, `slide_html` is the quicker way to the same slides; these show the element shapes.
 
 **Morph a title + accent bar between two slides** — identical ids, `transition:"morph"`:
 ```json
@@ -362,13 +362,11 @@ Clicking a tile plays its section (→ walks it, hidden slides included) and zoo
 
 ### Before you finish — self-audit
 
-- [ ] Any numbers rendered as text that should be a **chart**?
-- [ ] Do consecutive slides on one subject share element **ids + `transition:"morph"`**?
-- [ ] At least one **motion moment** (ken-burns / loop / count-up), especially the cover?
+- [ ] Does each slide pass `design.md` (one type scale, one accent with one job, the budgets of the profile)?
+- [ ] Numbers shown as text that would read better as a **chart** or a **table**?
+- [ ] Consecutive slides on one subject sharing element **ids + `transition:"morph"`** (motion subtle or expressive)?
 - [ ] A drill-down that would work better as a **state slide**?
-- [ ] Lists of concepts/features/steps: does each item carry an **icon** from the library (`icons`)?
-- [ ] One palette (one or two accents) used alike on every slide, at most two typefaces, **96px** side margins (right-most x ≤ 1184)?
-- [ ] **Speaker notes** written on each slide (they travel in the file and double as the talk track)?
+- [ ] **Speaker notes** on each slide (they travel in the file and double as the talk track)?
 - [ ] **Have you actually looked at it?** Open the deck and page through every
       slide. Text overflowing its box, two elements crowding each other, a
       heading that wrapped to three lines, a chart key that was silently
@@ -382,14 +380,15 @@ Clicking a tile plays its section (→ walks it, hidden slides included) and zoo
       app already fixed for you (kept gaps, grown text, attached arrows) —
       don't undo them by hand.
 
-### `window.beeslides.measure()` — size text before you place it (this is a precondition, not a suggestion)
+### `window.beeslides.measure()` — size text before you place it
 
 The format is absolute pixels, which is what lets morph, the drag handles and
 the renderer work from one representation. The cost falls on you: the height of
 a string at a given width and font is not knowable from the JSON.
 
-**Any multi-line text write is expected to call `measure()` first.** This is
-not advisory — skip it and the write path (`window.beeslides.validate()`, and
+With `slide_html` the browser lays text out and measures it for you. For
+element JSON (`write_slide`, `insert_elements`, file editing), measure
+multi-line text first: otherwise the write path (`window.beeslides.validate()`, and
 the MCP `write_slide`/`insert_elements`/etc. tools) WILL flag the resulting
 overflow back at you afterward anyway, as a prominent "TEXT OVERFLOW" finding.
 Calling `measure()` up front is strictly cheaper than writing, getting flagged,
@@ -585,7 +584,7 @@ without them — and elements should carry the full field set shown.
   the cover is contained, so other shapes letterbox. Don't put a `link` on a
   tile (the click is the zoom). See the Summary Zoom recipe.
 
-## The rules that make decks feel designed
+## Motion, builds and interactivity
 
 - **Morph = shared ids.** Slides with `"transition": "morph"` tween any
   elements whose `id` matches the previous slide — position, size, color,
@@ -884,9 +883,9 @@ for the whole session. The details behind them:
   `floating` lists content that found no placeholder and now sits on top of
   the layout) — check `floating` before calling it done. `outline` shows
   each slide's current `slideType`.
-- **`render_preview`** — captures only the slide already on the editing
-  canvas; there is no offscreen renderer. `slideId` asserts, it does not
-  navigate. The image is cropped to the slide (no editor chrome).
+- **`render_preview`** — a picture of a slide: the one on the editing canvas,
+  or `slideId`, rendered off screen (the user's view does not move). The
+  image is cropped to the slide (no editor chrome).
   `elementIds` (with a margin) or `area {x,y,w,h}` (slide px) shows just
   that part, zoomed to fill the view.
 - **Layout guard (every write verb and `write_slide`)** — after your change,
@@ -913,8 +912,9 @@ for the whole session. The details behind them:
   after an edit: the slide's screenshot (cropped to the slide, or with
   `elementIds`/`area` only that part, zoomed in), one line per element
   (`id type @x,y wxh "text"`, connectors as `from→to`) and the
-  `check_layout` result. A deck slide that is not showing is navigated to
-  first; a slide type or object must be the open surface.
+  `check_layout` result. Any deck slide works, rendered off screen when it is
+  not showing (the user's view does not move); a slide type or object must
+  be the open surface.
 - **`write_slide` warnings** on a reusable object or slide type carry only
   the text-overflow check; `validate()` otherwise scans deck slides.
 

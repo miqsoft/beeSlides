@@ -311,7 +311,7 @@ export const ICONS_AREA = {
         size: { type: 'number', description: 'Width and height in px (default 96).', min: 8, max: 2000 },
         alt: { type: 'string', description: 'Alt text ("" = decorative, the default).' },
       },
-      details: 'The icon becomes an ordinary svg (or image) element, square at size; move or resize it later with set_frame. Icons keep their own colours: check they read on the slide background (look_at_slide / review_slide). The icon\'s source and license are recorded on the element. One icon per call.',
+      details: 'The icon becomes an ordinary svg (or image) element, square at size; move or resize it later with elements edit. Icons keep their own colours: check they read on the slide background (look_at_slide / review_slide). The icon\'s source and license are recorded on the element. One icon per call.',
     },
     plan: {
       summary: 'icon sets only: write a plan of icons as empty, named icons for the user to review',
@@ -375,7 +375,7 @@ const EDGES = ['left', 'centerX', 'right', 'top', 'middleY', 'bottom'] as const
 
 export const ELEMENTS_AREA = {
   tool: 'elements',
-  summary: 'Several elements in ONE call, and layout by intent: say how things should sit (a row, a grid in the free space, aligned, evenly spaced) and the app computes the frames. Each call is one undo step; the result lists the new frames and whether the slide is clean, so no review call is needed just to check. Use it instead of a series of set_frame / update_element / delete_element calls.',
+  summary: 'Several elements in ONE call, and layout by intent: say how things should sit (a row, a grid in the free space, aligned, evenly spaced) and the app computes the frames. Each call is one undo step; the result lists the new frames and whether the slide is clean, so no review call is needed just to check. Use it instead of one call per element.',
   ops: {
     edit: {
       summary: 'any mix of property changes, moves and deletes',

@@ -13851,6 +13851,30 @@ Anthropic's pptx and frontend-design skills). First steps:
 six places, and contradicting layers let the model "pick one arbitrarily"
 (Claude Code memory docs). The design rules were nearly all prohibitions,
 which gives correct but plain slides; the sources agree on what to do
-instead. **Next:** the skills keep only their workflow, `agents.md` is
-trimmed for the plugin, and the single-element tools fold into `elements`;
-a fixed set of headless runs measures each step.
+instead.
+
+**Then, the same day:**
+
+6. **The skills keep their workflow; the rules live once, in design.md.**
+   Tone and the density budgets per profile moved from build-deck into
+   design.md ("Tone and density"); build-deck went from 20k to 12k
+   characters, and the writer and critic prompts tell the subagent to read
+   design.md instead of carrying a copy. The skills follow what the
+   propose_variants result says instead of restating the pane flow.
+7. **`agents.md` agrees with them.** "Make a GREAT deck" (static slides as
+   the #1 failure, ambient motion on every cover) became "The feature for
+   the material", profile-aware and pointing to design.md for the look; the
+   self-audit, the tooling comment in every shell
+   (`postbuild-compress.mjs`) and `generate-brief.md` follow. Two verb notes
+   were wrong (render_preview and review_slide render off screen now).
+8. Outside apps get no `set_frame` and `delete_element`: `elements` edit does
+   both.
+
+**Measured** (headless Claude Code, background mode, "a 6-slide TCP deck,
+no questions", one run each): context at the first slide write stayed at
+about 49k tokens before and after the skill cut; Claude Code's own baseline
+is about 40k of it, so the guidance was never the bulk. The gain is in the
+result: before these changes, the first TCP run drew its looks in the
+default theme's brown and hand-drew diagrams; after, both runs gave calm,
+consistent decks (claim titles, one accent, tint panels, the same footer,
+diagrams in the theme's colours) in about 3–4 minutes for $1.2–1.4.

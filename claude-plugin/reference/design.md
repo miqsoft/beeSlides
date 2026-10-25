@@ -5,6 +5,33 @@ The design rules every deck skill builds on (shipped to agents as
 A look the user asked for, or the deck's own look, comes first; these rules
 fill in what nobody decided. Sources: DECISIONS 2026-10-25.
 
+## Tone and density, by profile
+
+The deck's profile (purpose, typical slide, simplicity, decoration, motion;
+`doc_info` `designRules.profile`, or what the user said) sets these.
+
+- **Tone.** A conference talk, lecture, meeting or deck for reading states
+  and shows. Titles are claims the evidence supports, in plain words. A
+  number sits next to what it is compared with (the baseline, last year)
+  and says where it comes from, which usually makes it a chart or a table;
+  one large number in the whole deck at most, for the main result. A pitch
+  may sell: hero numbers, count-ups and one-word panels belong there.
+- **How much a slide holds** (simplicity minimal / clean / rich): at most
+  4 / 7 / 10 text blocks, 1 / 4 / 8 boxes holding text, 3 / 4 / 6 items in
+  one row, grid or list. The typical slide says how much text: visual +
+  takeaway is a title and one sentence; balanced up to 3 short points;
+  mostly text up to 5. A box or diagram node holds one text (its name); what
+  it means goes into a caption or the speaker notes.
+- **The slide carries the point, the notes carry the detail.** Over budget,
+  split the slide, use a table or move detail to the notes, and keep the
+  type size. Smallest text 18 px on a slide that is presented, body 24 px
+  or more; 14 px for a deck for reading.
+- **Motion:** none means a plain fade at most; subtle adds fades and morph;
+  expressive allows any effect. **Decoration:** plain means no icons or
+  imagery; icons come from the user's icon library. Talks and lectures stay
+  flat (no shadows, gradients or glows); those effects need motion
+  expressive or decoration imagery.
+
 ## Type
 
 1. **One type scale for the whole deck:** label 20, body 28, title 40,

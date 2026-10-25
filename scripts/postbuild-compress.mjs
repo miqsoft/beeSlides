@@ -213,36 +213,30 @@ const SLIDES_TOOLING = `<!--
   · In a running file, window.beeslides exposes { doc, serialize(), loadDoc(json),
     comments(), updates, i18n }. In the app UI: Save → Copy / Replace JSON.
 
-  MAKE A GREAT DECK, NOT JUST A CORRECT ONE
-  BeeSlides's whole point is motion + interactivity. A wall of text slides wastes
-  it. When the source material contains ↓, reach for the feature:
-  · numbers to compare visually (trend, magnitude, share)  →  a CHART
-      element (preset bar|line|pie|scatter). Never list data as bullet text.
-  · a comparison / spec / pricing / feature grid  →  a TABLE element
-      (columns[] + rows[] of cells + a style object). Not a pile of textboxes.
-  · consecutive slides about the SAME thing changing (before/after, process
-    steps, a metric across stages)  →  give the shared elements the SAME id
-    on both slides and set the later slide's transition to "morph". This is
-    the signature move — use it liberally; it is almost always missed.
+  THE FEATURE FOR THE MATERIAL
+  How a slide should look (one type scale, one accent with one job, space
+  before boxes) is in docs/slide-design.md. Match the material to the feature:
+  · numbers to compare (trend, magnitude, share)  →  a CHART element
+      (preset bar|line|pie|scatter), not bullet text.
+  · a comparison / spec / feature grid  →  a TABLE element
+      (columns[] + rows[] of cells + a style object), not a pile of textboxes.
+  · consecutive slides about the SAME thing changing (before/after, steps,
+    a metric across stages)  →  the SAME element id on both slides and
+    transition "morph" on the later one.
   · a point to drill into (a definition, "click to see how")  →  a STATE
     slide (stateOf: "<parent-id>" + an element link: "<state-id>").
-  · a hero / full-slide image  →  full-bleed image (0,0,1280,720) + a scrim
-    rect + text on top, with a slow ken-burns drift
-      (fx:{ambient:"kenburns",ken:{dir:"drift",scale:1.08,duration:20}}).
-  · a sequence / flow / timeline / connection  →  a line or path with a
-    loop (fx:{loop:{type:"dash-march",...}}), or morph a highlight through it.
-  · a headline number  →  big, with fx:{countUp:true}.
-  · every cover / section divider  →  at least ONE ambient motion so it is
-    not dead static.
-  · repeated chrome or a logo  →  keep its id stable across slides so it
-    morphs in place instead of popping.
+  · a full-slide photo  →  full-bleed image (0,0,1280,720) + a scrim rect +
+    text on top.
+  · a headline number in a pitch  →  big, with fx:{countUp:true}; in a talk
+    or lecture, beside what it is compared with (a chart or a table).
+  · repeated chrome or a logo  →  keep its id stable across slides.
+  Talks, lectures and meetings stay calm: motion is a fade or a morph.
 
   BEFORE YOU FINISH — self-audit:
-  [ ] any numbers rendered as text that should be a chart?
-  [ ] do consecutive slides on one subject share ids + transition:"morph"?
-  [ ] at least one motion moment (ken-burns / loop / count-up), esp. the cover?
+  [ ] numbers shown as text that should be a chart or a table?
+  [ ] consecutive slides on one subject sharing ids + transition:"morph"?
   [ ] a drill-down that would work better as a state slide?
-  [ ] one accent colour, at most two typefaces, 96px side margins?
+  [ ] one type scale, one accent colour, at most two typefaces, 96px margins?
   [ ] speaker notes written (they travel in the file)?
   ════════════════════════════════════════════════════════════════════════
 -->`
