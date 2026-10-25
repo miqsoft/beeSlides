@@ -101,6 +101,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 - Prefer one tool per area, not per verb. UI-only capabilities go in the area's `notYet`.
 - Handlers reuse UI code (`slideops.ts`, `decksettings.ts`, `slideorder.ts`, `src/arrange.ts`); never reimplement a slide mutation. One handler = one `store.commit`.
 - `elements` handlers write through `OpContext.writes`.
+- Single agent-action verbs (`insert_elements`, `set_frame`, slide-type and comment verbs, `program`, …) are the `agentverbs/` table (verb → handler); `applyAgentAction` keeps only the shared gates and the area-tool dispatch. Handlers reach the editor only through `AgentVerbContext` (`agentverbs/context.ts`): widen it explicitly, never pass the Editor.
 - No agent-authored SVG (`agentsvg.ts`): any new agent verb accepting element data must call `agentSvgViolation`/`agentSvgPatchViolation`. The `icons` tool inserts via `agentInsertElements` and must not reach those checks.
 - Agent `delete` refuses slides not added this session unless `userAsked:true`.
 

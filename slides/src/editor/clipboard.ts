@@ -328,6 +328,11 @@ export function insertElements(payload: ClipPayload, doc: SlidomingoDoc, slide: 
   return els
 }
 
+/** Deep-clone an element with a fresh id (same-slide duplicates must not share ids). */
+export function cloneElement(el: SlideElement): SlideElement {
+  return { ...jsonClone(el), id: uid(el.type[0]), x: el.x + 24, y: el.y + 24 }
+}
+
 /**
  * Make a batch of copied elements self-contained — every element-copy path
  * (paste, ⌘D, the Duplicate button, ⌘-drag) runs this. `idMap` maps each

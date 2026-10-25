@@ -7,13 +7,12 @@ import { hasDocExt } from '../../../kernel/src/docext.ts'
 import type { Store } from '../store'
 import {
   FORMAT_VERSION, MEDIA_EMBED_BUDGET, REUSABLE_OBJECT_CANVAS,
-  builtinLayouts, commentEntries, createReusableObject, defaultImage, defaultText,
-  createSlideTypeAsBasis, createSlideTypeAsParentChild, createSlideTypeBlank,
-  detachSlideType, effectiveLayout, moveSlideTypeInTree, relinkPreview, relinkSlide, resyncLinkedSlides, slideTypeRows,
+  builtinLayouts, commentEntries, defaultImage, defaultText,
+  effectiveLayout, relinkPreview, relinkSlide, resyncLinkedSlides, slideTypeRows,
   instantiateTemplate, layoutElementIds, newDocId, parseDoc, parseTemplateForEditing, resolveStoreRefs, removeLayout, resolveAgentSlide, textDefaultsFor,
   stampAsTemplate, starterSlide, syncLinkedChart, templateFileDoc, uid,
   ancestorElementIds, paginates, inLinearFlow, extraParent, sectionsInOrder, sectionOf, sectionRange,
-  type Provenance, type RelinkPreview, type SlidomingoDoc, type ChartElement, type CommentFilter, type Section, type ShapeElement, type Slide, type SlideElement, type TableElement, type TextElement, type TransitionKind, setSlideTransition } from '../model'
+  type Provenance, type RelinkPreview, type SlidomingoDoc, type ChartElement, type CommentFilter, type Section, type Slide, type SlideElement, type TableElement, type TextElement, type TransitionKind, setSlideTransition } from '../model'
 import { THEME_CHOICES, onThemeChange, resolvedTheme, setTheme, themeChoice } from '../../../kernel/src/theme.ts'
 import { offlineEnabled, setOffline } from '../../../kernel/src/net.ts'
 import { renderSlide, renderThumbnail, sanitizeHtml } from '../render'
@@ -37,7 +36,7 @@ import { TABLE_OPS } from './tablerange'
 import { friendlyFinding, type CheckGroup, type FriendlyFinding } from './checkmessages'
 import { FormatPainter } from './formatpainter'
 import { ReapplyChangeTool } from './reapplychange'
-import { applyReapplicablePatch, changedFieldKeys, clearActionLog, compactChange, computeReapplicablePatch } from '../actionlog'
+import { changedFieldKeys, clearActionLog, compactChange } from '../actionlog'
 import { startPresentation } from '../present'
 // serializeFile (plain output) is deliberately NOT imported here: every path
 // in this file writes a real file for a person, so all of them must inherit an
@@ -45,7 +44,7 @@ import { startPresentation } from '../present'
 import { adoptFileHandle, canonicalJson, canWriteInPlace, currentFileHandle, currentFileName, fileBase, hasFileHandle, hostCan, isEncryptionActive, openedFileName, parseEnvelope, resolveDocText, saveFile, serializeAuto, serializeDocInto, serializeFile, setEncryptionPassword, suggestedFileName, writeUpdatedFile, writeUpdatedFileAs } from '../save'
 import { noteSavedFromWeb } from './returngate'
 import { addVersion, clearRecovery, clearVersions, docContentKey, getRecovery, listVersions, pruneOld, putRecovery, type Snapshot } from '../autosave'
-import { armPlainPaste, insertElements, insertSlides, mergeClipResources, parseClip, parseClipPayload, plainTextHtml, remapCopiedRefs, serializeElements, serializeSlides, takePlainPaste } from './clipboard'
+import { armPlainPaste, cloneElement, insertElements, insertSlides, mergeClipResources, parseClip, parseClipPayload, plainTextHtml, remapCopiedRefs, serializeElements, serializeSlides, takePlainPaste } from './clipboard'
 import { isMacOS, openSpeakerWindow, speakerIdleBody } from '../screens'
 import { displayChord } from './customize/logic'
 // Bridged into the terminal integration's MCP read verbs (respondAgentQuery)
@@ -53,7 +52,7 @@ import { displayChord } from './customize/logic'
 // read validation/comment state without a browser of its own — see
 // docs/PLATFORM.md §7 and desktop/src/mcp/slides-mcp-server.mjs.
 import { fitMathFrame, measureElement, measureText, type TextMeasureSpec } from '../measure'
-import { REQUIRED_KEYS, checkElementProp, isWholePictureCrop, sanitizeAssets, sanitizeFonts, sanitizeSlide } from '../untrusted'
+import { sanitizeAssets, sanitizeFonts, sanitizeSlide } from '../untrusted'
 import { rerouteConnectors } from './lineedit'
 import { afterSlideBlock, deleteSection, deleteSlidesByIds, duplicateSlidesInStore, insertSectionBefore, insertSlidesFromLayout, renameSection, slidesDeleteImpact, survivesDeletion } from './slideops'
 import { applyTokens, dropSlots, extraDropAt, moveSectionTo, moveSlidesAsExtras, moveSlidesOutOfExtras, moveSlidesTo, movingSlideIds, stepSlides, tokensOf, type DropSlot, type Token } from './slideorder'
@@ -74,7 +73,7 @@ import { canFixWithClaude, fixWithClaude, leftoverLines, listLayouts, repairCoun
 import type { RepairItem } from '../importrepair'
 import type { SettleResult } from '../importrepair'
 import { openIconSearchPopover, searchIconLibrary, type IconResult } from './iconlibrary'
-import { agentSvgPatchViolation, agentSvgViolation } from './agentsvg'
+import { agentSvgViolation } from './agentsvg'
 import { renderIconSources } from './iconsettings'
 import { openLibraryPanel } from './librarypanel'
 import { openSaveSelectionDialog } from './saveselection'
@@ -87,10 +86,9 @@ import { isDesktopShell, useRibbonChrome, buildRibbon, ribbonGroup, ribbonRow } 
 import { buildMenuBar, type BarItem, type MenuBarHandle } from './menubar'
 import { buildTitlebar } from './titlebar'
 import {
-  openLayoutManager, renderDocumentMetaForm, moveLayoutWithinParent, remintElements,
+  openLayoutManager, renderDocumentMetaForm,
   type LayoutManagerNavState, type LayoutManagerSession, type OpenLayoutManagerDetail, type Tab as LayoutManagerTab,
 } from './layoutmanager'
-import { promoteToReusableObject } from './reusableobjects'
 import {
   buildInsertGroup, insertChart, insertCode, insertEmbed, insertPresetShape, insertShape, insertTable, insertText,
   insertMath,
@@ -105,7 +103,7 @@ import { buildSaveIndicator, type SaveIndicator } from './saveindicator'
 import { SAVE_AS_TEMPLATE_EVENT } from './templatemenu'
 import { actionToast, promptTemplateOptions } from './templatewindow'
 import { CommentsPill } from './commentspill'
-import { commentAuthor, commentStats, sendCommentsToClaude } from './comments'
+import { commentStats, sendCommentsToClaude } from './comments'
 import { openPlanIcons } from './iconplan'
 import { addOneIcon, applyIconsetStyle, commentOnIcons, drawIconsWithAi, exportIconSet, exportOneIcon, iconExportTip, lookPreviewUrl, planIconsWithAi, setIconCanvas } from './iconsetactions'
 import { ICON_CANVASES, addIconNames, iconCanvasId, iconCanvasUnits, iconsetInfo, type IconCanvasId } from '../iconset'
@@ -129,6 +127,7 @@ import { validateProfile } from './customize/validate'
 import { QUICKBAR_PLACES, emptyProfile, type QuickBarPlace, type UiProfile } from './customize/schema'
 import type { RibbonHandle } from './ribbon'
 import { agentFindText } from './findtext'
+import { runAgentVerb, type AgentVerbContext } from './agentverbs'
 import { applyThemePatch, isAreaTool, runAreaOp, sectionRows, slideFromCompiled, themedDoc, themePatch, type HtmlLayout, type ThemePatch, type IconLibraryAccess, type SlideWrites, type VariantAccess, type VariantOutcome } from './agentops'
 import { compileSlideHtml, type CompileResult } from '../htmlslide'
 import { MAX_SLIDE_HTML } from '../agentops/spec'
@@ -237,7 +236,7 @@ export class Editor {
    *  into store.doc and NEVER touches store.commit/the undo stack until
    *  applyVariant() commits the chosen one. Single pending slot, not a
    *  queue: a later propose_variants call replaces this wholesale (see
-   *  applyAgentAction's 'propose_variants' case). */
+   *  agentverbs/index.ts propose_variants and proposeVariants). */
   private pendingVariants: PendingVariants | null = null
   /** side panel widths (px) — user-resizable, persisted per browser */
   private panelW = { left: 188, right: 236 }
@@ -5791,7 +5790,8 @@ export class Editor {
   // terminalPanel.ts's agent watcher) are pull-based and let an agent ask for
   // exactly the slice it needs — a doc summary, one slide's outline, whether a
   // box of text fits — before ever touching write_slide's whole-slide
-  // replace, let alone a full-document round-trip. The five write verbs below
+  // replace, let alone a full-document round-trip. The five write verbs
+  // (agentverbs/elements.ts, dispatched by applyAgentAction below)
   // are the SIBLING to applyExternalEdit/applyExternalSlideWrite: structural
   // edits (insert/move/duplicate/delete/reorder) an agent can make WITHOUT
   // reconstructing and resending an entire slide for a one-element change.
@@ -5899,17 +5899,6 @@ export class Editor {
       name: o.name,
       elementCount: o.elements.length,
     }))
-  }
-
-  /** Find one element addressed by an EXPLICIT slideId — unlike
-   *  applyExternalEdit's cross-slide-by-id search, every agent-action verb
-   *  always carries the slide it means, so there is no ambiguity to resolve. */
-  private findAgentTarget(slideId: string, elementId: string): { slide: Slide; el: SlideElement; idx: number } | null {
-    const resolved = resolveAgentSlide(this.store.doc, slideId)
-    if (!resolved) return null
-    const idx = resolved.slide.elements.findIndex((e) => e.id === elementId)
-    if (idx < 0) return null
-    return { slide: resolved.slide, el: resolved.slide.elements[idx], idx }
   }
 
   /** Read-only bridge for doc_info/outline/measure/validate/comments — same
@@ -6205,7 +6194,8 @@ export class Editor {
    *  so a human watching the editor sees what Claude just did. `warnings` on
    *  a success is a non-blocking validateDoc() pass filtered to the touched
    *  slide, so an agent gets an immediate signal (off-canvas, overflowing
-   *  text, …) without a separate validate() round trip. */
+   *  text, …) without a separate validate() round trip. The handlers of
+   *  every verb but the grouped area tools are the agentverbs/ table. */
   private applyAgentAction(cmd: { requestId: string; verb?: string; args?: Record<string, unknown>; sessionId?: string; iconSet?: { file: string; text: string } }) {
     const respond = (result: Record<string, unknown> & { requestId: string; ok: boolean }) =>
       window.slidomingoDesktop?.sendAgentActionResult(result)
@@ -6222,22 +6212,6 @@ export class Editor {
       return null
     }
 
-    // An agent program (the `execute` tool, desktop agentexec.ts) brackets its
-    // calls: every edit between begin and commit is ONE undo step, and a
-    // program that fails is rolled back whole.
-    if (cmd.verb === 'program') {
-      const op = args.op
-      if (op === 'begin') this.store.beginUndoGroup()
-      else if (op === 'commit') {
-        this.store.endUndoGroup()
-        if (args.changed) this.toast(t('AI ran a program on this deck (one undo step)'))
-      } else if (op === 'rollback') {
-        if (!this.store.rollbackUndoGroup()) { respond({ requestId: cmd.requestId, ok: false, error: 'An undo since the program started: nothing was rolled back.' }); return }
-      } else { respond({ requestId: cmd.requestId, ok: false, error: 'op must be begin, commit or rollback.' }); return }
-      respond({ requestId: cmd.requestId, ok: true })
-      return
-    }
-
     // Grouped op tools (`deck`, …): agentops.ts checks the args against
     // ../agentops/spec.ts and runs the op as one undo step.
     if (isAreaTool(cmd.verb)) {
@@ -6251,463 +6225,20 @@ export class Editor {
       return
     }
 
-    switch (cmd.verb) {
-      case 'insert_elements': {
-        if (!slideId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId.' }); return }
-        if (!resolveAgentSlide(this.store.doc, slideId)) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        // new svg artwork is refused (agentsvg.ts); the icons tool is the way in
-        { const bad = agentSvgViolation(this.store.doc, args.elements, { existing: resolveAgentSlide(this.store.doc, slideId)?.slide.elements, assets: args.assets }); if (bad) { respond({ requestId: cmd.requestId, ok: false, error: bad }); return } }
-        const r = this.agentInsertElements(slideId, args.elements, args.assets, { nudge: args.nudge !== false, reflow: args.reflow !== false, fonts: args.fonts })
-        if ('error' in r) { respond({ requestId: cmd.requestId, ok: false, error: r.error }); return }
-        const { added } = r
-        this.toast(t('Claude Code added elements to slide “{id}”', { id: slideId }))
-        const layout = this.layoutReport()
-        respond({ requestId: cmd.requestId, ok: true, elementIds: added.map((e) => e.id), warnings: this.warningsForSlide(slideId), ...layout })
-        return
-      }
-      case 'set_frame': {
-        if (!slideId || !elementId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId or elementId.' }); return }
-        const target = this.findAgentTarget(slideId, elementId)
-        if (!target) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        const patch: Partial<Record<'x' | 'y' | 'w' | 'h' | 'rotation', number>> = {}
-        for (const key of ['x', 'y', 'w', 'h', 'rotation'] as const) {
-          if (args[key] === undefined) continue
-          const check = checkElementProp(target.el.type, key, args[key])
-          if (!check.ok) { respond({ requestId: cmd.requestId, ok: false, error: `Invalid ${key}.` }); return }
-          patch[key] = check.value as number
-        }
-        // a container child's parentOffset follows inside the guard
-        // (layoutguard reanchorChild), so syncContainers keeps the new spot
-        this.commitAgentWrite(slideId, () => { Object.assign(target.el, patch) }, undefined, { reflow: args.reflow !== false })
-        this.toast(t('Claude Code moved or resized an element on slide “{id}”', { id: slideId }))
-        const layout = this.layoutReport()
-        respond({
-          requestId: cmd.requestId, ok: true,
-          frame: { x: target.el.x, y: target.el.y, w: target.el.w, h: target.el.h, rotation: target.el.rotation },
-          warnings: this.warningsForSlide(slideId),
-          ...layout,
-        })
-        return
-      }
-      case 'update_element': {
-        // Shallow property patch on ONE element — the cheap alternative to a
-        // get_slide + write_slide round trip for a colour/font/border change,
-        // and it cannot clobber a concurrent edit to the rest of the slide.
-        // Every key goes through the same per-key check set_frame uses; a
-        // null value removes an optional key. id/type are never patchable.
-        if (!slideId || !elementId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId or elementId.' }); return }
-        const props = args.props
-        if (!props || typeof props !== 'object' || Array.isArray(props) || !Object.keys(props).length) {
-          respond({ requestId: cmd.requestId, ok: false, error: 'props must be a non-empty object.' })
-          return
-        }
-        const target = this.findAgentTarget(slideId, elementId)
-        if (!target) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
-        const set: Record<string, unknown> = {}
-        const unset: string[] = []
-        for (const [key, value] of Object.entries(props as Record<string, unknown>)) {
-          if (key === 'id' || key === 'type') { respond({ requestId: cmd.requestId, ok: false, error: `${key} cannot be changed.` }); return }
-          // a crop of the whole picture cuts nothing: it removes the crop, like null
-          if (value === null || (key === 'crop' && target.el.type === 'image' && isWholePictureCrop(value))) {
-            if ((REQUIRED_KEYS[target.el.type] ?? []).includes(key)) {
-              respond({ requestId: cmd.requestId, ok: false, error: `${key} is required on a ${target.el.type} element.` })
-              return
-            }
-            unset.push(key)
-            continue
-          }
-          const check = checkElementProp(target.el.type, key, value)
-          if (!check.ok) { respond({ requestId: cmd.requestId, ok: false, error: `Invalid or unknown prop "${key}" for a ${target.el.type} element.` }); return }
-          let val = check.value
-          // Same sanitizer write_slide runs rich text through.
-          if (key === 'html') val = sanitizeHtml(val as string)
-          if (key === 'rows' && Array.isArray(val)) {
-            for (const row of val as TableElement['rows']) {
-              for (const cell of row.cells ?? []) cell.html = sanitizeHtml(cell.html ?? '')
-            }
-          }
-          set[key] = val
-        }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        { const bad = agentSvgPatchViolation(this.store.doc, target.el, set); if (bad) { respond({ requestId: cmd.requestId, ok: false, error: bad }); return } }
-        this.commitAgentWrite(slideId, () => {
-          const el = target.el as unknown as Record<string, unknown>
-          Object.assign(el, set)
-          for (const key of unset) delete el[key]
-        }, undefined, { reflow: args.reflow !== false })
-        this.toast(t('Claude Code edited “{id}”', { id: elementId }))
-        const layout = this.layoutReport()
-        respond({ requestId: cmd.requestId, ok: true, changed: [...Object.keys(set), ...unset], warnings: this.warningsForSlide(slideId), ...layout })
-        return
-      }
-      case 'duplicate_element': {
-        if (!slideId || !elementId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId or elementId.' }); return }
-        const target = this.findAgentTarget(slideId, elementId)
-        if (!target) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        const clone = cloneElement(target.el)
-        // same as ⌘D: the copy gets its own group and is never re-parented
-        // onto the original's container (syncContainers would snap it there)
-        remapCopiedRefs([clone], new Map([[target.el.id, clone.id]]))
-        for (const key of ['x', 'y'] as const) {
-          if (args[key] === undefined) continue
-          const check = checkElementProp(clone.type, key, args[key])
-          if (!check.ok) { respond({ requestId: cmd.requestId, ok: false, error: `Invalid ${key}.` }); return }
-          clone[key] = check.value as number
-        }
-        this.commitAgentWrite(slideId, () => { target.slide.elements.push(clone) })
-        this.toast(t('Claude Code duplicated an element on slide “{id}”', { id: slideId }))
-        respond({ requestId: cmd.requestId, ok: true, elementId: clone.id, warnings: this.warningsForSlide(slideId), ...this.layoutReport() })
-        return
-      }
-      case 'delete_element': {
-        if (!slideId || !elementId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId or elementId.' }); return }
-        const target = this.findAgentTarget(slideId, elementId)
-        if (!target) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        this.commitAgentWrite(slideId, () => { target.slide.elements.splice(target.idx, 1) })
-        this.toast(t('Claude Code deleted an element from slide “{id}”', { id: slideId }))
-        respond({ requestId: cmd.requestId, ok: true, warnings: this.warningsForSlide(slideId), ...this.layoutReport() })
-        return
-      }
-      case 'reorder_element': {
-        // array order IS paint/z order (render.ts/canvas.ts iterate
-        // slide.elements in order) — reimplemented directly against the
-        // ADDRESSED slide's array rather than routed through panels.ts's
-        // step()/reorder(), which act on whatever slide is currently VIEWED.
-        const to = args.to as 'front' | 'back' | 'forward' | 'backward' | undefined
-        if (!slideId || !elementId || !to) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId, elementId or to.' }); return }
-        const target = this.findAgentTarget(slideId, elementId)
-        if (!target) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        this.commitAgentWrite(slideId, () => {
-          const arr = target.slide.elements
-          const i = target.idx
-          if (to === 'front' || to === 'back') {
-            const [el] = arr.splice(i, 1)
-            if (to === 'front') arr.push(el)
-            else arr.unshift(el)
-          } else {
-            const j = i + (to === 'forward' ? 1 : -1)
-            if (j >= 0 && j < arr.length) { [arr[i], arr[j]] = [arr[j], arr[i]] }
-          }
-        })
-        this.toast(t('Claude Code reordered an element on slide “{id}”', { id: slideId }))
-        respond({ requestId: cmd.requestId, ok: true, warnings: this.warningsForSlide(slideId), ...this.layoutReport() })
-        return
-      }
-      case 'apply_change_pattern': {
-        // Deliberately takes an EXPLICIT target id list — no server-side
-        // "find similar" heuristic. Claude already has doc_info/outline to
-        // decide "similar" itself; this keeps the mutating verb as small and
-        // auditable as the five above. Same patch computeReapplicablePatch
-        // produces for the manual armed tool (editor/reapplychange.ts), so a
-        // human doing this by hand and Claude calling this verb behave
-        // identically for the same source change.
-        const sourceElementId = typeof args.sourceElementId === 'string' ? args.sourceElementId : undefined
-        const rawTargets = Array.isArray(args.targetElementIds) ? args.targetElementIds : undefined
-        if (!slideId || !sourceElementId || !rawTargets?.length) {
-          respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId, sourceElementId or targetElementIds.' })
-          return
-        }
-        const source = this.findAgentTarget(slideId, sourceElementId)
-        if (!source) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-source-element' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        const change = this.store.actionLog.lastChangeFor(slideId, sourceElementId)
-        const patch = change ? computeReapplicablePatch(change) : null
-        if (!patch) { respond({ requestId: cmd.requestId, ok: false, error: 'no-reapplicable-change' }); return }
-        const targetIds = rawTargets.filter((x): x is string => typeof x === 'string')
-        const applied: string[] = []
-        const skipped: string[] = []
-        for (const id of targetIds) {
-          const target = this.findAgentTarget(slideId, id)
-          const sameKind = !!target && target.el.type === source.el.type &&
-            (source.el.type !== 'shape' || (target.el as ShapeElement).shape === (source.el as ShapeElement).shape)
-          if (sameKind) applied.push(id)
-          else skipped.push(id)
-        }
-        if (applied.length) {
-          this.commitAgentWrite(slideId, () => {
-            for (const id of applied) {
-              const target = this.findAgentTarget(slideId!, id)
-              if (target) applyReapplicablePatch(patch, target.el)
-            }
-          })
-          this.toast(t('Claude Code applied a recent change to {n} element(s) on slide “{id}”', { n: applied.length, id: slideId }))
-        }
-        respond({ requestId: cmd.requestId, ok: true, applied, skipped, warnings: this.warningsForSlide(slideId), ...this.layoutReport() })
-        return
-      }
-      case 'propose_variants': {
-        // NOT a store.commit — nothing here touches store.doc or the undo
-        // stack. Candidates preview from Editor.pendingVariants (see
-        // getPendingVariants/variantpicker.ts) until the human picks one via
-        // applyVariant, which is the ONLY path that commits anything.
-        if (!slideId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId.' }); return }
-        const targetSlide = this.store.doc.slides.find((s) => s.id === slideId)
-        if (!targetSlide) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        void this.proposeVariants(slideId, args).then((r) => respond({ requestId: cmd.requestId, ...r }))
-        return
-      }
-      case 'create_reusable_object': {
-        // Same mint-and-append code the "+ New reusable object" button calls
-        // (layoutmanager.ts's newReusableObject) — see model.ts's
-        // createReusableObject doc comment.
-        const name = typeof args.name === 'string' ? args.name.trim() : undefined
-        let obj: Slide | undefined
-        this.store.commit(() => {
-          obj = createReusableObject(this.store.doc)
-          if (name) obj.name = name
-        })
-        this.toast(t('Claude Code created a new reusable object'))
-        respond({ requestId: cmd.requestId, ok: true, objectId: obj!.id })
-        return
-      }
-      case 'create_slide_type': {
-        // Agent-facing counterpart to the "+ New slide type" dialog
-        // (layoutmanager.ts's openNewSlideTypeDialog) — same three mint
-        // functions, same rule that a slide type always needs a real name
-        // and is based on another slide type or blank, never a built-in.
-        const name = typeof args.name === 'string' ? args.name.trim() : ''
-        if (!name) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing or empty name — slide types require a real name.' }); return }
-        const mode = args.mode
-        if (mode !== 'blank' && mode !== 'parent' && mode !== 'basis') {
-          respond({ requestId: cmd.requestId, ok: false, error: 'mode must be one of "blank", "parent", "basis".' })
-          return
-        }
-        let source: Slide | undefined
-        if (mode !== 'blank') {
-          const sourceId = typeof args.sourceId === 'string' ? args.sourceId : undefined
-          source = sourceId ? this.store.doc.layouts?.find((l) => l.id === sourceId) : undefined
-          if (!source) { respond({ requestId: cmd.requestId, ok: false, error: `No slide type with id "${sourceId}" to base this on.` }); return }
-        }
-        let layout!: Slide
-        this.store.commit(() => {
-          if (mode === 'parent') layout = createSlideTypeAsParentChild(this.store.doc, source!, name)
-          else if (mode === 'basis') layout = createSlideTypeAsBasis(this.store.doc, source!, name, remintElements)
-          else layout = createSlideTypeBlank(this.store.doc, name)
-        })
-        this.toast(t('Claude Code created a new slide type “{name}”', { name }))
-        respond({ requestId: cmd.requestId, ok: true, layoutId: layout.id })
-        return
-      }
-      case 'rename_slide_type': {
-        const layoutId = typeof args.layoutId === 'string' ? args.layoutId : undefined
-        const name = typeof args.name === 'string' ? args.name.trim() : ''
-        if (!layoutId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing layoutId.' }); return }
-        if (!name) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing or empty name — slide types require a real name.' }); return }
-        const layout = this.store.doc.layouts?.find((l) => l.id === layoutId)
-        if (!layout) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide-type' }); return }
-        this.store.commit(() => { layout.name = name })
-        this.toast(t('Claude Code renamed a slide type to “{name}”', { name }))
-        respond({ requestId: cmd.requestId, ok: true })
-        return
-      }
-      case 'reorder_slide_type': {
-        // `to` is an index among SIBLINGS (children of the same parent, or
-        // the top-level roots) — the same list moveLayoutWithinParent's UI
-        // caller (the tree's own card grid) operates on, not the flat
-        // doc.layouts array. Out-of-range `to` is clamped by moveItem
-        // (layoutmanager.ts), matching the UI's own drag/reorder behavior.
-        const layoutId = typeof args.layoutId === 'string' ? args.layoutId : undefined
-        const to = typeof args.to === 'number' ? args.to : undefined
-        if (!layoutId || to === undefined) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing layoutId or to.' }); return }
-        const doc = this.store.doc
-        const layout = doc.layouts?.find((l) => l.id === layoutId)
-        if (!layout) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide-type' }); return }
-        const parentId = layout.parentId
-        const siblings = (doc.layouts ?? []).filter((l) => (l.parentId ?? undefined) === (parentId ?? undefined))
-        const from = siblings.findIndex((l) => l.id === layoutId)
-        this.store.commit(() => { moveLayoutWithinParent(doc, parentId, from, to) })
-        this.toast(t('Claude Code reordered a slide type'))
-        respond({ requestId: cmd.requestId, ok: true })
-        return
-      }
-      case 'move_slide_type': {
-        // Agent-facing counterpart to the Layout Manager sidebar's drag-and-
-        // drop (typetree.ts): reorder AND/OR reparent. `parentId: null`
-        // makes it a root. Reparenting means "inherit from the new parent"
-        // (the look changes); the moved subtree's linked slides resync in
-        // the same commit, exactly like the UI drop.
-        const layoutId = typeof args.layoutId === 'string' ? args.layoutId : undefined
-        if (!layoutId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing layoutId.' }); return }
-        if (args.parentId !== null && typeof args.parentId !== 'string') {
-          respond({ requestId: cmd.requestId, ok: false, error: 'parentId must be a slide type id, or null for a top-level slide type.' })
-          return
-        }
-        const parentId = typeof args.parentId === 'string' ? args.parentId : undefined
-        const beforeId = typeof args.beforeId === 'string' ? args.beforeId : undefined
-        const doc = this.store.doc
-        if (!doc.layouts?.some((l) => l.id === layoutId)) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide-type' }); return }
-        if (parentId && !doc.layouts.some((l) => l.id === parentId)) { respond({ requestId: cmd.requestId, ok: false, error: `No slide type with id "${parentId}" to move under.` }); return }
-        let moved = false
-        this.store.commit(() => {
-          moved = moveSlideTypeInTree(doc, layoutId, parentId, beforeId)
-          if (moved) resyncLinkedSlides(doc, layoutId, layoutElementIds(doc))
-        })
-        if (!moved) { respond({ requestId: cmd.requestId, ok: false, error: 'Refused: a slide type cannot be moved under itself or one of its own descendants.' }); return }
-        this.toast(t('Claude Code moved a slide type'))
-        respond({ requestId: cmd.requestId, ok: true })
-        return
-      }
-      case 'detach_slide_type': {
-        // "Detach from parent (keep look)" — bakes the inherited content in,
-        // then drops parentId; linked slides look identical afterwards.
-        const layoutId = typeof args.layoutId === 'string' ? args.layoutId : undefined
-        if (!layoutId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing layoutId.' }); return }
-        const layout = this.store.doc.layouts?.find((l) => l.id === layoutId)
-        if (!layout) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide-type' }); return }
-        if (!layout.parentId) { respond({ requestId: cmd.requestId, ok: false, error: 'That slide type has no parent to detach from.' }); return }
-        this.store.commit(() => detachSlideType(this.store.doc, layoutId))
-        this.toast(t('Claude Code detached a slide type from its parent'))
-        respond({ requestId: cmd.requestId, ok: true })
-        return
-      }
-      case 'relink_slide_type': {
-        // "Change layout…" / a Layout Manager leaf drop, for agents: the deck
-        // slide `slideId` follows slide type `layoutId` from now on
-        // (`relinkSlide` — re-applied in the same step), or, with
-        // `layoutId: null`, follows nothing and keeps its look. The verdict
-        // says what found no placeholder (kept, floating on top).
-        if (!slideId) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId.' }); return }
-        const doc = this.store.doc
-        const slide = doc.slides.find((s) => s.id === slideId)
-        if (!slide) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide (relink takes a deck slide id)' }); return }
-        if (args.layoutId !== null && typeof args.layoutId !== 'string') {
-          respond({ requestId: cmd.requestId, ok: false, error: 'layoutId must be a slide type id, or null to unlink.' })
-          return
-        }
-        const layoutId = args.layoutId
-        if (layoutId !== null && !doc.layouts?.some((l) => l.id === layoutId)) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide-type' }); return }
-        if (layoutId !== null && doc.layouts?.find((l) => l.id === layoutId)?.parentOnly) {
-          respond({ requestId: cmd.requestId, ok: false, error: 'parent-only (that slide type is a master: pick one of its children)' })
-          return
-        }
-        { const err = lockError(slideId); if (err) { respond({ requestId: cmd.requestId, ok: false, error: err }); return } }
-        if (layoutId === null) {
-          this.commitAgentWrite(slideId, () => { delete slide.layoutId }, undefined, { guard: false })
-          this.toast(t('Claude Code unlinked slide “{id}” from its slide type', { id: slideId }))
-          respond({ requestId: cmd.requestId, ok: true, layoutId: null })
-          return
-        }
-        let applied = null as RelinkPreview | null
-        this.commitAgentWrite(slideId, () => { applied = relinkSlide(doc, slideId, layoutId) }, undefined, { guard: false })
-        const p = applied!
-        this.toast(t('Claude Code changed the slide type of slide “{id}”', { id: slideId }))
-        respond({
-          requestId: cmd.requestId, ok: true, layoutId,
-          verdict: p.verdict,
-          filled: p.filled,
-          floating: p.floating.map((e) => e.id),
-          emptySlots: p.emptySlots,
-          warnings: this.warningsForSlide(slideId),
-        })
-        return
-      }
-      case 'promote_to_reusable_object': {
-        // Agent-facing counterpart to contextmenu.ts's "Save as reusable
-        // object…" item (reusableobjects.ts's promoteToReusableObject,
-        // which already handles its own store.commit — do not wrap it in
-        // another). slideId resolves against slides, reusable objects AND
-        // slide types (resolveAgentSlide, model.ts) since a slide type's
-        // sub-editor is just another editing surface.
-        const slideId = typeof args.slideId === 'string' ? args.slideId : undefined
-        const elementIds = Array.isArray(args.elementIds)
-          ? args.elementIds.filter((x): x is string => typeof x === 'string') : []
-        if (!slideId || !elementIds.length) { respond({ requestId: cmd.requestId, ok: false, error: 'Missing slideId or elementIds.' }); return }
-        const resolved = resolveAgentSlide(this.store.doc, slideId)
-        if (!resolved) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
-        const matched = elementIds
-          .map((id) => resolved.slide.elements.find((e) => e.id === id))
-          .filter((e): e is SlideElement => !!e)
-        if (matched.length !== elementIds.length) {
-          respond({ requestId: cmd.requestId, ok: false, error: 'One or more elementIds do not exist on that slide.' })
-          return
-        }
-        const name = typeof args.name === 'string' ? args.name.trim() || undefined : undefined
-        const obj = promoteToReusableObject(this.store, matched, name)
-        if (!obj) { respond({ requestId: cmd.requestId, ok: false, error: 'Could not promote the selected elements.' }); return }
-        this.toast(t('Claude Code saved a new reusable object from slide “{id}”', { id: slideId }))
-        respond({ requestId: cmd.requestId, ok: true, objectId: obj.id })
-        return
-      }
-      case 'resolve_comment': {
-        // The agent's ONLY comment write: closes a thread (+ optional reply).
-        // Plain store.commit — comments are slide metadata, not layout, so no
-        // guard/lock; one undo step.
-        const commentId = typeof args.commentId === 'string' ? args.commentId : ''
-        const owner = this.store.doc.slides.find((s) => s.comments?.some((c) => c.id === commentId))
-        if (!owner) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-comment' }); return }
-        const reply = typeof args.reply === 'string' ? args.reply.trim().slice(0, 2000) : ''
-        this.store.commit(() => {
-          const live = owner.comments!.find((c) => c.id === commentId)!
-          if (reply) live.replies = [...(live.replies ?? []), { id: uid('cmt'), author: 'Claude', text: reply, at: new Date().toISOString() }]
-          // resolved + agentDone together: old viewers / `comments {resolved:false}`
-          // see a plain resolved thread, the user gets a "check" state
-          live.resolved = true
-          live.agentDone = new Date().toISOString()
-        })
-        this.canvas.refreshComments()
-        actionToast(t('Claude finished a comment'), t('Check'), () => {
-          const i = this.store.doc.slides.indexOf(owner)
-          if (i < 0) return
-          this.store.goTo(i)
-          this.canvas.openCommentThread(commentId)
-        })
-        respond({ requestId: cmd.requestId, ok: true, commentId })
-        return
-      }
-      case 'pane_comment': {
-        // The USER's comment writes from the BeeSlides pane of the Claude Code
-        // plugin (desktop/src/mcp/claude-mod): the MCP server takes the verb
-        // but never lists it, so the model cannot call it and the agent's own
-        // comment verb stays resolve_comment alone. add = a new thread on the
-        // slide (or one of its elements) flagged for the agent; accept /
-        // reopen = the thread footer's two buttons on a thread Claude
-        // finished (reopen with the user's reply).
-        const op = args.op
-        const text = typeof args.text === 'string' ? args.text.trim().slice(0, 2000) : ''
-        const at = new Date().toISOString()
-        if (op === 'add') {
-          const slide = slideId ? this.store.doc.slides.find((s) => s.id === slideId) : undefined
-          if (!slide) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-slide' }); return }
-          if (!text) { respond({ requestId: cmd.requestId, ok: false, error: 'empty' }); return }
-          if (elementId && !slide.elements.some((el) => el.id === elementId)) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-element' }); return }
-          const id = uid('cmt')
-          this.store.commit(() => {
-            slide.comments = [...(slide.comments ?? []), { id, ...(elementId ? { elementId } : {}), author: commentAuthor(), text, at, forAgent: true }]
-          })
-          this.canvas.refreshComments()
-          respond({ requestId: cmd.requestId, ok: true, commentId: id })
-          return
-        }
-        if (op !== 'accept' && op !== 'reopen') { respond({ requestId: cmd.requestId, ok: false, error: 'op must be add, accept or reopen.' }); return }
-        const commentId = typeof args.commentId === 'string' ? args.commentId : ''
-        const owner = this.store.doc.slides.find((s) => s.comments?.some((c) => c.id === commentId))
-        if (!owner) { respond({ requestId: cmd.requestId, ok: false, error: 'no-such-comment' }); return }
-        this.store.commit(() => {
-          const live = owner.comments!.find((c) => c.id === commentId)!
-          delete live.agentDone
-          if (op === 'reopen') {
-            delete live.resolved
-            if (text) live.replies = [...(live.replies ?? []), { id: uid('cmt'), author: commentAuthor(), text, at }]
-          }
-        })
-        this.canvas.refreshComments()
-        respond({ requestId: cmd.requestId, ok: true, commentId })
-        return
-      }
-      case 'release_slide': {
-        // Obsolete (locks no longer exclude anyone); kept as a harmless no-op
-        // for sessions started before the change.
-        respond({ requestId: cmd.requestId, ok: true })
-        return
-      }
-      default:
-        respond({ requestId: cmd.requestId, ok: false, error: `Unknown verb: ${cmd.verb}` })
+    runAgentVerb(this.agentVerbContext(), { requestId: cmd.requestId, verb: cmd.verb, args, slideId, elementId, respond, lockError })
+  }
+
+  /** What the agent verb handlers (agentverbs/) may reach of this editor. */
+  private agentVerbContext(): AgentVerbContext {
+    return {
+      store: this.store,
+      canvas: this.canvas,
+      toast: (message) => this.toast(message),
+      commitAgentWrite: (slideId, mutate, event, opts) => this.commitAgentWrite(slideId, mutate, event, opts),
+      layoutReport: () => this.layoutReport(),
+      warningsForSlide: (sid) => this.warningsForSlide(sid),
+      insertElements: (slideId, specs, assets, opts) => this.agentInsertElements(slideId, specs, assets, opts),
+      proposeVariants: (slideId, args) => this.proposeVariants(slideId, args),
     }
   }
 
@@ -8345,11 +7876,6 @@ function reportList(notes: string): HTMLElement {
  */
 export function docForAgent(doc: import('../model').SlidomingoDoc): import('../model').SlidomingoDoc {
   return jsonClone(doc)
-}
-
-/** Deep-clone an element with a fresh id (same-slide duplicates must not share ids). */
-function cloneElement(el: SlideElement): SlideElement {
-  return { ...jsonClone(el), id: uid(el.type[0]), x: el.x + 24, y: el.y + 24 }
 }
 
 // --- figure-folder pick (the markdown importer's repair action) -------------
