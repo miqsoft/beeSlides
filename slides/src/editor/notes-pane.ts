@@ -6,6 +6,7 @@
 import type { Store } from '../store'
 import { t } from '../i18n'
 import { isMacOS } from '../screens'
+import { liveStep } from './livestep'
 
 export class NotesPane {
   readonly el: HTMLElement
@@ -41,6 +42,9 @@ export class NotesPane {
     if (!this.burst) { this.store.checkpoint(); this.burst = true }
     this.store.slide.notes = this.textarea.value
     if (final) { this.burst = false; this.store.recordAction() }
-    this.store.touch()
+    // Notes show on neither the canvas nor the props panel: a keystroke's
+    // redraws wait for the next frame (livestep.ts); the final step (change,
+    // on blur) is the ordinary synchronous commit.
+    liveStep(final, () => this.store.touch())
   }
 }
