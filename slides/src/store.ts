@@ -2,7 +2,7 @@
 // Copyright (c) 2026 The BeeSlides authors
 import { inLinearFlow, resolveAgentSlide, REUSABLE_OBJECT_CANVAS, syncContentRequires } from './model'
 import type { IconLook, SlidomingoDoc, Slide, SlideElement } from './model'
-import { ActionLog, type ElementChange } from './actionlog'
+import { ActionLog, jsonEqual, type ElementChange } from './actionlog'
 import { scheduleBlobSweep } from './bloburls'
 
 export type StoreEvent =
@@ -38,11 +38,111 @@ export type ViewSnapshot = {
 }
 
 type HistoryEntry = {
+  /** a LIGHT serialized doc: see SnapshotAssets */
   doc: string
   view: ViewSnapshot
+  /** the SnapshotAssets ids `doc` refers to */
+  refs: string[]
 }
 
 const MAX_UNDO = 100
+
+/** `data:` strings at least this long go into the snapshot table; shorter
+ *  ones (tiny inline icons) cost less to copy than to look up. */
+const SNAPSHOT_REF_MIN = 1024
+/** What a snapshot string holding a table ref starts with. Private to the
+ *  in-memory undo/redo stack — never written to a file, never a
+ *  `beeslides-store:` ref (a doc may hold one of those, dangling or not, and
+ *  it must come back exactly as it was). A doc string that itself starts
+ *  with NUL is escaped by doubling that NUL, so the mapping is exact. */
+const SNAP_NUL = '\u0000'
+const SNAP_REF = SNAP_NUL + 'ref:'
+
+/**
+ * The bytes the undo/redo stack would otherwise copy on every edit.
+ *
+ * Pictures, video and fonts live in the live document as `data:` strings.
+ * Every edit snapshots the whole doc; with 20 MB of pictures that was ~35 ms
+ * per edit and up to 100 × 20 MB of strings on the undo stack. A snapshot now
+ * holds a short ref per `data:` string and this table holds each distinct
+ * string ONCE — the same string instance the live doc holds, so the table
+ * costs nothing extra while the picture is in the doc, and keeps a deleted
+ * picture only while some undo/redo entry still refers to it (`prune`).
+ * Parsing a snapshot hands the doc that same instance back, which also makes
+ * an unchanged picture compare equal by identity in the action-log diff.
+ */
+class SnapshotAssets {
+  private idOf = new Map<string, string>()
+  private uriOf = new Map<string, string>()
+  private next = 0
+
+  /** JSON.stringify(doc) with each big `data:` string swapped for a ref;
+   *  `refs` collects the ids it used. */
+  stringify(doc: unknown, refs: Set<string>): string {
+    return JSON.stringify(doc, (_key, v: unknown) => {
+      if (typeof v !== 'string') return v
+      if (v.length >= SNAPSHOT_REF_MIN && v.startsWith('data:')) {
+        let id = this.idOf.get(v)
+        if (id === undefined) {
+          id = (this.next++).toString(36)
+          this.idOf.set(v, id)
+          this.uriOf.set(id, v)
+        }
+        refs.add(id)
+        return SNAP_REF + id
+      }
+      return v.startsWith(SNAP_NUL) ? SNAP_NUL + v : v
+    })
+  }
+
+  /** The inverse of stringify. A plain parse plus an in-place walk: a
+   *  JSON.parse reviver costs ~7× the parse itself. */
+  parse<T>(json: string): T {
+    const out = JSON.parse(json) as unknown
+    // the escape is written as the 6-character JSON escape: no NUL, nothing to do
+    if (json.includes('\\u0000')) this.unref(out)
+    return out as T
+  }
+
+  private unstring(v: string): string {
+    if (!v.startsWith(SNAP_REF)) return v.slice(SNAP_NUL.length)
+    const uri = this.uriOf.get(v.slice(SNAP_REF.length))
+    if (uri === undefined) throw new Error('undo snapshot refers to a dropped asset')
+    return uri
+  }
+
+  private unref(node: unknown) {
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        const v: unknown = node[i]
+        if (typeof v === 'string') { if (v.charCodeAt(0) === 0) node[i] = this.unstring(v) }
+        else if (v && typeof v === 'object') this.unref(v)
+      }
+      return
+    }
+    const obj = node as Record<string, unknown>
+    for (const k of Object.keys(obj)) {
+      // an own "__proto__" key (JSON.parse makes one) is not reachable as obj[k]
+      const proto = k === '__proto__'
+      const v = proto ? Object.getOwnPropertyDescriptor(obj, k)?.value : obj[k]
+      if (typeof v === 'string') {
+        if (v.charCodeAt(0) !== 0) continue
+        const next = this.unstring(v)
+        if (proto) Object.defineProperty(obj, k, { value: next, writable: true, enumerable: true, configurable: true })
+        else obj[k] = next
+      } else if (v && typeof v === 'object') this.unref(v)
+    }
+  }
+
+  /** Forget every id not in `keep`. */
+  prune(keep: Set<string>) {
+    for (const [id, uri] of this.uriOf) {
+      if (keep.has(id)) continue
+      this.uriOf.delete(id)
+      this.idOf.delete(uri)
+    }
+  }
+}
 
 /** Central state: document, current slide, selection, undo/redo, dirty flag. */
 export class Store {
@@ -106,6 +206,8 @@ export class Store {
 
   private undoStack: HistoryEntry[] = []
   private redoStack: HistoryEntry[] = []
+  /** the bytes the two stacks refer to — see SnapshotAssets */
+  private snapAssets = new SnapshotAssets()
   private listeners = new Map<StoreEvent, Set<Listener>>()
 
   /** read-only viewer: block user edits (commit) while remote ops — which
@@ -322,9 +424,11 @@ export class Store {
 
   // --- history ------------------------------------------------------------
 
-  /** JSON.stringify(doc) taken by the last checkpoint(), awaiting a matching
-   *  recordAction() call — see checkpoint()/recordAction(). */
+  /** The light snapshot (see SnapshotAssets) taken by the last checkpoint(),
+   *  awaiting a matching recordAction() call — see checkpoint()/recordAction(). */
   private pendingBeforeJson: string | null = null
+  /** the ids pendingBeforeJson refers to (kept alive until it is consumed) */
+  private pendingRefs: string[] = []
 
   /** An agent program's run (the `execute` tool): while set, only its first
    *  checkpoint reaches the undo stack, so the whole run is ONE undo step —
@@ -348,20 +452,34 @@ export class Store {
     if (this.undoStack[this.undoStack.length - 1] !== entry) return false
     this.undo()
     this.redoStack.pop()
+    this.pruneSnapshotAssets()
     return true
   }
 
   /** Snapshot current doc state onto the undo stack. Call BEFORE a mutation. */
   checkpoint() {
-    this.pendingBeforeJson = JSON.stringify(this.doc)
+    const refs = new Set<string>()
+    this.pendingBeforeJson = this.snapAssets.stringify(this.doc, refs)
+    this.pendingRefs = [...refs]
     // inside a group, its first snapshot covers this edit — unless an undo
     // took that snapshot off the stack meanwhile
     const group = this.undoGroup
     if (group?.entry && this.undoStack[this.undoStack.length - 1] === group.entry) return
-    this.undoStack.push({ doc: this.pendingBeforeJson, view: this.captureView() })
+    this.undoStack.push({ doc: this.pendingBeforeJson, view: this.captureView(), refs: this.pendingRefs })
     if (group) group.entry = this.undoStack[this.undoStack.length - 1]
-    if (this.undoStack.length > MAX_UNDO) this.undoStack.shift()
+    let dropped = this.redoStack.length > 0
+    if (this.undoStack.length > MAX_UNDO) { this.undoStack.shift(); dropped = true }
     this.redoStack.length = 0
+    if (dropped) this.pruneSnapshotAssets()
+  }
+
+  /** Let go of the bytes no undo/redo entry (nor the pending snapshot) refers
+   *  to any more. Called whenever entries leave the stacks for good. */
+  private pruneSnapshotAssets() {
+    const keep = new Set<string>(this.pendingRefs)
+    for (const entry of this.undoStack) for (const id of entry.refs) keep.add(id)
+    for (const entry of this.redoStack) for (const id of entry.refs) keep.add(id)
+    this.snapAssets.prune(keep)
   }
 
   /**
@@ -380,8 +498,13 @@ export class Store {
   recordAction() {
     const before = this.pendingBeforeJson
     this.pendingBeforeJson = null
+    this.pendingRefs = []
     if (before == null) return
-    this.actionLog.record(before, this.doc)
+    // parsed against the table: the diff and the log see the real pictures
+    // (the same string instances the live doc holds), never a ref
+    let beforeDoc: SlidomingoDoc
+    try { beforeDoc = this.snapAssets.parse<SlidomingoDoc>(before) } catch { return }
+    this.actionLog.record(beforeDoc, this.doc)
   }
 
   /** checkpoint() + mutate + notify, in one call. */
@@ -460,15 +583,15 @@ export class Store {
    * The newest undo snapshot in which any of `ids` (on the open surface)
    * looks different from now — frame, text or font size. It is what Tidy
    * compares against to learn what the user just changed about the
-   * selection. Each entry is a whole serialized doc, so the walk stops after
-   * `limit` parses.
+   * selection. Each entry is a whole serialized (light) doc, so the walk stops
+   * after `limit` parses.
    */
   baselineFor(ids: string[], limit = 20): SlidomingoDoc | null {
     const slideId = this.slide.id
     const now = this.slide.elements.filter((e) => ids.includes(e.id))
     for (let i = this.undoStack.length - 1, n = 0; i >= 0 && n < limit; i--, n++) {
       let doc: SlidomingoDoc
-      try { doc = JSON.parse(this.undoStack[i].doc) } catch { continue }
+      try { doc = this.snapAssets.parse<SlidomingoDoc>(this.undoStack[i].doc) } catch { continue }
       const slide = resolveAgentSlide(doc, slideId)?.slide
       if (!slide) return null // the surface did not exist yet: nothing older helps
       const differs = now.some((cur) => {
@@ -486,11 +609,14 @@ export class Store {
   redo() { this.restore(this.redoStack, this.undoStack) }
 
   private restore(from: HistoryEntry[], to: HistoryEntry[]) {
-    const entry = from.pop()
+    const entry = from[from.length - 1]
     if (!entry) return
+    const next = this.snapAssets.parse<SlidomingoDoc>(entry.doc)
+    from.pop()
     const before = this.captureView()
-    to.push({ doc: JSON.stringify(this.doc), view: before })
-    this.doc = JSON.parse(entry.doc)
+    const refs = new Set<string>()
+    to.push({ doc: this.snapAssets.stringify(this.doc, refs), view: before, refs: [...refs] })
+    this.doc = next
     this.reconcileView(before, entry.view)
     this.setDirty(true)
     this.emit('doc')
@@ -551,7 +677,7 @@ export class Store {
     const container = this.changeContainer(change)
     if (!container) return false
     const live = container.elements.find((e) => e.id === change.elementId)
-    if (change.after) return !!live && JSON.stringify(live) === JSON.stringify(change.after)
+    if (change.after) return !!live && jsonEqual(live, change.after)
     return !live
   }
 
