@@ -134,7 +134,7 @@ test('without the window, the pane opens at once and shows each slide as it is w
 
   await $.tool.call({ tool: `${TOOL}slide_html`, op: 'write', slideId: 's1', html: '<h1>x</h1>' })
   await clock.settle()
-  expect(renders).toEqual([{ slideId: 's1' }])
+  expect(renders).toEqual([{ slideId: 's1', width: 800 }])
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Image', key: 'shot' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /Created and opened TCP\.beeslides\.html/ })).toBeDefined()
@@ -203,7 +203,7 @@ test('prev / next swap through the deck; live follows the agent again', async ($
   await clock.settle()
   expect(await ui.find({ type: 'Text', text: /s3 · 3\/3/ })).toBeDefined()
   // no picture of s3 yet: the pane made one, without taking it for the latest
-  expect(calls.filter((c) => c.tool === 'render_preview')).toEqual([{ tool: 'render_preview', args: { slideId: 's3' } }])
+  expect(calls.filter((c) => c.tool === 'render_preview')).toEqual([{ tool: 'render_preview', args: { slideId: 's3', width: 800 } }])
   expect((await ui.find({ type: 'Button', key: 'live' }))?.text).toContain('s2')
   await ui.press({ key: 'prev' })
   await ui.press({ key: 'prev' })

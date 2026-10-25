@@ -37,6 +37,8 @@ interface Pending {
    *  and main adds the screenshot (see slidomingo:agent-query-response).
    *  `previews`: variants previews — main renders the pages it lists. */
   capture: 'shot' | 'previews' | null
+  /** `shot`: the widest the picture may be (render_preview `width`). */
+  maxWidth?: number
   timer: NodeJS.Timeout
 }
 
@@ -153,9 +155,19 @@ function sendToEditor(win: BrowserWindow, sessionId: string, channel: AgentChann
   const capture = channel === 'agent-query' && (body.verb === 'render_preview' || body.verb === 'review_slide') ? 'shot'
     : channel === 'agent-action' && body.verb === 'variants' && (body.args as { op?: unknown } | undefined)?.op === 'previews' ? 'previews'
       : null
+  const maxWidth = capture === 'shot' ? shotWidth(body.args) : undefined
   const timer = setTimeout(() => pending.delete(requestId), PENDING_TTL_MS)
-  pending.set(requestId, { reply, winId: win.id, capture, timer })
+  pending.set(requestId, { reply, winId: win.id, capture, ...(maxWidth ? { maxWidth } : {}), timer })
   wc.send(IPC_OUT[channel], { ...body, sessionId })
+}
+
+/** render_preview `width`: the widest the picture may be, in pixels. Not in
+ *  the tool's listing: the BeeSlides pane asks for a picture about as wide as
+ *  it draws one, a fraction of a full-size shot's bytes (the shot is
+ *  1280 CSS px times the display's pixel ratio). */
+function shotWidth(args: unknown): number | undefined {
+  const w = (args as { width?: unknown } | null | undefined)?.width
+  return typeof w === 'number' && Number.isFinite(w) ? Math.round(Math.max(64, Math.min(4096, w))) : undefined
 }
 
 /** The waiting entry for an answer from doc view `senderId`, removed — null
@@ -174,7 +186,7 @@ function take(senderId: number, requestId: unknown): { win: BrowserWindow; entry
  *  only checks the slide and says where it is (editor.ts prepareCapture /
  *  snapshotFor); capturePage() must run here, against the doc view's own
  *  webContents, which the renderer has no access to. */
-async function withCapture(win: BrowserWindow, result: AgentResult): Promise<AgentResult> {
+async function withCapture(win: BrowserWindow, result: AgentResult, maxWidth?: number): Promise<AgentResult> {
   try {
     const { offscreen, ...rest } = (result.result ?? {}) as { offscreen?: unknown; rect?: { x: number; y: number; width: number; height: number } | null }
     let image: NativeImage
@@ -198,6 +210,7 @@ async function withCapture(win: BrowserWindow, result: AgentResult): Promise<Age
         : undefined
       image = await (crop ? wc.capturePage(crop) : wc.capturePage())
     }
+    if (maxWidth && image.getSize().width > maxWidth) image = image.resize({ width: maxWidth, quality: 'best' })
     const data = image.toPNG().toString('base64')
     return { ...result, result: { ...rest, image: { data, mimeType: 'image/png' } } }
   } catch (err) {
@@ -249,6 +262,6 @@ export function registerAgentBridgeIpc(): void {
   onFrom('app-shell', 'slidomingo:agent-query-response', async (ev, result: AgentResult) => {
     const hit = take(ev.sender.id, result?.requestId)
     if (!hit) return
-    hit.entry.reply(hit.entry.capture === 'shot' && result.ok ? await withCapture(hit.win, result) : result)
+    hit.entry.reply(hit.entry.capture === 'shot' && result.ok ? await withCapture(hit.win, result, hit.entry.maxWidth) : result)
   })
 }

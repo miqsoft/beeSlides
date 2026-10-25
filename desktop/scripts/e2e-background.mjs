@@ -225,6 +225,20 @@ async function driver() {
     if (cshot && process.env.E2E_DUMP) writeFileSync(join(root, 'chart.png'), Buffer.from(cshot.data, 'base64'))
     const inked = cshot ? share(cshot.data, (r, g, b) => Math.max(r, g, b) - Math.min(r, g, b) > 60) : 0
     ok(inked > 0.05, `the chart's bars are in the off-screen screenshot (${(inked * 100).toFixed(1)}% coloured pixels)`)
+
+    // ---- 6b''. render_preview width (the pane's pictures): no wider than asked
+    const pngWidth = (b64) => Buffer.from(b64, 'base64').readUInt32BE(16)
+    for (const [label, slideId] of [['off screen', chartSlide], ['on the canvas', s0]]) {
+      const timed = async (args) => {
+        const t0 = Date.now()
+        const r = await mcp.tool('render_preview', { slideId, ...args }, 30000)
+        return { ms: Date.now() - t0, data: imagesOf(r)[0]?.data ?? '' }
+      }
+      const full = await timed({})
+      const small = await timed({ width: 800 })
+      ok(!!small.data && pngWidth(small.data) === 800 && pngWidth(full.data) > 800,
+        `render_preview width 800, ${label}: ${pngWidth(full.data)} px ${Math.round(full.data.length / 1024)} KB base64 ${full.ms} ms → ${pngWidth(small.data)} px ${Math.round(small.data.length / 1024)} KB ${small.ms} ms`)
+    }
     await mcp.tool('deck', { op: 'delete', slideIds: [chartSlide] })
 
     // ---- 6b'. icons: the user's token-protected server and folder

@@ -76,6 +76,11 @@ const LOG_MAX = 40
 /** How many slide pictures the pane keeps, and before pictures. */
 const SHOTS_MAX = 80
 const BEFORES_MAX = 20
+/** How wide the pictures the pane makes are, in pixels: like the designs
+ *  (variants previews), a third of the bytes of a full-size shot, and a
+ *  photo slide stays under the 2 MiB an Image takes. An app from before
+ *  render_preview `width` sends full size. */
+const SHOT_W = 800
 /** How many threads the pane lists under the slide. */
 const THREADS_MAX = 3
 /** How many elements the comment target list offers. */
@@ -253,12 +258,17 @@ const keepShot = ($: EngineInterface, id: string, png: string) =>
     return Object.fromEntries(Object.entries({ ...rest, [id]: png }).slice(-SHOTS_MAX))
   })
 
+/** A new picture of slide `id`, SHOT_W wide; undefined when none came. */
+async function shoot($: EngineInterface, id: string): Promise<string | undefined> {
+  const r = await $.mcp.call(SERVER, 'render_preview', { slideId: id, width: SHOT_W }).catch(() => null)
+  return r && !r.isError ? pngsOf(r.content as Block[])[0] : undefined
+}
+
 /** A slide's picture now: the one kept, else one made (and kept). */
 async function pictureOf($: EngineInterface, id: string): Promise<string | undefined> {
   const kept = (await read($, shots))[id]
   if (kept) return kept
-  const r = await $.mcp.call(SERVER, 'render_preview', { slideId: id }).catch(() => null)
-  const png = r && !r.isError ? pngsOf(r.content as Block[])[0] : undefined
+  const png = await shoot($, id)
   if (png) await keepShot($, id, png)
   return png
 }
@@ -275,8 +285,7 @@ async function renderNext($: EngineInterface): Promise<void> {
     for (let job = toRender.entries().next().value; job !== undefined; job = toRender.entries().next().value) {
       const [id, quiet] = job
       toRender.delete(id)
-      const r = await $.mcp.call(SERVER, 'render_preview', { slideId: id }).catch(() => null)
-      const png = r && !r.isError ? pngsOf(r.content as Block[])[0] : undefined
+      const png = await shoot($, id)
       if (!png) continue
       await keepShot($, id, png)
       if (!quiet) await setLatest($, id)
