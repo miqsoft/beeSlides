@@ -263,6 +263,20 @@ export class Editor {
       this.lastTemplateSamples = store.doc.templateSamples !== false
       store.on('doc', () => this.keepTemplateIdentity())
     }
+    // The derive passes (derive-not-commit: linked charts, container
+    // children, connectors, palette refs, live slide-type instances) are
+    // registered BEFORE build(), i.e. before the canvas's and panel's own
+    // 'doc' listeners: they finish the model first, so the canvas renders
+    // ONCE with the derived geometry. They never render themselves — when
+    // they ran after the canvas, every commit that moved a connected shape
+    // (or moved a container) rendered the slide twice.
+    // syncContainers stays before syncConnectors: a connector anchored to a
+    // container child must see the child's re-derived box.
+    store.on('doc', () => this.syncLinkedCharts())
+    store.on('doc', () => this.syncContainers())
+    store.on('doc', () => this.syncConnectors())
+    store.on('doc', () => this.syncThemeRefs())
+    store.on('doc', () => this.syncLayoutInstances())
     this.registerCommands()
     this.build()
     this.wireKeyboard()
@@ -317,11 +331,6 @@ export class Editor {
       window.slidomingoDesktop?.sendTerminalTheme(resolvedTheme())
       onThemeChange((t) => window.slidomingoDesktop?.sendTerminalTheme(t))
     }
-    store.on('doc', () => this.syncLinkedCharts())
-    store.on('doc', () => this.syncContainers())
-    store.on('doc', () => this.syncConnectors())
-    store.on('doc', () => this.syncThemeRefs())
-    store.on('doc', () => this.syncLayoutInstances())
     // "Change layout…" — from the panel, the ribbon, and the Layout
     // Manager's slide leaves (typetree.ts, which names the slide).
     document.addEventListener('slidomingo:apply-layout', ((ev: CustomEvent) => {
@@ -4922,10 +4931,9 @@ export class Editor {
     const sig = paletteSignature(this.store.doc)
     if (sig === this.paletteSig) return
     this.paletteSig = sig
-    if (resolveThemeRefs(this.store.doc)) {
-      this.canvas.render()
-      this.scheduleThumbs()
-    }
+    // every slide changed, not just the open one (the canvas renders after
+    // this pass — see the constructor)
+    if (resolveThemeRefs(this.store.doc)) this.scheduleThumbs()
   }
 
   // --- live table→chart binding -------------------------------------------------
@@ -4942,21 +4950,20 @@ export class Editor {
     const sig = slide.id + '|' + tables.map((tb) => `${tb.id}:${tb.columns.length}:${JSON.stringify(tb.rows)}`).join('|')
     if (sig === this.tableSig) return
     this.tableSig = sig
-    let changed = false
     for (const chart of linked) {
       const table = tables.find((tb) => tb.id === chart.source!.tableId)
-      if (table && syncLinkedChart(chart, table)) changed = true
+      if (table) syncLinkedChart(chart, table)
     }
     // the triggering table edit already dirtied the doc + drives collab/autosave;
-    // each replica derives identically from the synced table, so just re-render.
-    if (changed) this.canvas.render()
+    // each replica derives identically from the synced table. The canvas's own
+    // 'doc' listener runs after this pass and draws the result.
   }
 
   /** Re-route connectors (line shapes anchored to elements via from/to) when
    *  anything on the slide moves. Derived, not committed — every replica computes
    *  the same endpoints from the element boxes (mirrors syncLinkedCharts). */
   private syncConnectors() {
-    if (rerouteConnectors(this.store.slide).length) this.canvas.render()
+    rerouteConnectors(this.store.slide) // drawn by the canvas's own 'doc' render, which runs after
   }
 
   /** Re-derive every container child's absolute box from its parent + stored
@@ -4972,7 +4979,7 @@ export class Editor {
    *  so a connector anchored to a container child sees the child's
    *  just-resynced box, not a stale one. */
   private syncContainers() {
-    if (deriveContainerChildren(this.store.slide).length) this.canvas.render()
+    deriveContainerChildren(this.store.slide) // drawn by the canvas's own 'doc' render, which runs after
   }
 
   // --- Layout Manager (live layout / building-block sync) ------------------
@@ -5059,7 +5066,7 @@ export class Editor {
     const retired = new Set([...this.store.surfaceSyncIds].filter((id) => !current.has(id)))
     this.store.surfaceSyncSig = sig
     this.store.surfaceSyncIds = current
-    if (resyncLinkedSlides(doc, surface.id, known, retired)) { this.canvas.render(); this.scheduleThumbs() }
+    if (resyncLinkedSlides(doc, surface.id, known, retired)) this.scheduleThumbs() // the canvas renders after this pass
   }
 
   // --- auto-save + crash recovery -----------------------------------------------

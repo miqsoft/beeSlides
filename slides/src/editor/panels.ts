@@ -60,6 +60,7 @@ import { texError } from '../math'
 import { buildMathPalette, insertIntoTextarea, openProsePalette, tabToSlot } from './mathpalettebar'
 import { ZOOM_SECONDS, ensureTerm, termText, zoomCover, type ZoomElement } from '../model'
 import { openZoomPicker, zoomTargetLabel } from './zoompicker'
+import { FrameCoalescer, inLiveStep, liveStep } from './livestep'
 
 // parseColor/combineColor now live in colorpicker.ts (the color popover needs
 // them too); re-exported here so this module's public surface is unchanged.
@@ -227,7 +228,9 @@ export class PropsPanel {
     // a focused input (skip + mark stale) and catch up when focus leaves.
     store.on('selection', () => this.rebuild(true))
     store.on('current', () => this.rebuild(true))
-    store.on('doc', () => this.rebuild())
+    // A live step of a burst started elsewhere (mini toolbar colour drag)
+    // catches up at the next frame — one rebuild per frame, not per input.
+    store.on('doc', () => (inLiveStep() ? this.liveRebuild.schedule() : this.rebuild()))
     store.on('look', () => this.rebuild(true))
     onSystemFontsReady(() => this.rebuild())
     this.host.addEventListener('focusout', () => {
@@ -282,7 +285,10 @@ export class PropsPanel {
     this.edits.edit(mutate, final)
   }
 
+  private readonly liveRebuild = new FrameCoalescer(() => this.rebuild())
+
   private rebuild(force = false) {
+    this.liveRebuild.cancel()
     if (!force && (this.isActiveEditFocus() || this.gradDragging)) {
       this.stale = true // don't rip the field out from under the user; catch up on focusout
       return
@@ -4924,7 +4930,7 @@ export function renderThemeSwatches(host: HTMLElement, store: Store): void {
       burst = false
       store.recordAction()
     }
-    store.touch()
+    liveStep(final, () => store.touch()) // see ElementEdits.edit
   }
   const section = (key: string) => {
     const h = document.createElement('h3')

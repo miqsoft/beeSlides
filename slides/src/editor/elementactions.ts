@@ -22,6 +22,7 @@ import { refAt, setColor } from '../palette'
 import { t } from '../i18n'
 import { resetCrop } from './cropmode'
 import { fitMathFrame } from '../measure'
+import { liveStep } from './livestep'
 
 /** Where a colour lives, for palette references. `id: null` = the slide. */
 export interface ColorRef { id: string | null; path: string }
@@ -67,7 +68,9 @@ export class ElementEdits {
       this.justCommitted = true
       queueMicrotask(() => { this.justCommitted = false })
     }
-    this.store.touch()
+    // A non-final step redraws the canvas and panel at the next frame, not
+    // now (livestep.ts); the final step is the ordinary synchronous commit.
+    liveStep(final, () => this.store.touch())
   }
 
   /** Abandon an open burst without committing anything — the next edit

@@ -37,6 +37,7 @@ import { lsGet, lsSet } from '../../../kernel/src/storage.ts'
 const SVG_NS = 'http://www.w3.org/2000/svg'
 type DrawKind = 'line' | 'path' | 'connector' | 'free' | 'poly'
 import { CommentsUI } from './comments'
+import { FrameCoalescer, inLiveStep } from './livestep'
 
 /** Editor-only view preference — never in the doc, same idiom as present.ts's
  *  'slidomingo-reduce-motion' (a VIEWER setting, not a document property). */
@@ -72,6 +73,9 @@ export class SlideCanvas {
    *  progress and was deferred so it wouldn't tear the edited node out from
    *  under the caret; flushed when the edit commits. */
   private pendingRender = false
+  /** a live step of a continuous panel edit (livestep.ts) redraws at the next
+   *  frame; any synchronous render() supersedes it */
+  private readonly liveRender = new FrameCoalescer(() => this.render())
   /** space is down and the canvas is armed to pan (see the keydown handler) */
   private spaceHeld = false
   /** a pan drag is in flight — keeps the grabbing cursor through a space release */
@@ -483,9 +487,11 @@ export class SlideCanvas {
     new ResizeObserver(() => this.relayout()).observe(wrap)
 
     store.on('current', () => this.render())
-    store.on('doc', () => this.render())
+    store.on('doc', () => (inLiveStep() ? this.liveRender.schedule() : this.render()))
     store.on('look', () => this.render())
-    store.on('selection', () => this.syncTargets())
+    // with a live redraw still waiting, the selection syncs against the new
+    // surface — render() runs syncTargets itself
+    store.on('selection', () => (this.liveRender.pending ? this.render() : this.syncTargets()))
     // while shapes are dragged, show them as drawn: the styled picture would lag behind
     this.gestureListeners.add((on) => this.scaleHost.classList.toggle('ed-lookview-live', on))
 
@@ -1809,6 +1815,7 @@ export class SlideCanvas {
     return { rect: { x: Math.round(x0), y: Math.round(y0), width: Math.round(x1 - x0), height: Math.round(y1 - y0) }, restore }
   }
   render() {
+    this.liveRender.cancel()
     // A slide switch is a hard boundary for an inline edit. Commit against
     // the slide where editing began (or discard if that slide was remotely
     // deleted) before replacing the canvas DOM.

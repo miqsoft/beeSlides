@@ -31,7 +31,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 - A lone selected container feeds `[container, ...children]` to `moveable.target`, so Moveable runs every gesture as a Group variant; `store.selection` still holds only the container. `containerCascadeChildren()` returns `[]` unless exactly one element is selected.
 - `commitDomFrames(…, cascadeContainerId)` re-derives children's `parentOffset` in the same commit.
 - Rotate deliberately excludes children: `rotateGroupStart` snapshots `rotateCascadeChildIds` and `rotateGroup` skips their transforms. Keep that intercept if touching rotate.
-- `syncContainers` is registered on `'doc'` BEFORE `syncConnectors`; both only resync the open slide.
+- `syncContainers` is registered on `'doc'` BEFORE `syncConnectors`; both only resync the open slide. All derive passes (`syncLinkedCharts`/`syncContainers`/`syncConnectors`/`syncThemeRefs`/`syncLayoutInstances`) register BEFORE `build()` (before the canvas's own `'doc'` render) and never call `canvas.render()` themselves — one render per commit.
 
 ## Lines, paths, presets
 
@@ -87,6 +87,7 @@ Repo-wide rules: root `AGENTS.md`. The model, renderer and present mode:
 - Title bar + ribbon (`buildRibbonChrome`) run on desktop AND in desktop-width browsers (`ribbon.ts useRibbonChrome`); phones get `buildWebTopbar`. Gate desktop-only ITEMS on the API they call (`window.slidomingoDesktop?.x`), never the chrome on `isDesktopShell()`. The browser menu bar (`menubar.ts`) draws `commands.serialize()`; main-owned slots map in `Editor.webMenuSlot`.
 - `this.section(key, …)` takes the ENGLISH key: open state persists by `data-key` in `slidomingo-panel-open-v2`. A new orderable section needs an entry in `catalog.PANEL_SECTIONS`.
 - `ElementEdits` (`elementactions.ts`) owns undo bursts (reset on selection/current, never on panel rebuild); setters take one id or several (one undo step).
+- Non-final burst steps run their `touch()` inside `livestep.ts liveStep`: canvas render and panel rebuild wait for the next frame (at most one per frame). Final steps, commits and undo stay synchronous; a sync `render()`/`rebuild()` cancels the pending frame, a selection change flushes it.
 - Mini toolbar never rebuilds while one of its fields is focused or its colour popover is open. The docked top bar is a second instance: control changes show in both.
 - A NEW context-menu item, minibar control or toolbar button needs a `data-ui-item`/`data-ui-tool` id AND an entry in `customize/catalog.ts` (`CONTEXT_ITEMS`/`MINIBAR_ITEMS`/`TOOLBAR_ITEMS`), or `scripts/test-ui-profile.ts` fails. Same rig pins `RESERVED_CHORDS` to `wireKeyboard`.
 - Customize: toolbar hide/order is CSS (`logic.toolbarCss`), never DOM moves. Its keydown listener registers AFTER `wireKeyboard` (built-ins win). User labels never go through `t()`; set with `textContent`.
