@@ -110,8 +110,9 @@ full shared field set: `id, x, y, w, h, rotation, opacity`.
 
 ## Make it look designed, not just correct
 
-How it should look (one type scale, one accent with one job, space before
-boxes, four starter looks) is in `design.md` in this same directory. Match
+How it should look (one look carried through as one stylesheet, colours
+with fixed meanings, diagrams drawn for the content, starter looks) is in
+`design.md` in this same directory. Match
 the material to the feature:
 
 | Material | Reach for | Why |

@@ -168,7 +168,8 @@ elements — the deck stays a normal BeeSlides deck, nothing is "an HTML slide".
   (`border-radius: 50%` → ellipse; a one-sided border → its own bar, curved
   under rounded corners). A block holding only text (inline `b i u s code a
   span br`, or a `ul`/`ol`) → one text element on its content box; bold,
-  italics, colour and size of inline runs — even from CSS classes — are kept.
+  italics, colour, size, typeface, weight and letter spacing of inline runs —
+  even from CSS classes — are kept (a serif-italic word in a sans title).
   `<img>` → picture (`src`: a `data:` URI, `asset:<key>` or `element:<id>` of a
   picture already in the deck; nothing is downloaded). `<table>` → table
   (`thead`/`th` header, padding, borders, colours, zebra, `colspan`/`rowspan`
@@ -274,7 +275,8 @@ built for it:
 | a **comparison / spec / feature grid** (rows × columns of labels and values) | a **table** element | real cells align and style as one |
 | consecutive slides about the **same thing changing** (before/after, steps, a metric across stages) | **morph**: the same element `id` on both slides + `transition:"morph"` on the later one (motion subtle or expressive) | the shared elements glide, so the change is visible |
 | a point to **drill into** (a definition, "click to see how") | a **state slide** (`stateOf` + element `link`) | the story stays linear; the detail is one click away |
-| a **steps / sequence / flow / comparison** diagram | a **component** (`slide_html` `data-component`) | one line of data, the deck's colours, steps reveal with `data-active` |
+| a **mechanism** (packets in flight, a handshake over time, a queue filling) | an inline **`<svg>` drawn for it** in `slide_html` (arrowheads with `marker-end`) | the real states and labels explain it; it becomes editable shapes |
+| a standard **steps / sequence / flow / comparison** diagram | a **component** (`slide_html` `data-component`) | one line of data, the deck's colours, steps reveal with `data-active` |
 | a **full-slide photo** | a full-bleed image + scrim + text; a slow **ken-burns** with motion expressive | the picture carries the slide |
 | a **headline number** in a pitch | big text + `fx:{countUp:true}` | in a talk, lecture or meeting, show it beside what it is compared with instead |
 | **repeated chrome / a logo** | keep its `id` stable across slides | it stays in place instead of popping |
@@ -362,7 +364,7 @@ Clicking a tile plays its section (→ walks it, hidden slides included) and zoo
 
 ### Before you finish — self-audit
 
-- [ ] Does each slide pass `design.md` (one type scale, one accent with one job, the budgets of the profile)?
+- [ ] Does each slide pass `design.md` (the deck's one look, colours that keep their meaning, sizes a room can read, the budgets of the profile)?
 - [ ] Numbers shown as text that would read better as a **chart** or a **table**?
 - [ ] Consecutive slides on one subject sharing element **ids + `transition:"morph"`** (motion subtle or expressive)?
 - [ ] A drill-down that would work better as a **state slide**?

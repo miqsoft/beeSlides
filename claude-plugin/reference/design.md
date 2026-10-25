@@ -5,6 +5,11 @@ The design rules every deck skill builds on (shipped to agents as
 A look the user asked for, or the deck's own look, comes first; these rules
 fill in what nobody decided. Sources: DECISIONS 2026-10-25.
 
+The aim is a deck with character that reads from the back of the room: one
+recognisable look carried through every slide, and pictures drawn for the
+content. Safe and generic is not the goal; readable and consistent is the
+floor.
+
 ## Tone and density, by profile
 
 The deck's profile (purpose, typical slide, simplicity, decoration, motion;
@@ -13,114 +18,160 @@ The deck's profile (purpose, typical slide, simplicity, decoration, motion;
 - **Tone.** A conference talk, lecture, meeting or deck for reading states
   and shows. Titles are claims the evidence supports, in plain words. A
   number sits next to what it is compared with (the baseline, last year)
-  and says where it comes from, which usually makes it a chart or a table;
-  one large number in the whole deck at most, for the main result. A pitch
-  may sell: hero numbers, count-ups and one-word panels belong there.
+  and says where it comes from; one large number in the whole deck at most,
+  for the main result. A pitch may sell: hero numbers and one-word panels
+  belong there.
 - **How much a slide holds** (simplicity minimal / clean / rich): at most
-  4 / 7 / 10 text blocks, 1 / 4 / 8 boxes holding text, 3 / 4 / 6 items in
-  one row, grid or list. The typical slide says how much text: visual +
+  4 / 7 / 10 blocks of running text (a title, a paragraph, a list, a
+  caption) and 3 / 4 / 6 items in one row, grid or list. Labels inside a
+  diagram do not count: a diagram may carry as many short labels as it needs
+  to explain itself. The typical slide says how much text: visual +
   takeaway is a title and one sentence; balanced up to 3 short points;
-  mostly text up to 5. A box or diagram node holds one text (its name); what
-  it means goes into a caption or the speaker notes.
+  mostly text up to 5.
 - **The slide carries the point, the notes carry the detail.** Over budget,
   split the slide, use a table or move detail to the notes, and keep the
-  type size. Smallest text 18 px on a slide that is presented, body 24 px
-  or more; 14 px for a deck for reading.
+  type size.
+- **Sizes a room can read** (a slide that is presented): running text 22 px
+  or more, anything the audience must read 16 px or more, diagram labels
+  included. A deck for reading may go down to 13 px.
 - **Motion:** none means a plain fade at most; subtle adds fades and morph;
   expressive allows any effect. **Decoration:** plain means no icons or
-  imagery; icons come from the user's icon library. Talks and lectures stay
-  flat (no shadows, gradients or glows); those effects need motion
-  expressive or decoration imagery.
+  imagery; icons come from the user's icon library.
 
-## Type
+## The look: one system, carried through
 
-1. **One type scale for the whole deck:** label 20, body 28, title 40,
-   statement 56 px (a step of about 1.4, so the levels read apart at a
-   glance). Every slide uses only these sizes, and the same body size even
-   when a slide has one line.
-2. **Titles are a claim in sentence case**, flush left, at most two lines,
-   weight 600–700, line-height 1.15. The audience reads the title first; a
-   claim tells them what to see.
-3. **Body text** weight 400, line-height 1.35, left-aligned. Centre only a
-   statement or a title slide.
-4. **At most two typefaces with different jobs:** a serif for titles and a
-   sans for text, or one sans with 700 against 400. Monospace is for code.
-5. **Short lines:** a text column stays under about 60 characters (about
-   800 px at 28 px). Wider content goes into two columns.
-6. **Emphasis by the smallest difference that works:** weight or the text
-   colour against `--bs-muted` first, the accent second, size last. Bold
-   sparingly, never bold and italic together, no underlines, no all caps.
+1. **Decide the look once, as one stylesheet**, before the first slide:
+   colours, type, the motif. Every slide uses only that stylesheet's
+   classes and variables. This is what makes a deck look designed.
+2. **A type pairing with jobs.** Up to three typefaces, each with one job:
+   a display face for titles, a text face, and a utility face for labels,
+   data and code (a monospace or a narrow sans). A word set in a
+   contrasting face inside a title (a serif italic in a bold sans: "IP
+   makes *no* promises") is a strong motif; use it on every title or none.
+3. **A clear type scale** with real contrast between levels, e.g. title
+   56–64, statement 40–48, text 22–26, label 16–18 px. Titles tight
+   (line-height about 1.05, slightly negative letter-spacing at large
+   sizes), text open (line-height 1.35–1.45).
+4. **Small labels may be spaced capitals** (a few words, letter-spacing
+   0.08–0.16em, the utility face): section names, axis names, the header
+   strip. Sentences never are.
+5. **A motif on every slide:** a header strip (deck or section name left,
+   page `{{page}}` right) in the label style, section numbers ("02 · Where it
+   lives") when the deck has sections, a hairline.
+6. **The title slide is the cover, and it is bold:** one big idea set huge
+   (the key word or acronym at 160–300 px, tight letter-spacing), the full
+   title and a one-line promise in the display and text faces, and a small
+   motif drawn from the content (the packets in flight, the curve the talk
+   is about, the object in question) in the deck's colours, often on a dark
+   full background. A headline alone on a colour is not a cover. Section
+   slides may break the pattern the same way.
+7. **Colours with meanings.** A background with some warmth or tint (paper,
+   slate, off-white) or a deliberate white; an ink near black, not black; a
+   muted ink for secondary text. Then one or two accents, and each accent
+   means one thing across the whole deck (data vs acknowledgements, ours vs
+   theirs, the current step). Labels, rules and decoration stay neutral
+   unless they carry that meaning.
+8. **Contrast:** text at least 4.5:1 on its background; arrows, chart marks
+   and icons at least 3:1.
+9. **Set the deck theme to the look** (`deck_settings` theme or a
+   propose_variants design's `theme`: background, text colour, accent,
+   accent2, fonts) and write the stylesheet on the theme variables
+   (`--bs-bg`, `--bs-text`, `--bs-accent`, `--bs-accent2`, `--bs-muted`,
+   `--bs-line`, `--bs-tint`, `--bs-font`, `--bs-heading-font`), so
+   components, new elements and later theme changes match.
 
 ## Space and grid
 
-7. **Margins:** every text starts on the left margin (`var(--bs-margin)`,
-   96 px) or on a grid line; nothing crosses the right margin.
-8. **One spacing scale:** 16 / 32 / 48 / 64 px. 48 between title and
-   content, 32 between blocks, 16 inside a group. Equal things get equal
-   gaps.
-9. **Text beside evidence splits the width unevenly** (about 5:7 or 4:8);
-   halves only for a real comparison of two equals.
-10. **The title sits at the same place on every content slide**, and the
-    content fills the content area below it: grow the figure or centre the
-    block rather than leaving the lower half empty.
-11. **Group with space first, a hairline second (`1px solid var(--bs-line)`),
-    a tint panel third (`background: var(--bs-tint)`, radius 8 px, no border,
-    no shadow).** A box around a single text adds nothing.
+10. **Margins:** every text starts on the left margin (`var(--bs-margin)`,
+   96 px, or the look's own) or on a grid line; nothing crosses the right
+   margin.
+11. **One spacing scale** (e.g. 8 / 16 / 24 / 32 / 48 / 64 px). Equal things
+    get equal gaps; more space between groups than inside them.
+12. **Text beside evidence splits the width unevenly** (about 5:7 or 4:8);
+    halves only for a real comparison of two equals.
+13. **The title sits at the same place on every content slide**, and the
+    evidence fills the area below it: it starts about 48 px under the title
+    and reaches down towards the footer. Grow the figure rather than leaving
+    a band under the title or an empty lower half (`review_slide` reports
+    both as `layout-empty-band`).
+14. **Group with space first, a hairline second, a tint panel third.** A box
+    around a single text adds nothing.
 
-## Colour
+## Evidence: draw what the content does
 
-12. **Neutrals carry the slide:** background, `--bs-text` and `--bs-muted`
-    make up about 90% of it. The accent is the rest.
-13. **The accent has one job:** it marks what the title talks about (the
-    bar that matters, the current step, the term being defined). Labels,
-    rules and decoration stay neutral.
-14. **Contrast:** text at least 4.5:1 on its background; arrows, chart marks
-    and icons at least 3:1. The theme's text, muted and accent colours of
-    the starter looks below already pass.
-15. **Dark text near black, not black** (e.g. `#1D2433` on white), and
-    off-white on dark backgrounds: softer and easier to read in a lit room.
-
-## Evidence
-
-16. **One message per slide, readable in three seconds:** a title claim and
+15. **One message per slide, readable in three seconds:** a title claim and
     one piece of evidence (a figure, a table, a diagram, a short list) that
-    fills the content area.
-17. **Charts:** label lines and bars directly instead of a legend; few or no
-    gridlines; the series the title talks about in the accent, the others in
+    fills the area below it.
+16. **A diagram drawn for this content beats a generic one.** When the point
+    is a mechanism (packets reordered and lost, a handshake over time, a
+    window sliding, a queue filling), draw it as inline `<svg>` in the
+    slide: the real states, the real labels, arrows with arrowheads
+    (`marker-end`), time running down the page. It becomes editable shapes.
+    Use a component (`data-component`) where a standard form fits or the
+    parts reveal step by step.
+17. **A drawn diagram explains, it does not just show:** every state and
+    part has its name (CLOSED, SYN-SENT, ESTABLISHED; buffer, window), every
+    arrow says what it carries (SYN seq=x), and one or two short
+    annotations say why at the point where it happens (the timeout bracket,
+    "has 3000, still needs 2000", "4 overtook 3"). Show all the cases the
+    title promises (lost, reordered, duplicated and corrupted, not two of
+    them). Fewer, bigger parts at 16 px or more, but every part named.
+18. **Diagrams speak the deck's colour meanings:** the same accent for the
+    same thing on every slide; everything else in the ink and muted colours,
+    strokes 1.5–2 px, labels in the label style.
+19. **Charts:** label lines and bars directly instead of a legend; few or no
+    gridlines; the series the title talks about in an accent, the others in
     `--bs-muted`.
-18. **Diagrams:** use a component (`data-component`) where one fits: it
-    takes the theme's colours. Hand-drawn parts: nodes of one size on a grid,
-    2 px strokes in the text colour, a short label on every arrow, at most
-    one node in the accent.
-19. **Pictures** run to the slide edge, or fill whole grid columns; give them
-    no frame or shadow.
-20. **Slides of the same kind share one layout**, so the deck reads as a
+20. **Pictures** run to the slide edge, or fill whole grid columns; no frame
+    or shadow.
+21. **Slides of the same kind share one layout**, so the deck reads as a
     series (and morphs). Vary the layout with the content, never for
     variety's sake.
+22. **The last slide shows evidence too.** A summary puts the mechanisms
+    side by side as small diagrams, maps each problem to its fix in a table
+    with a tiny picture per row, or combines them into one diagram; a
+    closing slide may echo the cover's motif. Headings with a sentence each
+    are the last resort.
 
-## Character
+## What makes a deck look machine-made, and what to do instead
 
-21. **One quiet motif repeats on every slide**, for example the section
-    name and page number in a 20 px muted footer on the margin. Section and
-    title slides may be bold (a full background in the dark or accent
-    colour, a statement-size line); content slides stay quiet.
-22. **What makes a deck look machine-made, and what to do instead:**
-    whitespace, not an underline or a coloured bar, sets a title off; a
-    small label above a title is sentence case, not spaced capitals; numbers
-    (01, 02, i, ii) only on things that are a sequence; monospace only for
-    code; one card style is fine, but not every slide a row of identical
-    rounded cards with shadows.
-23. **Before you finish a slide, take one thing away:** a box, a label, a
-    rule, an icon. If the slide still says the same, it is better.
+23. A row of identical rounded cards with shadows on every slide → vary the
+    evidence with the content; one card style at most.
+24. A coloured bar or underline under every title → whitespace and the
+    motif set the title off.
+25. Emoji, stock icons for every bullet, gradient blobs and glows in a talk
+    → a drawn diagram, or nothing.
+26. Everything centred → left-aligned text on a grid; centre only a
+    statement or a title slide.
+27. **Before you finish a slide, take one decoration away:** a box, a
+    rule, a repeated label. If the slide still says the same, it is better.
+    Names and annotations that explain the evidence stay.
 
 ## Starter looks
 
-Four tested looks. When the user has no look, offer the ones that fit the
+Five tested looks. When the user has no look, offer the ones that fit the
 profile as `propose_variants` designs, each with its `theme`, adapted to the
-slide's content, instead of inventing looks from scratch. Each `theme` is the
-`deck_settings` theme; the CSS uses only the theme variables, so it works
-with any slide. `body{background:var(--bs-bg)}` makes the slide's background
-the theme's.
+content, or build your own in the same spirit. Each `theme` is the
+`deck_settings` theme; the CSS is the start of the deck stylesheet and uses
+the theme variables. `body{background:var(--bs-bg)}` makes the slide's
+background the theme's.
+
+**Paper and ink** — warm paper, near-black ink, a bold grotesk with serif
+italic words, monospace labels, two accents with fixed meanings (vermilion
+for data, blue for answers). Explains mechanisms well.
+
+```json
+{"background":"#F3F0E8","color":"#17191D","accent":"#E2491D","accent2":"#2F55D4","headingFamily":"Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif","fontFamily":"Inter, -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif"}
+```
+```css
+body{background:var(--bs-bg);color:var(--bs-text)}
+.strip{position:absolute;left:var(--bs-margin);right:var(--bs-margin);top:36px;display:flex;justify-content:space-between;font:500 16px/1 ui-monospace,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--bs-muted)}
+.kicker{font:600 16px/1 ui-monospace,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--bs-accent)}
+h1{margin:0;font-size:60px;font-weight:700;line-height:1.04;letter-spacing:-0.03em}
+h1 em{font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;font-style:italic;font-weight:400;letter-spacing:-0.01em}
+.lead{font-size:24px;line-height:1.45}
+.label{font:600 16px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--bs-muted)}
+```
 
 **Editorial** — calm and literary: serif claims, sans text, hairlines, a
 deep teal accent.
@@ -130,8 +181,9 @@ deep teal accent.
 ```
 ```css
 body{background:var(--bs-bg)}
-h1{font-size:40px;font-weight:600;line-height:1.15;margin:0}
+h1{font-size:48px;font-weight:600;line-height:1.1;margin:0}
 .rule{border-top:1px solid var(--bs-line)} .muted{color:var(--bs-muted)}
+.label{font-size:18px;color:var(--bs-muted)}
 ```
 
 **Swiss** — strict grid, one grotesk in two weights, signal red for the one
@@ -142,8 +194,9 @@ thing that matters.
 ```
 ```css
 body{background:var(--bs-bg)}
-h1{font-size:40px;font-weight:700;letter-spacing:-0.01em;line-height:1.1;margin:0}
+h1{font-size:56px;font-weight:700;letter-spacing:-0.02em;line-height:1.05;margin:0}
 .col{border-left:1px solid var(--bs-line);padding-left:24px}
+.label{font-size:16px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 ```
 
 **Soft panel** — friendly and clear: the evidence on one flat tinted panel,
@@ -154,7 +207,7 @@ the words on the bare background.
 ```
 ```css
 body{background:var(--bs-bg)}
-h1{font-size:40px;font-weight:600;line-height:1.15;margin:0}
+h1{font-size:48px;font-weight:650;line-height:1.1;margin:0}
 .panel{background:var(--bs-tint);border-radius:12px;padding:32px}
 ```
 
@@ -166,6 +219,7 @@ pale amber accent that lights up the active element.
 ```
 ```css
 body{background:var(--bs-bg)}
-h1{font-size:40px;font-weight:600;line-height:1.15;margin:0}
+h1{font-size:52px;font-weight:600;line-height:1.08;margin:0}
 .rule{border-top:1px solid var(--bs-line)} .muted{color:var(--bs-muted)}
+.label{font:600 16px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--bs-muted)}
 ```

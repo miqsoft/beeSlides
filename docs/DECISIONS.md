@@ -13878,3 +13878,70 @@ result: before these changes, the first TCP run drew its looks in the
 default theme's brown and hand-drew diagrams; after, both runs gave calm,
 consistent decks (claim titles, one accent, tint panels, the same footer,
 diagrams in the theme's colours) in about 3–4 minutes for $1.2–1.4.
+
+## 2026-10-25 — Design for character: one stylesheet, drawn diagrams, a faithful converter
+
+**Context.** The same TCP deck, written by Opus as one free HTML file in a
+subagent, looked clearly better than what the build-deck skill made through
+BeeSlides. Pushing that free HTML through `slide_html` unchanged kept most of
+it, so the gap was mostly our workflow, partly the converter.
+
+**Decided.**
+1. **design.md aims for character, with floors instead of bans.** One look
+   decided once as one stylesheet; a type pairing with jobs (up to three
+   faces: display, text, utility for labels and code); a serif-italic word
+   in a sans title is allowed as a motif; spaced capitals for short labels;
+   section numbers when the deck has sections; a motif (header strip) on
+   every slide; one or two accents, each with one fixed meaning. The floors:
+   22 px running text and 16 px for anything the audience must read
+   (diagram labels included) on a presented slide, 4.5:1 contrast, the
+   density budgets (diagram labels no longer count as text blocks). A fifth
+   starter look, Paper and ink, is the free deck's look.
+2. **Diagrams drawn for the content.** A mechanism is inline `<svg>` with
+   its real states and arrowheads; components stay for standard forms and
+   step-by-step reveals.
+3. **The deck is written as one document.** `slide_html` write takes
+   `slides: [{slideId, html}]` with one shared `css` (each slide its own
+   undo step), so the stylesheet is sent once per call. build-deck: look →
+   deck stylesheet → one reference slide → the rest in calls of up to 6
+   slides (writers get the stylesheet and the reference HTML). Slide types
+   only when the user wants a template or will add slides in the app.
+4. **The converter keeps what the free deck used.** A run span may carry
+   `font-family` (unquoted plain-word names only, so the splice rule "no
+   quotes, `$`, `{`, `}`" holds), `font-weight` 100–900, `font-style`
+   normal/italic and bounded `letter-spacing`, besides colour and size. Older
+   readers drop the new properties and show the run in the text's face. SVG
+   markers become shapes at each vertex (orient, markerUnits, viewBox,
+   `context-stroke`); a pattern fill becomes a tint of its ink; CSS caps and
+   tracking on SVG text and class-set opacity/markers are copied onto the
+   nodes; `open-quote`/`close-quote` become quotation marks; a tiled or
+   see-through gradient over a background colour keeps the colour as the
+   slide background; a one-line text beside a bar in a flex row gets the
+   usual one-line slack; a negative shadow spread shrinks the blur.
+
+**Measured.** The free TCP deck (6 slides, 39 KB) through `slide_html`:
+before, slide 1 came out white (its grid pattern replaced the dark colour),
+titles lost their serif-italic words and wrapped into the text below, and
+the timing diagrams lost their arrowheads; after, all six slides match the
+free HTML by eye, with 3 notes left (dash patterns, a skewed label, the grid).
+
+**Then, the same day** (a live run on this workflow matched the free deck's
+look but not its craft: a headline-only cover, diagrams with fewer parts and
+no annotations, a text recap, an empty band under two titles):
+
+5. **design.md asks for the craft:** the title slide is a cover (the key
+   word huge, a motif drawn from the content), a drawn diagram names every
+   state and arrow and annotates where something happens, the last slide
+   shows evidence too, and "take one thing away" is about decoration, never
+   the labels that explain.
+6. **`layout-empty-band`** (layoutguard.ts `emptyBandFindings`, info, in
+   `check_layout`, `review_slide` and every write report that covers the
+   title): content starting more than 14% of the height below a title in
+   the top part of the slide, or more than 20% left empty above the footer.
+   build-deck fixes these instead of accepting them.
+7. **Cost.** With the critic started from 5 slides, the 6-slide run cost
+   $3.07 against $1.85: the critic and the rework after it, and 19
+   screenshots, each re-read on every later step. So the critic stays at 8
+   slides and up, and the check looks at each slide once, a second time
+   only after a rewrite (an `elements` edit's result already carries the
+   layout check).

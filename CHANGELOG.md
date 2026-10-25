@@ -37,11 +37,24 @@ every earlier version, and unknown fields are preserved.
   look's colours (they used to keep the deck's old ones, unreadable on a
   dark look), and using a look sets the deck's colours and fonts in the same
   undo step. The compare view says so under each such look.
-- **Better-looking decks from Claude:** Claude now follows a short set of
-  design rules (one type scale, a title that states the point, one accent
-  with one job, space and hairlines instead of boxes) and offers looks
-  starting from four tested ones: Editorial, Swiss, Soft panel and Lecture
-  dark. A new deck Claude makes starts in calm near-black and teal.
+- **Better-looking decks from Claude:** Claude designs one look for the
+  whole deck (a type pairing, a header strip and section numbers, colours
+  that keep their meaning on every slide), writes all slides in it as one
+  document, and draws diagrams for the content itself (packets in flight, a
+  handshake over time, every state and arrow named) instead of reaching
+  for the same stock boxes, starting with a bold cover. Claude's layout
+  check now also catches an empty band under a title or an empty lower half
+  of a slide. Looks start from five tested ones: Paper and ink, Editorial,
+  Swiss, Soft panel and Lecture dark. A new deck Claude makes starts in
+  calm near-black and teal.
+- **Slides written as HTML look like the HTML:** a word in another typeface
+  inside a text (a serif italic word in a bold title), lighter or heavier
+  words, letter spacing and capitals set by CSS now stay as written;
+  arrowheads on diagram lines come along as shapes; a hatched fill becomes a
+  light tint instead of black; quotation marks added by CSS appear; a grid
+  pattern over a dark background keeps the dark colour (the slide used to
+  turn white); a heading beside a small bar no longer breaks onto two
+  lines.
 - **Fixed:** Claude Code did not get the line telling it whether BeeSlides
   runs with or without its window (the instruction was cut off).
 - **Fixed:** the second to sixth theme accents were not available to slides
@@ -52,10 +65,10 @@ every earlier version, and unknown fields are preserved.
   it" and it asks nothing, states its assumptions and builds.
 - **Claude builds calmer, more readable decks:** it asks one question about
   the deck (purpose, length, how full a slide may be) together with an
-  outline. You pick the look from 2–3 designs, and it builds a family of
-  slide types and checks one slide of each with you. Talks get claims backed
-  by charts and tables instead of big count-up numbers, and nothing smaller
-  than 18px. **Glow-up:** ask Claude to give a deck a new look; it keeps
+  outline. You pick the look from 2–3 designs, and it checks a first slide
+  with you before writing the rest (slide types when you want a template).
+  Talks get claims backed by charts and tables instead of big count-up
+  numbers, and nothing the audience must read smaller than 16px. **Glow-up:** ask Claude to give a deck a new look; it keeps
   every word and number.
 - **Copy for PowerPoint as editable shapes (desktop app):** Copy special ▸
   **1 PowerPoint** (⇧⌘C then 1, or Edit ▸ Copy as ▸ PowerPoint) puts the

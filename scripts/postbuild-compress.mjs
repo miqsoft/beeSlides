@@ -214,8 +214,8 @@ const SLIDES_TOOLING = `<!--
     comments(), updates, i18n }. In the app UI: Save → Copy / Replace JSON.
 
   THE FEATURE FOR THE MATERIAL
-  How a slide should look (one type scale, one accent with one job, space
-  before boxes) is in docs/slide-design.md. Match the material to the feature:
+  How a slide should look (one look carried through, colours with fixed
+  meanings, diagrams drawn for the content) is in docs/slide-design.md. Match the material to the feature:
   · numbers to compare (trend, magnitude, share)  →  a CHART element
       (preset bar|line|pie|scatter), not bullet text.
   · a comparison / spec / feature grid  →  a TABLE element
@@ -236,7 +236,7 @@ const SLIDES_TOOLING = `<!--
   [ ] numbers shown as text that should be a chart or a table?
   [ ] consecutive slides on one subject sharing ids + transition:"morph"?
   [ ] a drill-down that would work better as a state slide?
-  [ ] one type scale, one accent colour, at most two typefaces, 96px margins?
+  [ ] one look on every slide: one type scale, colours that keep their meaning?
   [ ] speaker notes written (they travel in the file)?
   ════════════════════════════════════════════════════════════════════════
 -->`

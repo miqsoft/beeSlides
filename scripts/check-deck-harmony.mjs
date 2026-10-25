@@ -143,13 +143,14 @@ out.density = shown.map((s, i) => {
   }
   return {
     slide: i + 1,
-    textEls: texts.length,
+    // labels inside a drawn diagram (its pieces share a group) are not text blocks (design.md)
+    textEls: texts.filter((e) => !e.groupId).length,
     boxes: els.filter((e) => filled(e) && texts.some((t) => t.x + t.w / 2 > e.x && t.x + t.w / 2 < e.x + e.w && t.y + t.h / 2 > e.y && t.y + t.h / 2 < e.y + e.h)).length,
     fontSizes: new Set(texts.map((e) => Math.round(e.fontSize ?? 0))).size,
     leftEdges: new Set(texts.map((e) => Math.round(e.x / 8))).size,
     coverage: +(grid.reduce((a, b) => a + b, 0) / grid.length).toFixed(2),
-    // readable from the back of a room: under 18px on a 720px-high slide is not
-    tiny: texts.filter((e) => (e.fontSize ?? 24) * (720 / H) < 18).length,
+    // readable from the back of a room: under 16px (design.md) on a 720px-high slide is not
+    tiny: texts.filter((e) => (e.fontSize ?? 24) * (720 / H) < 16).length,
     heroNumbers: texts.filter((e) => (e.fontSize ?? 0) * (720 / H) >= 96 && /^[\s\d.,%×x+−-]+[%a-zµ]*$/i.test(plain(e.html))).length,
     countUps: els.filter((e) => e.fx?.countUp).length,
     // share of the slide left empty between the lowest content and the
@@ -193,7 +194,7 @@ if (profile) {
     const counts = out.density.reduce((a, d) => a + d.countUps, 0)
     if (counts) against.push(`${profile.purpose}: ${counts} count-ups (pitch only)`)
     const tiny = out.density.reduce((a, d) => a + d.tiny, 0)
-    if (tiny) against.push(`${profile.purpose}: ${tiny} text blocks under 18px`)
+    if (tiny) against.push(`${profile.purpose}: ${tiny} text blocks under 16px`)
   }
   const lim = profile.limits ?? {}
   if (lim.maxRadius !== undefined && effects.maxRadius > lim.maxRadius) against.push(`maxRadius ${lim.maxRadius}, but a radius of ${effects.maxRadius}`)
@@ -221,7 +222,7 @@ const maxOf = (k) => Math.max(0, ...out.density.map((d) => d[k]))
 line('density avg/max', Object.keys(DENSE).map((k) => `${k} ${avg(k)}/${maxOf(k)}`).join(', '))
 const dense = Object.entries(out.dense).filter(([, s]) => s.length)
 const where = (k) => out.density.filter((d) => d[k]).map((d) => `${d.slide}${d[k] > 1 ? `×${d[k]}` : ''}`).join(',') || 'none'
-line('tiny text', `${out.density.reduce((a, d) => a + d.tiny, 0)} blocks under 18px, on slides ${where('tiny')}`)
+line('tiny text', `${out.density.reduce((a, d) => a + d.tiny, 0)} blocks under 16px, on slides ${where('tiny')}`)
 line('hero numbers', `${where('heroNumbers')}; count-ups ${where('countUps')}`)
 const topHeavy = out.density.filter((d) => d.emptyBelow > 0.25).map((d) => `${d.slide} (${Math.round(d.emptyBelow * 100)}%)`)
 line('top-heavy', topHeavy.length ? `empty below the content on ${topHeavy.join(', ')}` : 'none')
