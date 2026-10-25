@@ -103,9 +103,9 @@ let activeOwner: HTMLElement | null = null
  *
  *  With `within`, only a popover whose control sits inside that element is
  *  closed. The panel passes its own host: a popover opened from the mini
- *  toolbar must survive the panel rebuild that every live colour-drag step
- *  triggers (the edit emits 'doc', the panel rebuilds to show the new value),
- *  or the popover would vanish under the user's pointer mid-drag. */
+ *  toolbar must survive the panel rebuilds a colour drag there triggers (its
+ *  final step, or a pause mid-drag — panels.ts onLiveStep), or the popover
+ *  would vanish under the user's pointer. */
 export function closeActiveColorPopover(within?: Element): void {
   if (within && activeOwner && !within.contains(activeOwner)) return
   activeClose?.()
@@ -123,6 +123,17 @@ export interface ColorControlOpts {
   /** the caller's existing theme-palette swatches, unchanged behavior — given
    *  the native <input type=color> so a swatch click can reflect there too. */
   buildPaletteSwatches?: (input: HTMLInputElement) => HTMLElement
+}
+
+/** Each built control's in-place value setter — see syncColorControl. */
+const valueSetters = new WeakMap<HTMLElement, (value: string) => void>()
+
+/** Show `value` on a built control without rebuilding it: a live step of a
+ *  burst changed the colour under it (props panel, editor/livestep.ts). A
+ *  no-op while the control's own popover is open — the user is picking
+ *  there, and the popover owns the value. */
+export function syncColorControl(control: HTMLElement, value: string): void {
+  valueSetters.get(control)?.(value)
 }
 
 /** Builds the compact trigger chip; the popover itself is created on demand
@@ -156,6 +167,11 @@ export function buildColorControl(opts: ColorControlOpts): HTMLElement {
 
   let pop: HTMLElement | null = null
   let close = () => {}
+  valueSetters.set(wrap, (value) => {
+    if (pop || value === current) return
+    current = value
+    refreshTrigger()
+  })
 
   trigger.addEventListener('click', () => {
     if (pop) { close(); return }

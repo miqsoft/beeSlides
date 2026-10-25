@@ -28,7 +28,7 @@ import { buildPlan, clickHasParagraphs, enterStepOf, mergeClickIntoPrevious, set
 import { LANGS } from '../../../kernel/src/tokenize.ts'
 import { canFlip, resolveAsset } from '../render'
 import { fitMathFrame, measureElement } from '../measure'
-import { paletteOf, refAt } from '../palette'
+import { paletteOf, refAt, _readPath as readPath } from '../palette'
 import { CHART_PRESETS } from '../charts'
 import { catAxisKey, chartCategories, chartIsHorizontal, chartIsStacked, ensureCatAxis, setChartHorizontal, setChartStacked, valueAxisKey } from '../chartaxes'
 import { injectFonts, populateFontSelect } from '../fonts'
@@ -47,7 +47,7 @@ import type { IconLook, IconPaint, IconShapeTweak, IconsetInfo, IconsetStyle } f
 import { loadGridPref, saveGridPref, FIGURE_GRID_STEPS_MM } from './gridpref'
 import { lsJson, lsSet } from '../../../kernel/src/storage.ts'
 import { LIMITS } from '../untrusted'
-import { buildColorControl, buildPaletteSwatchRow, closeActiveColorPopover, combineColor, parseColor } from './colorpicker'
+import { buildColorControl, buildPaletteSwatchRow, closeActiveColorPopover, combineColor, parseColor, syncColorControl } from './colorpicker'
 import { positionAtRect, positionFloating } from './floatingposition'
 import { TABLE_OPS, type TableRange } from './tablerange'
 import { deleteColumns, deleteRows, insertColumn, insertRow } from '../tablespans'
@@ -229,9 +229,12 @@ export class PropsPanel {
     // a focused input (skip + mark stale) and catch up when focus leaves.
     store.on('selection', () => this.rebuild(true))
     store.on('current', () => this.rebuild(true))
-    // A live step of a burst started elsewhere (mini toolbar colour drag)
-    // catches up at the next frame — one rebuild per frame, not per input.
-    store.on('doc', () => (inLiveStep() ? this.liveRebuild.schedule() : this.rebuild()))
+    // A live step of a burst (a colour drag in the mini toolbar, typing in
+    // the notes pane) does not rebuild: the colour chips showing a changed
+    // value refresh in place at the next frame, and the burst's FINAL step —
+    // an ordinary synchronous 'doc' — rebuilds everything (History, warnings,
+    // structure). See onLiveStep.
+    store.on('doc', () => (inLiveStep() ? this.onLiveStep() : this.rebuild()))
     store.on('look', () => this.rebuild(true))
     onSystemFontsReady(() => this.rebuild())
     this.host.addEventListener('focusout', () => {
@@ -286,10 +289,66 @@ export class PropsPanel {
     this.edits.edit(mutate, final)
   }
 
-  private readonly liveRebuild = new FrameCoalescer(() => this.rebuild())
+  /** Colour chips of the current build whose shown value IS the colour at
+   *  their refs — the only panel values a live step changes from outside the
+   *  panel (live steps come from colour drags, gradient stops, chart cells
+   *  and notes; inside the panel the focused control already shows its own
+   *  value). */
+  private liveColors: Array<{ control: HTMLElement; refs: readonly ColorRef[] }> = []
+  private readonly liveSync = new FrameCoalescer(() => this.syncLiveColors())
+  /** Catch-up rebuild for a burst that pauses or never sends its final step. */
+  private liveIdle = 0
+  private static LIVE_IDLE_MS = 250
+
+  /**
+   * A live (non-final) step changed the doc. Rebuilding here cost ~1 ms of
+   * script + layout per pointer step for a mini-toolbar colour drag on a
+   * 40-element slide, though the only values such a step changes under an
+   * unfocused panel are colours. So:
+   * refresh the tracked colour chips at the next frame (one per frame) and
+   * leave everything else to the final step's synchronous rebuild — or to a
+   * rebuild once the burst has been idle for LIVE_IDLE_MS, so a pause (or a
+   * burst whose final step never comes) never leaves the panel behind.
+   */
+  private onLiveStep() {
+    this.liveSync.schedule()
+    clearTimeout(this.liveIdle)
+    this.liveIdle = window.setTimeout(() => { this.liveIdle = 0; this.rebuild() }, PropsPanel.LIVE_IDLE_MS)
+  }
+
+  /** The colour at `refs`, or undefined when they disagree or hold no string. */
+  private colorAtRefs(refs: readonly ColorRef[]): string | undefined {
+    let out: string | undefined
+    for (const ref of refs) {
+      const holder = ref.id ? this.store.element(ref.id) : this.store.slide
+      const v = holder ? readPath(holder, ref.path) : undefined
+      if (typeof v !== 'string' || (out !== undefined && v !== out)) return undefined
+      out = v
+    }
+    return out
+  }
+
+  /** Track a panel colour chip for live in-place refresh — only when the
+   *  value it shows is exactly the colour at its refs (a derived display,
+   *  like an invisible stroke's grey or a mixed selection's first value,
+   *  waits for the rebuild). */
+  private trackColor(control: HTMLElement, value: string, ref: ColorRef | ColorRef[] | undefined) {
+    if (!ref) return
+    const refs = Array.isArray(ref) ? ref : [ref]
+    if (refs.length && this.colorAtRefs(refs) === value) this.liveColors.push({ control, refs })
+  }
+
+  private syncLiveColors() {
+    for (const { control, refs } of this.liveColors) {
+      const v = this.colorAtRefs(refs)
+      if (v !== undefined) syncColorControl(control, v)
+    }
+  }
 
   private rebuild(force = false) {
-    this.liveRebuild.cancel()
+    this.liveSync.cancel()
+    clearTimeout(this.liveIdle)
+    this.liveIdle = 0
     if (!force && (this.isActiveEditFocus() || this.gradDragging)) {
       this.stale = true // don't rip the field out from under the user; catch up on focusout
       return
@@ -300,8 +359,8 @@ export class PropsPanel {
     // explicitly first. (While its hex field is focused, isActiveEditFocus()
     // above already deferred this rebuild; this covers the FORCED-rebuild and
     // nothing-focused cases that guard doesn't.) Scoped to this.host: a
-    // popover opened from the mini toolbar is not ours to close — every live
-    // step of a colour drag there rebuilds this panel.
+    // popover opened from the mini toolbar is not ours to close — a colour
+    // drag there rebuilds this panel at its final step (and when it pauses).
     closeActiveColorPopover(this.host)
     // No burst reset here any more: the burst belongs to the shared edit
     // layer, which resets it on selection/slide changes. Resetting on every
@@ -309,6 +368,7 @@ export class PropsPanel {
     // pointer move.
     const scrollTop = this.host.scrollTop
     this.stale = false
+    this.liveColors = []
     this.host.innerHTML = ''
     const els = this.store.selectedElements
     if (els.length === 0 && this.store.editingSurface?.kind === 'reusableObject') this.buildReusableObjectPanel()
@@ -4724,6 +4784,18 @@ export class PropsPanel {
     onEdit: (v: string, final: boolean) => void,
     ref?: ColorRef | ColorRef[],
   ): HTMLElement {
+    const control = this.colorChip(value, onEdit, ref)
+    this.trackColor(control, value, ref)
+    return control
+  }
+
+  /** A panel colour control, untracked (colorControl hands these to the mini
+   *  toolbar, whose chips are not this panel's to refresh). */
+  private colorChip(
+    value: string,
+    onEdit: (v: string, final: boolean) => void,
+    ref?: ColorRef | ColorRef[],
+  ): HTMLElement {
     return buildColorControl({
       value,
       alpha: false,
@@ -4752,7 +4824,7 @@ export class PropsPanel {
     onEdit: (v: string, final: boolean) => void,
     opts: { alpha?: boolean; ref?: ColorRef | ColorRef[] } = {},
   ): HTMLElement {
-    return opts.alpha ? this.colorAlpha(value, onEdit, opts.ref) : this.color(value, onEdit, opts.ref)
+    return opts.alpha ? this.colorAlphaChip(value, onEdit, opts.ref) : this.colorChip(value, onEdit, opts.ref)
   }
 
   /**
@@ -4776,6 +4848,16 @@ export class PropsPanel {
   /** Color swatch + opacity %. Native color inputs have no alpha channel, so
    *  the pair round-trips rgba()/#rrggbbaa strings losslessly. */
   private colorAlpha(
+    value: string,
+    onEdit: (v: string, final: boolean) => void,
+    ref?: ColorRef | ColorRef[],
+  ): HTMLElement {
+    const control = this.colorAlphaChip(value, onEdit, ref)
+    this.trackColor(control, value, ref)
+    return control
+  }
+
+  private colorAlphaChip(
     value: string,
     onEdit: (v: string, final: boolean) => void,
     ref?: ColorRef | ColorRef[],

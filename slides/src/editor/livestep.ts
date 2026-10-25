@@ -8,10 +8,11 @@
 // event, and input events can arrive faster than frames.
 //
 // A burst editor runs each NON-final step's notification inside `liveStep`;
-// the expensive redraw listeners (SlideCanvas.render, PropsPanel.rebuild) ask
-// `inLiveStep()` and, if so, schedule their redraw for the next animation
-// frame instead of doing it now — at most one per frame. Everything else
-// stays synchronous:
+// the expensive redraw listeners ask `inLiveStep()` and, if so, defer:
+// SlideCanvas.render draws at the next animation frame (at most one per
+// frame); PropsPanel does not rebuild at all — it refreshes its colour chips
+// in place at the next frame and rebuilds at the final step (or once the
+// burst pauses). Everything else stays synchronous:
 //   - the FINAL step of a burst and every ordinary commit/undo are not live
 //     steps, so code that reads the DOM right after a commit still sees it;
 //   - a synchronous redraw cancels a scheduled one (the frame never draws
