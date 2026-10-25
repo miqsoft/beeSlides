@@ -16,6 +16,7 @@
 import { uid } from './model'
 import type { SlideElement, SlidomingoDoc } from './model'
 import { appConfig } from '../../kernel/src/app.ts'
+import { assetId } from '../../kernel/src/assetstore.ts'
 import { isEncryptionActive } from './save'
 import { t } from './i18n'
 
@@ -261,17 +262,49 @@ export function summarizeChange(change: ElementChange): string {
 // A fresh, own-named database (`${appId}-actionlog`), NOT folded into the
 // shared kernel/src/autosave.ts store: that one is kernel-zone code shared by
 // every app, and per docs/PARALLEL-WORK.md kernel-zone changes are serialized,
-// never something to piggyback on incidentally. One object store, append-only,
+// never something to piggyback on incidentally. Records are append-only,
 // pruned to the newest MAX_PERSISTED rows per docId — same idiom as
 // autosave.ts's MAX_VERSIONS prune. Same rule as autosave: an encrypted deck
 // is NEVER written here (before/after element snapshots are exactly the same
 // plaintext-to-disk leak class as autosave's doc snapshots) — encrypted decks
 // get in-memory-only history for the session.
+//
+// PICTURES BY REFERENCE (version 2). A record holds whole elements, and an
+// image element holds its whole `data:` picture: moving a 2 MB photo wrote
+// 4 MB (before + after) per edit, 120 MB for 30 moves on a 20 MB deck, and a
+// reload read every copy back into memory. A persisted record now holds a
+// short ref per big `data:` string (`PIC_REF` + its content hash, kernel
+// assetstore.ts `assetId`), and the `assets` store holds each picture ONCE
+// per doc, written in the same transaction as the first record that needs
+// it and deleted when the last record that refers to it is pruned. Reading
+// back resolves the refs (the live doc's own string instance when it still
+// holds the picture, else one shared copy); a record whose picture is gone
+// is dropped, never handed out half-resolved. Version-1 rows (pictures
+// inline, no `v`) still read as they are.
 
 const dbName = () => `${appConfig().appId}-actionlog`
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'changes'
+/** picture bytes by (docId, assetId) — see PICTURES BY REFERENCE above */
+const ASSETS = 'assets'
 const MAX_PERSISTED = 500 // per docId
+
+/** `data:` strings at least this long are stored by reference (store.ts SNAPSHOT_REF_MIN). */
+const PIC_REF_MIN = 1024
+/** A persisted string standing for a picture: NUL + 'pic:' + assetId. A
+ *  string that itself starts with NUL is written with one more NUL in front. */
+const NUL = '\u0000'
+const PIC_REF = NUL + 'pic:'
+
+/** A record as stored: `v: 2` = big pictures are refs, listed in `assets`;
+ *  `seq` orders records of the same millisecond as they were recorded. */
+type PersistedRecord = ActionRecord & { v?: 2; assets?: string[]; seq?: number }
+/** Records stored by this page so far (`seq`). */
+let persistSeq = 0
+/** Oldest first: by time, then by recording order. */
+const byAge = (a: PersistedRecord, b: PersistedRecord) => a.at - b.at || (a.seq ?? 0) - (b.seq ?? 0)
+type AssetRow = { key: string; docId: string; id: string; uri: string }
+const assetKey = (docId: string, id: string) => `${docId}${NUL}${id}`
 
 let dbPromise: Promise<IDBDatabase | null> | null = null
 
@@ -289,6 +322,10 @@ function openDb(): Promise<IDBDatabase | null> {
         const s = db.createObjectStore(STORE, { keyPath: 'id' })
         s.createIndex('docId', 'docId', { unique: false })
       }
+      if (!db.objectStoreNames.contains(ASSETS)) {
+        const s = db.createObjectStore(ASSETS, { keyPath: 'key' })
+        s.createIndex('docId', 'docId', { unique: false })
+      }
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => resolve(null)
@@ -297,63 +334,171 @@ function openDb(): Promise<IDBDatabase | null> {
   return dbPromise
 }
 
-function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T | null> {
-  return openDb().then((db) => {
-    if (!db) return null
-    return new Promise<T | null>((resolve) => {
-      let t: IDBTransaction
-      try { t = db.transaction(STORE, mode) } catch { resolve(null); return }
-      const req = fn(t.objectStore(STORE))
-      req.onsuccess = () => resolve(req.result as T)
-      req.onerror = () => resolve(null)
-    })
+/** Run `fn` in one transaction over both stores; resolves when it is done
+ *  (true = committed). */
+async function inTx(mode: IDBTransactionMode, fn: (records: IDBObjectStore, assets: IDBObjectStore) => void): Promise<boolean> {
+  const db = await openDb()
+  if (!db) return false
+  return new Promise<boolean>((resolve) => {
+    let t: IDBTransaction
+    try { t = db.transaction([STORE, ASSETS], mode) } catch { resolve(false); return }
+    t.oncomplete = () => resolve(true)
+    t.onerror = () => resolve(false)
+    t.onabort = () => resolve(false)
+    try { fn(t.objectStore(STORE), t.objectStore(ASSETS)) } catch { try { t.abort() } catch { /* already done */ } resolve(false) }
   })
 }
 
-async function listPersisted(docId: string): Promise<ActionRecord[]> {
-  const db = await openDb()
-  if (!db) return []
-  return new Promise((resolve) => {
-    let t: IDBTransaction
-    try { t = db.transaction(STORE, 'readonly') } catch { resolve([]); return }
-    const idx = t.objectStore(STORE).index('docId')
-    const out: ActionRecord[] = []
-    const req = idx.openCursor(IDBKeyRange.only(docId))
-    req.onsuccess = () => {
-      const cur = req.result
-      if (cur) { out.push(cur.value as ActionRecord); cur.continue() }
-      else resolve(out.sort((a, b) => a.at - b.at)) // oldest first, matching in-memory order
+/** What a string mapper returns to give up on the whole value. */
+const GAVE_UP = Symbol('gave up')
+
+/** Copy of JSON-shaped `v` with every string passed through `fn`; GAVE_UP as
+ *  soon as `fn` gives up anywhere inside. */
+function mapJsonStrings(v: unknown, fn: (s: string) => string | typeof GAVE_UP): unknown {
+  if (typeof v === 'string') return fn(v)
+  if (Array.isArray(v)) {
+    const out: unknown[] = []
+    for (const x of v) { const c = mapJsonStrings(x, fn); if (c === GAVE_UP) return GAVE_UP; out.push(c) }
+    return out
+  }
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, x] of Object.entries(v)) {
+      const c = mapJsonStrings(x, fn)
+      if (c === GAVE_UP) return GAVE_UP
+      // an own "__proto__" member stays a member, never the prototype
+      if (k === '__proto__') Object.defineProperty(out, k, { value: c, writable: true, enumerable: true, configurable: true })
+      else out[k] = c
     }
-    req.onerror = () => resolve([])
+    return out
+  }
+  return v
+}
+
+/** The stored form of `rec`: big pictures swapped for refs, collected in `assets`. */
+function toPersisted(rec: ActionRecord): { row: PersistedRecord; assets: Map<string, string> } {
+  const assets = new Map<string, string>()
+  const ref = (s: string): string => {
+    if (s.length >= PIC_REF_MIN && s.startsWith('data:')) {
+      const id = assetId(s)
+      assets.set(id, s)
+      return PIC_REF + id
+    }
+    return s.startsWith(NUL) ? NUL + s : s
+  }
+  const changes = rec.changes.map((c) => ({
+    ...c,
+    before: c.before && (mapJsonStrings(c.before, ref) as SlideElement),
+    after: c.after && (mapJsonStrings(c.after, ref) as SlideElement),
+  }))
+  return { row: { ...rec, changes, v: 2, assets: [...assets.keys()] }, assets }
+}
+
+/** The in-memory record a stored row stands for, or null when a picture it
+ *  refers to is missing. `uris`: assetId → picture; `intern`: picture →
+ *  the live doc's own instance of it. */
+function fromPersisted(row: PersistedRecord, uris: Map<string, string>, intern: Map<string, string>): ActionRecord | null {
+  const v2 = row.v === 2
+  const deref = (s: string): string | typeof GAVE_UP => {
+    if (v2 && s.startsWith(NUL)) {
+      if (!s.startsWith(PIC_REF)) return s.slice(NUL.length)
+      return uris.get(s.slice(PIC_REF.length)) ?? GAVE_UP
+    }
+    // a version-1 row's inline picture: the live doc's copy when it has one
+    return s.length >= PIC_REF_MIN && s.startsWith('data:') ? intern.get(s) ?? s : s
+  }
+  const map = (el: SlideElement | null): SlideElement | null | typeof GAVE_UP =>
+    el ? mapJsonStrings(el, deref) as SlideElement | typeof GAVE_UP : null
+  const changes: ElementChange[] = []
+  for (const c of row.changes) {
+    const before = map(c.before)
+    const after = map(c.after)
+    if (before === GAVE_UP || after === GAVE_UP) return null
+    changes.push({ ...c, before, after })
+  }
+  return { id: row.id, docId: row.docId, at: row.at, changes }
+}
+
+/** Every big `data:` string in `doc`, keyed by itself: lets a picture read
+ *  back from the database become the instance the live doc already holds. */
+function internTable(doc: unknown): Map<string, string> {
+  const out = new Map<string, string>()
+  const walk = (v: unknown) => {
+    if (typeof v === 'string') { if (v.length >= PIC_REF_MIN && v.startsWith('data:')) out.set(v, v) }
+    else if (Array.isArray(v)) v.forEach(walk)
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) walk(x)
+  }
+  walk(doc)
+  return out
+}
+
+function getAll<T>(source: IDBObjectStore | IDBIndex, docId: string, into: (rows: T[]) => void) {
+  const req = source.getAll(IDBKeyRange.only(docId))
+  req.onsuccess = () => into(req.result as T[])
+}
+
+/** Every stored row for a docId plus the pictures they refer to, in one
+ *  read transaction. Rows oldest first, matching in-memory order. */
+async function listPersisted(docId: string): Promise<{ rows: PersistedRecord[]; uris: Map<string, string> }> {
+  let rows: PersistedRecord[] = []
+  const uris = new Map<string, string>()
+  const done = await inTx('readonly', (records, assets) => {
+    getAll<PersistedRecord>(records.index('docId'), docId, (r) => { rows = r })
+    getAll<AssetRow>(assets.index('docId'), docId, (r) => { for (const a of r) uris.set(a.id, a.uri) })
+  })
+  if (!done) return { rows: [], uris }
+  return { rows: rows.sort(byAge), uris }
+}
+
+/** Keep the newest MAX_PERSISTED records of a docId and only the pictures
+ *  they still refer to. `all`: drop every record (and so every picture). */
+async function prunePersisted(docId: string, all = false): Promise<void> {
+  await inTx('readwrite', (records, assets) => {
+    const countReq = records.index('docId').count(IDBKeyRange.only(docId))
+    countReq.onsuccess = () => {
+      if (!all && countReq.result <= MAX_PERSISTED) return
+      getAll<PersistedRecord>(records.index('docId'), docId, (rows) => {
+        rows.sort(byAge)
+        const drop = all ? rows : rows.slice(0, rows.length - MAX_PERSISTED)
+        for (const r of drop) records.delete(r.id)
+        const keep = new Set<string>()
+        for (const r of all ? [] : rows.slice(drop.length)) for (const id of r.assets ?? []) keep.add(id)
+        const keys = assets.index('docId').getAllKeys(IDBKeyRange.only(docId))
+        keys.onsuccess = () => {
+          for (const key of keys.result as string[]) {
+            if (!keep.has(key.slice(docId.length + NUL.length))) assets.delete(key)
+          }
+        }
+      })
+    }
   })
 }
 
-async function deleteRecords(records: ActionRecord[]): Promise<void> {
-  if (!records.length) return
-  const db = await openDb()
-  if (!db) return
-  await new Promise<void>((resolve) => {
-    let t: IDBTransaction
-    try { t = db.transaction(STORE, 'readwrite') } catch { resolve(); return }
-    const store = t.objectStore(STORE)
-    for (const r of records) store.delete(r.id)
-    t.oncomplete = () => resolve()
-    t.onerror = () => resolve()
-    t.onabort = () => resolve()
-  })
-}
-
+/** Store one record: its new pictures and the record in ONE transaction (a
+ *  record is never stored without its pictures), then prune. */
 async function putPersisted(rec: ActionRecord): Promise<void> {
-  await tx('readwrite', (s) => s.put(rec))
-  const all = await listPersisted(rec.docId)
-  if (all.length > MAX_PERSISTED) await deleteRecords(all.slice(0, all.length - MAX_PERSISTED))
+  const seq = ++persistSeq
+  // hashing waits until the commit that recorded this has returned
+  if (!await openDb()) return
+  const { row, assets } = toPersisted(rec)
+  row.seq = seq
+  await inTx('readwrite', (records, store) => {
+    for (const [id, uri] of assets) {
+      const key = assetKey(rec.docId, id)
+      // decided inside the transaction: a prune running before it is seen
+      const has = store.getKey(key)
+      has.onsuccess = () => { if (has.result === undefined) store.put({ key, docId: rec.docId, id, uri } satisfies AssetRow) }
+    }
+    records.put(row)
+  })
+  await prunePersisted(rec.docId)
 }
 
-/** Purge every persisted record for a docId — called when a deck becomes
- *  encrypted, mirroring autosave.ts's clearVersions: plaintext element
- *  snapshots written before the password went up must not linger. */
+/** Purge every persisted record (and picture) for a docId — called when a
+ *  deck becomes encrypted, mirroring autosave.ts's clearVersions: plaintext
+ *  element snapshots written before the password went up must not linger. */
 export async function clearActionLog(docId: string): Promise<void> {
-  await deleteRecords(await listPersisted(docId))
+  await prunePersisted(docId, true)
 }
 
 // --- the log -------------------------------------------------------------------
@@ -453,14 +598,24 @@ export class ActionLog {
    * for an encrypted deck or when IndexedDB is unavailable — same
    * "in-memory only this session" rule record() applies going forward.
    * Called on Store construction and on replaceDoc() (after clear()).
+   * `liveDoc` (the store's doc, read once loading is done): a picture it
+   * still holds is shared with it rather than kept as a second copy.
    */
-  async hydrate(docId: string) {
+  async hydrate(docId: string, liveDoc?: () => unknown) {
     if (isEncryptionActive()) return
     const token = ++this.hydrateToken
-    const persisted = await listPersisted(docId)
+    const { rows, uris } = await listPersisted(docId)
     if (token !== this.hydrateToken) return // superseded by a newer clear()/hydrate()
+    const intern = rows.length ? internTable(liveDoc?.()) : new Map<string, string>()
+    for (const [id, uri] of uris) uris.set(id, intern.get(uri) ?? uri)
     const seen = new Set(this.records.map((r) => r.id))
-    this.records = [...persisted.filter((r) => !seen.has(r.id)), ...this.records]
-      .sort((a, b) => a.at - b.at)
+    const persisted: ActionRecord[] = []
+    for (const row of rows) {
+      if (seen.has(row.id)) continue
+      // a record whose picture is gone is dropped, never half-resolved
+      const rec = fromPersisted(row, uris, intern)
+      if (rec) persisted.push(rec)
+    }
+    this.records = [...persisted, ...this.records].sort((a, b) => a.at - b.at)
   }
 }

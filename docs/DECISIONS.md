@@ -14163,3 +14163,32 @@ server: create a set, plan, draw three icons with `write_slide`, switch
 back, search the still-open set, insert, screenshot in the deck accent).
 Not tested: the visible app with the set in a shown window, and a real
 model running the build-deck flow end to end.
+
+## 2026-10-25 — The action log stores pictures by reference
+
+The per-element action log (`slides/src/actionlog.ts`) persisted whole
+before/after elements, so every edit to an element holding its picture
+inline (a `data:` src — agent inserts and `slide_html`, older or externally
+written files; the editor's own inserts, pastes and imports park pictures in
+`doc.assets` and log only the `asset:` ref) wrote the picture twice:
+30 moves of images on a deck with 20 MB of photos wrote 120 MB to IndexedDB
+(500 records could reach 2 GB), every write read the whole log back to
+prune it, and a reload put all the copies in memory (+120 MB heap).
+
+Now a stored record holds `NUL pic:<assetId>` for each `data:` string of
+1 KB or more (content hash from kernel `assetstore.ts`; a string that itself
+starts with NUL gets one more), and the new `assets` store (database
+version 2) holds each picture once per doc. A record and its new pictures
+are written in one transaction; pruning deletes pictures no kept record
+refers to; a record whose picture is missing is dropped on read. Reading
+back shares the live doc's string when it still holds the picture. Same
+deck, same edits: 20 MB stored (each picture once), records ~0.5 KB each,
++0.1 MB heap after a reload. In-memory records and everything that reads
+them (History, revert, `recent_changes`, `apply_change_pattern`) are
+unchanged; encrypted decks still write nothing.
+
+Version-1 rows (pictures inline) still read. Cost: a shell built before
+this cannot open the version-2 database (VersionError), so it keeps its
+History in memory only; while such a tab holds the database open, the
+upgrade is blocked and the new shell does the same for that session.
+Rig: `scripts/test-actionlog-store.ts`.

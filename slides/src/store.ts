@@ -230,7 +230,7 @@ export class Store {
     // `requires: ['rich-text' | 'table-merge']` follows the content (model.ts) — on load too,
     // so a file written by a tool that forgot it is declared before any save.
     syncContentRequires(doc)
-    void this.actionLog.hydrate(doc.docId)
+    void this.actionLog.hydrate(doc.docId, () => this.doc)
   }
 
   /** The icon style being shown, while it still exists (undo can remove it). */
@@ -414,7 +414,7 @@ export class Store {
     this.selection = []
     this.setDirty(true)
     this.actionLog.clear()
-    void this.actionLog.hydrate(next.docId)
+    void this.actionLog.hydrate(next.docId, () => this.doc)
     this.emit('slides')
     this.emit('current')
     this.emit('selection')
